@@ -16,7 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| Claude Code (поток 5) | `worktree-infra-f01-scaffold`, MR после push | F01 — каркас, версии, команды, границы импортов; правила интеграции пяти потоков в `CLAUDE.md` | `package.json`, lockfile, конфиги TS/Vite/Vitest/Playwright/ESLint, `index.html`, `src/main.tsx`, `src/app/App.tsx` (до U01), `tests/harness/`, `tests/smoke.test.tsx`, `tests/e2e/smoke.spec.ts`, `CLAUDE.md` | `npm ci && npm test && npm run typecheck && npm run lint && npm run build && npm run test:e2e` | в работе |
+| Claude Code (поток 5) | `worktree-infra-f01-scaffold`, [MR !4](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/4) | F01 — каркас, версии, команды, границы импортов; правила интеграции пяти потоков в `CLAUDE.md` | `package.json`, lockfile, конфиги TS/Vite/Vitest/Playwright/ESLint, `index.html`, `src/main.tsx`, `src/app/App.tsx` (до U01), `tests/harness/`, `tests/smoke.test.tsx`, `tests/e2e/smoke.spec.ts`, `CLAUDE.md` | `npm ci && npm test && npm run typecheck && npm run lint && npm run build && npm run test:e2e` — зелёные | на ревью: нужен второй участник (правила и tooling) |
 | — | — | F02 — контракты и fixtures: оси и поворот, вложенность зон, слои, версия формата | `src/contracts/`, `docs/decisions.md` | карточка F02 в плане | свободно, стартует на ветке F01 или после её merge |
 
 ## Блокеры и вопросы
