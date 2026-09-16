@@ -134,8 +134,27 @@
 
 ## Код и архитектура
 
-- Стек — **TBD**. После выбора вписать сюда команды установки, запуска, тестов и
-  линта и записать решение в `docs/decisions.md`.
+- Стек (D-009): TypeScript 6.0, React 19 + Vite 8, react-konva/Konva — 2D, Zustand —
+  состояние, Zod 4 — схемы, Three.js — 3D, Fastify 5 — сервер, Vitest 5 + Testing
+  Library, Playwright, ESLint 10. Точные версии — `package.json`, Node ≥ 22.12. Новая
+  зависимость — через владельца корневого tooling (поток 5), lockfile в чужих MR не правится.
+- Команды:
+
+  ```bash
+  npm ci                              # установка строго по lockfile
+  npx playwright install chromium     # один раз на машину: браузер для e2e
+  npm run dev                         # http://localhost:5173
+  npm test                            # unit-тесты (Vitest)
+  npm run test:e2e                    # браузерные тесты (Playwright сам поднимает dev)
+  npm run typecheck && npm run lint && npm run build
+  ```
+
+- Стенд UI-пакета до подключения в приложение: `tests/harness/<ID>.tsx` с default
+  export компонента → `npm run dev` → `http://localhost:5173/tests/harness/?id=<ID>`.
+  В production-сборку стенды не попадают.
+- Границы импортов из `docs/project-structure.md` проверяет `npm run lint`
+  (`no-restricted-imports` в `eslint.config.js`): domain без React и UI-библиотек,
+  features не импортируют соседние features, app, state и server, и т. д.
 - Плоский код: небольшие модули, явные типизированные контракты, никаких фабрик,
   реестров, DI-контейнеров и конфиг-движков «на будущее». Библиотеки — идиоматично и
   на полную; свои «платформы» поверх них — нет.
