@@ -76,9 +76,11 @@ Push options на сервере хакатона работают (провер
 в ту же ветку обновляет открытый MR, новый не создаёт.
 
 3. **Merge — в GitLab.** Без squash и без rebase: обычный merge-коммит, иначе правило
-   уборки «нет коммитов сверх `origin/main`» перестаёт работать. Кто мержит —
-   человек в веб-интерфейсе. Автомерж агентом — `TBD`: нужен токен со scope `api` или
-   проверка push option `merge_request.merge_when_pipeline_succeeds` без CI.
+   уборки «нет коммитов сверх `origin/main`» перестаёт работать. Мержит либо человек в
+   веб-интерфейсе, либо агент командой `bash scripts/gitlab-mr.sh merge <iid>` —
+   токен со scope `api` получен 16.09, скрипт берёт его из credential helper и в
+   репозиторий не пишет. Скрипт отказывается сливать MR с конфликтами и MR не в
+   состоянии `opened`.
 4. После merge, в основной копии, когда там никто не работает:
    `git -C /home/ir6/my/tsifrovoy-dvoynik-otdeleniya-pochty-rossii pull --ff-only`.
 5. Уборка — см. ниже.
