@@ -33,3 +33,4 @@
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
 | 2026-09-16 | Claude Code | Правила проекта, хуки, `jury`, `submission-checklist`, матрица условий, решения D-001…D-004 | MR !1 | `test-hooks.sh` 26/26; `check-secrets.sh` чисто; MR создан push options |
+| 2026-09-16 | Codex | Архитектура и контракты v1, 34 пакета на 5 разработчиков с агентами, высокая планка UX/AI/качества, независимый Deep Research | [MR !2](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/2), `21df0d1`; ветка `worktree-docs-architecture`; сначала влить MR !1 | 34 пакета, 50 обязательных требований, DAG без циклов, ссылки; hooks 26/26; ревью учтено; отчёт `docs/verification/architecture.md`. Только проектирование: приложения и браузерного прогона ещё нет. Первые задачи реализации — F01/F02, предложения по стеку/контрактам в `docs/architecture.md` и `docs/contracts-v1.md` |
