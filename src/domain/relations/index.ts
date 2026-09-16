@@ -139,8 +139,11 @@ export function reconcileZones(plan: PlanDocument): Result<PlanDocument> {
   }
 
   // Unusable room or zone geometry: drop every link rather than invent one.
+  // contracts-v1.md requires this for the intermediate document, so a broken
+  // polygon cannot leave a stale assignment behind that looks trustworthy.
   const roomUnusable = !isSimplePolygon(plan.room.boundary);
-  if (roomUnusable) {
+  const zoneUnusable = plan.zones.some((zone) => !isSimplePolygon(zone.polygon));
+  if (roomUnusable || zoneUnusable) {
     return {
       ok: true,
       value: {
@@ -172,6 +175,18 @@ export function relationIssues(plan: PlanDocument): Issue[] {
         [{ kind: 'room', id: plan.room.id }],
       ),
     ];
+  }
+
+  const brokenZones = plan.zones.filter((zone) => !isSimplePolygon(zone.polygon));
+  if (brokenZones.length > 0) {
+    return brokenZones.map((zone) =>
+      issue(
+        CONTRACT_ISSUE_CODES.RELATIONS_STALE,
+        `Геометрия зоны «${zone.id}» невычислима: связи объектов с зонами требуют пересчёта.`,
+        [{ kind: 'zone', id: zone.id }],
+        zone.polygon,
+      ),
+    );
   }
   return plan.objects.flatMap((object) => resolveZone(object, plan.zones).issues);
 }
