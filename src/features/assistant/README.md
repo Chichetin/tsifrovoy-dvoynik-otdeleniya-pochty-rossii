@@ -1,0 +1,21 @@
+# src/features/assistant
+
+Запрос сценария, карточки рекомендаций, before/after, preview и fallback.
+
+**Владелец:** поток 4. **Пакеты:** A06.
+Это место для реализации; пока здесь размещена только карта модуля.
+
+## Граница модуля
+
+Потребляет contracts и domain/advice для локального fallback; fetch только к своему /api/advice. Ключи и прямые вызовы провайдера запрещены.
+
+## Файлы по плану
+
+Следующие файлы создаются при реализации соответствующих пакетов:
+
+- `AssistantPanel.tsx` — A06.
+- `advice-client.ts` — A06.
+
+**Проверки:** собственный browser harness в `tests/harness/<ID>.tsx`, spec в `tests/e2e/`; после подключения — общий Q01.
+
+[Карта проекта и владельцы](../../../docs/project-structure.md) · [Контракты](../../../docs/contracts-v1.md) · [План задач](../../../docs/plans/2026-09-16-parallel-plan.md)
