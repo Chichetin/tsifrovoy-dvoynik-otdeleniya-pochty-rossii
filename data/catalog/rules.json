@@ -1,0 +1,66 @@
+[
+  {
+    "id": "rule_queue_terminal_entrance",
+    "source": "organizer-material",
+    "rationale": "Перечень оборудования ОПС: терминал управления очередью размещается у входа, радиус не более 3 м.",
+    "kind": "distance-to-entrance",
+    "objectTypeId": "ot_queue_terminal",
+    "maxDistance_m": 3,
+    "entranceId": null
+  },
+  {
+    "id": "rule_workplace_min",
+    "source": "team-assumption",
+    "rationale": "Правило команды: в клиентской зоне не меньше одного рабочего места оператора.",
+    "kind": "count",
+    "zoneTypeId": "zt_client",
+    "objectTypeId": "ot_workplace",
+    "scope": "inclusive",
+    "min": 1,
+    "max": null
+  },
+  {
+    "id": "rule_cashier_min",
+    "source": "team-assumption",
+    "rationale": "Правило команды: не меньше одного кассового окна на клиентскую зону.",
+    "kind": "count",
+    "zoneTypeId": "zt_client",
+    "objectTypeId": "ot_cashier_window",
+    "scope": "inclusive",
+    "min": 1,
+    "max": null
+  },
+  {
+    "id": "rule_bench_min",
+    "source": "team-assumption",
+    "rationale": "Правило команды: в зоне ожидания не меньше двух мест ожидания.",
+    "kind": "count",
+    "zoneTypeId": "zt_waiting",
+    "objectTypeId": "ot_bench",
+    "scope": "direct",
+    "min": 2,
+    "max": null
+  },
+  {
+    "id": "rule_camera_min",
+    "source": "team-assumption",
+    "rationale": "Правило команды: не меньше одной камеры на служебную зону.",
+    "kind": "count",
+    "zoneTypeId": "zt_service",
+    "objectTypeId": "ot_camera",
+    "scope": "inclusive",
+    "min": 1,
+    "max": null
+  },
+  {
+    "id": "rule_info_display_max",
+    "source": "team-assumption",
+    "rationale": "Правило команды: одно центральное информационное табло на клиентскую зону, второе избыточно.",
+    "kind": "count",
+    "zoneTypeId": "zt_client",
+    "objectTypeId": "ot_info_display",
+    "scope": "inclusive",
+    "min": null,
+    "max": 1
+  }
+]

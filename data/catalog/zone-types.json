@@ -1,0 +1,73 @@
+[
+  {
+    "id": "zt_client",
+    "label": "Клиентская зона",
+    "color": "#E7F5FF",
+    "attributes": [
+      {
+        "key": "publicAccess",
+        "label": "Открыта для клиентов",
+        "type": "boolean",
+        "required": false,
+        "default": true
+      }
+    ]
+  },
+  {
+    "id": "zt_waiting",
+    "label": "Зона ожидания",
+    "color": "#FFF4E6",
+    "attributes": [
+      {
+        "key": "seatsPlanned",
+        "label": "Мест по плану",
+        "type": "number",
+        "required": false
+      }
+    ]
+  },
+  {
+    "id": "zt_queue",
+    "label": "Зона очереди",
+    "color": "#FFF0F6",
+    "attributes": []
+  },
+  {
+    "id": "zt_entrance",
+    "label": "Входная группа",
+    "color": "#F8F0FC",
+    "attributes": []
+  },
+  {
+    "id": "zt_service",
+    "label": "Служебная зона",
+    "color": "#F1F3F5",
+    "attributes": [
+      {
+        "key": "publicAccess",
+        "label": "Открыта для клиентов",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      }
+    ]
+  },
+  {
+    "id": "zt_storage",
+    "label": "Хранение и посылки",
+    "color": "#FFF5F5",
+    "attributes": []
+  },
+  {
+    "id": "zt_staff",
+    "label": "Комната персонала",
+    "color": "#EBFBEE",
+    "attributes": []
+  },
+  {
+    "id": "zt_utility",
+    "label": "Инженерное помещение",
+    "color": "#E9ECEF",
+    "attributes": []
+  }
+]

@@ -1,0 +1,692 @@
+[
+  {
+    "id": "ot_workplace",
+    "label": "Рабочее место оператора",
+    "category": "Рабочее место оператора",
+    "defaultSize_m": [
+      1.4,
+      0.8
+    ],
+    "defaultHeight_m": 0.75,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#4C6EF5",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "seatNumber",
+        "label": "Номер места",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "hasLegRecess",
+        "label": "Выемка для ног",
+        "type": "boolean",
+        "required": false,
+        "default": true
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Высота 0,75 м взята из диапазона 0,7–0,9 м перечня."
+  },
+  {
+    "id": "ot_chair",
+    "label": "Кресло оператора",
+    "category": "Рабочее место оператора",
+    "defaultSize_m": [
+      0.6,
+      0.6
+    ],
+    "defaultHeight_m": 1.1,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "circle",
+    "color": "#748FFC",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+  },
+  {
+    "id": "ot_computer",
+    "label": "Компьютер",
+    "category": "Рабочее место оператора",
+    "defaultSize_m": [
+      0.4,
+      0.45
+    ],
+    "defaultHeight_m": 0.45,
+    "defaultBase_m": 0.75,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#5C7CFA",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+  },
+  {
+    "id": "ot_pos_terminal",
+    "label": "Кассовый терминал",
+    "category": "Рабочее место оператора",
+    "defaultSize_m": [
+      0.2,
+      0.3
+    ],
+    "defaultHeight_m": 0.2,
+    "defaultBase_m": 0.75,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#3B5BDB",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+  },
+  {
+    "id": "ot_printer",
+    "label": "Принтер / МФУ",
+    "category": "Рабочее место оператора",
+    "defaultSize_m": [
+      0.5,
+      0.45
+    ],
+    "defaultHeight_m": 0.4,
+    "defaultBase_m": 0.75,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#1971C2",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "isColor",
+        "label": "Цветная печать",
+        "type": "boolean",
+        "required": false,
+        "default": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+  },
+  {
+    "id": "ot_label_printer",
+    "label": "Принтер этикеток",
+    "category": "Рабочее место оператора",
+    "defaultSize_m": [
+      0.25,
+      0.2
+    ],
+    "defaultHeight_m": 0.2,
+    "defaultBase_m": 0.75,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#1864AB",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+  },
+  {
+    "id": "ot_cashier_window",
+    "label": "Кассовое окно / операционная касса",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      1.6,
+      0.9
+    ],
+    "defaultHeight_m": 1.1,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#0CA678",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "windowNumber",
+        "label": "Номер окна",
+        "type": "number",
+        "required": true,
+        "default": 1
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+  },
+  {
+    "id": "ot_payment_terminal",
+    "label": "Стойка с терминалом оплаты",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      0.6,
+      0.6
+    ],
+    "defaultHeight_m": 1.5,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#12B886",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+  },
+  {
+    "id": "ot_queue_terminal",
+    "label": "Терминал управления очередью",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      0.5,
+      0.5
+    ],
+    "defaultHeight_m": 1.4,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#087F5B",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Перечень требует размещение у входа, радиус не более 3 м — правило rule_queue_terminal_entrance."
+  },
+  {
+    "id": "ot_mailbox",
+    "label": "Почтовый ящик для сбора корреспонденции",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      0.4,
+      0.3
+    ],
+    "defaultHeight_m": 1.2,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#099268",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Перечень располагает его в тамбуре или у входа."
+  },
+  {
+    "id": "ot_info_display",
+    "label": "Центральное информационное табло",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      1.1,
+      0.1
+    ],
+    "defaultHeight_m": 0.65,
+    "defaultBase_m": 2,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#F76707",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "diagonalInch",
+        "label": "Диагональ, дюймы",
+        "type": "number",
+        "required": false,
+        "default": 45
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Монитор 42–48\" по перечню; висит на стене, пол не занимает."
+  },
+  {
+    "id": "ot_media_panel",
+    "label": "Медиапанель",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      1,
+      0.1
+    ],
+    "defaultHeight_m": 0.6,
+    "defaultBase_m": 1.8,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#E8590C",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "diagonalInch",
+        "label": "Диагональ, дюймы",
+        "type": "number",
+        "required": false,
+        "default": 43
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Телевизор 40–46\" по перечню; висит на стене."
+  },
+  {
+    "id": "ot_bench",
+    "label": "Скамья / кресла для ожидания",
+    "category": "Зона обслуживания клиентов",
+    "defaultSize_m": [
+      1.6,
+      0.5
+    ],
+    "defaultHeight_m": 0.45,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#F59F00",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "seats",
+        "label": "Мест",
+        "type": "number",
+        "required": false,
+        "default": 3
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+  },
+  {
+    "id": "ot_camera",
+    "label": "Камера видеонаблюдения",
+    "category": "Безопасность и коммуникации",
+    "defaultSize_m": [
+      0.15,
+      0.15
+    ],
+    "defaultHeight_m": 0.15,
+    "defaultBase_m": 2.6,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "triangle",
+    "color": "#7048E8",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "viewAngleDeg",
+        "label": "Угол обзора, °",
+        "type": "number",
+        "required": false,
+        "default": 90
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Крепится под потолком, пол не занимает."
+  },
+  {
+    "id": "ot_alarm_panel",
+    "label": "Панель охранно-тревожной сигнализации",
+    "category": "Безопасность и коммуникации",
+    "defaultSize_m": [
+      0.3,
+      0.1
+    ],
+    "defaultHeight_m": 0.4,
+    "defaultBase_m": 1.4,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#5F3DC4",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенная, пол не занимает."
+  },
+  {
+    "id": "ot_fire_sensor",
+    "label": "Датчик пожарной сигнализации",
+    "category": "Безопасность и коммуникации",
+    "defaultSize_m": [
+      0.12,
+      0.12
+    ],
+    "defaultHeight_m": 0.05,
+    "defaultBase_m": 2.9,
+    "physical": false,
+    "occupiesFloor": false,
+    "symbol": "circle",
+    "color": "#9775FA",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Потолочный датчик; в проверке пересечений не участвует."
+  },
+  {
+    "id": "ot_socket",
+    "label": "Розетка (силовая или RJ-45)",
+    "category": "Безопасность и коммуникации",
+    "defaultSize_m": [
+      0.08,
+      0.02
+    ],
+    "defaultHeight_m": 0.08,
+    "defaultBase_m": 0.3,
+    "physical": false,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#B197FC",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "kind",
+        "label": "Тип",
+        "type": "string",
+        "required": false,
+        "default": "power"
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенная точка подключения; в пересечениях не участвует."
+  },
+  {
+    "id": "ot_parcel_rack",
+    "label": "Шкаф / стеллаж для посылок",
+    "category": "Вспомогательные элементы",
+    "defaultSize_m": [
+      1.2,
+      0.5
+    ],
+    "defaultHeight_m": 2,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#E03131",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "shelves",
+        "label": "Полок",
+        "type": "number",
+        "required": false,
+        "default": 5
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+  },
+  {
+    "id": "ot_goods_rack",
+    "label": "Стеллаж для товаров",
+    "category": "Вспомогательные элементы",
+    "defaultSize_m": [
+      1,
+      0.4
+    ],
+    "defaultHeight_m": 1.8,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#C92A2A",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "shelves",
+        "label": "Полок",
+        "type": "number",
+        "required": false,
+        "default": 4
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Канцтовары и сувениры по перечню."
+  },
+  {
+    "id": "ot_scales",
+    "label": "Весы",
+    "category": "Вспомогательные элементы",
+    "defaultSize_m": [
+      0.4,
+      0.35
+    ],
+    "defaultHeight_m": 0.12,
+    "defaultBase_m": 0.75,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#A61E4D",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "maxWeightKg",
+        "label": "Предел взвешивания, кг",
+        "type": "number",
+        "required": false,
+        "default": 30
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настольные; напольные добавляются правкой справочника."
+  },
+  {
+    "id": "ot_info_stand",
+    "label": "Информационный стенд / навигация",
+    "category": "Вспомогательные элементы",
+    "defaultSize_m": [
+      0.9,
+      0.2
+    ],
+    "defaultHeight_m": 1.8,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#D6336C",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+  },
+  {
+    "id": "ot_ramp",
+    "label": "Пандус при входе",
+    "category": "Вспомогательные элементы",
+    "defaultSize_m": [
+      1.2,
+      3
+    ],
+    "defaultHeight_m": 0.15,
+    "defaultBase_m": 0,
+    "physical": true,
+    "occupiesFloor": true,
+    "symbol": "rect",
+    "color": "#868E96",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      },
+      {
+        "key": "requirement",
+        "label": "Требование перечня",
+        "type": "string",
+        "required": false,
+        "default": "ширина от 1,2 м, уклон до 1:12"
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Ширина 1,2 м — минимум из перечня; уклон геометрией плана не проверяется."
+  },
+  {
+    "id": "ot_switchboard",
+    "label": "Электрощит",
+    "category": "Инженерное оборудование",
+    "defaultSize_m": [
+      0.6,
+      0.25
+    ],
+    "defaultHeight_m": 0.9,
+    "defaultBase_m": 0.8,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#495057",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенный, пол не занимает."
+  },
+  {
+    "id": "ot_hvac",
+    "label": "Вентиляционная установка",
+    "category": "Инженерное оборудование",
+    "defaultSize_m": [
+      0.8,
+      0.6
+    ],
+    "defaultHeight_m": 0.4,
+    "defaultBase_m": 2.4,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "rect",
+    "color": "#343A40",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Под потолком, пол не занимает."
+  },
+  {
+    "id": "ot_water_heater",
+    "label": "Водонагреватель",
+    "category": "Инженерное оборудование",
+    "defaultSize_m": [
+      0.45,
+      0.45
+    ],
+    "defaultHeight_m": 0.9,
+    "defaultBase_m": 1.2,
+    "physical": true,
+    "occupiesFloor": false,
+    "symbol": "circle",
+    "color": "#212529",
+    "attributes": [
+      {
+        "key": "inventoryNumber",
+        "label": "Инвентарный номер",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенный, пол не занимает."
+  }
+]

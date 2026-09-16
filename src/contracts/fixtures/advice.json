@@ -1,0 +1,962 @@
+{
+  "planFixture": "minimal.json",
+  "cases": [
+    {
+      "name": "placement.available: кандидат и все обязательные факты названы",
+      "expect": "accept",
+      "recommendations": [
+        {
+          "id": "rec_1",
+          "scenario": "place",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [
+            {
+              "id": "cand_1",
+              "object": {
+                "id": "eq_work_new",
+                "typeId": "ot_workplace",
+                "label": "Рабочее место 2",
+                "position": [
+                  4.5,
+                  2
+                ],
+                "size_m": [
+                  1.4,
+                  0.8
+                ],
+                "rotation_deg": 0,
+                "base_m": 0,
+                "height_m": 0.75,
+                "zoneId": "z_client",
+                "layerId": "l_base",
+                "attributes": {
+                  "inventoryNumber": "ОПС-0001"
+                }
+              },
+              "facts": [
+                {
+                  "id": "f_cand_dist",
+                  "metric": "placement.distance",
+                  "phase": "current",
+                  "value": 3.2,
+                  "unit": "m",
+                  "refs": [
+                    {
+                      "kind": "zone",
+                      "id": "z_client"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "facts": [
+            {
+              "id": "f_free_now",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 53.76,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_count_now",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_count_after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 2,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [
+            "rule_workplace_min"
+          ],
+          "assumptions": [
+            "Свободной считается проекция пола за вычетом отпечатков оборудования."
+          ],
+          "reasonCodes": [
+            "placement.available"
+          ],
+          "limitations": [
+            "Проверена геометрия размещения, а не доступность прохода, эргономика или нормативы."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_1",
+        "candidateId": "cand_1",
+        "reasonCode": "placement.available",
+        "factIds": [
+          "f_free_now",
+          "f_free_after",
+          "f_count_now",
+          "f_count_after"
+        ]
+      }
+    },
+    {
+      "name": "placement.available без кандидата",
+      "expect": "reject",
+      "rejectCode": "candidate-required",
+      "recommendations": [
+        {
+          "id": "rec_1",
+          "scenario": "place",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [
+            {
+              "id": "cand_1",
+              "object": {
+                "id": "eq_work_new",
+                "typeId": "ot_workplace",
+                "label": "Рабочее место 2",
+                "position": [
+                  4.5,
+                  2
+                ],
+                "size_m": [
+                  1.4,
+                  0.8
+                ],
+                "rotation_deg": 0,
+                "base_m": 0,
+                "height_m": 0.75,
+                "zoneId": "z_client",
+                "layerId": "l_base",
+                "attributes": {
+                  "inventoryNumber": "ОПС-0001"
+                }
+              },
+              "facts": [
+                {
+                  "id": "f_cand_dist",
+                  "metric": "placement.distance",
+                  "phase": "current",
+                  "value": 3.2,
+                  "unit": "m",
+                  "refs": [
+                    {
+                      "kind": "zone",
+                      "id": "z_client"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "facts": [
+            {
+              "id": "f_free_now",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 53.76,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_count_now",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_count_after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 2,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [
+            "rule_workplace_min"
+          ],
+          "assumptions": [
+            "Свободной считается проекция пола за вычетом отпечатков оборудования."
+          ],
+          "reasonCodes": [
+            "placement.available"
+          ],
+          "limitations": [
+            "Проверена геометрия размещения, а не доступность прохода, эргономика или нормативы."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_1",
+        "candidateId": null,
+        "reasonCode": "placement.available",
+        "factIds": [
+          "f_free_now",
+          "f_free_after",
+          "f_count_now",
+          "f_count_after"
+        ]
+      }
+    },
+    {
+      "name": "placement.none: кандидатов нет, candidateId пуст",
+      "expect": "accept",
+      "recommendations": [
+        {
+          "id": "rec_none",
+          "scenario": "place",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_free_now",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 2.4,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [],
+          "assumptions": [
+            "Перебор по сетке 0.1 м и углам 0/90°."
+          ],
+          "reasonCodes": [
+            "placement.none"
+          ],
+          "limitations": [
+            "Результат означает «на этой сетке не найдено», а не «места не существует»."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_none",
+        "candidateId": null,
+        "reasonCode": "placement.none",
+        "factIds": [
+          "f_free_now"
+        ]
+      }
+    },
+    {
+      "name": "placement.none с несуществующим кандидатом",
+      "expect": "reject",
+      "rejectCode": "candidate-forbidden",
+      "recommendations": [
+        {
+          "id": "rec_none",
+          "scenario": "place",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_free_now",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 2.4,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [],
+          "assumptions": [
+            "Перебор по сетке 0.1 м и углам 0/90°."
+          ],
+          "reasonCodes": [
+            "placement.none"
+          ],
+          "limitations": [
+            "Результат означает «на этой сетке не найдено», а не «места не существует»."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_none",
+        "candidateId": "cand_missing",
+        "reasonCode": "placement.none",
+        "factIds": [
+          "f_free_now"
+        ]
+      }
+    },
+    {
+      "name": "equipment.missing: count и min названы",
+      "expect": "accept",
+      "recommendations": [
+        {
+          "id": "rec_missing",
+          "scenario": "equipment",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_count_now",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 0,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_min",
+              "metric": "equipment.min",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [
+            "rule_workplace_min"
+          ],
+          "assumptions": [],
+          "reasonCodes": [
+            "equipment.missing"
+          ],
+          "limitations": [
+            "Правило комплектования принято командой и не является нормативом Почты России."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_missing",
+        "candidateId": null,
+        "reasonCode": "equipment.missing",
+        "factIds": [
+          "f_count_now",
+          "f_min"
+        ]
+      }
+    },
+    {
+      "name": "equipment.missing без факта equipment.min",
+      "expect": "reject",
+      "rejectCode": "missing-fact",
+      "recommendations": [
+        {
+          "id": "rec_missing",
+          "scenario": "equipment",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_count_now",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 0,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_min",
+              "metric": "equipment.min",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [
+            "rule_workplace_min"
+          ],
+          "assumptions": [],
+          "reasonCodes": [
+            "equipment.missing"
+          ],
+          "limitations": [
+            "Правило комплектования принято командой и не является нормативом Почты России."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_missing",
+        "candidateId": null,
+        "reasonCode": "equipment.missing",
+        "factIds": [
+          "f_count_now"
+        ]
+      }
+    },
+    {
+      "name": "equipment.excess: count и max названы",
+      "expect": "accept",
+      "recommendations": [
+        {
+          "id": "rec_excess",
+          "scenario": "equipment",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_count_now",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 3,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_max",
+              "metric": "equipment.max",
+              "phase": "current",
+              "value": 2,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [
+            "rule_workplace_max"
+          ],
+          "assumptions": [],
+          "reasonCodes": [
+            "equipment.excess"
+          ],
+          "limitations": [
+            "Правило комплектования принято командой и не является нормативом Почты России."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_excess",
+        "candidateId": null,
+        "reasonCode": "equipment.excess",
+        "factIds": [
+          "f_count_now",
+          "f_max"
+        ]
+      }
+    },
+    {
+      "name": "equipment.excess: код не разрешён этой рекомендацией",
+      "expect": "reject",
+      "rejectCode": "reason-not-allowed",
+      "recommendations": [
+        {
+          "id": "rec_missing",
+          "scenario": "equipment",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_count_now",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 0,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_min",
+              "metric": "equipment.min",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [
+            "rule_workplace_min"
+          ],
+          "assumptions": [],
+          "reasonCodes": [
+            "equipment.missing"
+          ],
+          "limitations": [
+            "Правило комплектования принято командой и не является нормативом Почты России."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_missing",
+        "candidateId": null,
+        "reasonCode": "equipment.excess",
+        "factIds": [
+          "f_count_now",
+          "f_min"
+        ]
+      }
+    },
+    {
+      "name": "comparison.changed: дельта не нулевая",
+      "expect": "accept",
+      "recommendations": [
+        {
+          "id": "rec_changed",
+          "scenario": "compare",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_free_before",
+              "metric": "area.free",
+              "phase": "before",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 53.760000000000005,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_delta",
+              "metric": "area.free",
+              "phase": "delta",
+              "value": -1.12,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [],
+          "assumptions": [],
+          "reasonCodes": [
+            "comparison.changed"
+          ],
+          "limitations": [
+            "Сравниваются два снимка плана; влияние на очереди, маршруты и загрузку не оценивается."
+          ],
+          "changes": [
+            {
+              "ref": {
+                "kind": "object",
+                "id": "eq_work_1"
+              },
+              "kind": "moved"
+            }
+          ]
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_changed",
+        "candidateId": null,
+        "reasonCode": "comparison.changed",
+        "factIds": [
+          "f_free_before",
+          "f_free_after",
+          "f_free_delta"
+        ]
+      }
+    },
+    {
+      "name": "comparison.changed при нулевой дельте",
+      "expect": "reject",
+      "rejectCode": "delta-zero",
+      "recommendations": [
+        {
+          "id": "rec_unchanged",
+          "scenario": "compare",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_free_before",
+              "metric": "area.free",
+              "phase": "before",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_delta",
+              "metric": "area.free",
+              "phase": "delta",
+              "value": 0,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [],
+          "assumptions": [],
+          "reasonCodes": [
+            "comparison.unchanged"
+          ],
+          "limitations": [
+            "Сравнение выполняется по содержимому документа, а не по истории правок."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_unchanged",
+        "candidateId": null,
+        "reasonCode": "comparison.changed",
+        "factIds": [
+          "f_free_before",
+          "f_free_after",
+          "f_free_delta"
+        ]
+      }
+    },
+    {
+      "name": "comparison.unchanged: все дельты нулевые",
+      "expect": "accept",
+      "recommendations": [
+        {
+          "id": "rec_unchanged",
+          "scenario": "compare",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_free_before",
+              "metric": "area.free",
+              "phase": "before",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_delta",
+              "metric": "area.free",
+              "phase": "delta",
+              "value": 0,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [],
+          "assumptions": [],
+          "reasonCodes": [
+            "comparison.unchanged"
+          ],
+          "limitations": [
+            "Сравнение выполняется по содержимому документа, а не по истории правок."
+          ],
+          "changes": []
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_unchanged",
+        "candidateId": null,
+        "reasonCode": "comparison.unchanged",
+        "factIds": [
+          "f_free_delta"
+        ]
+      }
+    },
+    {
+      "name": "comparison.unchanged при ненулевой дельте",
+      "expect": "reject",
+      "rejectCode": "delta-nonzero",
+      "recommendations": [
+        {
+          "id": "rec_changed",
+          "scenario": "compare",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ],
+          "candidates": [],
+          "facts": [
+            {
+              "id": "f_free_before",
+              "metric": "area.free",
+              "phase": "before",
+              "value": 54.88,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 53.760000000000005,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            },
+            {
+              "id": "f_free_delta",
+              "metric": "area.free",
+              "phase": "delta",
+              "value": -1.12,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_client"
+                }
+              ]
+            }
+          ],
+          "ruleIds": [],
+          "assumptions": [],
+          "reasonCodes": [
+            "comparison.changed"
+          ],
+          "limitations": [
+            "Сравниваются два снимка плана; влияние на очереди, маршруты и загрузку не оценивается."
+          ],
+          "changes": [
+            {
+              "ref": {
+                "kind": "object",
+                "id": "eq_work_1"
+              },
+              "kind": "moved"
+            }
+          ]
+        }
+      ],
+      "explanation": {
+        "recommendationId": "rec_changed",
+        "candidateId": null,
+        "reasonCode": "comparison.unchanged",
+        "factIds": [
+          "f_free_delta"
+        ]
+      }
+    }
+  ]
+}
