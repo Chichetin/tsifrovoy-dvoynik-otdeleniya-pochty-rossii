@@ -1,0 +1,33 @@
+# Секреты и локальная конфигурация: ключи LLM только в .env
+.env
+.env.*
+!.env.example
+.secrets/
+
+# Материалы организаторов, доступные на странице хакатона (D-004)
+/ОПС_115534_демо_плана.html
+/*.zip
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Логи и служебное
+*.log
+.DS_Store
+.idea/
+.vscode/
+.claude/.last-green-test-run
+.claude/settings.local.json
+.claude/worktrees/
