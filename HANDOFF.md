@@ -16,7 +16,6 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| Codex | `worktree-docs-architecture`, MR после проверки | Архитектура, контракты, независимые пакеты работ, задание Deep Research | `docs/architecture.md`, `docs/contracts-v1.md`, `docs/plans/2026-09-16-parallel-plan.md`, `docs/research/deep-research-brief.md`, `docs/verification/architecture.md`, журнал решений и эта доска | 34 пакета, 50 требований, DAG без циклов, ссылки; hooks 26/26; независимое ревью; код приложения не меняем | документы проверены, готовится commit/MR |
 | — | — | Выбор стека и способа деплоя | `docs/decisions.md`, `CLAUDE.md` «Код и архитектура» | решение записано, команды установки/запуска/тестов вписаны | свободно |
 | — | — | Модель данных и формат плана: оси и поворот, вложенность зон, справочники | `docs/decisions.md`, схема формата | `example_plan.json` загружается, все ловушки из `CLAUDE.md` находятся проверками | свободно, ждёт стека |
 
@@ -34,3 +33,4 @@
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
 | 2026-09-16 | Claude Code | Правила проекта, хуки, `jury`, `submission-checklist`, матрица условий, решения D-001…D-004 | MR !1 | `test-hooks.sh` 26/26; `check-secrets.sh` чисто; MR создан push options |
+| 2026-09-16 | Codex | Архитектура и контракты v1, 34 пакета на 5 разработчиков с агентами, высокая планка UX/AI/качества, независимый Deep Research | [MR !2](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/2), `21df0d1`; ветка `worktree-docs-architecture`; сначала влить MR !1 | 34 пакета, 50 обязательных требований, DAG без циклов, ссылки; hooks 26/26; ревью учтено; отчёт `docs/verification/architecture.md`. Только проектирование: приложения и браузерного прогона ещё нет. Первые задачи реализации — F01/F02, предложения по стеку/контрактам в `docs/architecture.md` и `docs/contracts-v1.md` |
