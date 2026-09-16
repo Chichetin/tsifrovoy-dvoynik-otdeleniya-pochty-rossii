@@ -237,8 +237,11 @@ describe('applyCommand: атрибуты по типу объекта', () => {
 
   test('обязательный атрибут без значения и без default отклоняет команду', () => {
     const plan = minimalPlan();
+    // Существующий объект сначала удаляем: иначе новый справочник сделает
+    // неполным его, и отклонена будет уже сама замена справочника.
+    const empty = expectOk(applyCommand(plan, { type: 'object.delete', id: 'eq_work_1' }));
     const withRule = expectOk(
-      applyCommand(plan, { type: 'catalog.replace', catalog: catalogWithShift(plan, false) }),
+      applyCommand(empty, { type: 'catalog.replace', catalog: catalogWithShift(empty, false) }),
     );
 
     const result = applyCommand(withRule, {
@@ -282,13 +285,23 @@ describe('applyCommand: атрибуты по типу объекта', () => {
     expect(unknown.objects.at(-1)!.attributes.somethingNew).toBe('сохранить');
   });
 
-  test('смена типа сохраняет id, позицию и размер', () => {
+  test('смена типа сохраняет id, позицию и размер, а не подставляет размер нового типа', () => {
     const plan = minimalPlan();
     const catalog = {
       ...plan.catalog,
       objectTypes: [
         plan.catalog.objectTypes[0]!,
-        { ...plan.catalog.objectTypes[0]!, id: 'ot_rack', label: 'Стеллаж' },
+        {
+          ...plan.catalog.objectTypes[0]!,
+          id: 'ot_rack',
+          label: 'Стеллаж',
+          // Размеры и атрибуты у нового типа другие: если реализация возьмёт
+          // их из справочника, тест это увидит.
+          defaultSize_m: [0.4, 2] as [number, number],
+          attributes: [
+            { key: 'shelves', label: 'Полок', type: 'number' as const, required: true, default: 5 },
+          ],
+        },
       ],
     };
     const withTypes = expectOk(applyCommand(plan, { type: 'catalog.replace', catalog }));
@@ -300,11 +313,217 @@ describe('applyCommand: атрибуты по типу объекта', () => {
         object: { ...before, typeId: 'ot_rack' },
       }),
     );
+    const after = retyped.objects[0]!;
 
-    expect(retyped.objects[0]!.id).toBe(before.id);
-    expect(retyped.objects[0]!.position).toEqual(before.position);
-    expect(retyped.objects[0]!.size_m).toEqual(before.size_m);
-    expect(retyped.objects[0]!.typeId).toBe('ot_rack');
+    expect(after.id).toBe(before.id);
+    expect(after.position).toEqual(before.position);
+    expect(after.size_m).toEqual(before.size_m);
+    expect(after.size_m).not.toEqual([0.4, 2]);
+    expect(after.typeId).toBe('ot_rack');
+    // Атрибуты перепроверены по новому типу: обязательный получил default,
+    // прежний атрибут прошлого типа не удалён молча.
+    expect(after.attributes.shelves).toBe(5);
+    expect(after.attributes.inventoryNumber).toBe('ОПС-0001');
+  });
+
+  test('явный null не перезаписывается значением по умолчанию', () => {
+    const plan = minimalPlan();
+    const catalog = {
+      ...plan.catalog,
+      objectTypes: [
+        {
+          ...plan.catalog.objectTypes[0]!,
+          attributes: [
+            {
+              key: 'shift',
+              label: 'Смена',
+              type: 'string' as const,
+              required: false,
+              default: 'день',
+            },
+          ],
+        },
+      ],
+    };
+    const withRule = expectOk(applyCommand(plan, { type: 'catalog.replace', catalog }));
+
+    // Пользователь очистил необязательное поле: это значение, а не пропуск.
+    const cleared = expectOk(
+      applyCommand(withRule, {
+        type: 'object.put',
+        object: { ...objectAt('eq_new', [2, 4]), attributes: { shift: null } },
+      }),
+    );
+
+    expect(cleared.objects.at(-1)!.attributes.shift).toBeNull();
+  });
+
+  test('обязательный атрибут, очищенный в null, отклоняется, а не молча заполняется', () => {
+    const plan = minimalPlan();
+    const catalog = {
+      ...plan.catalog,
+      objectTypes: [
+        {
+          ...plan.catalog.objectTypes[0]!,
+          attributes: [
+            {
+              key: 'shift',
+              label: 'Смена',
+              type: 'string' as const,
+              required: true,
+              default: 'день',
+            },
+          ],
+        },
+      ],
+    };
+    const withRule = expectOk(applyCommand(plan, { type: 'catalog.replace', catalog }));
+
+    const result = applyCommand(withRule, {
+      type: 'object.put',
+      object: { ...objectAt('eq_new', [2, 4]), attributes: { shift: null } },
+    });
+
+    expect(codes(result)).toContain(COMMAND_ISSUE_CODES.ATTRIBUTE_REQUIRED);
+  });
+});
+
+describe('applyCommand: числовые инварианты документа', () => {
+  test('угол нормализуется в [0, 360): документ должен пройти загрузку', () => {
+    const plan = minimalPlan();
+
+    const turned = expectOk(
+      applyCommand(plan, {
+        type: 'object.put',
+        object: { ...plan.objects[0]!, rotation_deg: 360 },
+      }),
+    );
+    const back = expectOk(
+      applyCommand(plan, {
+        type: 'object.put',
+        object: { ...plan.objects[0]!, rotation_deg: -90 },
+      }),
+    );
+
+    expect(turned.objects[0]!.rotation_deg).toBe(0);
+    expect(back.objects[0]!.rotation_deg).toBe(270);
+  });
+
+  test('документ после нормализации угла действительно загружается', () => {
+    const plan = minimalPlan();
+    const turned = expectOk(
+      applyCommand(plan, {
+        type: 'object.put',
+        object: { ...plan.objects[0]!, rotation_deg: 725 },
+      }),
+    );
+
+    expect(parsePlanDocument(JSON.parse(JSON.stringify(turned)) as unknown).ok).toBe(true);
+  });
+
+  test('нулевой размер, отрицательная высота и бесконечная координата отклоняются', () => {
+    const plan = minimalPlan();
+    const base = plan.objects[0]!;
+
+    expect(
+      codes(applyCommand(plan, { type: 'object.put', object: { ...base, size_m: [0, 0.8] } })),
+    ).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    expect(
+      codes(applyCommand(plan, { type: 'object.put', object: { ...base, height_m: 0 } })),
+    ).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    expect(
+      codes(applyCommand(plan, { type: 'object.put', object: { ...base, base_m: -1 } })),
+    ).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    expect(
+      codes(
+        applyCommand(plan, {
+          type: 'object.put',
+          object: { ...base, position: [Number.POSITIVE_INFINITY, 0] },
+        }),
+      ),
+    ).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+  });
+
+  test('помещение и зона из двух точек отклоняются', () => {
+    const plan = minimalPlan();
+    const twoPoints = [
+      [0, 0],
+      [10, 0],
+    ] as PlanDocument['room']['boundary'];
+
+    expect(codes(applyCommand(plan, { type: 'room.set', boundary: twoPoints }))).toContain(
+      CONTRACT_ISSUE_CODES.SCHEMA_INVALID,
+    );
+    expect(
+      codes(
+        applyCommand(plan, {
+          type: 'zone.put',
+          zone: { ...plan.zones[0]!, polygon: twoPoints },
+        }),
+      ),
+    ).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+  });
+
+  test('корректная перерисовка помещения принимается и пересчитывает связи', () => {
+    const plan = minimalPlan();
+
+    // Помещение сжато так, что объект в точке (2,2) остаётся внутри зоны.
+    const reshaped = expectOk(
+      applyCommand(plan, {
+        type: 'room.set',
+        boundary: [
+          [0, 0],
+          [8, 0],
+          [8, 6],
+          [0, 6],
+        ],
+      }),
+    );
+
+    expect(reshaped.room.boundary).toHaveLength(4);
+    expect(reshaped.objects[0]!.zoneId).toBe('z_client');
+  });
+});
+
+describe('applyCommand: цикл вложенности и пересчёт', () => {
+  test('замыкание parentId в цикл отклоняется', () => {
+    const plan = minimalPlan();
+    const child: Zone = {
+      id: 'z_child',
+      typeId: 'zt_client',
+      name: 'Вложенная',
+      polygon: [
+        [1, 1],
+        [3, 1],
+        [3, 3],
+        [1, 3],
+      ],
+      parentId: 'z_client',
+      layerId: 'l_base',
+      attributes: {},
+    };
+    const nested = expectOk(applyCommand(plan, { type: 'zone.put', zone: child }));
+
+    // Родитель становится ребёнком своего ребёнка.
+    const result = applyCommand(nested, {
+      type: 'zone.put',
+      zone: { ...nested.zones[0]!, parentId: 'z_child' },
+    });
+
+    expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.ZONE_CYCLE);
+  });
+
+  test('relations.reconcile восстанавливает связи, заявленные файлом', () => {
+    const plan = minimalPlan();
+    // Импорт мог принести связь, которой геометрия не подтверждает.
+    const claimed: PlanDocument = {
+      ...plan,
+      objects: [{ ...plan.objects[0]!, position: [9, 4], zoneId: 'z_client' }],
+    };
+
+    const reconciled = expectOk(applyCommand(claimed, { type: 'relations.reconcile' }));
+
+    expect(reconciled.objects[0]!.zoneId).toBeNull();
   });
 });
 
@@ -333,6 +552,46 @@ describe('applyCommand: стены, проёмы и справочник', () =>
     expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.BROKEN_REF);
   });
 
+  test('стена и проём добавляются и удаляются по отдельности', () => {
+    let plan = expectOk(
+      applyCommand(minimalPlan(), {
+        type: 'wall.put',
+        wall: { id: 'w_south', from: [0, 0], to: [10, 0], thickness_m: 0.2, height_m: 3 },
+      }),
+    );
+    plan = expectOk(
+      applyCommand(plan, {
+        type: 'opening.put',
+        opening: {
+          id: 'op_window',
+          wallId: 'w_south',
+          offset_m: 2,
+          width_m: 1.5,
+          kind: 'window',
+          sill_m: 0.9,
+          height_m: 1.5,
+        },
+      }),
+    );
+
+    expect(plan.walls.map((wall) => wall.id)).toEqual(['w_north', 'w_south']);
+    expect(plan.openings.map((opening) => opening.id)).toEqual(['op_entrance', 'op_window']);
+
+    const cleaned = expectOk(applyCommand(plan, { type: 'opening.delete', id: 'op_window' }));
+
+    expect(cleaned.openings.map((opening) => opening.id)).toEqual(['op_entrance']);
+    expect(cleaned.walls).toHaveLength(2);
+  });
+
+  test('стена с нулевой толщиной отклоняется', () => {
+    const result = applyCommand(minimalPlan(), {
+      type: 'wall.put',
+      wall: { id: 'w_thin', from: [0, 0], to: [1, 0], thickness_m: 0, height_m: 3 },
+    });
+
+    expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+  });
+
   test('несогласованный справочник отклоняется проверкой самого справочника', () => {
     const plan = minimalPlan();
     const result = applyCommand(plan, {
@@ -354,5 +613,52 @@ describe('applyCommand: стены, проёмы и справочник', () =>
     });
 
     expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.BROKEN_REF);
+  });
+
+  test('справочник, делающий существующий объект неполным, отклоняется', () => {
+    const plan = minimalPlan();
+    // У eq_work_1 нет атрибута shift, а новый тип требует его без default:
+    // иначе через catalog.replace получилось бы состояние, которое
+    // object.put отклоняет.
+    const catalog = {
+      ...plan.catalog,
+      objectTypes: [
+        {
+          ...plan.catalog.objectTypes[0]!,
+          attributes: [
+            { key: 'shift', label: 'Смена', type: 'string' as const, required: true },
+          ],
+        },
+      ],
+    };
+
+    const result = applyCommand(plan, { type: 'catalog.replace', catalog });
+
+    expect(codes(result)).toContain(COMMAND_ISSUE_CODES.ATTRIBUTE_REQUIRED);
+  });
+
+  test('справочник с default дозаполняет существующие объекты', () => {
+    const plan = minimalPlan();
+    const catalog = {
+      ...plan.catalog,
+      objectTypes: [
+        {
+          ...plan.catalog.objectTypes[0]!,
+          attributes: [
+            {
+              key: 'shift',
+              label: 'Смена',
+              type: 'string' as const,
+              required: true,
+              default: 'день',
+            },
+          ],
+        },
+      ],
+    };
+
+    const updated = expectOk(applyCommand(plan, { type: 'catalog.replace', catalog }));
+
+    expect(updated.objects[0]!.attributes.shift).toBe('день');
   });
 });

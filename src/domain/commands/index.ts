@@ -16,13 +16,15 @@ import type {
   Issue,
   Layer,
   PlanDocument,
+  Point,
+  Polygon,
   Ref,
   RefKind,
   Result,
   Zone,
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
-import { CONTRACT_ISSUE_CODES } from '../../contracts/model';
+import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
 import { hasZoneCycle, reconcileZones } from '../relations';
 
@@ -100,14 +102,15 @@ function checkLayerEditable(plan: PlanDocument, layerId: Id, ref: Ref): Result<L
   return { ok: true, value: layer };
 }
 
-function attributeMissing(value: Attributes[string] | undefined): boolean {
-  return value === undefined || value === null;
-}
-
 /**
  * Checks attribute values against the definitions of the entity's type.
- * Unknown keys are kept: the type dictionary is extensible and validatePlan
- * warns about them, so a custom field is never dropped silently.
+ *
+ * A missing key means "no value yet" and may take the type default. An
+ * explicit `null` is a value — the user cleared the field — so it is never
+ * overwritten by the default; for a required attribute it is refused instead.
+ * Unknown keys are kept: the type dictionary is extensible, so a custom field
+ * is never dropped silently. Warning about them belongs to validatePlan (V01),
+ * because a successful Result carries no issues.
  */
 function normaliseAttributes(
   defs: AttributeDef[],
@@ -117,21 +120,29 @@ function normaliseAttributes(
   const value: Attributes = { ...attributes };
   const issues: Issue[] = [];
 
-  for (const def of defs) {
-    const current = value[def.key];
+  const required = (def: AttributeDef): Issue => ({
+    code: COMMAND_ISSUE_CODES.ATTRIBUTE_REQUIRED,
+    severity: 'error',
+    message: `Атрибут «${def.label}» обязателен, а значения и значения по умолчанию нет.`,
+    refs: [ref],
+    path: `/attributes/${def.key}`,
+  });
 
-    if (attributeMissing(current)) {
+  for (const def of defs) {
+    const provided = def.key in value && value[def.key] !== undefined;
+
+    if (!provided) {
       if (def.default !== undefined) {
         value[def.key] = def.default;
       } else if (def.required) {
-        issues.push({
-          code: COMMAND_ISSUE_CODES.ATTRIBUTE_REQUIRED,
-          severity: 'error',
-          message: `Атрибут «${def.label}» обязателен, а значения и значения по умолчанию нет.`,
-          refs: [ref],
-          path: `/attributes/${def.key}`,
-        });
+        issues.push(required(def));
       }
+      continue;
+    }
+
+    const current = value[def.key];
+    if (current === null) {
+      if (def.required) issues.push(required(def));
       continue;
     }
 
@@ -147,6 +158,57 @@ function normaliseAttributes(
   }
 
   return issues.length > 0 ? failWith(issues) : { ok: true, value };
+}
+
+/**
+ * Numeric invariants of contracts-v1.md, kept identical to what the loading
+ * schema enforces. Without them a command could build a document that the
+ * editor accepts and `parsePlanDocument` later refuses — the whole session
+ * would be lost on "save, then open again".
+ */
+function checkNumbers(ref: Ref, checks: { ok: boolean; field: string }[]): Result<null> {
+  const broken = checks.filter((check) => !check.ok);
+  if (broken.length === 0) return { ok: true, value: null };
+
+  return failWith(
+    broken.map((check) => ({
+      code: CONTRACT_ISSUE_CODES.SCHEMA_INVALID,
+      severity: 'error' as const,
+      message: `Недопустимое значение «${check.field}»: документ с ним не пройдёт загрузку.`,
+      refs: [ref],
+      path: `/${check.field}`,
+    })),
+  );
+}
+
+function finitePoint(point: Point): boolean {
+  return Number.isFinite(point[0]) && Number.isFinite(point[1]);
+}
+
+function positive(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function nonNegative(value: number): boolean {
+  return Number.isFinite(value) && value >= 0;
+}
+
+/** A polygon must stay loadable: at least 3 finite vertices, within the cap. */
+function checkPolygon(ref: Ref, polygon: Polygon, field: string): Result<null> {
+  return checkNumbers(ref, [
+    { ok: polygon.length >= 3, field: `${field} (не менее 3 вершин)` },
+    {
+      ok: polygon.length <= LIMITS.maxPolygonVertices,
+      field: `${field} (не более ${LIMITS.maxPolygonVertices} вершин)`,
+    },
+    { ok: polygon.every(finitePoint), field: `${field} (конечные координаты)` },
+  ]);
+}
+
+/** `rotation_deg` is normalised by the command, as contracts-v1.md requires. */
+function normaliseRotation(degrees: number): number {
+  const wrapped = degrees % 360;
+  return wrapped < 0 ? wrapped + 360 : wrapped;
 }
 
 /** Relations are recomputed after any edit that can move an object between zones. */
@@ -207,6 +269,18 @@ function putZone(plan: PlanDocument, zone: Zone): Result<PlanDocument> {
     }
   }
 
+  const shape = checkPolygon(ref, zone.polygon, 'polygon');
+  if (!shape.ok) return shape;
+
+  const isNew = !plan.zones.some((item) => item.id === zone.id);
+  if (isNew && plan.zones.length >= LIMITS.maxZones) {
+    return fail(
+      CONTRACT_ISSUE_CODES.LIMIT_EXCEEDED,
+      `Предел версии 1 — ${LIMITS.maxZones} зон, больше документ не загрузит.`,
+      [ref],
+    );
+  }
+
   const attributes = normaliseAttributes(zoneType.attributes, zone.attributes, ref);
   if (!attributes.ok) return attributes;
 
@@ -229,6 +303,13 @@ function deleteZone(plan: PlanDocument, id: Id): Result<PlanDocument> {
   const removed = plan.zones.find((zone) => zone.id === id)!;
   const editable = checkLayerEditable(plan, removed.layerId, { kind: 'zone', id });
   if (!editable.ok) return editable;
+
+  // Reparenting edits the children too, so their layers must accept edits as
+  // well — a child may sit on a different, locked layer.
+  for (const child of plan.zones.filter((zone) => zone.parentId === id)) {
+    const childEditable = checkLayerEditable(plan, child.layerId, { kind: 'zone', id: child.id });
+    if (!childEditable.ok) return childEditable;
+  }
 
   // Children move up to the removed zone's parent so the hierarchy stays whole.
   const zones = plan.zones
@@ -262,10 +343,32 @@ function putObject(plan: PlanDocument, object: PlanDocument['objects'][number]):
     if (!source.ok) return source;
   }
 
+  const numbers = checkNumbers(ref, [
+    { ok: finitePoint(object.position), field: 'position' },
+    { ok: positive(object.size_m[0]) && positive(object.size_m[1]), field: 'size_m' },
+    { ok: Number.isFinite(object.rotation_deg), field: 'rotation_deg' },
+    { ok: nonNegative(object.base_m), field: 'base_m' },
+    { ok: positive(object.height_m), field: 'height_m' },
+  ]);
+  if (!numbers.ok) return numbers;
+
+  const isNew = !plan.objects.some((item) => item.id === object.id);
+  if (isNew && plan.objects.length >= LIMITS.maxObjects) {
+    return fail(
+      CONTRACT_ISSUE_CODES.LIMIT_EXCEEDED,
+      `Предел версии 1 — ${LIMITS.maxObjects} объектов, больше документ не загрузит.`,
+      [ref],
+    );
+  }
+
   const attributes = normaliseAttributes(objectType.attributes, object.attributes, ref);
   if (!attributes.ok) return attributes;
 
-  const objects = replaceById(plan.objects, { ...object, attributes: attributes.value });
+  const objects = replaceById(plan.objects, {
+    ...object,
+    rotation_deg: normaliseRotation(object.rotation_deg),
+    attributes: attributes.value,
+  });
   return withRelations({ ...plan, objects });
 }
 
@@ -362,13 +465,45 @@ function replaceCatalog(plan: PlanDocument, catalog: Catalog): Result<PlanDocume
   }
   if (missing.length > 0) return failWith(missing);
 
-  return { ok: true, value: { ...plan, catalog } };
+  // Attributes are re-checked against the new definitions. Otherwise the same
+  // state would be reachable through catalog.replace but refused through
+  // object.put: an object could end up without a required attribute.
+  const issues: Issue[] = [];
+  const zones: PlanDocument['zones'] = [];
+  for (const zone of plan.zones) {
+    const type = catalog.zoneTypes.find((item) => item.id === zone.typeId)!;
+    const attributes = normaliseAttributes(type.attributes, zone.attributes, {
+      kind: 'zone',
+      id: zone.id,
+    });
+    if (attributes.ok) zones.push({ ...zone, attributes: attributes.value });
+    else issues.push(...attributes.issues);
+  }
+
+  const objects: PlanDocument['objects'] = [];
+  for (const object of plan.objects) {
+    const type = catalog.objectTypes.find((item) => item.id === object.typeId)!;
+    const attributes = normaliseAttributes(type.attributes, object.attributes, {
+      kind: 'object',
+      id: object.id,
+    });
+    if (attributes.ok) objects.push({ ...object, attributes: attributes.value });
+    else issues.push(...attributes.issues);
+  }
+
+  if (issues.length > 0) return failWith(issues);
+
+  return { ok: true, value: { ...plan, catalog, zones, objects } };
 }
 
 export function applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument> {
   switch (command.type) {
-    case 'room.set':
+    case 'room.set': {
+      const ref: Ref = { kind: 'room', id: plan.room.id };
+      const shape = checkPolygon(ref, command.boundary, 'boundary');
+      if (!shape.ok) return shape;
       return withRelations({ ...plan, room: { ...plan.room, boundary: command.boundary } });
+    }
 
     case 'zone.put':
       return putZone(plan, command.zone);
@@ -391,6 +526,14 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
     case 'wall.put': {
       const free = checkIdFree(plan, command.wall.id, 'wall');
       if (!free.ok) return free;
+      const ref: Ref = { kind: 'wall', id: command.wall.id };
+      const numbers = checkNumbers(ref, [
+        { ok: finitePoint(command.wall.from), field: 'from' },
+        { ok: finitePoint(command.wall.to), field: 'to' },
+        { ok: positive(command.wall.thickness_m), field: 'thickness_m' },
+        { ok: positive(command.wall.height_m), field: 'height_m' },
+      ]);
+      if (!numbers.ok) return numbers;
       return { ok: true, value: { ...plan, walls: replaceById(plan.walls, command.wall) } };
     }
 
@@ -418,6 +561,14 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
           [{ kind: 'opening', id: command.opening.id }],
         );
       }
+      const ref: Ref = { kind: 'opening', id: command.opening.id };
+      const numbers = checkNumbers(ref, [
+        { ok: nonNegative(command.opening.offset_m), field: 'offset_m' },
+        { ok: positive(command.opening.width_m), field: 'width_m' },
+        { ok: nonNegative(command.opening.sill_m), field: 'sill_m' },
+        { ok: positive(command.opening.height_m), field: 'height_m' },
+      ]);
+      if (!numbers.ok) return numbers;
       return {
         ok: true,
         value: { ...plan, openings: replaceById(plan.openings, command.opening) },

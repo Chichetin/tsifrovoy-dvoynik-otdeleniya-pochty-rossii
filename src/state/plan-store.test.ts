@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, test } from 'vitest';
 import type { PlanDocument, Zone } from '../contracts/model';
+import { COMMAND_ISSUE_CODES } from '../domain/commands';
 import { parsePlanDocument } from '../contracts/schema';
 import { createPlanStore, type PlanStoreApi } from './plan-store';
 
@@ -176,6 +177,21 @@ describe('ошибка команды', () => {
     });
 
     expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues.map((issue) => issue.code)).toContain(COMMAND_ISSUE_CODES.ID_REUSED);
+  });
+
+  test('после undo удаления та же сущность снова редактируема', () => {
+    store.getState().dispatch({ type: 'object.delete', id: 'eq_work_1' });
+    store.getState().undo();
+
+    const result = store.getState().dispatch({
+      type: 'object.put',
+      object: { ...store.getState().document.objects[0]!, position: [3, 3] },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(store.getState().document.objects[0]!.position).toEqual([3, 3]);
   });
 });
 
@@ -193,12 +209,29 @@ describe('dirty и подготовка экспорта', () => {
     expect(store.getState().dirty).toBe(false);
   });
 
-  test('подготовка экспорта не меняет revision', () => {
+  test('подготовка экспорта не меняет revision, но снимает dirty', () => {
+    const before = store.getState().document.objects[0]!;
+    store.getState().dispatch({ type: 'object.put', object: { ...before, position: [3, 3] } });
     const revision = store.getState().revision;
+    expect(store.getState().dirty).toBe(true);
 
     store.getState().markExported(revision);
 
     expect(store.getState().revision).toBe(revision);
+    expect(store.getState().dirty).toBe(false);
+  });
+
+  test('после markExported новый baseline работает с историей: undo к нему делает грязным', () => {
+    const before = store.getState().document.objects[0]!;
+    store.getState().dispatch({ type: 'object.put', object: { ...before, position: [3, 3] } });
+    store.getState().markExported(store.getState().revision);
+
+    // Откат к состоянию до экспорта — это уже расхождение с выгруженным файлом.
+    store.getState().undo();
+    expect(store.getState().dirty).toBe(true);
+
+    store.getState().redo();
+    expect(store.getState().dirty).toBe(false);
   });
 
   test('undo назад к baseline снимает dirty, шаг вперёд снова его ставит', () => {
@@ -238,6 +271,44 @@ describe('выбор', () => {
     store.getState().dispatch({ type: 'object.delete', id: 'eq_work_1' });
 
     expect(store.getState().selection).toBeNull();
+  });
+
+  test('выбор удалённой зоны сбрасывается', () => {
+    store.getState().select({ kind: 'zone', id: 'z_client' });
+
+    store.getState().dispatch({ type: 'zone.delete', id: 'z_client' });
+
+    expect(store.getState().selection).toBeNull();
+  });
+
+  test('выбор несуществующей ссылки не принимается', () => {
+    store.getState().select({ kind: 'object', id: 'eq_nope' });
+
+    expect(store.getState().selection).toBeNull();
+  });
+
+  test('ссылка нужного id, но другого вида не принимается', () => {
+    store.getState().select({ kind: 'zone', id: 'eq_work_1' });
+
+    expect(store.getState().selection).toBeNull();
+  });
+});
+
+describe('состояние при создании', () => {
+  test('новый план и черновик стартуют несохранёнными, файл — чистым', () => {
+    expect(createPlanStore(minimalPlan(), 'new').getState().dirty).toBe(true);
+    expect(createPlanStore(minimalPlan(), 'draft').getState().dirty).toBe(true);
+    expect(createPlanStore(minimalPlan(), 'file').getState().dirty).toBe(false);
+    // Значение по умолчанию — файл: store над разобранным документом чист.
+    expect(createPlanStore(minimalPlan()).getState().dirty).toBe(false);
+  });
+
+  test('у нового плана markExported снимает dirty без открытия файла', () => {
+    const fresh = createPlanStore(minimalPlan(), 'new');
+
+    fresh.getState().markExported(fresh.getState().revision);
+
+    expect(fresh.getState().dirty).toBe(false);
   });
 });
 

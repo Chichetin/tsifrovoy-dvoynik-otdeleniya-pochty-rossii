@@ -70,6 +70,22 @@ export function resolveZone(object: Equipment, zones: Zone[]): ZoneResolution {
   const usable = zones.filter((zone) => isSimplePolygon(zone.polygon));
   const unusable = zones.filter((zone) => !isSimplePolygon(zone.polygon));
 
+  // One unusable zone makes the whole answer untrustworthy: the object might
+  // belong to it once its polygon is fixed. Assigning it to a neighbour would
+  // disagree with reconcileZones and put it in the wrong inventory row.
+  if (unusable.length > 0) {
+    return {
+      zoneId: null,
+      issues: unusable.map((zone) =>
+        issue(
+          RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE,
+          `Геометрия зоны «${zone.id}» не позволяет проверить вложение.`,
+          [{ kind: 'zone', id: zone.id }],
+        ),
+      ),
+    };
+  }
+
   const containing = usable.filter((zone) => contains(zone.polygon, shape));
   if (containing.length === 0) {
     const issues = [

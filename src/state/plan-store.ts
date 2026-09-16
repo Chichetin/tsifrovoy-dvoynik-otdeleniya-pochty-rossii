@@ -46,14 +46,41 @@ function commandTarget(command: Command): Id | null {
   }
 }
 
+/** The id a put command claims, or null for every other command. */
+function putTarget(command: Command): Id | null {
+  switch (command.type) {
+    case 'zone.put':
+      return command.zone.id;
+    case 'object.put':
+      return command.object.id;
+    case 'layer.put':
+      return command.layer.id;
+    case 'wall.put':
+      return command.wall.id;
+    case 'opening.put':
+      return command.opening.id;
+    default:
+      return null;
+  }
+}
+
 /**
- * Creates a store over an already parsed document. The document counts as the
- * export baseline: a plan just opened from a file is not dirty.
+ * Creates a store over an already parsed document.
+ *
+ * `origin` says whether the document is a saved state: a plan read from a file
+ * starts clean, while a new plan or a restored draft starts dirty, because
+ * nothing has been exported yet.
+ *
+ * The caller owns the confirmation before `replaceDocument` throws away
+ * unsaved work — the store does not ask, it only reports `dirty`.
  */
-export function createPlanStore(initial: PlanDocument): PlanStoreApi {
+export function createPlanStore(
+  initial: PlanDocument,
+  origin: DocumentOrigin = 'file',
+): PlanStoreApi {
   let past: PlanDocument[] = [];
   let future: PlanDocument[] = [];
-  let baseline: PlanDocument | null = initial;
+  let baseline: PlanDocument | null = origin === 'file' ? initial : null;
   /** Ids of deleted entities: a deleted id is never reused (contracts-v1). */
   const retired = new Set<Id>();
 
@@ -80,7 +107,7 @@ export function createPlanStore(initial: PlanDocument): PlanStoreApi {
       document: initial,
       revision: 0,
       selection: null,
-      dirty: false,
+      dirty: origin !== 'file',
 
       dispatch(command: Command): Result<PlanDocument> {
         const current = get().document;
@@ -89,13 +116,7 @@ export function createPlanStore(initial: PlanDocument): PlanStoreApi {
         // yet replacing an entity that is still in the document is an ordinary
         // edit — that is how moving and retyping work.
         const owners = idOwners(current);
-        const reusedId =
-          (command.type === 'zone.put' && command.zone.id) ||
-          (command.type === 'object.put' && command.object.id) ||
-          (command.type === 'layer.put' && command.layer.id) ||
-          (command.type === 'wall.put' && command.wall.id) ||
-          (command.type === 'opening.put' && command.opening.id) ||
-          null;
+        const reusedId = putTarget(command);
         if (reusedId !== null && retired.has(reusedId) && !owners.has(reusedId)) {
           return {
             ok: false,
@@ -165,8 +186,10 @@ export function createPlanStore(initial: PlanDocument): PlanStoreApi {
       },
 
       select(ref: Ref | null): void {
-        // Selection is not document content: it changes neither revision nor dirty.
-        set({ selection: ref });
+        // Selection is not document content: it changes neither revision nor
+        // dirty. A ref that points at nothing is dropped, so the invariant
+        // "selection never outlives its entity" holds at every moment.
+        set({ selection: keepSelection(get().document, ref) });
       },
 
       markExported(revision: number): void {
