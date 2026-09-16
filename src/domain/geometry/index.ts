@@ -31,6 +31,7 @@ export {
   boundingBox,
   boxesOverlap,
   locatePoint,
+  isSimplePolygon,
   polygonArea,
   segmentsProperlyCross,
   signedArea,

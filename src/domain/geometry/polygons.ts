@@ -217,3 +217,23 @@ export function rectangleCorners(centre: Point, size: Point): Polygon {
     [cx - halfX, cy + halfY],
   ];
 }
+
+/**
+ * A ring is usable for area and containment only when it is simple: at least
+ * three vertices, positive area and no self-intersection. Extends G01 for the
+ * benefit of G02/G03, which must refuse to compute rather than return NaN.
+ */
+export function isSimplePolygon(polygon: Polygon): boolean {
+  if (polygon.length < 3) return false;
+  if (polygonArea(polygon) <= TOLERANCE.area_m2) return false;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const a1 = polygon[i]!;
+    const a2 = polygon[(i + 1) % polygon.length]!;
+    for (let j = i + 1; j < polygon.length; j += 1) {
+      const b1 = polygon[j]!;
+      const b2 = polygon[(j + 1) % polygon.length]!;
+      if (segmentsProperlyCross(a1, a2, b1, b2)) return false;
+    }
+  }
+  return true;
+}

@@ -20,6 +20,7 @@
 | Claude Code (поток 1) | `worktree-model-contracts`, MR см. ниже | F02 — контракты и fixtures: оси и поворот, вложенность зон, слои, версия формата | `src/contracts/*`, 7 fixtures, `docs/decisions.md` D-010…D-014, матрица М1/М2/П1/П7 | `npm test` 18/18, `npm run typecheck`, `npm run lint`, `npm run build` — зелёные | готово, ждёт ревью второго участника (контрактный MR) |
 
 | Claude Code (поток 2) | `worktree-geometry-core`, MR см. ниже | G01 — базовая геометрия и координаты | `src/domain/geometry/*` | `npm test` 40/40, typecheck/lint/build зелёные | готово, ждёт ревью |
+| Claude Code (поток 2) | `worktree-relations-zones`, MR см. ниже | G02 — иерархия зон и назначение объектов | `src/domain/relations/*`, `isSimplePolygon` в geometry | `npm test` 49/49, typecheck/lint зелёные | готово, ждёт ревью |
 
 ## Блокеры и вопросы
 
@@ -40,3 +41,4 @@
 | 2026-09-16 | Codex | Созданы каталоги архитектуры: 36 модулей с README/владельцами, карта docs/project-structure.md, вход для сокомандника в README | [MR !3](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/3), `c7fb731`; ветка `worktree-infra-layout` | Каталоги для 90 путей плана, ссылки корректны, hooks 26/26, независимое ревью; docs/verification/layout.md. После merge сокомандник начинает F01/F02 по плану; код приложения ещё не реализован |
 | 2026-09-16 | Claude Code | F02 — контракты v1 в коде: `model/commands/advice/advice-semantics/ui/schema`, 7 фикстур, словарь допустимости объяснений; решения D-010…D-014 | ветка `worktree-model-contracts` | `npm test` 18/18 (17 контрактных + smoke), typecheck/lint/build зелёные. Реализации домена ещё нет: схема принимает геометрически неверный план намеренно (D-013), round-trip за IO01 |
 | 2026-09-16 | Claude Code | G01 — геометрия: площади, отпечаток поворота, полное вложение для вогнутых зон, пересечения с учётом высоты, стены с проёмами, model↔screen | ветка `worktree-geometry-core` | `npm test` 40/40. Найден и закрыт тестом дефект: выровненные по стороне прямоугольники не определялись как пересекающиеся. Булевых операций нет — union отпечатков за G03 |
+| 2026-09-16 | Claude Code | G02 — связи зон: глубина вложенности с защитой от цикла, назначение по полному включению, неоднозначность и отсутствие зоны с диагностикой, пересчёт после правки | ветка `worktree-relations-zones` | `npm test` 49/49. Добавлен `isSimplePolygon` в geometry (расширение G01): без него невычислимая зона давала бы догадку вместо отказа |
