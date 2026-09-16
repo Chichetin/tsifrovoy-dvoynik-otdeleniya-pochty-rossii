@@ -16,7 +16,6 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| Codex | `worktree-infra-layout`, MR после проверки | Физическая структура каталогов по архитектуре, владельцы пяти потоков, навигация | `src/`, `server/`, `data/`, `tests/`, `scripts/`, `demo/`, README и документы структуры | 90 путей плана, 36 карт модулей, ссылки, hooks 26/26, независимое ревью; отчёт docs/verification/layout.md | готово локально, создаётся MR |
 | — | — | Выбор стека и способа деплоя | `docs/decisions.md`, `CLAUDE.md` «Код и архитектура» | решение записано, команды установки/запуска/тестов вписаны | свободно |
 | — | — | Модель данных и формат плана: оси и поворот, вложенность зон, справочники | `docs/decisions.md`, схема формата | `example_plan.json` загружается, все ловушки из `CLAUDE.md` находятся проверками | свободно, ждёт стека |
 
@@ -35,3 +34,4 @@
 |---|---|---|---|---|
 | 2026-09-16 | Claude Code | Правила проекта, хуки, `jury`, `submission-checklist`, матрица условий, решения D-001…D-004 | MR !1 | `test-hooks.sh` 26/26; `check-secrets.sh` чисто; MR создан push options |
 | 2026-09-16 | Codex | Архитектура и контракты v1, 34 пакета на 5 разработчиков с агентами, высокая планка UX/AI/качества, независимый Deep Research | [MR !2](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/2), `21df0d1`; ветка `worktree-docs-architecture`; сначала влить MR !1 | 34 пакета, 50 обязательных требований, DAG без циклов, ссылки; hooks 26/26; ревью учтено; отчёт `docs/verification/architecture.md`. Только проектирование: приложения и браузерного прогона ещё нет. Первые задачи реализации — F01/F02, предложения по стеку/контрактам в `docs/architecture.md` и `docs/contracts-v1.md` |
+| 2026-09-16 | Codex | Созданы каталоги архитектуры: 36 модулей с README/владельцами, карта docs/project-structure.md, вход для сокомандника в README | [MR !3](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/3), `c7fb731`; ветка `worktree-infra-layout` | Каталоги для 90 путей плана, ссылки корректны, hooks 26/26, независимое ревью; docs/verification/layout.md. После merge сокомандник начинает F01/F02 по плану; код приложения ещё не реализован |
