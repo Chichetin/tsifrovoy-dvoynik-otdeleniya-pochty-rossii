@@ -13,6 +13,7 @@
 
 Следующие файлы создаются при реализации соответствующих пакетов:
 
+- `gitlab-mr.sh` — создание и слияние Merge Request через API GitLab (`list`, `show`, `merge`, `create`).
 - `generate-benchmark.ts` — Q02.
 - `package-demo.ts` — E01.
 
