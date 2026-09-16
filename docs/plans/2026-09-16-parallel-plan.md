@@ -32,8 +32,8 @@ Node/Fastify, Vitest/Playwright; F01 фиксирует версии и кома
 Каждый пакет имеет одного владельца; имя назначается в HANDOFF, роли ниже — предложения.
 Оценки сроков — план команды, не измеренная производительность людей.
 
-Сейчас создаются только документы. F01/F02 — первые задачи реализации после согласования
-предложения. Исследование R01 и уточнение хостинга/ключей можно начать немедленно.
+Документы и [структура каталогов](../project-structure.md) подготовлены.
+F01/F02 — первые задачи реализации: запускаемый каркас и исполняемые контракты. Исследование R01 и уточнение хостинга/ключей можно начать немедленно.
 
 | ID | Пакет | Роль | Старт | Приёмка после |
 |---|---|---|---|---|
@@ -219,7 +219,7 @@ advice fixture, затем проходят интеграцию с A03. R01 н�
 
 **Владелец:** владелец модели. **Старт:** F01. **Для приёмки:** F01.
 
-**Файлы:** `src/contracts/model.ts`, `src/contracts/commands.ts`, `src/contracts/advice.ts`, `src/contracts/ui.ts`, `src/contracts/schema.ts`, `src/contracts/fixtures/`.
+**Файлы:** `src/contracts/model.ts`, `src/contracts/commands.ts`, `src/contracts/advice.ts`, `src/contracts/advice-semantics.ts`, `src/contracts/ui.ts`, `src/contracts/schema.ts`, `src/contracts/fixtures/`.
 
 **Вход/выход:** PlanDocument, Command, Result, Issue, AdviceRequest, AdviceResponse и UI props; код других модулей не импортируется.
 
