@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import {
   CONTRACT_ISSUE_CODES,
+  type Catalog,
   LIMITS,
   SCHEMA_VERSION,
   type Issue,
@@ -143,7 +144,7 @@ const ruleSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
-const catalogSchema = z.object({
+export const catalogSchema = z.object({
   version: z.string(),
   objectTypes: z.array(objectTypeSchema),
   zoneTypes: z.array(zoneTypeSchema),
@@ -169,6 +170,18 @@ export const planDocumentSchema: z.ZodType<PlanDocument> = z.object({
   catalog: catalogSchema,
   extensions: z.record(z.string(), z.unknown()),
 });
+
+/** Parses a standalone catalog, for the JSON files under data/catalog. */
+export function parseCatalog(input: unknown): Result<Catalog> {
+  const parsed = catalogSchema.safeParse(input);
+  if (parsed.success) return { ok: true, value: parsed.data };
+  return {
+    ok: false,
+    issues: parsed.error.issues.map((entry) =>
+      issue(CONTRACT_ISSUE_CODES.SCHEMA_INVALID, entry.message, [], entry.path.join('.')),
+    ),
+  };
+}
 
 function issue(code: string, message: string, refs: Ref[] = [], path?: string): Issue {
   return path === undefined
