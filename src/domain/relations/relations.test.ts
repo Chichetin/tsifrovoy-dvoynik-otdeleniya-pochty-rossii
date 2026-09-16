@@ -155,4 +155,31 @@ describe('пересчёт связей', () => {
       CONTRACT_ISSUE_CODES.RELATIONS_STALE,
     ]);
   });
+  test('невычислимая геометрия зоны тоже обнуляет связи: угадывать зону нельзя', () => {
+    const broken: PlanDocument = {
+      ...plan,
+      zones: plan.zones.map((zone, index) =>
+        index === 0
+          ? {
+              ...zone,
+              polygon: [
+                [0, 0],
+                [7, 8],
+                [7, 0],
+                [0, 8],
+              ] as PlanDocument['room']['boundary'],
+            }
+          : zone,
+      ),
+    };
+
+    const result = reconcileZones(broken);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.objects.every((object) => object.zoneId === null)).toBe(true);
+    expect(relationIssues(broken).map((entry) => entry.code)).toContain(
+      CONTRACT_ISSUE_CODES.RELATIONS_STALE,
+    );
+  });
 });

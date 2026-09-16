@@ -70,6 +70,22 @@ export function resolveZone(object: Equipment, zones: Zone[]): ZoneResolution {
   const usable = zones.filter((zone) => isSimplePolygon(zone.polygon));
   const unusable = zones.filter((zone) => !isSimplePolygon(zone.polygon));
 
+  // One unusable zone makes the whole answer untrustworthy: the object might
+  // belong to it once its polygon is fixed. Assigning it to a neighbour would
+  // disagree with reconcileZones and put it in the wrong inventory row.
+  if (unusable.length > 0) {
+    return {
+      zoneId: null,
+      issues: unusable.map((zone) =>
+        issue(
+          RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE,
+          `Геометрия зоны «${zone.id}» не позволяет проверить вложение.`,
+          [{ kind: 'zone', id: zone.id }],
+        ),
+      ),
+    };
+  }
+
   const containing = usable.filter((zone) => contains(zone.polygon, shape));
   if (containing.length === 0) {
     const issues = [
@@ -139,8 +155,11 @@ export function reconcileZones(plan: PlanDocument): Result<PlanDocument> {
   }
 
   // Unusable room or zone geometry: drop every link rather than invent one.
+  // contracts-v1.md requires this for the intermediate document, so a broken
+  // polygon cannot leave a stale assignment behind that looks trustworthy.
   const roomUnusable = !isSimplePolygon(plan.room.boundary);
-  if (roomUnusable) {
+  const zoneUnusable = plan.zones.some((zone) => !isSimplePolygon(zone.polygon));
+  if (roomUnusable || zoneUnusable) {
     return {
       ok: true,
       value: {
@@ -172,6 +191,18 @@ export function relationIssues(plan: PlanDocument): Issue[] {
         [{ kind: 'room', id: plan.room.id }],
       ),
     ];
+  }
+
+  const brokenZones = plan.zones.filter((zone) => !isSimplePolygon(zone.polygon));
+  if (brokenZones.length > 0) {
+    return brokenZones.map((zone) =>
+      issue(
+        CONTRACT_ISSUE_CODES.RELATIONS_STALE,
+        `Геометрия зоны «${zone.id}» невычислима: связи объектов с зонами требуют пересчёта.`,
+        [{ kind: 'zone', id: zone.id }],
+        zone.polygon,
+      ),
+    );
   }
   return plan.objects.flatMap((object) => resolveZone(object, plan.zones).issues);
 }
