@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "id": "plan_invalid_links",
+  "name": "Сломанные связи",
+  "room": {
+    "id": "room_main",
+    "boundary": [
+      [
+        0,
+        0
+      ],
+      [
+        10,
+        0
+      ],
+      [
+        10,
+        8
+      ],
+      [
+        0,
+        8
+      ]
+    ],
+    "ceilingHeight_m": 3
+  },
+  "walls": [
+    {
+      "id": "w_north",
+      "from": [
+        0,
+        8
+      ],
+      "to": [
+        10,
+        8
+      ],
+      "thickness_m": 0.2,
+      "height_m": 3
+    }
+  ],
+  "openings": [
+    {
+      "id": "op_entrance",
+      "wallId": "w_north",
+      "offset_m": 4,
+      "width_m": 1.2,
+      "kind": "entrance",
+      "sill_m": 0,
+      "height_m": 2.1
+    }
+  ],
+  "layers": [
+    {
+      "id": "l_base",
+      "name": "Основной",
+      "visible": true,
+      "locked": false,
+      "order": 0
+    }
+  ],
+  "zones": [
+    {
+      "id": "z_client",
+      "typeId": "zt_client",
+      "name": "Клиентская зона",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          7,
+          0
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          0,
+          8
+        ]
+      ],
+      "parentId": null,
+      "layerId": "l_base",
+      "attributes": {}
+    },
+    {
+      "id": "z_loop_a",
+      "typeId": "zt_client",
+      "name": "Цикл A",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ]
+      ],
+      "parentId": "z_loop_b",
+      "layerId": "l_base",
+      "attributes": {}
+    },
+    {
+      "id": "z_loop_b",
+      "typeId": "zt_client",
+      "name": "Цикл B",
+      "polygon": [
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "parentId": "z_loop_a",
+      "layerId": "l_base",
+      "attributes": {}
+    }
+  ],
+  "objects": [
+    {
+      "id": "eq_work_1",
+      "typeId": "ot_workplace",
+      "label": "Рабочее место 1",
+      "position": [
+        2,
+        2
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ОПС-0001"
+      }
+    },
+    {
+      "id": "eq_work_1",
+      "typeId": "ot_workplace",
+      "label": "Дубль идентификатора",
+      "position": [
+        3,
+        3
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ОПС-0001"
+      }
+    },
+    {
+      "id": "eq_broken_refs",
+      "typeId": "ot_workplace",
+      "label": "Ссылки в пустоту",
+      "position": [
+        4,
+        4
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_missing",
+      "layerId": "l_missing",
+      "attributes": {
+        "inventoryNumber": "ОПС-0001"
+      }
+    }
+  ],
+  "catalog": {
+    "version": "1.0.0",
+    "objectTypes": [
+      {
+        "id": "ot_workplace",
+        "label": "Рабочее место",
+        "category": "Обслуживание",
+        "defaultSize_m": [
+          1.4,
+          0.8
+        ],
+        "defaultHeight_m": 0.75,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#4C6EF5",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Синтетическое допущение команды: размеры выбраны для демонстрации."
+      }
+    ],
+    "zoneTypes": [
+      {
+        "id": "zt_client",
+        "label": "Клиентская зона",
+        "color": "#E7F5FF",
+        "attributes": []
+      }
+    ],
+    "rules": [
+      {
+        "id": "rule_workplace_min",
+        "source": "team-assumption",
+        "rationale": "Команда приняла минимум одно рабочее место в клиентской зоне.",
+        "kind": "count",
+        "zoneTypeId": "zt_client",
+        "objectTypeId": "ot_workplace",
+        "scope": "direct",
+        "min": 1,
+        "max": null
+      }
+    ]
+  },
+  "extensions": {}
+}
