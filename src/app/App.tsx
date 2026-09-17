@@ -32,6 +32,7 @@ import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
+import { View3D } from '../features/view3d/View3D';
 import { decodePlan, encodePlan } from '../persistence/codec';
 import { createPlanStore } from '../state/plan-store';
 import { catalog, createEmptyPlan } from './default-plan';
@@ -47,6 +48,8 @@ export function App(): React.JSX.Element {
   const dirty = useStore(store, (state) => state.dirty);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
+  // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
+  const [view, setView] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
   const [lastError, setLastError] = useState<string | null>(null);
   const focusSequence = useRef(0);
@@ -134,6 +137,14 @@ export function App(): React.JSX.Element {
       <header className="shell__bar">
         <h1 className="shell__title">Цифровой двойник ОПС</h1>
         <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
+        <div className="shell__view" role="group" aria-label="Вид плана">
+          <button type="button" className="files__button" aria-pressed={view === '2d'} onClick={() => setView('2d')}>
+            2D
+          </button>
+          <button type="button" className="files__button" aria-pressed={view === '3d'} onClick={() => setView('3d')}>
+            3D
+          </button>
+        </div>
         <div className="shell__history">
           <button type="button" className="files__button" onClick={() => store.getState().undo()}>
             Отменить
@@ -197,6 +208,7 @@ export function App(): React.JSX.Element {
             />
             <InformationLayer document={document} session={session} />
           </EditorCanvas>
+          {view === '3d' ? <View3D document={document} selection={selection} /> : null}
         </main>
 
         <aside className="shell__side shell__side--wide">
