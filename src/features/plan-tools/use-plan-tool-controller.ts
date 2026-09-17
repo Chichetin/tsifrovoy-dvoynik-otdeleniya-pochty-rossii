@@ -4,11 +4,17 @@
  * A click adds a vertex, a click near the first vertex closes the ring, and
  * Escape throws the draft away. The document is only touched on closing — one
  * gesture, one command, one undo step.
+ *
+ * A ring that crosses itself is refused here, before the command: the store
+ * would accept it as a diagnosable state, and a plan nobody meant to draw is a
+ * worse outcome than a refusal with the draft still on screen.
  */
 
 import { useCallback, useRef, useState } from 'react';
 import type { Id, Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
+import { DRAFT_SELF_INTERSECTION_NOTICE, setNotice } from './notice';
+import { canCommitRing, parentForRing } from './vertex-edit';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
@@ -31,14 +37,20 @@ export const usePlanToolController: UsePlanToolController = ({
 
   const cancel = useCallback(() => setDraft(null), []);
 
+  /** Returns false when the ring was refused and the draft has to stay. */
   const commit = useCallback(
-    (ring: Polygon): void => {
-      if (committing.current) return;
+    (ring: Polygon): boolean => {
+      if (committing.current) return false;
+      if (!canCommitRing(ring)) {
+        setNotice(DRAFT_SELF_INTERSECTION_NOTICE);
+        return false;
+      }
       committing.current = true;
       try {
         if (kind === 'room.draw') {
           onCommand({ type: 'room.set', boundary: ring });
-          return;
+          setNotice(null);
+          return true;
         }
         const taken = new Set<Id>(plan.zones.map((zone) => zone.id));
         // Содержимое живёт только на обычных слоях: информационный слой рисует
@@ -46,7 +58,7 @@ export const usePlanToolController: UsePlanToolController = ({
         const layer =
           plan.layers.find((entry) => !entry.locked && entry.typeId === null) ?? plan.layers[0];
         const zoneType = plan.catalog.zoneTypes[0];
-        if (layer === undefined || zoneType === undefined) return;
+        if (layer === undefined || zoneType === undefined) return false;
         const id = nextId('z_', taken);
         onCommand({
           type: 'zone.put',
@@ -55,11 +67,15 @@ export const usePlanToolController: UsePlanToolController = ({
             typeId: zoneType.id,
             name: `Зона ${plan.zones.length + 1}`,
             polygon: ring,
-            parentId: null,
+            // Вложенность берётся из геометрии: зона, нарисованная внутри
+            // другой, принадлежит ей. Дальше родителя правят карточкой.
+            parentId: parentForRing(ring, plan.zones),
             layerId: layer.id,
             attributes: {},
           },
         });
+        setNotice(null);
+        return true;
       } finally {
         committing.current = false;
       }
@@ -84,8 +100,9 @@ export const usePlanToolController: UsePlanToolController = ({
         Math.hypot(event.point[0] - first[0], event.point[1] - first[1]) <= CLOSE_RADIUS_M;
 
       if (closes) {
-        commit(current);
-        setDraft(null);
+        // Отклонённый контур остаётся черновиком: пользователь дорисовывает
+        // или отменяет его Escape, но нарисованное не пропадает молча.
+        if (commit(current)) setDraft(null);
         return;
       }
       setDraft([...current, event.point]);
