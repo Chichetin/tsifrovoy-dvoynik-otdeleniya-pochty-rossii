@@ -1,0 +1,122 @@
+/**
+ * The scenario the jury runs by hand: open the editor, draw a zone, place
+ * equipment, save the plan, open the saved file again and find everything
+ * where it was.
+ *
+ * This file is the one that grows with the product — every package that joins
+ * the editor adds a step here through the owner of the scenario.
+ */
+
+import { readFileSync } from 'node:fs';
+import { expect, test, type Page } from '@playwright/test';
+
+/** Клик по холсту в пикселях от его левого верхнего угла. */
+async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
+  const canvas = page.getByTestId('editor-canvas');
+  await canvas.click({ position: { x, y } });
+}
+
+async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<string> {
+  const item = page.locator('.library__item').first();
+  const label = ((await item.locator('.library__label').textContent()) ?? '').trim();
+  await item.click();
+  await clickCanvas(page, x, y);
+  return label;
+}
+
+test.describe('сквозной сценарий редактора', () => {
+  test('открыть → изменить → сохранить → открыть заново', async ({ page }, testInfo) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
+    // Konva рисует по canvas на слой: сетка, план, оборудование.
+    await expect(page.locator('canvas').first()).toBeVisible();
+    await expect(page.getByTestId('canvas-scale')).toContainText('px/м');
+
+    // Пустой план: инвентаризация пуста, нарушений нет.
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    // Зона: четыре точки и клик по первой, чтобы замкнуть.
+    await page.getByRole('button', { name: 'Зона' }).click();
+    await clickCanvas(page, 200, 180);
+    await clickCanvas(page, 430, 180);
+    await clickCanvas(page, 430, 360);
+    await clickCanvas(page, 200, 360);
+    await clickCanvas(page, 200, 180);
+
+    await page.getByRole('button', { name: 'Выбор' }).click();
+    await expect(page.locator('.table__link', { hasText: 'z_1' }).first()).toBeVisible();
+
+    // Оборудование: первый тип библиотеки внутрь нарисованной зоны.
+    const placed = await placeFirstLibraryItem(page, 300, 260);
+    // В библиотеке и в перечне одинаковая подпись — берём строку перечня.
+    await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
+
+    const inventoryRows = page.locator('.table').first().locator('tbody tr');
+    await expect(inventoryRows).toHaveCount(1);
+    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+
+    // Сохранение: файл уходит в загрузки, состояние становится «сохранено».
+    const download = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Сохранить' }).click(),
+    ]).then(([event]) => event);
+
+    const saved = await download.path();
+    expect(saved).not.toBeNull();
+    await expect(page.getByText('сохранено')).toBeVisible();
+
+    const text = readFileSync(saved as string, 'utf8');
+    const parsed = JSON.parse(text) as { zones: unknown[]; objects: unknown[] };
+    expect(parsed.zones).toHaveLength(1);
+    expect(parsed.objects).toHaveLength(1);
+
+    // Новый план стирает всё — это состояние, из которого открываем файл.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Новый' }).click();
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    // Повторное открытие: зона, объект и их идентификаторы на месте.
+    await page.getByTestId('plan-file-input').setInputFiles(saved as string);
+    await expect(inventoryRows).toHaveCount(1);
+    await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
+    await expect(page.locator('.table__link', { hasText: 'z_1' }).first()).toBeVisible();
+    await expect(page.getByText('сохранено')).toBeVisible();
+
+    await testInfo.attach('сохранённый план', { body: text, contentType: 'application/json' });
+    expect(errors).toEqual([]);
+  });
+
+  test('битый файл не подменяет открытый план', async ({ page }) => {
+    await page.goto('/');
+    await placeFirstLibraryItem(page, 320, 240);
+    const rows = page.locator('.table').first().locator('tbody tr');
+    await expect(rows).toHaveCount(1);
+
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'broken.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"schemaVersion": 1, "zones": ['),
+    });
+
+    await expect(page.getByRole('alert')).toContainText('DOCUMENT_UNREADABLE');
+    // Документ остался на месте: строка инвентаризации не пропала.
+    await expect(rows).toHaveCount(1);
+  });
+
+  test('отмена возвращает удалённую правку', async ({ page }) => {
+    await page.goto('/');
+    await placeFirstLibraryItem(page, 320, 240);
+    const rows = page.locator('.table').first().locator('tbody tr');
+    await expect(rows).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Вернуть' }).click();
+    await expect(rows).toHaveCount(1);
+  });
+});
