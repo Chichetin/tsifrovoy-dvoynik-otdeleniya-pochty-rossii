@@ -96,6 +96,17 @@ export type EquipmentLayerProps = {
   preview: Candidate | null;
 };
 
+/**
+ * The card of the selected zone or object. Fields come from the catalog, so a
+ * new attribute in the type dictionary shows up here without touching the
+ * component; a refused edit reports itself next to the field that caused it.
+ */
+export type PropertiesPanelProps = {
+  document: PlanDocument;
+  session: EditorSession;
+  onCommand: CommandSink;
+};
+
 export type LayersPanelProps = {
   document: PlanDocument;
   session: EditorSession;

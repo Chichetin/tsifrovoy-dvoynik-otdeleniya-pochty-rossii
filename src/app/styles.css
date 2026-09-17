@@ -599,3 +599,74 @@ body {
   padding-left: 4px !important;
   color: var(--muted);
 }
+
+/* U06: карточка свойств */
+
+.props__id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 8px;
+}
+
+.props__id code {
+  font-size: 12px;
+}
+
+.props__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.props__field input[type='text'],
+.props__field input[type='number'],
+.props__field select {
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+}
+
+.props__field input[type='checkbox'] {
+  align-self: flex-start;
+}
+
+.props__label {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.props__hint {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.props__error {
+  font-size: 11px;
+  color: #c92a2a;
+  line-height: 1.4;
+}
+
+.props__field:has(.props__error) input,
+.props__field:has(.props__error) select {
+  border-color: #c92a2a;
+}
+
+.props__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.props__extra {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.props__extra li {
+  padding: 1px 0;
+}
