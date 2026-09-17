@@ -9,9 +9,14 @@
  * Rendering is on demand: a frame is drawn after the scene changes and while
  * the camera moves, not in a loop. Every geometry, material and the renderer
  * itself are disposed on unmount.
+ *
+ * The GPU can take the context back at any moment — a sleeping tab, a driver
+ * reset, one context too many. The canvas then goes black and keeps showing a
+ * stale picture, so the loss is caught and said out loud, and when the browser
+ * restores the context the whole stage is built again from the same scene.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Color,
   DirectionalLight,
@@ -55,6 +60,10 @@ export default function View3DCanvas({ scene, selection }: Props): React.JSX.Ele
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const framed = useRef<string | null>(null);
+  // Контекст отобрали: рисовать нечем, и чёрный холст надо заменить словами.
+  const [lost, setLost] = useState(false);
+  // Счётчик пересборки: контекст вернули — сцена собирается заново с нуля.
+  const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     const container = host.current;
@@ -63,6 +72,22 @@ export default function View3DCanvas({ scene, selection }: Props): React.JSX.Ele
     // LoadFailure boundary — the message says why, the 2D editor stays.
     const created = createStage(container);
     stage.current = created;
+    const canvas = created.renderer.domElement;
+    const onLost = (event: Event): void => {
+      // Без preventDefault браузер не станет восстанавливать контекст вовсе.
+      event.preventDefault();
+      setLost(true);
+      // Рендерер на потерянном контексте больше не нужен: `dispose` снимает и
+      // собственные слушатели three, поэтому восстановление делаем мы — полной
+      // пересборкой сцены, а не частичной реинициализацией мёртвого рендерера.
+      created.renderer.dispose();
+    };
+    const onRestored = (): void => {
+      setLost(false);
+      setGeneration((value) => value + 1);
+    };
+    canvas.addEventListener('webglcontextlost', onLost);
+    canvas.addEventListener('webglcontextrestored', onRestored);
     // The scene effect below runs after this one and fills the group; a
     // resize of the panel only needs a new frame.
     const observer = new ResizeObserver(() => {
@@ -72,15 +97,18 @@ export default function View3DCanvas({ scene, selection }: Props): React.JSX.Ele
     observer.observe(container);
     return () => {
       observer.disconnect();
+      canvas.removeEventListener('webglcontextlost', onLost);
+      canvas.removeEventListener('webglcontextrestored', onRestored);
       created.dispose();
       stage.current = null;
       framed.current = null;
     };
-  }, []);
+  }, [generation]);
 
   useEffect(() => {
     const current = stage.current;
-    if (!current) return;
+    // Пока контекста нет, наполнять нечего: сцена соберётся при восстановлении.
+    if (!current || lost) return;
     clearGroup(current.group);
     for (const prism of scene.prisms) {
       current.group.add(...prismMeshes(prism, isSelected(prism, selection)));
@@ -93,9 +121,26 @@ export default function View3DCanvas({ scene, selection }: Props): React.JSX.Ele
       framed.current = key;
     }
     current.render();
-  }, [scene, selection]);
+    // `generation` — новая сцена на новом контексте: её надо наполнить заново.
+  }, [scene, selection, generation, lost]);
 
-  return <div className="view3d__canvas-host" ref={host} />;
+  return (
+    <>
+      {lost ? (
+        <p className="view3d__status" role="alert" data-testid="view3d-context-lost">
+          Браузер забрал контекст WebGL, 3D-сцена сейчас не рисуется. 2D-редактор работает
+          как обычно — кнопка «2D» в шапке; когда контекст вернётся, сцена соберётся заново
+          из текущего плана.
+        </p>
+      ) : null}
+      {/* Хост остаётся в DOM: на нём слушатели контекста, но чёрный холст прячем. */}
+      <div
+        className="view3d__canvas-host"
+        ref={host}
+        style={lost ? { display: 'none' } : undefined}
+      />
+    </>
+  );
 }
 
 function createStage(container: HTMLDivElement): Stage {

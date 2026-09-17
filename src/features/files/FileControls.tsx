@@ -15,7 +15,14 @@
  * our format, not theirs.
  *
  * Replacing a plan with unsaved edits asks first — the store reports `dirty`,
- * it does not decide.
+ * it does not decide. Replacing a plan that already has zones or objects in it
+ * asks too, saved or not: a file opened a minute ago is clean by `dirty` and is
+ * still the user's work.
+ *
+ * The draft offer blocks writing only until the user does something with the
+ * document — starts a new plan, opens a file, or makes the first edit. From
+ * that moment the draft is written again, or a whole session of work would be
+ * lost to a closed tab because a question stayed on screen unanswered.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -67,6 +74,11 @@ function describe(issues: Issue[]): string {
     .join('; ');
 }
 
+/** Есть ли в плане что терять: помещение и слои даёт и пустой новый план. */
+function hasContent(plan: PlanDocument): boolean {
+  return plan.zones.length > 0 || plan.objects.length > 0;
+}
+
 function fileName(plan: PlanDocument): string {
   const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
   return `${stem === '' ? 'plan' : stem}.json`;
@@ -115,6 +127,10 @@ export function FileControls({
     return { opening, draft: draft !== null && draftDiffers(draft, opening) ? draft : null };
   });
   const [offered, setOffered] = useState<PlanDraft | null>(start.draft);
+  // Ответил ли пользователь на предложение действием с документом: «Новый»,
+  // «Открыть», «Восстановить», «Удалить». Пока нет — нетронутый стартовый план
+  // в черновик не пишется, иначе он затрёт то, что мы предлагаем восстановить.
+  const [answered, setAnswered] = useState<boolean>(start.draft === null);
   const [draftAt, setDraftAt] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const writer = useRef<DraftWriter | null>(null);
@@ -135,21 +151,27 @@ export function FileControls({
     };
   }, [storage]);
 
-  // Пишем только когда черновик уже разобран и предложение снято. План
-  // сериализуется в момент записи, а не на каждое движение мыши.
+  // План сериализуется в момент записи, а не на каждое движение мыши — и там же
+  // решается, писать ли вообще: пока предложение висит без ответа, а план не
+  // тронут, писать нечего. Первая же правка документа — это тоже ответ:
+  // пользователь работает с тем, что открыто, и терять его работу нельзя.
   useEffect(() => {
-    if (offered !== null) return;
     const active = writer.current;
     if (active === null) return;
     active.schedule(() => {
       const encoded = encode(plan);
       // План, который не запишется в файл, не годится и в черновик.
-      return encoded.ok ? { text: encoded.value, name: plan.name } : null;
+      if (!encoded.ok) return null;
+      if (!answered && encoded.value === start.opening) return null;
+      return { text: encoded.value, name: plan.name };
     });
     return () => active.cancel();
-  }, [plan, offered, encode]);
+  }, [plan, answered, encode, start.opening]);
 
   const accept = (opened: OpenedPlan, origin: DocumentOrigin): void => {
+    // Документ заменён целиком — вопрос о черновике отвечен самим действием.
+    setOffered(null);
+    setAnswered(true);
     onReplace(opened.plan, origin);
     setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
     setNotice(
@@ -183,13 +205,12 @@ export function FileControls({
   };
 
   const restore = (draft: PlanDraft): void => {
-    // Спрашиваем, только если план успели изменить после открытия страницы:
-    // нетронутый пустой план считается «грязным», но терять в нём нечего.
-    const current = encode(plan);
-    const touched = !current.ok || current.value !== start.opening;
-    if (touched && dirty && !window.confirm(RESTORE_WARNING)) return;
+    // Спрашиваем, когда в плане уже что-то есть: только что открытый файл по
+    // `dirty` чист, но это работа пользователя. В пустом плане терять нечего.
+    if (hasContent(plan) && !window.confirm(RESTORE_WARNING)) return;
     const opened = read(draft.text);
     setOffered(null);
+    setAnswered(true);
     if (!opened.ok) {
       // Черновик оказался мусором: открытый план не трогаем, черновик убираем.
       if (storage !== null) clearDraft(storage);
@@ -203,8 +224,12 @@ export function FileControls({
   };
 
   const dismiss = (): void => {
-    if (storage !== null) clearDraft(storage);
+    // Стираем только пока в хранилище лежит именно предложенный черновик: если
+    // запись уже возобновилась (`draftAt`), там текущая работа пользователя, и
+    // удалять её никто не просил.
+    if (storage !== null && draftAt === null) clearDraft(storage);
     setOffered(null);
+    setAnswered(true);
   };
 
   const save = (): void => {
@@ -252,6 +277,9 @@ export function FileControls({
           if (dirty && !window.confirm(DIRTY_WARNING)) return;
           onNew();
           if (storage !== null) clearDraft(storage);
+          // Чистый лист — тоже ответ на предложение: черновика больше нет.
+          setOffered(null);
+          setAnswered(true);
           setDraftAt(null);
           setAssumptions([]);
           setNotice(null);
@@ -315,7 +343,10 @@ export function FileControls({
 
       {offered === null ? null : (
         <span className="files__status" data-testid="draft-restore">
-          Черновик «{offered.name}» от {atTime(offered.savedAt)} в этом браузере.{' '}
+          Черновик «{offered.name}» от {atTime(offered.savedAt)}
+          {draftAt === null
+            ? ' в этом браузере.'
+            : '; в браузере уже сохраняется текущая работа.'}{' '}
           <button type="button" className="files__button" onClick={() => restore(offered)}>
             Восстановить
           </button>{' '}

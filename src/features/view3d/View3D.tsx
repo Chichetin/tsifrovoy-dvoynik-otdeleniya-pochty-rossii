@@ -12,6 +12,7 @@
 import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import type { View3DProps } from '../../contracts/ui';
 import { buildScene, isSelected, type ScenePrism } from './scene';
+import { hasWebgl } from './webgl';
 
 const View3DCanvas = lazy(() => import('./View3DCanvas'));
 
@@ -26,22 +27,19 @@ const KIND_LABELS: Record<ScenePrism['kind'], string> = {
   object: 'объект',
 };
 
-function webglAvailable(): boolean {
-  try {
-    const canvas = document.createElement('canvas');
-    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
-  } catch {
-    return false;
-  }
-}
-
 export function View3D({ document, selection }: View3DProps): React.JSX.Element {
   const scene = useMemo(() => buildScene(document), [document]);
-  // Probed once per mount: WebGL does not come and go while the panel is open.
-  const [webgl] = useState(webglAvailable);
+  // Probed once per session, not per mount: every probe costs a GPU context.
+  const [webgl] = useState(hasWebgl);
 
   const listed = scene.prisms.filter((prism) => LISTED_KINDS.has(prism.kind));
   const walls = new Set(scene.prisms.filter((p) => p.kind === 'wall').map((p) => p.ref.id)).size;
+  // Счётчики берутся из сцены, а не из документа: со скрытым слоем список и
+  // подпись обязаны говорить одно и то же.
+  const zonesShown = scene.prisms.filter((prism) => prism.kind === 'zone').length;
+  const objectsShown = scene.prisms.filter((prism) => prism.kind === 'object').length;
+  const hiddenCount =
+    document.zones.length - zonesShown + (document.objects.length - objectsShown);
 
   return (
     <section className="view3d" aria-label="3D-вид" data-testid="view3d">
@@ -70,8 +68,9 @@ export function View3D({ document, selection }: View3DProps): React.JSX.Element 
         <p className="view3d__caption">
           Условные объёмы из текущего плана: коробки по размеру и высоте объекта, зоны —
           цветом пола, стены с проёмами. Без своего состояния: изменили план в 2D — 3D
-          соответствует. Зон: {document.zones.length}, объектов: {document.objects.length},
+          соответствует. Зон: {zonesShown}, объектов: {objectsShown},
           стен: {walls}, потолок {document.room.ceilingHeight_m} м.
+          {hiddenCount > 0 ? ` Скрытые слои не показаны: элементов вне вида — ${hiddenCount}.` : ''}
         </p>
         <ol className="view3d__list" aria-label="Примитивы 3D-сцены" data-testid="view3d-primitives">
           {listed.map((prism) => (

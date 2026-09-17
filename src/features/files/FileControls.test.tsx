@@ -1,0 +1,240 @@
+/**
+ * IO03: что группа кнопок обещает пользователю, когда в браузере лежит черновик.
+ *
+ * Здесь проверяется то, что в браузерном сценарии не увидеть: хранилище
+ * подставлено своё (`storage`), время — поддельное, а «правка плана» — это новый
+ * `document` в пропсах, ровно как его отдаёт store. Главное свойство: пока
+ * предложение восстановить черновик висит, писать нельзя, но любое действие
+ * пользователя с документом возвращает запись — иначе работа за сессию теряется.
+ */
+
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import minimal from '../../contracts/fixtures/minimal.json';
+import type { PlanDocument, Result } from '../../contracts/model';
+import { parsePlanDocument } from '../../contracts/schema';
+import { DRAFT_KEY, type DraftStorage, type PlanDraft } from '../../persistence/browser-draft';
+import type { OpenedPlan } from '../../persistence/format';
+import { FileControls } from './FileControls';
+
+const parsed = parsePlanDocument(minimal);
+if (!parsed.ok) throw new Error('minimal.json не разобрался');
+/** План с зоной и объектом: «непустой документ», который есть что потерять. */
+const filled: PlanDocument = parsed.value;
+/** Пустой: помещение и слои есть, ничего не размещено — терять нечего. */
+const empty: PlanDocument = { ...filled, zones: [], objects: [] };
+
+function encode(plan: PlanDocument): Result<string> {
+  return { ok: true, value: JSON.stringify(plan) };
+}
+
+function read(text: string): Result<OpenedPlan> {
+  const result = parsePlanDocument(JSON.parse(text) as unknown);
+  if (!result.ok) return result;
+  return { ok: true, value: { plan: result.value, format: 'ours', assumptions: [] } };
+}
+
+type Fake = DraftStorage & { entries: Map<string, string> };
+
+function fakeStorage(seed?: PlanDraft): Fake {
+  const entries = new Map<string, string>();
+  if (seed !== undefined) entries.set(DRAFT_KEY, JSON.stringify(seed));
+  return {
+    entries,
+    getItem: vi.fn((key: string) => entries.get(key) ?? null),
+    setItem: vi.fn((key: string, value: string) => void entries.set(key, value)),
+    removeItem: vi.fn((key: string) => void entries.delete(key)),
+  };
+}
+
+function draftOf(plan: PlanDocument, name = 'План из черновика'): PlanDraft {
+  return { savedAt: '2026-09-17T09:00:00.000Z', name, text: JSON.stringify(plan) };
+}
+
+type Overrides = Partial<React.ComponentProps<typeof FileControls>>;
+
+function renderControls(overrides: Overrides = {}) {
+  const onReplace = vi.fn();
+  const onNew = vi.fn();
+  const onExported = vi.fn();
+  const view = render(
+    <FileControls
+      document={empty}
+      dirty={true}
+      read={read}
+      encode={encode}
+      onReplace={onReplace}
+      onNew={onNew}
+      onExported={onExported}
+      {...overrides}
+    />,
+  );
+  const rerender = (props: Overrides): void => {
+    view.rerender(
+      <FileControls
+        document={empty}
+        dirty={true}
+        read={read}
+        encode={encode}
+        onReplace={onReplace}
+        onNew={onNew}
+        onExported={onExported}
+        {...overrides}
+        {...props}
+      />,
+    );
+  };
+  return { onReplace, onNew, onExported, rerender };
+}
+
+/** Дебаунс черновика — 700 мс; полторы секунды заведомо его переживают. */
+function waitDebounce(): void {
+  act(() => {
+    vi.advanceTimersByTime(1_500);
+  });
+}
+
+beforeEach(() => {
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+});
+
+describe('FileControls: хранилище черновика', () => {
+  test('storage={null} не трогает localStorage браузера: ни чтения предложения, ни записи', () => {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draftOf(filled)));
+    const before = window.localStorage.getItem(DRAFT_KEY);
+    const { rerender } = renderControls({ storage: null });
+
+    expect(screen.queryByTestId('draft-restore')).toBeNull();
+    rerender({ document: filled });
+    waitDebounce();
+
+    expect(window.localStorage.getItem(DRAFT_KEY)).toBe(before);
+    expect(screen.getByTestId('draft-saved').textContent).toContain('ещё нет');
+  });
+
+  test('переданное хранилище и читается, и пишется вместо localStorage', () => {
+    const storage = fakeStorage();
+    const { rerender } = renderControls({ storage });
+
+    rerender({ document: filled });
+    waitDebounce();
+
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(storage.entries.get(DRAFT_KEY) ?? 'null') as PlanDraft;
+    expect(written.name).toBe(filled.name);
+    expect(JSON.parse(written.text)).toEqual(filled);
+    expect(screen.getByTestId('draft-saved').textContent).not.toContain('ещё нет');
+  });
+});
+
+describe('FileControls: предложение восстановить черновик', () => {
+  test('пока на предложение не ответили и план не тронули, черновик не перезаписывается', () => {
+    const storage = fakeStorage(draftOf(filled));
+    renderControls({ storage });
+
+    expect(screen.getByTestId('draft-restore').textContent).toContain('План из черновика');
+    waitDebounce();
+
+    expect(storage.setItem).not.toHaveBeenCalled();
+  });
+
+  test('первая правка плана возвращает запись черновика, хотя предложение ещё на экране', () => {
+    const storage = fakeStorage(draftOf(filled));
+    const { rerender } = renderControls({ storage });
+    waitDebounce();
+    expect(storage.setItem).not.toHaveBeenCalled();
+
+    // Пользователь начал работать с тем, что открыто: его работу надо помнить.
+    rerender({ document: filled });
+    waitDebounce();
+
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+    // Предложение остаётся: правка — ещё не ответ «мне нужен этот черновик».
+    expect(screen.queryByTestId('draft-restore')).not.toBeNull();
+  });
+
+  test('«Новый» снимает предложение и возвращает запись черновика', () => {
+    const storage = fakeStorage(draftOf(filled));
+    const { onNew, rerender } = renderControls({ storage, dirty: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+
+    expect(onNew).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('draft-restore')).toBeNull();
+    expect(storage.removeItem).toHaveBeenCalledWith(DRAFT_KEY);
+
+    rerender({ document: filled });
+    waitDebounce();
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+  });
+
+  test('«Удалить» после возобновившейся записи не стирает уже сохранённую работу', () => {
+    const storage = fakeStorage(draftOf(filled));
+    const { rerender } = renderControls({ storage });
+    rerender({ document: filled });
+    waitDebounce();
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+
+    expect(screen.queryByTestId('draft-restore')).toBeNull();
+    expect(storage.removeItem).not.toHaveBeenCalled();
+    expect(storage.entries.has(DRAFT_KEY)).toBe(true);
+  });
+
+  test('«Удалить» до первой правки убирает черновик из хранилища', () => {
+    const storage = fakeStorage(draftOf(filled));
+    renderControls({ storage });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+
+    expect(storage.removeItem).toHaveBeenCalledWith(DRAFT_KEY);
+    expect(storage.entries.has(DRAFT_KEY)).toBe(false);
+  });
+});
+
+describe('FileControls: восстановление поверх открытого документа', () => {
+  test('непустой документ не заменяется черновиком без подтверждения, даже когда он сохранён', () => {
+    const storage = fakeStorage(draftOf(empty, 'Пустой черновик'));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    // dirty=false — ровно то состояние, в котором план только что открыли из файла.
+    const { onReplace } = renderControls({ storage, document: filled, dirty: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onReplace).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('draft-restore')).not.toBeNull();
+  });
+
+  test('согласие открывает черновик как несохранённый план', () => {
+    const storage = fakeStorage(draftOf(empty, 'Пустой черновик'));
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { onReplace } = renderControls({ storage, document: filled, dirty: false });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+
+    expect(onReplace).toHaveBeenCalledTimes(1);
+    expect(onReplace.mock.calls[0]?.[1]).toBe('draft');
+    expect(screen.queryByTestId('draft-restore')).toBeNull();
+  });
+
+  test('в пустом плане терять нечего: черновик восстанавливается без вопроса', () => {
+    const storage = fakeStorage(draftOf(filled));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onReplace } = renderControls({ storage, document: empty, dirty: true });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onReplace).toHaveBeenCalledTimes(1);
+    expect((onReplace.mock.calls[0]?.[0] as PlanDocument).objects).toHaveLength(1);
+  });
+});

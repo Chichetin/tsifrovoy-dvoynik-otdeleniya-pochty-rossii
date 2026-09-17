@@ -171,6 +171,100 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
   });
 });
 
+test.describe('3D-вид: скрытые слои', () => {
+  test('выключенный слой не показывается и в 3D; включили — объект вернулся', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+    await placeFirstLibraryItem(page, 320, 240);
+
+    await switchTo(page, '3D');
+    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+    await expect(page.getByText('Скрытые слои не показаны')).toHaveCount(0);
+
+    // «Глаз» в панели слоёв — то же действие, что прячет объект на холсте 2D.
+    const eye = page.getByRole('button', { name: 'Показывать слой Основной' });
+    await eye.click();
+    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(0);
+    await expect(page.getByText('объектов: 0')).toBeVisible();
+    await expect(page.getByText('Скрытые слои не показаны')).toBeVisible();
+
+    await eye.click();
+    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+    await expect(page.getByText('объектов: 1')).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe('3D-вид: потеря контекста WebGL', () => {
+  test('контекст отобрали — сообщение вместо чёрного холста; вернули — сцена собрана заново', async ({
+    playwright,
+    browserName,
+    baseURL,
+  }) => {
+    await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto('/');
+      await placeFirstLibraryItem(page, 320, 240);
+
+      await switchTo(page, '3D');
+      await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+
+      // Контекст отбирается так же, как это делает браузер: через расширение
+      // WEBGL_lose_context самого холста сцены.
+      const how = await page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="view3d-canvas"]');
+        if (!(canvas instanceof HTMLCanvasElement)) return 'нет холста';
+        const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+        const lose = gl?.getExtension('WEBGL_lose_context') ?? null;
+        if (lose === null) {
+          canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+          return 'событие';
+        }
+        lose.loseContext();
+        return 'расширение';
+      });
+      expect(['расширение', 'событие']).toContain(how);
+
+      await expect(page.getByTestId('view3d-context-lost')).toContainText('WebGL');
+      // Список примитивов — данные, а не пиксели: он остаётся на месте.
+      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+      // И 2D-редактор, о котором говорит сообщение, действительно работает.
+      await switchTo(page, '2D');
+      await placeFirstLibraryItem(page, 420, 300);
+      await expect(inventoryRows(page)).toHaveCount(2);
+
+      // Возвращаемся в 3D: холст создаётся заново и показывает уже два объекта.
+      await switchTo(page, '3D');
+      await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+      await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
+      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(2);
+
+      // Контекст вернули на том же холсте — сцена пересобирается без перезагрузки.
+      const restored = await page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="view3d-canvas"]');
+        if (!(canvas instanceof HTMLCanvasElement)) return false;
+        const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+        gl?.getExtension('WEBGL_lose_context')?.loseContext();
+        canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
+        return true;
+      });
+      expect(restored).toBe(true);
+      await expect(page.getByTestId('view3d-context-lost')).toBeVisible();
+
+      await page.evaluate(() => {
+        const canvas = document.querySelector('.view3d__canvas-host canvas');
+        canvas?.dispatchEvent(new Event('webglcontextrestored'));
+      });
+      await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
+      await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(2);
+      expect(errors).toEqual([]);
+    });
+  });
+});
+
 test.describe('3D-вид: WebGL выключен', () => {
   test('понятное сообщение вместо пустого экрана, 2D работает', async ({ playwright, browserName, baseURL }) => {
     await withBrowser({ playwright, browserName, baseURL }, NO_WEBGL_ARGS, async (page) => {
