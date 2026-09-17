@@ -6,10 +6,11 @@
  * becomes a code change.
  */
 
+import layerTypes from '../../data/catalog/layer-types.json';
 import objectTypes from '../../data/catalog/object-types.json';
 import rules from '../../data/catalog/rules.json';
 import zoneTypes from '../../data/catalog/zone-types.json';
-import type { Catalog, PlanDocument } from '../contracts/model';
+import type { Catalog, Layer, PlanDocument } from '../contracts/model';
 import { SCHEMA_VERSION } from '../contracts/model';
 import { parseCatalog } from '../contracts/schema';
 
@@ -23,6 +24,7 @@ function loadCatalog(): Catalog {
     version: '1.0.0',
     objectTypes,
     zoneTypes,
+    layerTypes,
     rules,
   });
   if (!parsed.ok) {
@@ -36,7 +38,33 @@ function loadCatalog(): Catalog {
 
 export const catalog: Catalog = loadCatalog();
 
-/** An empty branch: four walls, one entrance, one layer, nothing placed yet. */
+/**
+ * Layers a new plan starts with: one ordinary layer that owns the content, and
+ * one overlay per informational type from the catalog. The overlays are off
+ * until someone asks for them, and they own nothing — they paint over the whole
+ * plan, so a camera stays on its own layer and is still drawn with its sector.
+ */
+function startingLayers(): Layer[] {
+  const base: Layer = {
+    id: BASE_LAYER,
+    name: 'Основной',
+    visible: true,
+    locked: false,
+    order: 0,
+    typeId: null,
+  };
+  const overlays = catalog.layerTypes.map((type, index) => ({
+    id: `l_${type.id}`,
+    name: type.label,
+    visible: false,
+    locked: false,
+    order: index + 1,
+    typeId: type.id,
+  }));
+  return [base, ...overlays];
+}
+
+/** An empty branch: four walls, one entrance, layers, nothing placed yet. */
 export function createEmptyPlan(): PlanDocument {
   const { width, height, ceiling } = NEW_ROOM;
   const corners = {
@@ -72,7 +100,7 @@ export function createEmptyPlan(): PlanDocument {
         height_m: 2.1,
       },
     ],
-    layers: [{ id: BASE_LAYER, name: 'Основной', visible: true, locked: false, order: 0 }],
+    layers: startingLayers(),
     zones: [],
     objects: [],
     catalog,

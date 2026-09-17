@@ -21,6 +21,7 @@ import {
   type Equipment,
   type Issue,
   type Layer,
+  type LayerType,
   type ObjectType,
   type Opening,
   type PlanDocument,
@@ -167,6 +168,7 @@ function canonicalLayer(layer: Layer): Json {
     visible: layer.visible,
     locked: layer.locked,
     order: layer.order,
+    typeId: layer.typeId,
   } satisfies Record<keyof Layer, Json>;
 }
 
@@ -271,11 +273,53 @@ function canonicalRule(rule: Rule): Json {
   } satisfies Record<keyof typeof rule, Json>;
 }
 
+function canonicalLayerRepresentation(representation: LayerType['representation']): Json {
+  switch (representation.kind) {
+    case 'zone-heat':
+      return {
+        kind: representation.kind,
+        attribute: representation.attribute,
+        unit: representation.unit,
+        max: representation.max,
+        colors: [representation.colors[0], representation.colors[1]],
+      } satisfies Record<keyof typeof representation, Json>;
+    case 'zone-count':
+      return {
+        kind: representation.kind,
+        attribute: representation.attribute,
+        unit: representation.unit,
+        color: representation.color,
+      } satisfies Record<keyof typeof representation, Json>;
+    case 'object-field':
+      return {
+        kind: representation.kind,
+        objectTypeIds: [...representation.objectTypeIds],
+        angleAttribute: representation.angleAttribute,
+        rangeAttribute: representation.rangeAttribute,
+        angle_deg: representation.angle_deg,
+        range_m: representation.range_m,
+        color: representation.color,
+      } satisfies Record<keyof typeof representation, Json>;
+    default:
+      return { kind: representation.kind } satisfies Record<keyof typeof representation, Json>;
+  }
+}
+
+function canonicalLayerType(type: LayerType): Json {
+  return {
+    id: type.id,
+    label: type.label,
+    representation: canonicalLayerRepresentation(type.representation),
+    note: type.note,
+  } satisfies Record<keyof LayerType, Json>;
+}
+
 function canonicalCatalog(catalog: Catalog): Json {
   return {
     version: catalog.version,
     objectTypes: catalog.objectTypes.map(canonicalObjectType),
     zoneTypes: catalog.zoneTypes.map(canonicalZoneType),
+    layerTypes: catalog.layerTypes.map(canonicalLayerType),
     rules: catalog.rules.map(canonicalRule),
   } satisfies Record<keyof Catalog, Json>;
 }

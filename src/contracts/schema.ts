@@ -45,6 +45,9 @@ const layerSchema = z.object({
   visible: z.boolean(),
   locked: z.boolean(),
   order: finiteNumber,
+  // Files written before layer types existed have no field here, and they must
+  // keep opening: no type means an ordinary layer of objects.
+  typeId: idSchema.nullable().default(null),
 });
 
 const zoneSchema = z.object({
@@ -144,10 +147,46 @@ const ruleSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 
+const layerRepresentationSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('objects') }),
+  z.object({
+    kind: z.literal('zone-heat'),
+    attribute: z.string().min(1),
+    unit: z.string(),
+    max: positiveNumber,
+    colors: z.tuple([z.string(), z.string()]),
+  }),
+  z.object({
+    kind: z.literal('zone-count'),
+    attribute: z.string().min(1),
+    unit: z.string(),
+    color: z.string(),
+  }),
+  z.object({
+    kind: z.literal('object-field'),
+    objectTypeIds: z.array(idSchema),
+    angleAttribute: z.string().min(1),
+    rangeAttribute: z.string().min(1),
+    angle_deg: positiveNumber.max(360),
+    range_m: positiveNumber,
+    color: z.string(),
+  }),
+]);
+
+const layerTypeSchema = z.object({
+  id: idSchema,
+  label: z.string(),
+  representation: layerRepresentationSchema,
+  note: z.string(),
+});
+
 export const catalogSchema = z.object({
   version: z.string(),
   objectTypes: z.array(objectTypeSchema),
   zoneTypes: z.array(zoneTypeSchema),
+  // Same reason as Layer.typeId: a catalog written before layer types is valid
+  // and simply offers none.
+  layerTypes: z.array(layerTypeSchema).default([]),
   rules: z.array(ruleSchema),
 });
 
@@ -244,6 +283,7 @@ function collectCatalogDuplicates(plan: PlanDocument): Issue[] {
   };
   check(plan.catalog.objectTypes.map((type) => type.id), 'objectTypes');
   check(plan.catalog.zoneTypes.map((type) => type.id), 'zoneTypes');
+  check(plan.catalog.layerTypes.map((type) => type.id), 'layerTypes');
   check(plan.catalog.rules.map((rule) => rule.id), 'rules');
   return issues;
 }
@@ -256,10 +296,21 @@ function collectBrokenRefs(plan: PlanDocument): Issue[] {
   const openingIds = new Set(plan.openings.map((opening) => opening.id));
   const objectTypeIds = new Set(plan.catalog.objectTypes.map((type) => type.id));
   const zoneTypeIds = new Set(plan.catalog.zoneTypes.map((type) => type.id));
+  const layerTypeIds = new Set(plan.catalog.layerTypes.map((type) => type.id));
 
   const broken = (message: string, refs: Ref[], path: string): void => {
     issues.push(issue(CONTRACT_ISSUE_CODES.BROKEN_REF, message, refs, path));
   };
+
+  plan.layers.forEach((layer, index) => {
+    if (layer.typeId !== null && !layerTypeIds.has(layer.typeId)) {
+      broken(
+        `Слой «${layer.id}»: тип «${layer.typeId}» не найден в справочнике.`,
+        [{ kind: 'layer', id: layer.id }],
+        `layers.${index}.typeId`,
+      );
+    }
+  });
 
   plan.zones.forEach((zone, index) => {
     const ref: Ref = { kind: 'zone', id: zone.id };

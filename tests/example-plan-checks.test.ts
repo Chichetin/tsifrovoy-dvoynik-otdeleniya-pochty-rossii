@@ -30,6 +30,7 @@ function teamCatalog(): Catalog {
     version: '1.0.0',
     objectTypes: readJson('data', 'catalog', 'object-types.json'),
     zoneTypes: readJson('data', 'catalog', 'zone-types.json'),
+    layerTypes: readJson('data', 'catalog', 'layer-types.json'),
     rules: readJson('data', 'catalog', 'rules.json'),
   });
   if (!parsed.ok) throw new Error('справочник команды не разобрался');
@@ -62,6 +63,7 @@ function examplePlanWithTeamRules(): PlanDocument {
         ...team.zoneTypes,
         ...imported.catalog.zoneTypes.filter((type) => !teamZoneIds.has(type.id)),
       ],
+      layerTypes: team.layerTypes,
       rules: team.rules,
     },
   });

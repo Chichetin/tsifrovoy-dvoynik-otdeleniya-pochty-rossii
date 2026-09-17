@@ -40,6 +40,7 @@ const catalog: Catalog = {
   version: 'test-1',
   objectTypes: [SQUARE, CAMERA],
   zoneTypes: [{ id: 'zt_any', label: 'Зона', color: '#E9ECEF', attributes: [] }],
+  layerTypes: [],
   rules: [],
 };
 
@@ -89,7 +90,9 @@ function plan(objects: Equipment[], zones: Zone[] = []): PlanDocument {
     },
     walls: [],
     openings: [],
-    layers: [{ id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0 }],
+    layers: [
+      { id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0, typeId: null },
+    ],
     zones,
     objects,
     catalog,

@@ -7,11 +7,12 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { Catalog, ObjectType } from '../../contracts/model';
+import type { Catalog, LayerType, ObjectType } from '../../contracts/model';
 import { parseCatalog } from '../../contracts/schema';
 import {
   CATALOG_ISSUE_CODES,
   defaultAttributes,
+  findLayerType,
   findObjectType,
   rulesForObjectType,
   validateCatalog,
@@ -28,6 +29,7 @@ function loadCatalog(): Catalog {
     version: '1.0.0',
     objectTypes: readJson('object-types.json'),
     zoneTypes: readJson('zone-types.json'),
+    layerTypes: readJson('layer-types.json'),
     rules: readJson('rules.json'),
   });
   if (!parsed.ok) {
@@ -155,6 +157,78 @@ describe('расширение справочника без правки код
   });
 });
 
+describe('информационные слои живут в справочнике', () => {
+  test('камеры, тепло и сотрудники — названные заказчиком слои на месте', () => {
+    expect(findLayerType(catalog, 'lt_cameras')?.representation.kind).toBe('object-field');
+    expect(findLayerType(catalog, 'lt_heat')?.representation.kind).toBe('zone-heat');
+    expect(findLayerType(catalog, 'lt_staff')?.representation.kind).toBe('zone-count');
+  });
+
+  test('каждый информационный слой подписан: числа синтетические', () => {
+    for (const type of catalog.layerTypes) {
+      expect({ id: type.id, signed: type.note.trim().length > 0 }).toEqual({
+        id: type.id,
+        signed: true,
+      });
+    }
+  });
+
+  test('атрибуты, которые читают слои, объявлены в типах зон и камеры', () => {
+    const zoneKeys = new Set(
+      catalog.zoneTypes.flatMap((type) => type.attributes.map((def) => def.key)),
+    );
+    const cameraKeys = new Set(
+      findObjectType(catalog, 'ot_camera')?.attributes.map((def) => def.key) ?? [],
+    );
+    for (const type of catalog.layerTypes) {
+      const representation = type.representation;
+      if (representation.kind === 'zone-heat' || representation.kind === 'zone-count') {
+        expect({ id: type.id, declared: zoneKeys.has(representation.attribute) }).toEqual({
+          id: type.id,
+          declared: true,
+        });
+      }
+      if (representation.kind === 'object-field') {
+        expect(cameraKeys.has(representation.angleAttribute)).toBe(true);
+        expect(cameraKeys.has(representation.rangeAttribute)).toBe(true);
+      }
+    }
+  });
+
+  test('обычный слой типа не имеет, и findLayerType это говорит', () => {
+    expect(findLayerType(catalog, null)).toBeNull();
+    expect(findLayerType(catalog, 'lt_missing')).toBeNull();
+  });
+
+  test('новый слой добавляется правкой JSON: очередь уже так и сделана', () => {
+    // Этот слой — второй `zone-heat` в справочнике: он появился без единой
+    // строки кода, только новой записью и атрибутом зоны.
+    const queue = findLayerType(catalog, 'lt_queue');
+    expect(queue?.representation.kind === 'zone-heat' ? queue.representation.attribute : null)
+      .toBe('queueLength');
+
+    const invented: LayerType = {
+      id: 'lt_wifi',
+      label: 'Покрытие Wi-Fi',
+      representation: {
+        kind: 'object-field',
+        objectTypeIds: ['ot_camera'],
+        angleAttribute: 'viewAngleDeg',
+        rangeAttribute: 'viewRangeM',
+        angle_deg: 360,
+        range_m: 12,
+        color: '#12B886',
+      },
+      note: 'Числа синтетические: допущение команды для демонстрации слоя.',
+    };
+    const extended = parseCatalog({ ...catalog, layerTypes: [...catalog.layerTypes, invented] });
+    expect(extended.ok).toBe(true);
+    if (!extended.ok) return;
+    expect(validateCatalog(extended.value)).toEqual([]);
+    expect(findLayerType(extended.value, 'lt_wifi')?.label).toBe('Покрытие Wi-Fi');
+  });
+});
+
 describe('проверка справочника ловит ошибки редактирования', () => {
   const codesOf = (catalogUnderTest: Catalog): string[] =>
     validateCatalog(catalogUnderTest).map((entry) => entry.code);
@@ -206,6 +280,58 @@ describe('проверка справочника ловит ошибки ред
     const inverted = { ...catalog, rules: [{ ...countRule, min: 5, max: 2 }] };
     expect(codesOf(empty)).toContain(CATALOG_ISSUE_CODES.EMPTY_RULE_BOUNDS);
     expect(codesOf(inverted)).toContain(CATALOG_ISSUE_CODES.INVERTED_RULE_BOUNDS);
+  });
+
+  test('тип слоя с неизвестным типом объекта, без типов и с чужим цветом', () => {
+    const cameras = findLayerType(catalog, 'lt_cameras')!;
+    const field = cameras.representation as Extract<
+      LayerType['representation'],
+      { kind: 'object-field' }
+    >;
+    const withField = (patch: Partial<typeof field>): Catalog => ({
+      ...catalog,
+      layerTypes: [{ ...cameras, representation: { ...field, ...patch } }],
+    });
+
+    expect(codesOf(withField({ objectTypeIds: ['ot_missing'] }))).toContain(
+      CATALOG_ISSUE_CODES.UNKNOWN_TYPE_REF,
+    );
+    expect(codesOf(withField({ objectTypeIds: [] }))).toContain(
+      CATALOG_ISSUE_CODES.EMPTY_RULE_BOUNDS,
+    );
+    expect(codesOf(withField({ color: 'фиолетовый' }))).toContain(
+      CATALOG_ISSUE_CODES.INVALID_COLOR,
+    );
+  });
+
+  test('слой с синтетическими числами без подписи — дефект данных', () => {
+    const heat = findLayerType(catalog, 'lt_heat')!;
+    const scale = heat.representation as Extract<
+      LayerType['representation'],
+      { kind: 'zone-heat' }
+    >;
+
+    expect(codesOf({ ...catalog, layerTypes: [{ ...heat, note: '  ' }] })).toContain(
+      CATALOG_ISSUE_CODES.UNSIGNED_ASSUMPTION,
+    );
+    // Цвета шкалы проверяются оба, а не только первый.
+    const badScale: Catalog = {
+      ...catalog,
+      layerTypes: [
+        {
+          ...heat,
+          representation: { ...scale, colors: ['#D3F9D8', 'красный'] as [string, string] },
+        },
+      ],
+    };
+    expect(codesOf(badScale)).toContain(CATALOG_ISSUE_CODES.INVALID_COLOR);
+  });
+
+  test('дубликат идентификатора типа слоя', () => {
+    const first = catalog.layerTypes[0]!;
+    expect(codesOf({ ...catalog, layerTypes: [...catalog.layerTypes, first] })).toContain(
+      CATALOG_ISSUE_CODES.DUPLICATE_TYPE_ID,
+    );
   });
 
   test('цвет не в формате #RRGGBB', () => {

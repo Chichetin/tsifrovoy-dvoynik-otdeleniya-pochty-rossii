@@ -18,7 +18,10 @@ type Issue = {
   code: string; severity: 'error' | 'warning'; message: string;
   refs: Ref[]; path?: string; polygon?: Polygon;
 };
-type Layer = { id: Id; name: string; visible: boolean; locked: boolean; order: number };
+type Layer = {
+  id: Id; name: string; visible: boolean; locked: boolean; order: number;
+  typeId: Id | null; // null — обычный слой объектов; иначе тип из Catalog.layerTypes
+};
 type Zone = {
   id: Id; typeId: Id; name: string; polygon: Polygon;
   parentId: Id | null; layerId: Id; attributes: Attributes;
@@ -54,8 +57,20 @@ type Rule = RuleSource & (
   | { kind: 'distance-to-entrance'; objectTypeId: Id; maxDistance_m: number;
       entranceId: Id | null }
 );
+type LayerRepresentation =
+  | { kind: 'objects' }
+  | { kind: 'zone-heat'; attribute: string; unit: string; max: number;
+      colors: [string, string] }
+  | { kind: 'zone-count'; attribute: string; unit: string; color: string }
+  | { kind: 'object-field'; objectTypeIds: Id[];
+      angleAttribute: string; rangeAttribute: string;
+      angle_deg: number; range_m: number; color: string };
+type LayerType = {
+  id: Id; label: string; representation: LayerRepresentation; note: string;
+};
 type Catalog = {
-  version: string; objectTypes: ObjectType[]; zoneTypes: ZoneType[]; rules: Rule[];
+  version: string; objectTypes: ObjectType[]; zoneTypes: ZoneType[];
+  layerTypes: LayerType[]; rules: Rule[];
 };
 type PlanDocument = {
   schemaVersion: 1; id: Id; name: string;
@@ -77,6 +92,14 @@ type PlanDocument = {
 если входов нет, результат «невозможно проверить», не «соответствует». Правило ≤3 м
 лежит в rules.json с source=organizer-material; это не проверка доступности пути.
 При переносе каталога в другой план неизвестный entranceId даёт явную ошибку ссылки.
+
+Информационный слой (`typeId != null`) ничего не содержит: он рисует поверх всего плана —
+все зоны для `zone-heat`/`zone-count`, все объекты перечисленных типов для `object-field`.
+Включение слоя не меняет документ и не поднимает ревизию (D-063). Представление только
+читает атрибуты; зона или объект без нужного атрибута просто не окрашивается. `note` типа
+слоя обязателен и печатается рядом со слоем: числа синтетические. `typeId` слоя и
+`catalog.layerTypes` необязательны во входном файле — их отсутствие означает обычные слои
+и пустой список, поэтому файлы, сохранённые до этой правки, открываются без миграции (D-064).
 
 Уникальность ID — глобально среди сущностей плана; ID типов и правил имеют отдельные
 пространства. В слоях всегда есть хотя бы один слой. Размеры/высоты положительны,

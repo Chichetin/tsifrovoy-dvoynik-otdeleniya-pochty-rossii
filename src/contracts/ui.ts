@@ -96,6 +96,23 @@ export type EquipmentLayerProps = {
   preview: Candidate | null;
 };
 
+export type LayersPanelProps = {
+  document: PlanDocument;
+  session: EditorSession;
+  onCommand: CommandSink;
+  onSelect: SelectSink;
+};
+
+/**
+ * Informational layers paint over the whole plan and own nothing: the layer
+ * only says which representation is on. Nothing here dispatches a command —
+ * switching a layer on must not touch the document.
+ */
+export type InformationLayerProps = {
+  document: PlanDocument;
+  session: EditorSession;
+};
+
 export type LibraryPanelProps = {
   catalog: Catalog;
   /** Selects object.place; the app routes the following world click. */

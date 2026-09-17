@@ -33,6 +33,7 @@ const secondLayer: Layer = {
   visible: true,
   locked: false,
   order: 1,
+  typeId: null,
 };
 
 function objectAt(id: string, position: [number, number]): Equipment {

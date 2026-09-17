@@ -42,6 +42,7 @@ const catalog: Catalog = {
   version: 'test-1',
   objectTypes: [DESK],
   zoneTypes: [{ id: 'zt_client', label: 'Клиентская зона', color: '#E7F5FF', attributes: [] }],
+  layerTypes: [],
   rules: [],
 };
 
@@ -83,7 +84,9 @@ function plan(objects: Equipment[], overrides: Partial<PlanDocument> = {}): Plan
     room: { id: 'room_main', boundary: [[0, 0], [10, 0], [10, 8], [0, 8]], ceilingHeight_m: 3 },
     walls: [],
     openings: [],
-    layers: [{ id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0 }],
+    layers: [
+      { id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0, typeId: null },
+    ],
     zones: [],
     objects,
     catalog,
