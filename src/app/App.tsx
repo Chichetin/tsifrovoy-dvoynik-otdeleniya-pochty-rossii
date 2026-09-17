@@ -28,6 +28,7 @@ import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
+import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
@@ -199,6 +200,7 @@ export function App(): React.JSX.Element {
         </main>
 
         <aside className="shell__side shell__side--wide">
+          <PropertiesPanel document={document} session={session} onCommand={dispatch} />
           <AssistantPanel
             document={document}
             revision={revision}
