@@ -21,6 +21,7 @@ import {
   polygonArea,
   rotateOffset,
   screenToModel,
+  viewSector,
   wallObstacles,
   wallPolygon,
 } from './index';
@@ -215,5 +216,46 @@ describe('регрессия: ряд выровненных объектов', (
 
     const apart = equipment({ id: 'eq_apart', position: [4, 2], size_m: [2, 0.8] });
     expect(objectsShareSpace(left, apart)).toBe(false);
+  });
+});
+
+describe('сектор обзора', () => {
+  test('при нулевом повороте смотрит в +Y, при 90° — в +X', () => {
+    const north = viewSector([0, 0], 0, 60, 4);
+    const east = viewSector([0, 0], 90, 60, 4);
+
+    // Середина дуги — это направление взгляда.
+    const middle = (sector: Polygon): Polygon[number] => sector[1 + Math.floor((sector.length - 1) / 2)]!;
+    expect(middle(north)[0]).toBeCloseTo(0, CLOSE);
+    expect(middle(north)[1]).toBeCloseTo(4, CLOSE);
+    expect(middle(east)[0]).toBeCloseTo(4, CLOSE);
+    expect(middle(east)[1]).toBeCloseTo(0, CLOSE);
+  });
+
+  test('первая вершина — сама камера, остальные лежат на дальности', () => {
+    const sector = viewSector([2, 3], 45, 90, 5);
+    expect(sector[0]).toEqual([2, 3]);
+    for (const point of sector.slice(1)) {
+      expect(Math.hypot(point[0] - 2, point[1] - 3)).toBeCloseTo(5, CLOSE);
+    }
+  });
+
+  test('площадь сектора — доля круга по углу', () => {
+    const quarter = polygonArea(viewSector([0, 0], 0, 90, 4, 720));
+    expect(quarter).toBeCloseTo((Math.PI * 16) / 4, 3);
+  });
+
+  test('обзор 360° — замкнутый круг без вершины в центре', () => {
+    const circle = viewSector([1, 1], 0, 360, 2, 720);
+    expect(circle).not.toContainEqual([1, 1]);
+    // Замыкающая точка совпала бы с первой: кольцо не хранит её дважды.
+    expect(circle).toHaveLength(720);
+    expect(polygonArea(circle)).toBeCloseTo(Math.PI * 4, 3);
+  });
+
+  test('угол вне диапазона не ломает многоугольник', () => {
+    expect(viewSector([0, 0], 0, 0, 3)).toHaveLength(26);
+    expect(polygonArea(viewSector([0, 0], 0, 0, 3))).toBeCloseTo(0, CLOSE);
+    expect(polygonArea(viewSector([0, 0], 0, 540, 3, 720))).toBeCloseTo(Math.PI * 9, 3);
   });
 });

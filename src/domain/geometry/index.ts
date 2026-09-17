@@ -172,6 +172,38 @@ export function openingCentre(opening: Opening, wall: Wall): Point {
   ];
 }
 
+/**
+ * Sector an object looks into: the wedge a camera covers, as a world polygon.
+ *
+ * Heading follows the object's own orientation — at rotation 0 the object faces
+ * +Y, and the angle turns clockwise, exactly like `footprint`. The sector is a
+ * conventional cone for planning coverage on the plan: it stops at `radius_m`
+ * and walls do not cut it. Anything beyond that is a different task.
+ *
+ * At 360° and wider the result is a closed circle without the centre vertex —
+ * a wedge that goes all the way round has no apex to draw.
+ */
+export function viewSector(
+  centre: Point,
+  rotation_deg: number,
+  angle_deg: number,
+  radius_m: number,
+  steps = 24,
+): Polygon {
+  const span = Math.min(Math.max(angle_deg, 0), 360);
+  const arc: Polygon = [];
+  for (let step = 0; step <= steps; step += 1) {
+    const at = rotation_deg - span / 2 + (span * step) / steps;
+    // Local +Y turned by `at` clockwise: the same convention as toWorld.
+    arc.push(toWorld(centre, [0, radius_m], at));
+  }
+  if (span >= 360) {
+    // Последняя точка полного круга совпадает с первой — кольцо не замыкают дважды.
+    return arc.slice(0, -1);
+  }
+  return [centre, ...arc];
+}
+
 /** Area of an object's floor projection. Rotation does not change it. */
 export function footprintArea(object: Equipment): number {
   return polygonArea(footprint(object));
