@@ -1,0 +1,335 @@
+/**
+ * U04 в браузере: жесты над оборудованием.
+ *
+ * Обещания слоя: поворот и размер за ручки попадают в модель точно и при любом
+ * zoom, один жест — одна команда и одно «Отменить», объект на скрытом слое не
+ * выбирается и не удаляется, а масштаб никогда не остаётся в файле — только
+ * `size_m`. Проверяется через карточку свойств и сохранённый JSON, не на глаз.
+ */
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
+import { importOrganizerExample } from '../../src/persistence/organizer-import';
+
+type Screen = { x: number; y: number };
+type Calibration = { scale: number; origin: Screen };
+
+const RACK = 'Шкаф / стеллаж для посылок';
+/** Зазор ручки поворота от передней кромки, как в EquipmentLayer. */
+const ROTATION_GAP_PX = 28;
+
+const card = (page: Page) => page.getByLabel('Свойства');
+const inventoryRows = (page: Page) =>
+  page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+
+/**
+ * Konva рисует сцену и hit-canvas в requestAnimationFrame после коммита React;
+ * под нагрузкой указатель успевает раньше кадра и «не находит» свежую ручку.
+ * Два кадра — гарантия, что запрошенная перерисовка уже прошла.
+ */
+async function settle(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
+async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
+  await settle(page);
+  await page.getByTestId('editor-canvas').click({ position: { x, y } });
+}
+
+async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await page.locator('.library__item', { hasText: label }).first().click();
+  await clickCanvas(page, x, y);
+  await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+}
+
+/** Выбор по строке перечня: не зависит от попадания мышью в фигуру. */
+async function selectRow(page: Page, index: number): Promise<void> {
+  await inventoryRows(page).nth(index).getByRole('button').first().click();
+}
+
+async function selectByLabel(page: Page, label: string): Promise<void> {
+  await page.getByLabel('Инвентаризация').locator('.table__link', { hasText: label }).first().click();
+}
+
+async function numberOf(page: Page, label: string): Promise<number> {
+  return Number(await card(page).getByLabel(label).inputValue());
+}
+
+async function savePlan(page: Page): Promise<string> {
+  const download = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Сохранить' }).click(),
+  ]).then(([event]) => event);
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  return readFileSync(path as string, 'utf8');
+}
+
+async function newPlan(page: Page): Promise<void> {
+  page.once('dialog', (dialog) => void dialog.accept());
+  await page.getByRole('button', { name: 'Новый' }).click();
+  await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+}
+
+/** Координата на странице для точки холста. */
+async function onPage(page: Page, point: Screen): Promise<Screen> {
+  const box = await page.getByTestId('editor-canvas').boundingBox();
+  if (box === null) throw new Error('холст не виден');
+  return { x: box.x + point.x, y: box.y + point.y };
+}
+
+async function drag(
+  page: Page,
+  from: Screen,
+  to: Screen,
+  options: { shift?: boolean } = {},
+): Promise<void> {
+  const start = await onPage(page, from);
+  const end = await onPage(page, to);
+  if (options.shift) await page.keyboard.down('Shift');
+  await settle(page);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 3, start.y + 3);
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  if (options.shift) await page.keyboard.up('Shift');
+}
+
+/**
+ * Масштаб и начало координат холста по двум поставленным объектам: их центры
+ * — точки клика, а X/Y показывает карточка. Так тест не зависит от того, как
+ * холст вписал план в окно. Оба объекта стираются кнопкой «Новый».
+ */
+async function calibrate(page: Page): Promise<Calibration> {
+  const box = await page.getByTestId('editor-canvas').boundingBox();
+  if (box === null) throw new Error('холст не виден');
+  const a: Screen = { x: 300, y: 300 };
+  const b: Screen = { x: Math.min(700, box.width - 60), y: 300 };
+  await placeFromLibrary(page, RACK, a.x, a.y);
+  await selectRow(page, 0);
+  const xa = await numberOf(page, 'X, м');
+  const ya = await numberOf(page, 'Y, м');
+  await placeFromLibrary(page, RACK, b.x, b.y);
+  await selectRow(page, 1);
+  const xb = await numberOf(page, 'X, м');
+  const scale = (b.x - a.x) / (xb - xa);
+  await newPlan(page);
+  return { scale, origin: { x: a.x - xa * scale, y: a.y + ya * scale } };
+}
+
+function toScreen(view: Calibration, x: number, y: number): Screen {
+  return { x: view.origin.x + x * view.scale, y: view.origin.y - y * view.scale };
+}
+
+/** Ручка поворота: перед передней кромкой объекта, повёрнутого на `deg`. */
+function rotationHandle(centre: Screen, depth_m: number, scale: number, deg: number): Screen {
+  const reach = (depth_m / 2) * scale + ROTATION_GAP_PX;
+  const rad = (deg * Math.PI) / 180;
+  // На экране Y вниз: «вперёд» при 0° — вверх, положительный угол — по часовой.
+  return { x: centre.x + reach * Math.sin(rad), y: centre.y - reach * Math.cos(rad) };
+}
+
+/** Масштаб холста из подписи «px/м»: округлён до целого, для одиночных проверок хватает. */
+async function shownScale(page: Page): Promise<number> {
+  const text = (await page.getByTestId('canvas-scale').textContent()) ?? '';
+  const match = /(\d+) px\/м/.exec(text);
+  if (match === null) throw new Error(`нет масштаба в «${text}»`);
+  return Number(match[1]);
+}
+
+test.describe('жесты над оборудованием', () => {
+  test('поворот за ручку: 90° с Shift, свободный 37°, одно «Отменить» на жест', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('0');
+    const depth = await numberOf(page, 'Глубина, м');
+    const scale = await shownScale(page);
+
+    // Shift: указатель чуть выше горизонтали, ручка прилипает к 90.
+    await drag(page, rotationHandle(centre, depth, scale, 0), { x: centre.x + 160, y: centre.y - 12 }, {
+      shift: true,
+    });
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('90');
+    expect(JSON.parse(await savePlan(page)).objects[0].rotation_deg).toBe(90);
+
+    // Без Shift: направление на 37° по часовой от «вперёд».
+    const rad = (37 * Math.PI) / 180;
+    await drag(page, rotationHandle(centre, depth, scale, 90), {
+      x: centre.x + 160 * Math.sin(rad),
+      y: centre.y - 160 * Math.cos(rad),
+    });
+    const free = await numberOf(page, 'Поворот, °');
+    expect(Math.abs(free - 37)).toBeLessThanOrEqual(0.3);
+
+    // Каждый жест — один шаг истории, сколько бы кадров он ни занял.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('90');
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('0');
+
+    expect(errors).toEqual([]);
+  });
+
+  test('размер за ручку пишется в size_m, масштаба в файле нет, одно «Отменить»', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const width = await numberOf(page, 'Ширина, м');
+    const depth = await numberOf(page, 'Глубина, м');
+    const x0 = await numberOf(page, 'X, м');
+    const scale = await shownScale(page);
+
+    // Восточная ручка на правой кромке; тянем на 100 px вправо.
+    const east: Screen = { x: centre.x + (width / 2) * scale, y: centre.y };
+    await drag(page, east, { x: east.x + 100, y: east.y });
+
+    const grown = 100 / scale;
+    expect(Math.abs((await numberOf(page, 'Ширина, м')) - (width + grown))).toBeLessThanOrEqual(0.05);
+    expect(await numberOf(page, 'Глубина, м')).toBe(depth);
+    // Противоположная кромка стоит на месте: центр уехал на половину прироста.
+    expect(Math.abs((await numberOf(page, 'X, м')) - (x0 + grown / 2))).toBeLessThanOrEqual(0.05);
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('0');
+
+    const saved = JSON.parse(await savePlan(page)).objects[0];
+    expect(saved.size_m[0]).toBeCloseTo(await numberOf(page, 'Ширина, м'), 6);
+    expect(saved.size_m[1]).toBe(depth);
+    expect(Object.keys(saved)).not.toEqual(expect.arrayContaining(['scale', 'scaleX', 'scaleY']));
+
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    expect(await numberOf(page, 'Ширина, м')).toBe(width);
+    expect(await numberOf(page, 'X, м')).toBe(x0);
+  });
+
+  test('перенос после zoom попадает в модель: считается в метрах, не в пикселях', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const x0 = await numberOf(page, 'X, м');
+    const y0 = await numberOf(page, 'Y, м');
+    const before = await shownScale(page);
+
+    // Колесо над центром объекта: точка под курсором остаётся под курсором.
+    const at = await onPage(page, centre);
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.wheel(0, -400);
+    await expect
+      .poll(async () => shownScale(page), { message: 'масштаб после колеса' })
+      .toBeGreaterThan(before * 2);
+    const scale = await shownScale(page);
+
+    await drag(page, centre, { x: centre.x + 120, y: centre.y - 60 });
+    expect(Math.abs((await numberOf(page, 'X, м')) - (x0 + 120 / scale))).toBeLessThanOrEqual(0.05);
+    expect(Math.abs((await numberOf(page, 'Y, м')) - (y0 + 60 / scale))).toBeLessThanOrEqual(0.05);
+
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    expect(await numberOf(page, 'X, м')).toBe(x0);
+    expect(await numberOf(page, 'Y, м')).toBe(y0);
+  });
+
+  test('скрытый слой: объект не выбирается и не удаляется, пока слой не показан', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByText('Выберите зону или объект на плане')).toBeVisible();
+    await page.keyboard.press('Delete');
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    // Выбор через перечень возможен, но ручек и удаления у невидимого объекта нет.
+    await selectRow(page, 0);
+    await page.keyboard.press('Delete');
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await page.keyboard.press('Delete');
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    // Клавиша в поле карточки — это правка поля, а не удаление объекта.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await selectRow(page, 0);
+    await card(page).getByLabel('Название').focus();
+    await page.keyboard.press('Backspace');
+    await expect(inventoryRows(page)).toHaveCount(1);
+  });
+
+  test('запертый слой: объект выбирается, но ручек нет и он не тянется', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const x0 = await numberOf(page, 'X, м');
+    await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
+
+    await drag(page, centre, { x: centre.x + 100, y: centre.y });
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    expect(await numberOf(page, 'X, м')).toBe(x0);
+  });
+
+  test('пример организаторов: повернуть стеллаж на 90°, сохранить, открыть заново', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+
+    const view = await calibrate(page);
+
+    // Пример лежит в формате организаторов; в формат редактора его переводит
+    // тот же импортёр, что и в unit-тестах.
+    const source = JSON.parse(readFileSync(join(process.cwd(), 'example_plan.json'), 'utf8'));
+    const imported = importOrganizerExample(source);
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'example_plan.editor.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(imported.value)),
+    });
+    await expect(page.getByText('сохранено')).toBeVisible();
+
+    await selectByLabel(page, 'Стеллаж посылок');
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('0');
+    const centre = toScreen(view, await numberOf(page, 'X, м'), await numberOf(page, 'Y, м'));
+    const depth = await numberOf(page, 'Глубина, м');
+
+    await drag(page, rotationHandle(centre, depth, view.scale, 0), { x: centre.x + 150, y: centre.y - 10 }, {
+      shift: true,
+    });
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('90');
+
+    const text = await savePlan(page);
+    const rack = JSON.parse(text).objects.find((entry: { id: string }) => entry.id === 'eq_rack_1');
+    expect(rack.rotation_deg).toBe(90);
+
+    await newPlan(page);
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'example_plan.rotated.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(text),
+    });
+    await selectByLabel(page, 'Стеллаж посылок');
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
+    await expect(card(page).getByLabel('Поворот, °')).toHaveValue('90');
+
+    expect(errors).toEqual([]);
+  });
+});
