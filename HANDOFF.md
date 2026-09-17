@@ -17,6 +17,7 @@
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
 | Максим / Codex | `worktree-docs-research-return`, [MR !39](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/39), отчёт `5d4d6bf` | R01: внешний PASS-2 и [сверка выводов](docs/research/deep-research-report.md); пакет документов готов | `docs/research/*`, строки А8/Т4 матрицы, эта доска; без изменения кода | SHA-256 копии совпал; 13 ссылок; ручная сверка кода/источников; секрет-скан; reviewer: merge. Diff-check новых документов чист; в исходнике сохранены Markdown-переносы из двух пробелов. Fetch выполнен отдельно: база `a25cbd7`. По карточке R01 приложение не запускалось | push и создание MR успешны; ожидает merge: запрос API `show 39` вернул 403, браузер требует вход. R01 частичный: первый отчёт не предоставлен, режим Deep Research не подтверждён |
+| Claude Code (поток 2) | `worktree-editor-review-fixes`, MR TBD | Доработки редактора по ревью MR !34 (U04) и MR !35 (U03): отмена жеста, Escape и выделение, захват ручки размера, Delete/Backspace и скрытый слой у зон, вставка вершины у ребра | `src/features/equipment/**`, `src/features/plan-tools/**`, `src/features/editor/EditorCanvas.tsx`, `tests/e2e/equipment.spec.ts`, `tests/e2e/plan-tools.spec.ts` | `npm test`, `CI=1 npm run test:e2e`, мутационная проверка | в работе |
 
 
 ## Блокеры и вопросы

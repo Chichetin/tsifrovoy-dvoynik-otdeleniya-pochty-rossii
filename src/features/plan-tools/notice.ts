@@ -47,3 +47,7 @@ export const SELF_INTERSECTION_NOTICE =
 export const MIN_VERTICES_NOTICE = 'В контуре должно остаться не меньше трёх вершин';
 export const DRAFT_SELF_INTERSECTION_NOTICE =
   'Контур самопересекается — добавьте точки или отмените рисование клавишей Esc';
+export const HIDDEN_ZONE_NOTICE =
+  'Зона лежит на скрытом слое — покажите слой, чтобы её удалить';
+export const NEAR_VERTEX_NOTICE =
+  'Клик пришёлся у вершины — вершина не добавлена; кликните ближе к середине ребра';

@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Opening, Polygon, Wall, Zone } from '../../contracts/model';
 import {
   canCommitRing,
-  handleRadiusM,
   insertVertex,
+  insertionOnEdge,
   moveOpeningTo,
   moveVertex,
   moveWallEnd,
@@ -100,9 +100,25 @@ describe('правка вершин контура', () => {
     ).toBe(false);
   });
 
-  it('handleRadiusM переводит пиксели захвата в метры по масштабу', () => {
-    expect(handleRadiusM({ origin: [0, 0], scale: 50 })).toBeCloseTo(8 / 50, 9);
-    expect(handleRadiusM({ origin: [0, 0], scale: 400 })).toBeCloseTo(8 / 400, 9);
+  it('insertionOnEdge вставляет вершину в середине ребра', () => {
+    const hit = insertionOnEdge(square, [4.1, 2]);
+    expect(hit?.index).toBe(1);
+    expect(hit?.point).toEqual([4, 2]);
+  });
+
+  it('insertionOnEdge молчит у вершины: там целились в угол, а не в ребро', () => {
+    // Ребро (4,0)→(4,4): клик в 0,5 м от вершины ближе к ней, чем к середине.
+    expect(insertionOnEdge(square, [4.1, 0.5])).toBeNull();
+    expect(insertionOnEdge(square, [4.1, 3.5])).toBeNull();
+    // Граница — четверть ребра: до неё ближе вершина, после — середина.
+    expect(insertionOnEdge(square, [4, 0.9])).toBeNull();
+    expect(insertionOnEdge(square, [4, 1])?.index).toBe(1);
+    expect(insertionOnEdge(square, [4, 1.1])?.index).toBe(1);
+  });
+
+  it('insertionOnEdge берёт то же ребро, что и nearestEdge', () => {
+    const point: [number, number] = [2, 3.9];
+    expect(insertionOnEdge(square, point)?.index).toBe(nearestEdge(square, point).index);
   });
 });
 

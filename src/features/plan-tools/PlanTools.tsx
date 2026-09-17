@@ -9,14 +9,19 @@
  * and has no DOM, so a refused gesture is printed by this toolbar (see
  * `notice.ts`); and deleting the selected zone, wall or opening needs a button
  * as well as the Delete key, because a button is what a user finds without
- * being told. Both paths send the same command, so undo sees one step either
- * way.
+ * being told. Both paths send the same command through `delete-key.ts`, so undo
+ * sees one step either way and the rules cannot drift apart.
+ *
+ * The refusal line is about one gesture over one shape: it goes out when the
+ * user selects something else or opens another plan, and never outlives the
+ * document it was printed for.
  */
 
-import type { Command } from '../../contracts/commands';
+import { useEffect } from 'react';
 import type { Ref } from '../../contracts/model';
 import type { PlanToolsProps, ToolKind } from '../../contracts/ui';
-import { useNotice } from './notice';
+import { deleteIntent } from './delete-key';
+import { setNotice, useNotice } from './notice';
 
 const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: string }[] = [
   { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать объекты' },
@@ -25,18 +30,9 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: str
   { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; клик по первой точке замыкает' },
 ];
 
-/** What the Delete key and the button remove, and how it is called in the UI. */
-const DELETABLE = {
-  zone: { command: 'zone.delete', label: 'зону' },
-  wall: { command: 'wall.delete', label: 'перегородку' },
-  opening: { command: 'opening.delete', label: 'проём' },
-} as const satisfies Record<string, { command: Command['type']; label: string }>;
-
-type Deletable = keyof typeof DELETABLE;
-
-function deletable(selection: Ref | null): (Ref & { kind: Deletable }) | null {
-  if (selection === null) return null;
-  return selection.kind in DELETABLE ? (selection as Ref & { kind: Deletable }) : null;
+/** Что именно сейчас выбрано — ключом строки, а не ссылкой на объект. */
+function selectionKey(selection: Ref | null): string {
+  return selection === null ? '' : `${selection.kind}:${selection.id}`;
 }
 
 /** What the current selection can be edited with, in one line. */
@@ -50,10 +46,23 @@ function editingHint(selection: Ref | null): string | null {
   return null;
 }
 
-export function PlanTools({ session, onTool, onCommand }: PlanToolsProps): React.JSX.Element {
+export function PlanTools({
+  document: plan,
+  session,
+  onTool,
+  onCommand,
+}: PlanToolsProps): React.JSX.Element {
   const notice = useNotice();
-  const target = deletable(session.selection);
+  const intent = deleteIntent(session.selection, plan);
   const hint = editingHint(session.selection);
+  const selected = selectionKey(session.selection);
+  // Другой документ — это «Новый» или открытый файл: план опознаётся по id и
+  // имени, а не по ссылке, иначе строку гасила бы любая правка.
+  const document = `${plan.id}\u0000${plan.name}`;
+
+  useEffect(() => {
+    setNotice(null);
+  }, [selected, document]);
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Инструменты плана">
@@ -70,14 +79,14 @@ export function PlanTools({ session, onTool, onCommand }: PlanToolsProps): React
         </button>
       ))}
 
-      {target === null ? null : (
+      {intent?.kind !== 'delete' ? null : (
         <button
           type="button"
           className="toolbar__button"
-          title="То же делает клавиша Delete"
-          onClick={() => onCommand({ type: DELETABLE[target.kind].command, id: target.id })}
+          title="То же делают клавиши Delete и Backspace"
+          onClick={() => onCommand(intent.command)}
         >
-          Удалить {DELETABLE[target.kind].label}
+          Удалить {intent.label}
         </button>
       )}
 
