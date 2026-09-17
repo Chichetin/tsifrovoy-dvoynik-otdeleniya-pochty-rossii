@@ -141,7 +141,7 @@ test.describe('файлы плана', () => {
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
     // Черновик пишется с задержкой и говорит, что он в браузере, а не на диске.
-    await expect(page.getByTestId('draft-saved')).toContainText('черновик в браузере');
+    await expect(page.getByTestId('draft-saved')).toContainText(/черновик в браузере: \d\d:\d\d/);
 
     await page.reload();
     // После перезагрузки план пуст, но черновик предложен, а не применён сам.
@@ -158,7 +158,7 @@ test.describe('файлы плана', () => {
   test('черновик не затирается, пока на предложение не ответили', async ({ page }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
-    await expect(page.getByTestId('draft-saved')).toBeVisible();
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
 
     await page.reload();
     await expect(page.getByTestId('draft-restore')).toBeVisible();
@@ -178,7 +178,7 @@ test.describe('файлы плана', () => {
   }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
-    await expect(page.getByTestId('draft-saved')).toBeVisible();
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
 
     await page.reload();
     await page.getByTestId('draft-restore').getByRole('button', { name: 'Удалить' }).click();
@@ -192,7 +192,7 @@ test.describe('файлы плана', () => {
   test('начатая работа не заменяется черновиком без подтверждения', async ({ page }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
-    await expect(page.getByTestId('draft-saved')).toBeVisible();
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
 
     await page.reload();
     const offer = page.getByTestId('draft-restore');
@@ -231,7 +231,7 @@ test.describe('файлы плана', () => {
     // Редактор работает дальше и перезаписывает мусор своим черновиком.
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.getByTestId('draft-saved')).toBeVisible();
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
     expect(errors).toEqual([]);
   });
 });

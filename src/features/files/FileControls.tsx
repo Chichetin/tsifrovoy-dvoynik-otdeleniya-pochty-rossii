@@ -227,7 +227,23 @@ export function FileControls({
     setState({ status: 'done' });
   };
 
+  /*
+   * Сообщения живут отдельной строкой шапки и занимают её всегда, даже пустые:
+   * подпись, появившаяся через секунду после правки, иначе переносила бы группу
+   * кнопок на новую строку и двигала холст под курсором пользователя. Высота
+   * задана здесь, а не в `app/styles.css`: файл стилей принадлежит потоку 2.
+   */
+  const strip: React.CSSProperties = {
+    flexBasis: '100%',
+    minHeight: 20,
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  };
+
   return (
+    <>
     <div className="files" role="group" aria-label="Файл плана">
       <button
         type="button"
@@ -278,17 +294,18 @@ export function FileControls({
         {dirty ? 'есть несохранённые правки' : 'сохранено'}
       </span>
 
+    </div>
+
+    <div className="files__messages" style={strip}>
       {state.status === 'loading' ? (
         <span className="files__status" data-testid="files-loading">
           читаем файл…
         </span>
       ) : null}
 
-      {draftAt === null ? null : (
-        <span className="files__status" data-testid="draft-saved">
-          черновик в браузере, {atTime(draftAt)}
-        </span>
-      )}
+      <span className="files__status" data-testid="draft-saved">
+        черновик в браузере: {draftAt === null ? 'ещё нет' : atTime(draftAt)}
+      </span>
 
       {draftError === null ? null : (
         <span className="files__status is-dirty" data-testid="draft-error">
@@ -331,5 +348,6 @@ export function FileControls({
         </p>
       ) : null}
     </div>
+    </>
   );
 }
