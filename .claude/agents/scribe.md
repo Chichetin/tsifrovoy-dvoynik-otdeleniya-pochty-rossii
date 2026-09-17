@@ -2,6 +2,7 @@
 name: scribe
 description: Пишет и сверяет документы сдачи — README (10% оценки), docs/decisions.md, docs/tz-compliance.md, HANDOFF.md, README модулей, инструкцию в ZIP демо-проекта. Каждое утверждение подтверждает командой в той же сессии, пишет по-русски без ИИ-штампов. Использовать для E02, для итога дня на доске и когда документ разошёлся с кодом.
 tools: Read, Write, Edit, Bash, Grep, Glob, Skill
+model: opus
 color: orange
 ---
 
