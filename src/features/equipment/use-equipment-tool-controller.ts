@@ -10,6 +10,7 @@ import { useCallback } from 'react';
 import type { Id } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { defaultAttributes, findObjectType } from '../../domain/catalog';
+import { snapPosition } from './transform';
 
 function nextId(prefix: string, taken: Set<Id>): Id {
   for (let index = 1; ; index += 1) {
@@ -43,7 +44,8 @@ export const useEquipmentToolController: UsePlanToolController = ({
           id: nextId('eq_', taken),
           typeId: type.id,
           label: type.label,
-          position: event.point,
+          // Centimetres, like every other gesture: the file stays readable.
+          position: snapPosition(event.point),
           size_m: type.defaultSize_m,
           rotation_deg: 0,
           base_m: type.defaultBase_m,
