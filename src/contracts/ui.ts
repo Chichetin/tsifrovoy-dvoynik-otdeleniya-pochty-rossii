@@ -8,7 +8,7 @@
  */
 
 import type { ReactNode } from 'react';
-import type { AdviceResponse, Candidate } from './advice';
+import type { AdviceRequest, AdviceResponse, Candidate } from './advice';
 import type { Command } from './commands';
 import type {
   Catalog,
@@ -126,6 +126,11 @@ export type AssistantPanelProps = {
   state: RequestState;
   onPreview: (candidate: Candidate | null) => void;
   onFocus: FocusSink;
+  /**
+   * The panel owns the scenario and its parameters, so it is the panel that
+   * starts the request; the app owns the transport and the resulting state.
+   */
+  onAsk: (request: AdviceRequest, query?: string) => void;
 };
 
 export type View3DProps = {

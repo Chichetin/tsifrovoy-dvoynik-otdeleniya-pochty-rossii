@@ -343,3 +343,143 @@ body {
   color: var(--muted);
   font-family: ui-monospace, "Cascadia Code", monospace;
 }
+
+/* A06: панель ассистента */
+
+.assistant__form {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.assistant__field {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.assistant__field select,
+.assistant__field input {
+  padding: 5px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: #fff;
+}
+
+.assistant__mode {
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #e6fcf5;
+  color: #0b7285;
+}
+
+.assistant__mode.is-fallback {
+  background: #fff4e6;
+  color: #a1590b;
+}
+
+.assistant__stale {
+  margin: 0 0 8px;
+  padding: 5px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff0f6;
+  color: #a61e4d;
+}
+
+.advice {
+  padding: 8px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #f8f9fa;
+}
+
+.advice__sentence {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.advice__facts,
+.advice__candidates,
+.advice__changes,
+.advice__limitations,
+.advice__more ul {
+  margin: 0 0 8px;
+  padding-left: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.advice__facts li,
+.advice__changes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.advice__candidates {
+  padding-left: 0;
+  counter-reset: none;
+}
+
+.advice__candidates li {
+  display: grid;
+  gap: 2px;
+  padding: 5px 6px;
+  margin-bottom: 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  cursor: default;
+}
+
+.advice__candidates li:hover {
+  border-color: var(--accent);
+}
+
+.advice__forecast {
+  color: var(--muted);
+}
+
+.advice__refs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.advice__more {
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.advice__more summary {
+  cursor: pointer;
+}
+
+.advice__more li {
+  padding: 2px 0;
+  line-height: 1.4;
+}
+
+.advice__limitations li {
+  padding: 2px 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.advice__limitations li::before {
+  content: '⚠ ';
+}

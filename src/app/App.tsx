@@ -9,12 +9,15 @@
 
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
+import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { Command } from '../contracts/commands';
 import type { PlanDocument, Ref, Result, Viewport } from '../contracts/model';
-import type { EditorSession, Tool } from '../contracts/ui';
+import type { EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
 import { validatePlan } from '../domain/validation';
+import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
@@ -45,10 +48,13 @@ export function App(): React.JSX.Element {
   const [lastError, setLastError] = useState<string | null>(null);
   const focusSequence = useRef(0);
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
+  const [preview, setPreview] = useState<Candidate | null>(null);
+  const [advice, setAdvice] = useState<AdviceResponse | null>(null);
+  const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, preview: null, focus }),
-    [tool, viewport, selection, focus],
+    () => ({ tool, viewport, selection, preview, focus }),
+    [tool, viewport, selection, preview, focus],
   );
 
   const select = useCallback(
@@ -82,6 +88,28 @@ export function App(): React.JSX.Element {
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
   const metrics = useMemo(() => measurePlan(document), [document]);
+
+  const askAssistant = useCallback(
+    (request: AdviceRequest, query?: string) => {
+      setAdviceState({ status: 'loading' });
+      // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
+      // если план успели поправить, пока сервер считал.
+      const asked = { plan: document, revision, request, ...(query === undefined ? {} : { query }) };
+      void requestAdvice(asked).then((result) => {
+        if (!result.ok) {
+          setAdvice(null);
+          setAdviceState({
+            status: 'error',
+            message: result.issues.map((issue) => issue.message).join('; '),
+          });
+          return;
+        }
+        setAdvice(result.value);
+        setAdviceState({ status: 'done' });
+      });
+    },
+    [document, revision],
+  );
 
   const replaceDocument = useCallback(
     (plan: PlanDocument) => {
@@ -156,12 +184,21 @@ export function App(): React.JSX.Element {
               session={session}
               onCommand={dispatch}
               onSelect={select}
-              preview={null}
+              preview={preview}
             />
           </EditorCanvas>
         </main>
 
         <aside className="shell__side shell__side--wide">
+          <AssistantPanel
+            document={document}
+            revision={revision}
+            response={advice}
+            state={adviceState}
+            onPreview={setPreview}
+            onFocus={focusOn}
+            onAsk={askAssistant}
+          />
           <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
           <ValidationPanel issues={issues} onFocus={focusOn} />
           <InventoryPanel inventory={inventory} onFocus={focusOn} />
