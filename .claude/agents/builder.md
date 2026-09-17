@@ -50,6 +50,7 @@ git -C <worktree> status -sb        # ветка worktree-<поток>-<тема
    ```bash
    npm run typecheck && npm run lint && npm test && npm run build
    npm run test:e2e                              # если менялся UI или app
+   DEV_PORT=5174 npm run test:e2e                # если 5173 занят соседним worktree
    bash .claude/hooks/check-secrets.sh           # пусто = чисто
    bash .claude/hooks/check-upstream.sh manual   # чужие коммиты против твоих файлов
    ```
