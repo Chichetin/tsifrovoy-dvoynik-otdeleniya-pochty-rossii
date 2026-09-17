@@ -483,3 +483,119 @@ body {
 .advice__limitations li::before {
   content: '⚠ ';
 }
+
+/* U05: панель слоёв */
+
+.layers__add {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.layers__add select {
+  flex: 1;
+  min-width: 0;
+}
+
+.layers__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.layers__item {
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.layers__item.is-selected {
+  border-color: var(--accent);
+}
+
+.layers__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.layers__name {
+  flex: 1;
+  min-width: 0;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font: inherit;
+  background: transparent;
+}
+
+.layers__name:focus {
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.layers__toggle {
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.layers__toggle:hover:not(:disabled) {
+  background: var(--line);
+}
+
+.layers__toggle:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.layers__toggle[aria-pressed='false'] {
+  opacity: 0.45;
+}
+
+.layers__meta,
+.layers__note {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.layers__note::before {
+  content: 'ⓘ ';
+}
+
+.layers__data {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.layers__data th {
+  padding: 2px 4px 2px 0;
+  font-weight: 400;
+  text-align: left;
+}
+
+.layers__data td {
+  padding: 2px 0;
+}
+
+.layers__data input {
+  width: 100%;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font: inherit;
+}
+
+.layers__unit {
+  width: 34px;
+  padding-left: 4px !important;
+  color: var(--muted);
+}

@@ -23,6 +23,8 @@ import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { InformationLayer } from '../features/layers/InformationLayer';
+import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
@@ -159,6 +161,12 @@ export function App(): React.JSX.Element {
       <div className="shell__body">
         <aside className="shell__side">
           <LibraryPanel catalog={catalog} onTool={setTool} />
+          <LayersPanel
+            document={document}
+            session={session}
+            onCommand={dispatch}
+            onSelect={select}
+          />
         </aside>
 
         <main className="shell__canvas">
@@ -186,6 +194,7 @@ export function App(): React.JSX.Element {
               onSelect={select}
               preview={preview}
             />
+            <InformationLayer document={document} session={session} />
           </EditorCanvas>
         </main>
 

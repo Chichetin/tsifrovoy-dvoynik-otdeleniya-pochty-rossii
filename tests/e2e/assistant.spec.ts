@@ -13,13 +13,13 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function drawZone(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Зона' }).click();
+  await page.getByRole('button', { name: 'Зона', exact: true }).click();
   await clickCanvas(page, 200, 180);
   await clickCanvas(page, 430, 180);
   await clickCanvas(page, 430, 360);
   await clickCanvas(page, 200, 360);
   await clickCanvas(page, 200, 180);
-  await page.getByRole('button', { name: 'Выбор' }).click();
+  await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
 const panel = (page: Page) => page.getByLabel('Ассистент');

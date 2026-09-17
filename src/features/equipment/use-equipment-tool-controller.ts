@@ -30,7 +30,10 @@ export const useEquipmentToolController: UsePlanToolController = ({
       if (tool.kind !== 'object.place' || event.phase !== 'down') return;
 
       const type = findObjectType(plan.catalog, tool.typeId);
-      const layer = plan.layers.find((entry) => !entry.locked) ?? plan.layers[0];
+      // Только обычный слой: информационный слой — представление поверх плана
+      // и ничего не содержит (D-063).
+      const layer =
+        plan.layers.find((entry) => !entry.locked && entry.typeId === null) ?? plan.layers[0];
       if (type === null || layer === undefined) return;
 
       const taken = new Set<Id>(plan.objects.map((object) => object.id));
