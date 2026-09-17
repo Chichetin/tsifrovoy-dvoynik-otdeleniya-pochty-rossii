@@ -89,6 +89,16 @@ git worktree add -q .claude/worktrees/wt-test -b worktree-wt-test 2>/dev/null
 (cd .claude/worktrees/wt-test && expect_out lacks "worktree — без предупреждения" "основной копии")
 (cd .claude/worktrees/wt-test && expect_out has   "worktree — видна ветка"        "worktree-wt-test")
 
+# --- check-worktrees.sh (SubagentStop: секреты во всех worktree)
+expect pass  "worktrees: секретов нигде нет"           check-worktrees.sh
+echo 'const token = "f9a8Xc72kLmQ01zYvB3n4dHs"' > .claude/worktrees/wt-test/bot.js
+expect block "worktrees: секрет в чужом worktree"       check-worktrees.sh
+out="$(bash "$HOOKS/check-worktrees.sh" 2>&1)"
+if printf '%s' "$out" | grep -q 'worktree .*wt-test'; then echo "ok:   worktrees: в причине назван worktree"
+else echo "FAIL: worktrees: worktree не назван, вывод: $out"; FAIL=1; fi
+rm .claude/worktrees/wt-test/bot.js
+expect pass  "worktrees: после удаления секрета чисто"  check-worktrees.sh
+
 # --- check-upstream.sh: чужие коммиты в origin/main против моей работы
 cd "$TMP" && git init -q --bare -b main remote.git
 git clone -q remote.git mate 2>/dev/null
