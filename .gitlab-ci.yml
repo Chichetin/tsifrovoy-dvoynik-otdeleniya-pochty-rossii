@@ -1,0 +1,105 @@
+# I01: конвейер GitLab CI — те же команды, что и на машине разработчика.
+#
+# Ключей LLM здесь нет намеренно: без `LLM_ENDPOINT`/`LLM_MODEL`/`LLM_API_KEY`
+# сервер и ассистент работают в режиме «без LLM» (D-016), поэтому CI не тратит
+# баланс, не зависит от сети провайдера и проверяет именно тот путь, которым
+# пойдёт жюри, если ключ кончится.
+#
+# Образ Docker здесь не собирается: registry у команды нет, а сборка «в никуда»
+# только удлиняет конвейер. Как собрать и поднять образ руками — docs/deployment.md.
+
+stages:
+  - install
+  - verify
+  - build
+  - e2e
+
+variables:
+  GIT_DEPTH: '20'
+  npm_config_audit: 'false'
+  npm_config_fund: 'false'
+
+default:
+  image: node:22-alpine
+  interruptible: true
+  cache:
+    # Ключ — сам lockfile: правка зависимостей сама сбрасывает кеш. Prefix
+    # разделяет несовместимые сборки: в alpine ставятся musl-бинарники rolldown
+    # и esbuild, в образе Playwright — glibc, один кеш на двоих ломает запуск.
+    key:
+      files:
+        - package-lock.json
+      prefix: node22-alpine
+    paths:
+      - node_modules/
+    policy: pull
+  before_script:
+    # Кеш мог не приехать (первый запуск, чистка) — тогда ставим строго по lockfile.
+    - '[ -d node_modules ] || npm ci'
+
+install:
+  stage: install
+  cache:
+    key:
+      files:
+        - package-lock.json
+      prefix: node22-alpine
+    paths:
+      - node_modules/
+    policy: pull-push
+  before_script: []
+  script:
+    - npm ci
+
+typecheck:
+  stage: verify
+  script:
+    - npm run typecheck
+
+lint:
+  stage: verify
+  script:
+    - npm run lint
+
+test:
+  stage: verify
+  script:
+    - npm test
+
+build:
+  stage: build
+  script:
+    - npm run build
+    - npm run build:server
+  artifacts:
+    name: "spa-and-server-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - dist/
+      - build/server/
+    expire_in: 1 week
+
+e2e:
+  stage: e2e
+  # Версия образа совпадает с @playwright/test в package.json: браузеры внутри
+  # образа и клиент из lockfile должны быть одной версии.
+  image: mcr.microsoft.com/playwright:v1.63.0-noble
+  cache:
+    key:
+      files:
+        - package-lock.json
+      prefix: playwright-noble
+    paths:
+      - node_modules/
+    policy: pull-push
+  variables:
+    CI: '1'
+  script:
+    # Playwright сам поднимает `npm run dev`; Docker в CI не запускается, поэтому
+    # tests/e2e/deployment.spec.ts пропускается с причиной — это ожидаемо.
+    - npm run test:e2e -- --workers=2
+  artifacts:
+    when: on_failure
+    paths:
+      - playwright-report/
+      - test-results/
+    expire_in: 1 week
