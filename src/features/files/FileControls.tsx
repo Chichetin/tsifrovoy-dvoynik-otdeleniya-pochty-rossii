@@ -1,31 +1,64 @@
 /**
- * IO03 (controls): open a plan, save it, start a new one.
+ * IO03 (controls): open a plan, save it, start a new one, and do not lose work
+ * to a closed tab.
  *
  * Every outcome is visible. A file that cannot be read leaves the open document
- * exactly where it was and says why, with the codes the codec returned; a save
+ * exactly where it was and says why, with the codes the reader returned; a save
  * claims nothing beyond "the browser was handed the file", because a page
- * cannot know what happened in the download folder.
+ * cannot know what happened in the download folder; a draft says "в браузере",
+ * because localStorage is not the disk.
+ *
+ * The button takes both formats the jury can bring — our versioned file and the
+ * organizers' `example_plan.json` — and the file itself decides which one it
+ * is (`readPlanFile`). An imported example says so on screen: the values the
+ * example never stated are assumptions of this team, and the next save writes
+ * our format, not theirs.
  *
  * Replacing a plan with unsaved edits asks first — the store reports `dirty`,
  * it does not decide.
  */
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { DocumentOrigin } from '../../contracts/commands';
 import type { Issue, PlanDocument, Result } from '../../contracts/model';
 import type { RequestState } from '../../contracts/ui';
+import {
+  clearDraft,
+  createDraftWriter,
+  draftDiffers,
+  readDraft,
+  type DraftStorage,
+  type DraftWriter,
+  type PlanDraft,
+} from '../../persistence/browser-draft';
+import type { OpenedPlan } from '../../persistence/format';
 
 export type FileControlsProps = {
   document: PlanDocument;
   dirty: boolean;
-  decode: (text: string) => Result<PlanDocument>;
+  /** Reads a file of either supported format; see `persistence/format.ts`. */
+  read: (text: string) => Result<OpenedPlan>;
   encode: (plan: PlanDocument) => Result<string>;
-  onReplace: (plan: PlanDocument) => void;
+  /** `origin` отличает файл от восстановленного черновика: черновик не сохранён. */
+  onReplace: (plan: PlanDocument, origin: DocumentOrigin) => void;
   onNew: () => void;
   /** Told the revision that has just been written out, for the dirty flag. */
   onExported: () => void;
+  /**
+   * Where the draft lives. `undefined` means the browser's localStorage;
+   * `null` switches the draft off, which is what a stand or a test wants.
+   */
+  storage?: DraftStorage | null;
 };
 
 const DIRTY_WARNING = 'В плане есть несохранённые правки. Открыть другой файл и потерять их?';
+
+const RESTORE_WARNING =
+  'План уже изменён с момента открытия страницы. Восстановить черновик и потерять эти правки?';
+
+const ORGANIZER_NOTE =
+  'План импортирован из формата организаторов (example_plan.json) с допущениями команды. ' +
+  'Кнопка «Сохранить» запишет его уже в формате редактора.';
 
 function describe(issues: Issue[]): string {
   return issues
@@ -39,20 +72,95 @@ function fileName(plan: PlanDocument): string {
   return `${stem === '' ? 'plan' : stem}.json`;
 }
 
+/** Хранилище браузера, если оно вообще доступно: приватный режим бросает. */
+function browserStorage(): DraftStorage | null {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+}
+
+function atTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'неизвестного времени';
+  return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
 export function FileControls({
   document: plan,
   dirty,
-  decode,
+  read,
   encode,
   onReplace,
   onNew,
   onExported,
+  storage: given,
 }: FileControlsProps): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null);
   const [state, setState] = useState<RequestState>({ status: 'idle' });
+  const [notice, setNotice] = useState<string | null>(null);
+  const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [storage] = useState<DraftStorage | null>(() =>
+    given === undefined ? browserStorage() : given,
+  );
+  // Состояние первого рендера: с чем страница открылась и есть ли черновик,
+  // который стоит предложить. Читается один раз — пока предложение висит,
+  // писать нельзя, иначе пустой план затрёт то, что предлагаем восстановить.
+  const [start] = useState<{ opening: string | null; draft: PlanDraft | null }>(() => {
+    if (storage === null) return { opening: null, draft: null };
+    const started = encode(plan);
+    const opening = started.ok ? started.value : null;
+    const draft = readDraft(storage);
+    return { opening, draft: draft !== null && draftDiffers(draft, opening) ? draft : null };
+  });
+  const [offered, setOffered] = useState<PlanDraft | null>(start.draft);
+  const [draftAt, setDraftAt] = useState<string | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const writer = useRef<DraftWriter | null>(null);
+
+  useEffect(() => {
+    if (storage === null) return;
+    const created = createDraftWriter(storage, {
+      onSaved: (draft) => {
+        setDraftAt(draft.savedAt);
+        setDraftError(null);
+      },
+      onError: (message) => setDraftError(message),
+    });
+    writer.current = created;
+    return () => {
+      created.cancel();
+      writer.current = null;
+    };
+  }, [storage]);
+
+  // Пишем только когда черновик уже разобран и предложение снято. План
+  // сериализуется в момент записи, а не на каждое движение мыши.
+  useEffect(() => {
+    if (offered !== null) return;
+    const active = writer.current;
+    if (active === null) return;
+    active.schedule(() => {
+      const encoded = encode(plan);
+      // План, который не запишется в файл, не годится и в черновик.
+      return encoded.ok ? { text: encoded.value, name: plan.name } : null;
+    });
+    return () => active.cancel();
+  }, [plan, offered, encode]);
+
+  const accept = (opened: OpenedPlan, origin: DocumentOrigin): void => {
+    onReplace(opened.plan, origin);
+    setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
+    setNotice(
+      opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
+    );
+    setState({ status: 'done' });
+  };
 
   const open = async (file: File): Promise<void> => {
     setState({ status: 'loading' });
+    setNotice(null);
     let text: string;
     try {
       text = await file.text();
@@ -64,14 +172,39 @@ export function FileControls({
       return;
     }
 
-    const decoded = decode(text);
-    if (!decoded.ok) {
+    const opened = read(text);
+    if (!opened.ok) {
       // The open document stays untouched: a rejected file never replaces it.
-      setState({ status: 'error', message: `План не открыт. ${describe(decoded.issues)}` });
+      setAssumptions([]);
+      setState({ status: 'error', message: `План не открыт. ${describe(opened.issues)}` });
       return;
     }
-    onReplace(decoded.value);
-    setState({ status: 'done' });
+    accept(opened.value, 'file');
+  };
+
+  const restore = (draft: PlanDraft): void => {
+    // Спрашиваем, только если план успели изменить после открытия страницы:
+    // нетронутый пустой план считается «грязным», но терять в нём нечего.
+    const current = encode(plan);
+    const touched = !current.ok || current.value !== start.opening;
+    if (touched && dirty && !window.confirm(RESTORE_WARNING)) return;
+    const opened = read(draft.text);
+    setOffered(null);
+    if (!opened.ok) {
+      // Черновик оказался мусором: открытый план не трогаем, черновик убираем.
+      if (storage !== null) clearDraft(storage);
+      setState({
+        status: 'error',
+        message: `Черновик не восстановлен, план не изменён. ${describe(opened.issues)}`,
+      });
+      return;
+    }
+    accept(opened.value, 'draft');
+  };
+
+  const dismiss = (): void => {
+    if (storage !== null) clearDraft(storage);
+    setOffered(null);
   };
 
   const save = (): void => {
@@ -90,6 +223,7 @@ export function FileControls({
     URL.revokeObjectURL(url);
 
     onExported();
+    setNotice(`Файл ${fileName(plan)} передан браузеру на скачивание.`);
     setState({ status: 'done' });
   };
 
@@ -101,6 +235,10 @@ export function FileControls({
         onClick={() => {
           if (dirty && !window.confirm(DIRTY_WARNING)) return;
           onNew();
+          if (storage !== null) clearDraft(storage);
+          setDraftAt(null);
+          setAssumptions([]);
+          setNotice(null);
           setState({ status: 'idle' });
         }}
       >
@@ -140,7 +278,53 @@ export function FileControls({
         {dirty ? 'есть несохранённые правки' : 'сохранено'}
       </span>
 
-      {state.status === 'loading' ? <span className="files__status">…</span> : null}
+      {state.status === 'loading' ? (
+        <span className="files__status" data-testid="files-loading">
+          читаем файл…
+        </span>
+      ) : null}
+
+      {draftAt === null ? null : (
+        <span className="files__status" data-testid="draft-saved">
+          черновик в браузере, {atTime(draftAt)}
+        </span>
+      )}
+
+      {draftError === null ? null : (
+        <span className="files__status is-dirty" data-testid="draft-error">
+          {draftError}
+        </span>
+      )}
+
+      {offered === null ? null : (
+        <span className="files__status" data-testid="draft-restore">
+          Черновик «{offered.name}» от {atTime(offered.savedAt)} в этом браузере.{' '}
+          <button type="button" className="files__button" onClick={() => restore(offered)}>
+            Восстановить
+          </button>{' '}
+          <button type="button" className="files__button" onClick={dismiss}>
+            Удалить
+          </button>
+        </span>
+      )}
+
+      {state.status === 'done' && notice !== null ? (
+        <span className="files__status" data-testid="files-notice">
+          {notice}
+        </span>
+      ) : null}
+
+      {assumptions.length === 0 ? null : (
+        <details className="files__status" data-testid="organizer-assumptions">
+          <summary>Допущения импорта ({assumptions.length})</summary>
+          <ul>
+            {assumptions.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {state.status === 'error' ? (
         <p className="files__error" role="alert">
           {state.message}

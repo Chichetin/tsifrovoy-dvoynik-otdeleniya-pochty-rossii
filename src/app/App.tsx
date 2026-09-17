@@ -10,7 +10,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
-import type { Command } from '../contracts/commands';
+import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
@@ -33,7 +33,8 @@ import { PlanTools } from '../features/plan-tools/PlanTools';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
-import { decodePlan, encodePlan } from '../persistence/codec';
+import { encodePlan } from '../persistence/codec';
+import { readPlanFile } from '../persistence/format';
 import { createPlanStore } from '../state/plan-store';
 import { catalog, createEmptyPlan } from './default-plan';
 import './styles.css';
@@ -118,9 +119,10 @@ export function App(): React.JSX.Element {
   );
 
   const replaceDocument = useCallback(
-    (plan: PlanDocument) => {
-      // 'file' — план пришёл из файла и считается сохранённым состоянием.
-      store.getState().replaceDocument(plan, 'file');
+    (plan: PlanDocument, origin: DocumentOrigin) => {
+      // 'file' — план пришёл из файла и считается сохранённым состоянием;
+      // 'draft' — восстановленный черновик, он никуда ещё не выгружен.
+      store.getState().replaceDocument(plan, origin);
       setLastError(null);
     },
     [store],
@@ -156,7 +158,7 @@ export function App(): React.JSX.Element {
         <FileControls
           document={document}
           dirty={dirty}
-          decode={decodePlan}
+          read={readPlanFile}
           encode={encodePlan}
           onReplace={replaceDocument}
           onNew={startNewPlan}
