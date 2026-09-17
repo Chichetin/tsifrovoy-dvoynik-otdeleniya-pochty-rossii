@@ -1,0 +1,127 @@
+/**
+ * D01: the 3D view of the current plan. It owns nothing but the camera and
+ * GPU resources — the scene is rebuilt from `document` on every change, so
+ * whatever the 2D editor did is what 3D shows.
+ *
+ * Three.js is loaded lazily and only when WebGL is there: a browser without
+ * it gets a message and keeps the 2D editor, not a blank panel. The list of
+ * prisms next to the canvas is the textual form of the same scene — that is
+ * what a test reads, pixels are not an interface.
+ */
+
+import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
+import type { View3DProps } from '../../contracts/ui';
+import { buildScene, isSelected, type ScenePrism } from './scene';
+
+const View3DCanvas = lazy(() => import('./View3DCanvas'));
+
+/** Prism kinds listed by id next to the canvas; walls and the floor are counted only. */
+const LISTED_KINDS: ReadonlySet<ScenePrism['kind']> = new Set(['zone', 'object']);
+
+const KIND_LABELS: Record<ScenePrism['kind'], string> = {
+  floor: 'помещение',
+  zone: 'зона',
+  wall: 'стена',
+  opening: 'проём',
+  object: 'объект',
+};
+
+function webglAvailable(): boolean {
+  try {
+    const canvas = document.createElement('canvas');
+    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
+  } catch {
+    return false;
+  }
+}
+
+export function View3D({ document, selection }: View3DProps): React.JSX.Element {
+  const scene = useMemo(() => buildScene(document), [document]);
+  // Probed once per mount: WebGL does not come and go while the panel is open.
+  const [webgl] = useState(webglAvailable);
+
+  const listed = scene.prisms.filter((prism) => LISTED_KINDS.has(prism.kind));
+  const walls = new Set(scene.prisms.filter((p) => p.kind === 'wall').map((p) => p.ref.id)).size;
+
+  return (
+    <section className="view3d" aria-label="3D-вид" data-testid="view3d">
+      <div className="view3d__stage">
+        {webgl ? (
+          <LoadFailure>
+            <Suspense
+              fallback={
+                <p className="view3d__status" role="status">
+                  Загружается 3D-модуль…
+                </p>
+              }
+            >
+              <View3DCanvas scene={scene} selection={selection} />
+            </Suspense>
+          </LoadFailure>
+        ) : (
+          <p className="view3d__status" role="status" data-testid="view3d-unavailable">
+            WebGL в этом браузере недоступен, 3D-вид не построить. 2D-редактор работает
+            как обычно — кнопка «2D» в шапке.
+          </p>
+        )}
+      </div>
+
+      <aside className="view3d__side">
+        <p className="view3d__caption">
+          Условные объёмы из текущего плана: коробки по размеру и высоте объекта, зоны —
+          цветом пола, стены с проёмами. Без своего состояния: изменили план в 2D — 3D
+          соответствует. Зон: {document.zones.length}, объектов: {document.objects.length},
+          стен: {walls}, потолок {document.room.ceilingHeight_m} м.
+        </p>
+        <ol className="view3d__list" aria-label="Примитивы 3D-сцены" data-testid="view3d-primitives">
+          {listed.map((prism) => (
+            <li
+              key={`${prism.ref.kind}:${prism.ref.id}`}
+              className={isSelected(prism, selection) ? 'view3d__item view3d__item--selected' : 'view3d__item'}
+              data-kind={prism.ref.kind}
+              data-id={prism.ref.id}
+              data-selected={isSelected(prism, selection) ? 'true' : undefined}
+            >
+              <span className="view3d__swatch" style={{ background: prism.color }} aria-hidden="true" />
+              <span className="view3d__kind">{KIND_LABELS[prism.kind]}</span>{' '}
+              <span className="view3d__label">{prism.label}</span>{' '}
+              <code className="view3d__id">{prism.ref.id}</code>
+              {prism.kind === 'object' ? (
+                <span className="view3d__dims">
+                  {' '}
+                  {prism.base_m > 0 ? `${prism.base_m}–${round(prism.base_m + prism.height_m)} м` : `h ${prism.height_m} м`}
+                </span>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </aside>
+    </section>
+  );
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+type FailureState = { message: string | null };
+
+/** A failed chunk load or a renderer crash shows its reason instead of a blank stage. */
+class LoadFailure extends Component<{ children: ReactNode }, FailureState> {
+  state: FailureState = { message: null };
+
+  static getDerivedStateFromError(error: unknown): FailureState {
+    return { message: error instanceof Error ? error.message : String(error) };
+  }
+
+  render(): ReactNode {
+    if (this.state.message !== null) {
+      return (
+        <p className="view3d__status" role="alert" data-testid="view3d-error">
+          Не удалось показать 3D: {this.state.message}. 2D-редактор работает как обычно.
+        </p>
+      );
+    }
+    return this.props.children;
+  }
+}
