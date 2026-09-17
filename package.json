@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:server": "vite build --ssr server/main.ts --outDir build/server",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
