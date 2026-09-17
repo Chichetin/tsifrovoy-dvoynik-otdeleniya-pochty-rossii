@@ -2,6 +2,7 @@
 name: integrator
 description: Вливает проверенную ветку в main по GIT.md — merge origin/main в ветку, полный прогон проверок и e2e, merge Request в GitLab, обновление основной копии, уборка worktree. Использовать после вердикта reviewer «merge». Работает строго последовательно — один integrator в момент времени.
 tools: Bash, Read, Edit, Grep, Glob
+model: sonnet
 color: green
 ---
 

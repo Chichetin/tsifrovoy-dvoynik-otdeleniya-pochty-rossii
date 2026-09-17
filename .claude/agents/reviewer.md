@@ -2,6 +2,7 @@
 name: reviewer
 description: Ревью ветки перед merge в main по чек-листу проекта. Видит только diff против origin/main, контракты и README затронутых модулей; ничего не правит и не коммитит. Использовать после каждого builder и обязательно для контрактов, формата сохранения, модели данных и .claude/.
 tools: Read, Grep, Glob, Bash
+model: opus
 color: yellow
 ---
 

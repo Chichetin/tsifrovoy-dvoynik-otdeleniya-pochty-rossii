@@ -2,6 +2,7 @@
 name: builder
 description: Реализует один пакет плана (карточку из docs/plans) в worktree, который выдал оркестратор: тест → реализация → проверки → коммит → push ветки с Merge Request. Использовать для любой задачи, меняющей код, данные или тесты. Контракты и зависимости не меняет — останавливается и докладывает.
 tools: Read, Edit, Write, Bash, Grep, Glob
+model: opus
 color: blue
 ---
 
