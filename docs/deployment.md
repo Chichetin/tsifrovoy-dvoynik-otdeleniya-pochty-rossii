@@ -57,11 +57,15 @@ npx playwright install chromium
 DEPLOY_URL=http://127.0.0.1:8080 npx playwright test tests/e2e/deployment.spec.ts
 ```
 
-`DEPLOY_URL` может указывать на любой адрес, в том числе на удалённый хост. Если
-`DEPLOY_URL` задан, а сервис не отвечает, тесты падают; если переменной нет (обычный
-прогон в CI, где Docker недоступен) — пропускаются с причиной, а не краснеют.
+`DEPLOY_URL` обязателен и может указывать на любой адрес, в том числе на удалённый хост.
+Правило одно: переменная задана — проверяют конкретный деплой, и недоступный адрес валит
+тесты; переменной нет (обычный `npm run test:e2e`, прогон в CI без Docker) — тесты
+пропускаются с причиной и в сеть не ходят. Адреса по умолчанию нет намеренно: с ним
+прогон цеплялся к любому процессу на порту 8080 — например, к `npm run serve` из
+README — и проверял деплой по dev-сборке.
 
-Прогон на 17.09.2026 против локального контейнера: `5 passed (2.6s)`.
+Прогон на 17.09.2026 против локального контейнера: `5 passed`; тот же файл без
+`DEPLOY_URL` — `5 skipped`.
 
 ## Переменные окружения
 
@@ -111,7 +115,9 @@ docker compose down              # остановить и удалить кон
 2. Ступень `runtime` на том же `node:22-alpine`: только `npm ci --omit=dev`, собранный
    SPA и один файл сервера. Исходников TypeScript, тестов, документации и материалов
    организаторов в образе нет — контекст сборки ограничен `.dockerignore`, который
-   запрещает всё и открывает поимённо `src`, `server`, `data`, `index.html` и конфиги.
+   запрещает всё и открывает поимённо `src`, `server`, `data`, `demo/*.json`,
+   `index.html` и конфиги. Демо-планы сдачи (`demo/*.json`, пакет E01) открыты именно
+   поэтому: клиент подключает их на сборке, и без них `vite build` в образе упал бы.
 3. Процесс запускается от пользователя `node` (не root), слушает `0.0.0.0:$PORT`, имеет
    `HEALTHCHECK` на `/api/health`.
 
@@ -152,6 +158,16 @@ docker run -d --name ops-digital-twin -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 
   нагрузки — предел одного Node-процесса на раздаче статики и расчёте рекомендаций.
 - **Только Linux/amd64 проверен.** Сборка на arm64 должна работать (в lockfile есть
   бинарники rolldown под arm64-musl), но не проверялась.
+- **В runtime-образе лежат и клиентские зависимости.** `npm ci --omit=dev` ставит весь
+  раздел `dependencies`, а там вместе с серверными `fastify`, `@fastify/static`, `zod` и
+  `polyclip-ts` лежат `three`, `react`, `react-dom`, `react-konva`, `konva`, `zustand` —
+  они уже собраны внутрь `dist/` и процессу не нужны. Это ~34 МБ лишнего из 322 МБ
+  образа (`du -sch node_modules/{three,konva,react,react-dom,react-konva,zustand}`);
+  основной вес — базовый образ `node:22-alpine`. Чистое решение — перенести клиентские
+  библиотеки в `devDependencies`, но это правка `package.json` и `package-lock.json`,
+  общих для всех потоков: отдельный MR владельца tooling, не этот. Ставить пакеты
+  поимённо или удалять каталоги из `node_modules` в `Dockerfile` не стали: такой список
+  расходится с `package.json` молча.
 - **Логи — в stdout контейнера** (`docker compose logs`), ротацию и сбор настраивает
   хост.
 
@@ -161,4 +177,5 @@ docker run -d --name ops-digital-twin -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 
 |---|---|---|
 | Образ собирается и контейнер поднимается | `docker compose up --build -d` | `Up ... (healthy)` |
 | Health | `curl http://127.0.0.1:8080/api/health` | `{"status":"ok"}` |
-| Сервис целиком | `DEPLOY_URL=http://127.0.0.1:8080 npx playwright test tests/e2e/deployment.spec.ts` | `5 passed (2.6s)` |
+| Сервис целиком | `DEPLOY_URL=http://127.0.0.1:8080 npx playwright test tests/e2e/deployment.spec.ts` | `5 passed` |
+| Без адреса деплоя тесты не трогают чужой порт | `npx playwright test tests/e2e/deployment.spec.ts` | `5 skipped` |
