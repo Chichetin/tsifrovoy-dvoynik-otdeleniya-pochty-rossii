@@ -13,12 +13,14 @@ import type { Command } from '../contracts/commands';
 import type { PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { EditorSession, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
+import { measurePlan } from '../domain/metrics';
 import { validatePlan } from '../domain/validation';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PlanTools } from '../features/plan-tools/PlanTools';
@@ -79,6 +81,7 @@ export function App(): React.JSX.Element {
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
+  const metrics = useMemo(() => measurePlan(document), [document]);
 
   const replaceDocument = useCallback(
     (plan: PlanDocument) => {
@@ -159,6 +162,7 @@ export function App(): React.JSX.Element {
         </main>
 
         <aside className="shell__side shell__side--wide">
+          <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
           <ValidationPanel issues={issues} onFocus={focusOn} />
           <InventoryPanel inventory={inventory} onFocus={focusOn} />
         </aside>

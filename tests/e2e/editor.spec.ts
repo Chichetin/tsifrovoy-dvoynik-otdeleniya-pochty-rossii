@@ -54,9 +54,15 @@ test.describe('сквозной сценарий редактора', () => {
     // В библиотеке и в перечне одинаковая подпись — берём строку перечня.
     await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
 
-    const inventoryRows = page.locator('.table').first().locator('tbody tr');
-    await expect(inventoryRows).toHaveCount(1);
+    const inventoryRows = page.getByLabel('Инвентаризация').locator('tbody tr').first();
+    await expect(inventoryRows).toBeVisible();
     await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+
+    // Площади считаются от нарисованного, а не от шаблона: свободного пола
+    // стало меньше площади помещения.
+    const free = await page.getByTestId('room-free').textContent();
+    expect(free).toMatch(/^\d+\.\d\d м²$/);
+    expect(Number.parseFloat(free ?? '0')).toBeLessThan(12 * 9);
 
     // Сохранение: файл уходит в загрузки, состояние становится «сохранено».
     const download = await Promise.all([
@@ -80,7 +86,7 @@ test.describe('сквозной сценарий редактора', () => {
 
     // Повторное открытие: зона, объект и их идентификаторы на месте.
     await page.getByTestId('plan-file-input').setInputFiles(saved as string);
-    await expect(inventoryRows).toHaveCount(1);
+    await expect(inventoryRows).toBeVisible();
     await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
     await expect(page.locator('.table__link', { hasText: 'z_1' }).first()).toBeVisible();
     await expect(page.getByText('сохранено')).toBeVisible();
@@ -92,7 +98,7 @@ test.describe('сквозной сценарий редактора', () => {
   test('битый файл не подменяет открытый план', async ({ page }) => {
     await page.goto('/');
     await placeFirstLibraryItem(page, 320, 240);
-    const rows = page.locator('.table').first().locator('tbody tr');
+    const rows = page.getByLabel('Инвентаризация').locator('tbody tr');
     await expect(rows).toHaveCount(1);
 
     page.once('dialog', (dialog) => void dialog.accept());
@@ -110,7 +116,7 @@ test.describe('сквозной сценарий редактора', () => {
   test('отмена возвращает удалённую правку', async ({ page }) => {
     await page.goto('/');
     await placeFirstLibraryItem(page, 320, 240);
-    const rows = page.locator('.table').first().locator('tbody tr');
+    const rows = page.getByLabel('Инвентаризация').locator('tbody tr');
     await expect(rows).toHaveCount(1);
 
     await page.getByRole('button', { name: 'Отменить' }).click();
