@@ -1,0 +1,292 @@
+/**
+ * A06: the assistant on screen.
+ *
+ * Everything the panel shows comes from the answer: the sentence is rendered
+ * from the verified explanation, the numbers are the facts of the calculation,
+ * and the assumptions and limitations are printed next to them rather than
+ * hidden behind a tooltip — the jury has to be able to tell our rule from a
+ * requirement of Russian Post without reading the code.
+ *
+ * The panel changes nothing in the plan. Hovering a placement shows it as a
+ * translucent preview; moving the object is the user's own action in the
+ * editor, because automatic rearrangement is explicitly out of scope.
+ */
+
+import { useState } from 'react';
+import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
+import type { AssistantPanelProps } from '../../contracts/ui';
+import { renderExplanation } from '../../domain/advice';
+
+type Scenario = AdviceRequest['scenario'];
+
+const SCENARIO_LABELS: Record<Scenario, string> = {
+  place: 'Найти место',
+  equipment: 'Комплектование',
+  compare: 'Эффект изменений',
+};
+
+const METRIC_LABELS: Record<Fact['metric'], string> = {
+  'area.total': 'Площадь помещения',
+  'area.occupied': 'Занято',
+  'area.free': 'Свободно',
+  'equipment.count': 'Объектов',
+  'equipment.min': 'Минимум по правилу',
+  'equipment.max': 'Максимум по правилу',
+  'objects.added': 'Добавлено',
+  'objects.removed': 'Удалено',
+  'placement.distance': 'Расстояние',
+};
+
+const PHASE_LABELS: Record<Fact['phase'], string> = {
+  current: 'сейчас',
+  before: 'было',
+  after: 'станет',
+  delta: 'разница',
+};
+
+function formatValue(fact: Fact): string {
+  const unit = fact.unit === 'm2' ? ' м²' : fact.unit === 'm' ? ' м' : ' шт.';
+  const value = fact.unit === 'count' ? String(fact.value) : fact.value.toFixed(2);
+  const sign = fact.phase === 'delta' && fact.value > 0 ? '+' : '';
+  return `${sign}${value}${unit}`;
+}
+
+/** Факты варианта показываются внутри варианта, а не в общем списке. */
+function ownFacts(recommendation: Recommendation): Fact[] {
+  const owned = new Set(
+    recommendation.candidates.flatMap((candidate) => candidate.facts.map((fact) => fact.id)),
+  );
+  return recommendation.facts.filter((fact) => !owned.has(fact.id));
+}
+
+export function AssistantPanel({
+  document: plan,
+  revision,
+  response,
+  state,
+  onPreview,
+  onFocus,
+  onAsk,
+}: AssistantPanelProps): React.JSX.Element {
+  const [scenario, setScenario] = useState<Scenario>('place');
+  const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
+  const [zoneId, setZoneId] = useState<string>('');
+  const [query, setQuery] = useState('');
+
+  const stale = response !== null && response.revision !== revision;
+
+  function ask(): void {
+    if (scenario === 'place') {
+      onAsk(
+        { scenario: 'place', typeId, zoneId: zoneId === '' ? null : zoneId },
+        query.trim() === '' ? undefined : query.trim(),
+      );
+      return;
+    }
+    if (scenario === 'equipment') {
+      onAsk(
+        { scenario: 'equipment', zoneId: zoneId === '' ? null : zoneId },
+        query.trim() === '' ? undefined : query.trim(),
+      );
+      return;
+    }
+    // Сравнение — с последним сохранённым или открытым состоянием плана.
+    onAsk({ scenario: 'compare', before: plan }, query.trim() === '' ? undefined : query.trim());
+  }
+
+  return (
+    <section className="panel assistant" aria-label="Ассистент">
+      <h2 className="panel__title">Ассистент</h2>
+
+      <div className="assistant__form">
+        <label className="assistant__field">
+          Сценарий
+          <select
+            value={scenario}
+            onChange={(event) => setScenario(event.target.value as Scenario)}
+          >
+            {Object.entries(SCENARIO_LABELS).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {scenario === 'place' ? (
+          <label className="assistant__field">
+            Объект
+            <select value={typeId} onChange={(event) => setTypeId(event.target.value)}>
+              {plan.catalog.objectTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+
+        {scenario === 'compare' ? null : (
+          <label className="assistant__field">
+            Зона
+            <select value={zoneId} onChange={(event) => setZoneId(event.target.value)}>
+              <option value="">Всё помещение</option>
+              {plan.zones.map((zone) => (
+                <option key={zone.id} value={zone.id}>
+                  {zone.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <label className="assistant__field">
+          Вопрос (необязательно)
+          <input
+            type="text"
+            value={query}
+            placeholder="Куда поставить второе окно?"
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        <button
+          type="button"
+          className="files__button is-primary"
+          onClick={ask}
+          disabled={state.status === 'loading'}
+        >
+          {state.status === 'loading' ? 'Считаем…' : 'Спросить'}
+        </button>
+      </div>
+
+      {state.status === 'error' ? (
+        <p className="files__error" role="alert">
+          {state.message}
+        </p>
+      ) : null}
+
+      {stale ? (
+        <p className="assistant__stale" role="status">
+          План изменился после этого ответа: спросите заново, числа устарели.
+        </p>
+      ) : null}
+
+      {response === null ? (
+        <p className="panel__empty">
+          {state.status === 'loading' ? 'Считаем рекомендации…' : 'Ответа пока нет'}
+        </p>
+      ) : (
+        <>
+          <p className={response.mode === 'llm' ? 'assistant__mode' : 'assistant__mode is-fallback'}>
+            {response.mode === 'llm'
+              ? 'Объяснение модели проверено расчётом'
+              : `Без LLM: ${response.fallbackReason ?? 'показан расчёт'}`}
+          </p>
+
+          {response.recommendations.length === 0 ? (
+            <p className="panel__empty">Расчёт не нашёл, что предложить по этому запросу</p>
+          ) : null}
+
+          {response.recommendations.map((recommendation) => {
+            const explanation = response.explanations.find(
+              (entry) => entry.recommendationId === recommendation.id,
+            );
+            const sentence =
+              explanation === undefined ? null : renderExplanation(recommendation, explanation);
+
+            return (
+              <article key={recommendation.id} className="advice">
+                <p className="advice__sentence">
+                  {sentence ?? 'Объяснение недоступно — ниже расчёт, на который оно опиралось.'}
+                </p>
+
+                <ul className="advice__facts">
+                  {ownFacts(recommendation).map((fact) => (
+                    <li key={fact.id}>
+                      <span>
+                        {METRIC_LABELS[fact.metric]} ({PHASE_LABELS[fact.phase]})
+                      </span>
+                      <b>{formatValue(fact)}</b>
+                    </li>
+                  ))}
+                </ul>
+
+                {recommendation.candidates.length === 0 ? null : (
+                  <ol className="advice__candidates">
+                    {recommendation.candidates.map((candidate: Candidate, index) => (
+                      <li
+                        key={candidate.id}
+                        onMouseEnter={() => onPreview(candidate)}
+                        onMouseLeave={() => onPreview(null)}
+                      >
+                        <span>
+                          Вариант {index + 1}: {candidate.object.position[0].toFixed(2)};{' '}
+                          {candidate.object.position[1].toFixed(2)} м, поворот{' '}
+                          {candidate.object.rotation_deg}°
+                        </span>
+                        <span className="advice__forecast">
+                          {candidate.facts
+                            .filter((fact) => fact.phase === 'after')
+                            .map((fact) => `${METRIC_LABELS[fact.metric]}: ${formatValue(fact)}`)
+                            .join(', ')}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+
+                {recommendation.changes.length === 0 ? null : (
+                  <ul className="advice__changes">
+                    {recommendation.changes.map((change) => (
+                      <li key={`${change.ref.kind}-${change.ref.id}-${change.kind}`}>
+                        <button
+                          type="button"
+                          className="table__link"
+                          onClick={() => onFocus(change.ref)}
+                        >
+                          {change.ref.id}
+                        </button>
+                        <span>{change.kind}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <p className="advice__refs">
+                  {recommendation.refs.map((ref) => (
+                    <button
+                      key={`${ref.kind}-${ref.id}`}
+                      type="button"
+                      className="table__link"
+                      onClick={() => onFocus(ref)}
+                    >
+                      {ref.id}
+                    </button>
+                  ))}
+                </p>
+
+                {recommendation.assumptions.length === 0 ? null : (
+                  <details className="advice__more">
+                    <summary>Допущения и правила ({recommendation.assumptions.length})</summary>
+                    <ul>
+                      {recommendation.assumptions.map((assumption) => (
+                        <li key={assumption}>{assumption}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+
+                <ul className="advice__limitations">
+                  {recommendation.limitations.map((limitation) => (
+                    <li key={limitation}>{limitation}</li>
+                  ))}
+                </ul>
+              </article>
+            );
+          })}
+        </>
+      )}
+    </section>
+  );
+}
