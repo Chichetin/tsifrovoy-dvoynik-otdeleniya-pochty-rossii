@@ -1,0 +1,237 @@
+/**
+ * IO03 в браузере: чем проверяющий начнёт работу.
+ *
+ * Сценарий D-058 — открыть готовый структурированный план — здесь проверяется
+ * на том самом файле, который выложили организаторы: `example_plan.json` из
+ * корня репозитория подаётся в кнопку «Открыть» как есть, без конвертации в
+ * тесте. Дальше — скачать, открыть заново и получить тот же документ.
+ *
+ * Отдельно проверяется, что редактор не теряет работу и не подменяет открытый
+ * план: битый файл, черновик в localStorage и мусор вместо черновика.
+ */
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
+
+/** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
+const EXAMPLE = join(process.cwd(), 'example_plan.json');
+
+/** Ключ черновика из `src/persistence/browser-draft.ts`. */
+const DRAFT_KEY = 'ops-twin.draft.v1';
+
+/** Строки перечня оборудования — первая таблица панели «Инвентаризация». */
+function inventoryRows(page: Page) {
+  return page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+}
+
+async function openFile(page: Page, file: string): Promise<void> {
+  await page.getByTestId('plan-file-input').setInputFiles(file);
+}
+
+/** Ставит первый тип из библиотеки в точку холста. */
+async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<void> {
+  await page.locator('.library__item').first().click();
+  await page.getByTestId('editor-canvas').click({ position: { x, y } });
+}
+
+async function download(page: Page): Promise<string> {
+  const event = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Сохранить' }).click(),
+  ]).then(([download]) => download);
+  const path = await event.path();
+  expect(path).not.toBeNull();
+  return path as string;
+}
+
+test.describe('файлы плана', () => {
+  test('кнопка «Открыть» принимает сырой пример организаторов', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await page.goto('/');
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    await openFile(page, EXAMPLE);
+
+    // Двенадцать объектов примера и его зоны — на месте и со своими id.
+    await expect(inventoryRows(page)).toHaveCount(12);
+    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    await expect(page.locator('.table__link', { hasText: 'z_back' }).first()).toBeVisible();
+
+    // Объект примера открывается карточкой по своему идентификатору.
+    await page.locator('.table__link', { hasText: 'Терминал электронной очереди' }).first().click();
+    await expect(page.getByTestId('props-id')).toHaveText('eq_kiosk');
+
+    // Пользователю сказано, откуда план и что будет при сохранении.
+    await expect(page.getByTestId('files-notice')).toContainText('формата организаторов');
+    await expect(page.getByTestId('files-notice')).toContainText('формате редактора');
+    await expect(page.getByTestId('organizer-assumptions')).toContainText('Допущения импорта');
+
+    // Зоны нарисованы: площадь помещения и свободный пол посчитаны от плана.
+    await expect(page.getByTestId('room-free')).toContainText('м²');
+    expect(errors).toEqual([]);
+  });
+
+  test('скачать импортированный пример и открыть его заново — то же состояние', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(inventoryRows(page)).toHaveCount(12);
+
+    const first = await download(page);
+    const savedText = readFileSync(first, 'utf8');
+    const saved = JSON.parse(savedText) as {
+      schemaVersion: number;
+      zones: unknown[];
+      objects: unknown[];
+    };
+    // Сохранённый файл — уже наш формат, а не формат примера.
+    expect(saved.schemaVersion).toBe(1);
+    expect(saved.zones).toHaveLength(4);
+    expect(saved.objects).toHaveLength(12);
+    await expect(page.getByText('сохранено')).toBeVisible();
+
+    // Чистый лист, затем открываем скачанный файл.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Новый' }).click();
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    await openFile(page, first);
+    await expect(inventoryRows(page)).toHaveCount(12);
+    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    // Это наш файл, а не пример: подпись про импорт больше не показывается.
+    await expect(page.getByTestId('organizer-assumptions')).toHaveCount(0);
+
+    // Повторное сохранение даёт тот же текст — документ вернулся целиком.
+    const second = await download(page);
+    expect(readFileSync(second, 'utf8')).toBe(savedText);
+    await testInfo.attach('импортированный пример', {
+      body: savedText,
+      contentType: 'application/json',
+    });
+  });
+
+  test('файл не того формата не подменяет открытый план', async ({ page }) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(inventoryRows(page)).toHaveCount(12);
+
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'notes.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"hello": "world"}'),
+    });
+    await expect(page.getByRole('alert')).toContainText('example_plan.json');
+    await expect(inventoryRows(page)).toHaveCount(12);
+
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'broken.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"schemaVersion": 1, "zones": ['),
+    });
+    await expect(page.getByRole('alert')).toContainText('DOCUMENT_UNREADABLE');
+    await expect(inventoryRows(page)).toHaveCount(12);
+  });
+
+  test('черновик переживает перезагрузку страницы', async ({ page }) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(inventoryRows(page)).toHaveCount(12);
+    // Черновик пишется с задержкой и говорит, что он в браузере, а не на диске.
+    await expect(page.getByTestId('draft-saved')).toContainText(/черновик в браузере: \d\d:\d\d/);
+
+    await page.reload();
+    // После перезагрузки план пуст, но черновик предложен, а не применён сам.
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+    const offer = page.getByTestId('draft-restore');
+    await expect(offer).toBeVisible();
+
+    await offer.getByRole('button', { name: 'Восстановить' }).click();
+    await expect(inventoryRows(page)).toHaveCount(12);
+    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    await expect(offer).toHaveCount(0);
+  });
+
+  test('черновик не затирается, пока на предложение не ответили', async ({ page }) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+
+    await page.reload();
+    await expect(page.getByTestId('draft-restore')).toBeVisible();
+    // Ожидание здесь и есть предмет проверки: пустой план не должен записаться
+    // поверх черновика по дебаунсу (700 мс), пока пользователь думает.
+    await page.waitForTimeout(1_500);
+
+    await page.reload();
+    const offer = page.getByTestId('draft-restore');
+    await expect(offer).toBeVisible();
+    await offer.getByRole('button', { name: 'Восстановить' }).click();
+    await expect(inventoryRows(page)).toHaveCount(12);
+  });
+
+  test('«Удалить» убирает черновик, и после перезагрузки его больше не предлагают', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+
+    await page.reload();
+    await page.getByTestId('draft-restore').getByRole('button', { name: 'Удалить' }).click();
+    await expect(page.getByTestId('draft-restore')).toHaveCount(0);
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByTestId('draft-restore')).toHaveCount(0);
+  });
+
+  test('начатая работа не заменяется черновиком без подтверждения', async ({ page }) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+
+    await page.reload();
+    const offer = page.getByTestId('draft-restore');
+    await expect(offer).toBeVisible();
+
+    // Пользователь начал новый план, не ответив на предложение.
+    await placeFirstLibraryItem(page, 320, 240);
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    // Playwright по умолчанию отклоняет диалог — правка остаётся на месте.
+    await offer.getByRole('button', { name: 'Восстановить' }).click();
+    await expect(inventoryRows(page)).toHaveCount(1);
+    await expect(offer).toBeVisible();
+
+    // Согласие — и черновик всё-таки открывается, уже как несохранённый план.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await offer.getByRole('button', { name: 'Восстановить' }).click();
+    await expect(inventoryRows(page)).toHaveCount(12);
+    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+  });
+
+  test('битый черновик не ломает старт редактора', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await page.addInitScript(
+      ([key]) => window.localStorage.setItem(key as string, '{это не json'),
+      [DRAFT_KEY],
+    );
+    await page.goto('/');
+
+    await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
+    await expect(page.getByTestId('draft-restore')).toHaveCount(0);
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+
+    // Редактор работает дальше и перезаписывает мусор своим черновиком.
+    await openFile(page, EXAMPLE);
+    await expect(inventoryRows(page)).toHaveCount(12);
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+    expect(errors).toEqual([]);
+  });
+});
