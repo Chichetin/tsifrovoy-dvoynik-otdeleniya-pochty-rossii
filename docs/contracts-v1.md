@@ -233,8 +233,8 @@ type AdviceResponse = {
 | placement.none | candidates пуст, candidateId=null | Ограничения сетки и бюджета; нельзя говорить «места не существует» |
 | equipment.missing | count < min в одной области refs | equipment.count, equipment.min; разницу вычисляет шаблон |
 | equipment.excess | count > max в одной области refs | equipment.count, equipment.max; разницу вычисляет шаблон |
-| comparison.changed | хотя бы один рассчитанный delta != 0 или есть перемещение/смена атрибута | Пары before/after по каждой показываемой метрике; знак вычисляет шаблон |
-| comparison.unchanged | Документы равны по содержимому | Сообщение об отсутствии изменений |
+| comparison.changed | хотя бы один рассчитанный delta != 0; перемещение попадает в дельту как измеренное расстояние `placement.distance` | Пары before/after по каждой показываемой метрике; знак вычисляет шаблон |
+| comparison.unchanged | все рассчитанные delta нулевые | Сообщение о том, что показатели не изменились; правки, невидимые показателям, перечислены в `changes` и в `limitations` |
 
 `area.*` имеет unit=m2, `placement.distance` — m, остальные — count. Значения конечны;
 count целые, отрицательные значения допустимы только для phase=delta. Before/after

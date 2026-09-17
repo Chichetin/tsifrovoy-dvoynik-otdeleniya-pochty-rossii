@@ -165,7 +165,7 @@ export const REASON_CODE_SPECS: Readonly<Record<ReasonCode, ReasonCodeSpec>> = {
     requiredFacts: [{ metric: 'area.free', phase: 'delta' }],
     requiresNonZeroDelta: false,
     requiresAllDeltaZero: true,
-    template: 'Изменений нет: снимки планов совпадают по содержимому.',
+    template: 'Показатели не изменились: площади и перечень оборудования совпадают.',
     slots: [],
     requiredLimitation:
       'Сравнение выполняется по содержимому документа, а не по истории правок.',
