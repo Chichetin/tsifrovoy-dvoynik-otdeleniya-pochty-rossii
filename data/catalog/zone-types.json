@@ -10,6 +10,18 @@
         "type": "boolean",
         "required": false,
         "default": true
+      },
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
       }
     ]
   },
@@ -23,6 +35,24 @@
         "label": "Мест по плану",
         "type": "number",
         "required": false
+      },
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "queueLength",
+        "label": "Человек в очереди",
+        "type": "number",
+        "required": false
       }
     ]
   },
@@ -30,13 +60,45 @@
     "id": "zt_queue",
     "label": "Зона очереди",
     "color": "#FFF0F6",
-    "attributes": []
+    "attributes": [
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "queueLength",
+        "label": "Человек в очереди",
+        "type": "number",
+        "required": false
+      }
+    ]
   },
   {
     "id": "zt_entrance",
     "label": "Входная группа",
     "color": "#F8F0FC",
-    "attributes": []
+    "attributes": [
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
+      }
+    ]
   },
   {
     "id": "zt_service",
@@ -49,6 +111,18 @@
         "type": "boolean",
         "required": false,
         "default": false
+      },
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
       }
     ]
   },
@@ -56,18 +130,57 @@
     "id": "zt_storage",
     "label": "Хранение и посылки",
     "color": "#FFF5F5",
-    "attributes": []
+    "attributes": [
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
+      }
+    ]
   },
   {
     "id": "zt_staff",
     "label": "Комната персонала",
     "color": "#EBFBEE",
-    "attributes": []
+    "attributes": [
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
+      }
+    ]
   },
   {
     "id": "zt_utility",
     "label": "Инженерное помещение",
     "color": "#E9ECEF",
-    "attributes": []
+    "attributes": [
+      {
+        "key": "loadPercent",
+        "label": "Загрузка зоны, %",
+        "type": "number",
+        "required": false
+      },
+      {
+        "key": "staffCount",
+        "label": "Сотрудников в смене",
+        "type": "number",
+        "required": false
+      }
+    ]
   }
 ]

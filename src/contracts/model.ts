@@ -38,6 +38,12 @@ export type Layer = {
   visible: boolean;
   locked: boolean;
   order: number;
+  /**
+   * Layer type from the catalog, or `null` for an ordinary layer of objects.
+   * A type adds an informational representation on top of the same plan; it
+   * never changes what the layer owns.
+   */
+  typeId: Id | null;
 };
 
 export type Zone = {
@@ -151,10 +157,57 @@ export type DistanceToEntranceRule = RuleSource & {
 
 export type Rule = CountRule | DistanceToEntranceRule;
 
+/**
+ * How an informational layer paints itself over the plan.
+ *
+ * This is data: a new layer — queue length next to load, another sensor with a
+ * field of view — is an entry in data/catalog/layer-types.json plus attribute
+ * values on zones and objects. Only a new *way of painting* costs code, and
+ * the three kinds here cover what the organizers named: cameras, heat, staff.
+ *
+ * Every representation only reads attributes. Switching a layer on changes
+ * nothing in the document.
+ */
+export type LayerRepresentation =
+  /** Ordinary layer: its objects and zones, nothing painted on top. */
+  | { kind: 'objects' }
+  /** Zone fill interpolated between `colors` by a numeric zone attribute. */
+  | {
+      kind: 'zone-heat';
+      attribute: string;
+      unit: string;
+      /** Value that saturates the scale; higher values clamp to it. */
+      max: number;
+      /** Low → high colour stops, #RRGGBB. */
+      colors: [string, string];
+    }
+  /** Numeric zone attribute shown as a badge in the middle of the zone. */
+  | { kind: 'zone-count'; attribute: string; unit: string; color: string }
+  /** Sector of view drawn from objects of the listed types. */
+  | {
+      kind: 'object-field';
+      objectTypeIds: Id[];
+      /** Numeric object attributes; the defaults below fill the gaps. */
+      angleAttribute: string;
+      rangeAttribute: string;
+      angle_deg: number;
+      range_m: number;
+      color: string;
+    };
+
+export type LayerType = {
+  id: Id;
+  label: string;
+  representation: LayerRepresentation;
+  /** Printed next to the layer: where its numbers come from and what they are not. */
+  note: string;
+};
+
 export type Catalog = {
   version: string;
   objectTypes: ObjectType[];
   zoneTypes: ZoneType[];
+  layerTypes: LayerType[];
   rules: Rule[];
 };
 

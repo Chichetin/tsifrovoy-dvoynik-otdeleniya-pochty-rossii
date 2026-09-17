@@ -653,7 +653,16 @@ export function importOrganizerExample(input: unknown): Result<PlanDocument> {
     room: { id: 'room_main', boundary, ceilingHeight_m: source.ops.ceiling_height_m },
     walls,
     openings,
-    layers: [{ id: LAYER_ID, name: 'Импортированный план', visible: true, locked: false, order: 0 }],
+    layers: [
+      {
+        id: LAYER_ID,
+        name: 'Импортированный план',
+        visible: true,
+        locked: false,
+        order: 0,
+        typeId: null,
+      },
+    ],
     zones,
     objects,
     catalog,
@@ -731,7 +740,9 @@ function buildCatalog(source: OrganizerPlan, raw: Record<string, unknown>): Cata
 
   // The example carries no stocking rules; ours live in data/catalog and are
   // merged by an explicit catalog.replace, not smuggled in by the importer.
-  return { version: 'organizer-example-1', objectTypes, zoneTypes, rules: [] };
+  // Layer types are ours too: the example knows nothing about informational
+  // layers, so they arrive with the same catalog.replace as the rules.
+  return { version: 'organizer-example-1', objectTypes, zoneTypes, layerTypes: [], rules: [] };
 }
 
 function announcedTypes(raw: Record<string, unknown>): string[] {

@@ -79,6 +79,7 @@ function catalog(rules: Rule[] = []): Catalog {
       { id: 'zt_client', label: 'Клиентская зона', color: '#E7F5FF', attributes: [] },
       { id: 'zt_service', label: 'Служебная зона', color: '#FFF4E6', attributes: [] },
     ],
+    layerTypes: [],
     rules,
   };
 }
@@ -119,7 +120,9 @@ function plan(overrides: Partial<PlanDocument> = {}): PlanDocument {
     room: { id: 'room_main', boundary: [[0, 0], [10, 0], [10, 8], [0, 8]], ceilingHeight_m: 3 },
     walls: [],
     openings: [],
-    layers: [{ id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0 }],
+    layers: [
+      { id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0, typeId: null },
+    ],
     zones: [],
     objects: [],
     catalog: catalog(),

@@ -175,6 +175,74 @@ describe('round-trip', () => {
   });
 });
 
+describe('тип слоя в файле', () => {
+  test('план, сохранённый до появления типов слоёв, открывается как обычные слои', () => {
+    const raw = JSON.parse(fixtureText('minimal.json')) as {
+      layers: Record<string, unknown>[];
+      catalog: Record<string, unknown>;
+    };
+    // Фикстуры F02 написаны до этой правки контракта — они и есть «старый
+    // файл», который обязан открыться.
+    expect('typeId' in first(raw.layers, 'слой фикстуры')).toBe(false);
+    expect('layerTypes' in raw.catalog).toBe(false);
+
+    const plan = decodeFixture('minimal.json');
+    expect(plan.layers.map((layer) => layer.typeId)).toEqual(plan.layers.map(() => null));
+    expect(plan.catalog.layerTypes).toEqual([]);
+  });
+
+  test('информационный слой и его тип переживают сохранение и повторное открытие', () => {
+    const plan = decodeFixture('minimal.json');
+    const withLayer: PlanDocument = {
+      ...plan,
+      catalog: {
+        ...plan.catalog,
+        layerTypes: [
+          {
+            id: 'lt_heat',
+            label: 'Тепловая нагрузка зон',
+            representation: {
+              kind: 'zone-heat',
+              attribute: 'loadPercent',
+              unit: '%',
+              max: 100,
+              colors: ['#D3F9D8', '#FA5252'],
+            },
+            note: 'Числа синтетические: допущение команды.',
+          },
+        ],
+      },
+      layers: [
+        ...plan.layers,
+        {
+          id: 'l_heat',
+          name: 'Тепловая нагрузка зон',
+          visible: false,
+          locked: false,
+          order: 1,
+          typeId: 'lt_heat',
+        },
+      ],
+    };
+
+    const reopened = decodePlan(encodeOrThrow(withLayer));
+    expect(reopened.ok).toBe(true);
+    if (!reopened.ok) return;
+    expect(reopened.value).toEqual(withLayer);
+  });
+
+  test('слой ссылается на несуществующий тип — это отказ загрузки, а не тихий null', () => {
+    const raw = JSON.parse(fixtureText('minimal.json')) as {
+      layers: Record<string, unknown>[];
+    };
+    first(raw.layers, 'слой фикстуры').typeId = 'lt_ghost';
+
+    const issues = expectRefused(JSON.stringify(raw));
+    expect(codesOf(issues)).toContain(CONTRACT_ISSUE_CODES.BROKEN_REF);
+    expect(issues.map((issue) => issue.path)).toContain('layers.0.typeId');
+  });
+});
+
 describe('нечитаемый файл не подменяет документ', () => {
   test('обрезанный JSON', () => {
     const truncated = fixtureText('minimal.json').slice(0, 400);

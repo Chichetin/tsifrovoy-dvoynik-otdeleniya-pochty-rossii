@@ -12,6 +12,7 @@ import type {
   Catalog,
   Id,
   Issue,
+  LayerType,
   ObjectType,
   Ref,
   Rule,
@@ -106,6 +107,72 @@ function attributeIssues(
 }
 
 /**
+ * Checks an informational layer type: its colours, the object types it paints
+ * over, and the note.
+ *
+ * The note is not decoration. An informational layer shows numbers that nobody
+ * measured — load, queue length, staff on shift — and the screen has to say so
+ * next to them. A layer type without that sentence is a defect in the data.
+ */
+function layerTypeIssues(type: LayerType, objectTypeIds: Set<Id>): Issue[] {
+  const issues: Issue[] = [];
+  const path = `layerTypes.${type.id}`;
+
+  const colour = (value: string, field: string): void => {
+    if (HEX_COLOR.test(value)) return;
+    issues.push(
+      problem(
+        CATALOG_ISSUE_CODES.INVALID_COLOR,
+        `Тип слоя «${type.id}»: цвет «${value}» не в формате #RRGGBB.`,
+        `${path}.${field}`,
+      ),
+    );
+  };
+
+  const representation = type.representation;
+  if (representation.kind === 'zone-heat') {
+    colour(representation.colors[0], 'representation.colors.0');
+    colour(representation.colors[1], 'representation.colors.1');
+  }
+  if (representation.kind === 'zone-count' || representation.kind === 'object-field') {
+    colour(representation.color, 'representation.color');
+  }
+  if (representation.kind === 'object-field') {
+    if (representation.objectTypeIds.length === 0) {
+      issues.push(
+        problem(
+          CATALOG_ISSUE_CODES.EMPTY_RULE_BOUNDS,
+          `Тип слоя «${type.id}»: не указан ни один тип объекта — рисовать нечего.`,
+          `${path}.representation.objectTypeIds`,
+        ),
+      );
+    }
+    for (const objectTypeId of representation.objectTypeIds) {
+      if (objectTypeIds.has(objectTypeId)) continue;
+      issues.push(
+        problem(
+          CATALOG_ISSUE_CODES.UNKNOWN_TYPE_REF,
+          `Тип слоя «${type.id}»: тип объекта «${objectTypeId}» отсутствует в справочнике.`,
+          `${path}.representation.objectTypeIds`,
+        ),
+      );
+    }
+  }
+
+  if (representation.kind !== 'objects' && type.note.trim().length === 0) {
+    issues.push(
+      problem(
+        CATALOG_ISSUE_CODES.UNSIGNED_ASSUMPTION,
+        `Тип слоя «${type.id}»: не подписано, откуда берутся числа. Синтетические значения подписываются как допущение команды.`,
+        `${path}.note`,
+      ),
+    );
+  }
+
+  return issues;
+}
+
+/**
  * Structural and honesty checks over a catalog. The schema already guarantees
  * shapes; this adds what a schema cannot: references, attribute sanity and that
  * invented dimensions carry their source.
@@ -114,6 +181,7 @@ export function validateCatalog(catalog: Catalog): Issue[] {
   const issues: Issue[] = [
     ...duplicateIds(catalog.objectTypes.map((type) => type.id), 'objectTypes'),
     ...duplicateIds(catalog.zoneTypes.map((type) => type.id), 'zoneTypes'),
+    ...duplicateIds(catalog.layerTypes.map((type) => type.id), 'layerTypes'),
     ...duplicateIds(catalog.rules.map((rule) => rule.id), 'rules'),
   ];
 
@@ -153,6 +221,10 @@ export function validateCatalog(catalog: Catalog): Issue[] {
         ),
       );
     }
+  }
+
+  for (const type of catalog.layerTypes) {
+    issues.push(...layerTypeIssues(type, objectTypeIds));
   }
 
   catalog.rules.forEach((rule, index) => {
@@ -206,6 +278,12 @@ export function findObjectType(catalog: Catalog, typeId: Id): ObjectType | null 
 
 export function findZoneType(catalog: Catalog, typeId: Id): ZoneType | null {
   return catalog.zoneTypes.find((type) => type.id === typeId) ?? null;
+}
+
+/** `null` for an ordinary layer, and for a type the file no longer carries. */
+export function findLayerType(catalog: Catalog, typeId: Id | null): LayerType | null {
+  if (typeId === null) return null;
+  return catalog.layerTypes.find((type) => type.id === typeId) ?? null;
 }
 
 /** Attribute values a new instance of the type starts with. */

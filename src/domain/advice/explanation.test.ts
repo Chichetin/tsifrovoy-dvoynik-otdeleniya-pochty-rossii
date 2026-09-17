@@ -76,6 +76,7 @@ const catalog: Catalog = {
   zoneTypes: [
     { id: 'zt_client', label: 'Клиентская зона', color: '#E7F5FF', attributes: [] },
   ],
+  layerTypes: [],
   rules: [],
 };
 
@@ -96,7 +97,9 @@ function plan(objects: Equipment[] = []): PlanDocument {
     },
     walls: [],
     openings: [],
-    layers: [{ id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0 }],
+    layers: [
+      { id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0, typeId: null },
+    ],
     zones: [],
     objects,
     catalog,
