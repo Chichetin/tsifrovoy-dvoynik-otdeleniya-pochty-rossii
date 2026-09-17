@@ -156,6 +156,22 @@ export function objectHitsWall(
   );
 }
 
+/**
+ * Middle of an opening, measured along its wall from the wall's `from` end.
+ * Distance to the entrance is a rule in two places — the check that reports a
+ * violation and the search that must not offer one — and both must measure it
+ * from the same point.
+ */
+export function openingCentre(opening: Opening, wall: Wall): Point {
+  const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+  if (length === 0) return wall.from;
+  const along = opening.offset_m + opening.width_m / 2;
+  return [
+    wall.from[0] + ((wall.to[0] - wall.from[0]) / length) * along,
+    wall.from[1] + ((wall.to[1] - wall.from[1]) / length) * along,
+  ];
+}
+
 /** Area of an object's floor projection. Rotation does not change it. */
 export function footprintArea(object: Equipment): number {
   return polygonArea(footprint(object));

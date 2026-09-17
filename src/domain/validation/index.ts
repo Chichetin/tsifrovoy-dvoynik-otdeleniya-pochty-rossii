@@ -17,25 +17,23 @@
 import {
   type Catalog,
   type Equipment,
-  type Id,
   type Issue,
-  type Opening,
   type PlanDocument,
   type Point,
   type Polygon,
   type Ref,
   type Rule,
   type Severity,
-  type Wall,
-  type Zone,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
+import { countInZoneScope } from '../inventory';
 import {
   contains,
   footprint,
   isSimplePolygon,
   objectHitsWall,
   objectsShareSpace,
+  openingCentre,
 } from '../geometry';
 import { relationIssues } from '../relations';
 
@@ -287,22 +285,14 @@ function countRuleIssues(
   plan: PlanDocument,
   rule: Extract<Rule, { kind: 'count' }>,
 ): Issue[] {
-  const descendants = descendantsOf(plan.zones);
   const issues: Issue[] = [];
 
   for (const zone of plan.zones) {
     if (zone.typeId !== rule.zoneTypeId) continue;
 
-    const scope =
-      rule.scope === 'direct'
-        ? new Set([zone.id])
-        : new Set([zone.id, ...(descendants.get(zone.id) ?? [])]);
-    const count = plan.objects.filter(
-      (object) =>
-        object.typeId === rule.objectTypeId &&
-        object.zoneId !== null &&
-        scope.has(object.zoneId),
-    ).length;
+    // Считает инвентаризация: у проверки и у рекомендации ассистента должно
+    // получаться одно и то же число.
+    const count = countInZoneScope(plan, rule.objectTypeId, zone.id, rule.scope);
 
     const where = rule.scope === 'direct' ? 'без вложенных зон' : 'вместе с вложенными зонами';
     if (rule.min !== null && count < rule.min) {
@@ -388,42 +378,6 @@ function distanceRuleIssues(
   return issues;
 }
 
-/** Middle of the opening, measured along its wall from the wall's `from` end. */
-function openingCentre(opening: Opening, wall: Wall): Point {
-  const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
-  if (length === 0) return wall.from;
-  const along = opening.offset_m + opening.width_m / 2;
-  return [
-    wall.from[0] + ((wall.to[0] - wall.from[0]) / length) * along,
-    wall.from[1] + ((wall.to[1] - wall.from[1]) / length) * along,
-  ];
-}
-
 function distance(a: Point, b: Point): number {
   return Math.hypot(b[0] - a[0], b[1] - a[1]);
-}
-
-/** Every zone below each zone, with a guard so a cycle cannot hang the check. */
-function descendantsOf(zones: Zone[]): Map<Id, Id[]> {
-  const children = new Map<Id, Id[]>();
-  for (const zone of zones) {
-    if (zone.parentId === null) continue;
-    children.set(zone.parentId, [...(children.get(zone.parentId) ?? []), zone.id]);
-  }
-
-  const result = new Map<Id, Id[]>();
-  for (const zone of zones) {
-    const collected: Id[] = [];
-    const seen = new Set<Id>([zone.id]);
-    const queue = [...(children.get(zone.id) ?? [])];
-    while (queue.length > 0) {
-      const next = queue.shift();
-      if (next === undefined || seen.has(next)) continue;
-      seen.add(next);
-      collected.push(next);
-      queue.push(...(children.get(next) ?? []));
-    }
-    result.set(zone.id, collected);
-  }
-  return result;
 }

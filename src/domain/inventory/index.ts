@@ -56,6 +56,29 @@ export function buildInventory(plan: PlanDocument): Inventory {
   return { rows: rowsOf(plan.objects), byType, byZoneDirect, byZoneInclusive, unassigned };
 }
 
+/**
+ * How many objects of a type a stocking rule sees in a zone. `direct` counts
+ * the zone itself, `inclusive` also counts everything nested in it.
+ *
+ * The check that reports a violation and the assistant that recommends a fix
+ * must arrive at the same number, so both ask this function instead of each
+ * counting in its own way.
+ */
+export function countInZoneScope(
+  plan: PlanDocument,
+  objectTypeId: Id,
+  zoneId: Id,
+  scope: 'direct' | 'inclusive',
+): number {
+  const parents = zoneParents(plan.zones);
+  return plan.objects.filter((object) => {
+    if (object.typeId !== objectTypeId) return false;
+    if (object.zoneId === null) return false;
+    if (scope === 'direct') return object.zoneId === zoneId;
+    return chainFrom(object.zoneId, parents).includes(zoneId);
+  }).length;
+}
+
 /** Rows in document order: the table must not reshuffle itself between edits. */
 function rowsOf(objects: Equipment[]): Equipment[] {
   return [...objects];
