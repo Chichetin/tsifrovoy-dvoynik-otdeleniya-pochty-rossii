@@ -38,6 +38,19 @@ async function stageRect(page: Page): Promise<Rect> {
   return box;
 }
 
+/**
+ * Открытый редактор: страница загружена, заголовок на месте, сцена
+ * смонтирована. Ждать сцену явно, а не первым измерением: иначе медленный
+ * dev-сервер даёт таймаут в `boundingBox`, из которого не видно, что именно
+ * не дождались.
+ */
+async function openEditor(page: Page): Promise<Rect> {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
+  await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
+  return stageRect(page);
+}
+
 async function onPage(page: Page, point: Pixel): Promise<Pixel> {
   const rect = await stageRect(page);
   return { x: rect.x + point.x, y: rect.y + point.y };
@@ -156,8 +169,7 @@ test.describe('инструменты плана', () => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
-    await page.goto('/');
-    const size = await stageRect(page);
+    const size = await openEditor(page);
     const card = page.getByLabel('Свойства');
 
     // Помещение из шаблона — 12 × 9 м; нарисованное считается по контуру.
@@ -223,8 +235,7 @@ test.describe('инструменты плана', () => {
   test('самопересечение отклоняется, а зона удаляется и возвращается отменой', async ({
     page,
   }, testInfo: TestInfo) => {
-    await page.goto('/');
-    const size = await stageRect(page);
+    const size = await openEditor(page);
     await drawPlan(page, size);
 
     await clickAt(page, px(size, 0.45, 0.45));
@@ -260,8 +271,7 @@ test.describe('инструменты плана', () => {
   test('проём и перегородка правятся, отмена сохраняет связь проёма со стеной', async ({
     page,
   }) => {
-    await page.goto('/');
-    const size = await stageRect(page);
+    const size = await openEditor(page);
 
     // Масштаб измеряется, а не вычисляется: два объекта в известных пикселях.
     const probe = async (fx: number, fy: number): Promise<{ pixel: Pixel; world: Point }> => {
