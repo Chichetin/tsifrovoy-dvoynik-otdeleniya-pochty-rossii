@@ -30,7 +30,7 @@ color: purple
 1. Прочитать роли в `task.md` (разделы 1–5), решения D-057…D-060 в
    `docs/decisions.md` и README (что обещано проверяющему).
 2. Написать временный spec `tests/e2e/_operator-<роль>.spec.ts` (Playwright сам
-   поднимает dev-сервер; для URL из брифа — `page.goto(<url>)`). Каждая задача роли —
+   поднимает dev-сервер на порту из `DEV_PORT`; для URL из брифа — `page.goto(<url>)`). Каждая задача роли —
    отдельный `test`, со скриншотами шагов в каталог из брифа. Прогон:
    `npx playwright test tests/e2e/_operator-<роль>.spec.ts`. Файл после прогона
    удалить; в commit он не попадает.
