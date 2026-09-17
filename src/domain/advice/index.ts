@@ -25,6 +25,12 @@ import { PLACEMENT_SEARCH, findPlacements } from './placement';
 export { checkEquipment } from './equipment';
 export { comparePlans, diffPlans } from './compare';
 export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements } from './placement';
+export {
+  EXPLANATION_ISSUE_CODES,
+  defaultExplanation,
+  verifyExplanation,
+} from './explanation';
+export { fallbackExplanation, renderExplanation } from './templates';
 
 /** How the search was run, said plainly — the user is owed the method. */
 function searchNote(): string {
