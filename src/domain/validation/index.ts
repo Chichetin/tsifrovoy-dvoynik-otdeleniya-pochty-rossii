@@ -19,14 +19,12 @@ import {
   type Equipment,
   type Id,
   type Issue,
-  type Opening,
   type PlanDocument,
   type Point,
   type Polygon,
   type Ref,
   type Rule,
   type Severity,
-  type Wall,
   type Zone,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
@@ -36,6 +34,7 @@ import {
   isSimplePolygon,
   objectHitsWall,
   objectsShareSpace,
+  openingCentre,
 } from '../geometry';
 import { relationIssues } from '../relations';
 
@@ -386,17 +385,6 @@ function distanceRuleIssues(
     );
   }
   return issues;
-}
-
-/** Middle of the opening, measured along its wall from the wall's `from` end. */
-function openingCentre(opening: Opening, wall: Wall): Point {
-  const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
-  if (length === 0) return wall.from;
-  const along = opening.offset_m + opening.width_m / 2;
-  return [
-    wall.from[0] + ((wall.to[0] - wall.from[0]) / length) * along,
-    wall.from[1] + ((wall.to[1] - wall.from[1]) / length) * along,
-  ];
 }
 
 function distance(a: Point, b: Point): number {
