@@ -135,11 +135,22 @@ describe('SVG плана', () => {
     const objectGroup = svg.indexOf(`data-id="${object.id}"`);
     expect(zoneLabel).toBeGreaterThan(-1);
     expect(zoneLabel).toBeLessThan(objectGroup);
-    // Сам тег подписи зоны: от последнего `<text` до названия.
-    const tagStart = svg.lastIndexOf('<text', zoneLabel);
-    const tag = svg.slice(tagStart, zoneLabel);
-    expect(tag).toContain('fill-opacity="0.45"');
-    expect(tag).toContain('font-size="0.5"');
+    // Поведение, а не константы оформления: подпись зоны бледнее подписи
+    // объекта и крупнее её — иначе она либо спорит с оборудованием, либо
+    // теряется на фоне. Точные числа менять можно, соотношение — нет.
+    const attr = (tag: string, name: string): number => {
+      const start = tag.indexOf(`${name}="`);
+      if (start < 0) return Number.NaN;
+      const from = start + name.length + 2;
+      return Number(tag.slice(from, tag.indexOf('"', from)));
+    };
+    const zoneTag = svg.slice(svg.lastIndexOf('<text', zoneLabel), zoneLabel);
+    const objectLabel = svg.indexOf(`>${object.label}</text>`);
+    expect(objectLabel).toBeGreaterThan(-1);
+    const objectTag = svg.slice(svg.lastIndexOf('<text', objectLabel), objectLabel);
+    expect(attr(zoneTag, 'fill-opacity')).toBeLessThan(1);
+    expect(attr(zoneTag, 'fill-opacity')).toBeLessThan(attr(objectTag, 'fill-opacity'));
+    expect(attr(zoneTag, 'font-size')).toBeGreaterThan(attr(objectTag, 'font-size'));
   });
 
   test('цвет из справочника экранируется как всё из документа', () => {
