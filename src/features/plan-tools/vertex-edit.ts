@@ -8,7 +8,7 @@
  * 3.4166666667 is unreadable, and nothing in the branch is placed finer.
  */
 
-import type { Id, Opening, Point, Polygon, Viewport, Wall, Zone } from '../../contracts/model';
+import type { Id, Opening, Point, Polygon, Wall, Zone } from '../../contracts/model';
 import { contains, isSimplePolygon } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 
@@ -66,16 +66,33 @@ export function nearestEdge(polygon: Polygon, point: Point): EdgeHit {
 }
 
 /**
+ * Where a click on the ring's outline adds a vertex, or null when the click
+ * belongs to a corner rather than to an edge.
+ *
+ * The edge has a wide capture strip so that it can be hit at all, and near a
+ * vertex that strip overlaps the neighbouring edge and the vertex handle
+ * itself. A click closer to an end of the edge than to its middle was aimed at
+ * the corner, and adding a vertex there is never what the user wanted; the
+ * middle half of every edge inserts (D-099).
+ */
+export function insertionOnEdge(polygon: Polygon, point: Point): EdgeHit | null {
+  const hit = nearestEdge(polygon, point);
+  const from = polygon[hit.index];
+  const to = polygon[(hit.index + 1) % polygon.length];
+  if (from === undefined || to === undefined) return null;
+
+  const middle: Point = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
+  const away = (target: Point): number => Math.hypot(point[0] - target[0], point[1] - target[1]);
+  const toVertex = Math.min(away(from), away(to));
+  return toVertex < away(middle) ? null : hit;
+}
+
+/**
  * The store accepts a self-intersecting ring as a diagnosable state (S01);
  * a gesture is where it is cheapest to refuse one, before it is committed.
  */
 export function canCommitRing(polygon: Polygon): boolean {
   return isSimplePolygon(polygon);
-}
-
-/** Handle capture radius in world metres for the current zoom. */
-export function handleRadiusM(viewport: Viewport): number {
-  return HANDLE_RADIUS_PX / viewport.scale;
 }
 
 export function wallLength(wall: Wall): number {
