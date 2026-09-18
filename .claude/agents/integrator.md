@@ -28,7 +28,7 @@ color: green
 
    ```bash
    npm run typecheck && npm run lint && npm test && npm run build
-   npm run test:e2e                             # из worktree: DEV_PORT=5174, свой сервер
+   DEV_PORT=5174 npm run test:e2e               # свой порт (например 5174/5175), чужой сервер не берётся
    bash .claude/hooks/check-secrets.sh          # пусто = чисто
    ```
 

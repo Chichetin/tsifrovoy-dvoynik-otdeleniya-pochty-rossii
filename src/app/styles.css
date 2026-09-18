@@ -148,6 +148,19 @@ body {
   margin-left: auto;
 }
 
+/* Сообщения файловой группы живут отдельной строкой шапки и занимают её
+   всегда, даже пустые: подпись черновика, появившаяся через секунду после
+   правки, иначе переносила бы кнопки на новую строку и двигала холст под
+   курсором. */
+.files__messages {
+  flex-basis: 100%;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .files__status.is-dirty {
   color: var(--warning);
 }

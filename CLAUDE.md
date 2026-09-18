@@ -199,7 +199,7 @@
   ```bash
   npm ci                              # установка строго по lockfile
   npx playwright install chromium     # один раз на машину: браузер для e2e
-  npm run dev                         # http://127.0.0.1:5173 (свой порт — DEV_PORT=5174)
+  npm run dev                         # http://127.0.0.1:5173 (свой порт — например DEV_PORT=5174)
   npm test                            # unit-тесты (Vitest)
   npm run test:e2e                    # браузерные тесты (Playwright сам поднимает dev)
   DEV_PORT=5174 npm run test:e2e      # из worktree: свой порт, чужой сервер не берётся
