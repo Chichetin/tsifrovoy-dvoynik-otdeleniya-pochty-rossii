@@ -448,4 +448,60 @@ test.describe('инструменты плана', () => {
     const restored = await savePlan(page);
     expect(restored.walls.map((entry) => entry.id)).toContain(free.id);
   });
+
+  test('перегородка и проём создаются с нуля, промах объясняется', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    const size = await openEditor(page);
+    const notice = page.getByTestId('plan-tools-notice');
+
+    // Стартовый план — четыре наружные стены и один вход.
+    const before = await savePlan(page);
+    expect(before.walls).toHaveLength(4);
+
+    // Перегородка: два клика внутри помещения.
+    await page.getByRole('button', { name: 'Перегородка', exact: true }).click();
+    await clickAt(page, px(size, 0.45, 0.25));
+    await clickAt(page, px(size, 0.45, 0.75));
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+    const withWall = await savePlan(page);
+    expect(withWall.walls).toHaveLength(5);
+    const added = withWall.walls.find(
+      (entry) => !before.walls.some((old) => old.id === entry.id),
+    );
+    expect(added).toBeDefined();
+    // Перегородка вертикальная: клики шли по одному x.
+    expect((added as SavedPlan['walls'][number]).from[0]).toBeCloseTo(
+      (added as SavedPlan['walls'][number]).to[0],
+      2,
+    );
+
+    // Проём мимо любой стены: клик не теряется молча, а объясняется.
+    await page.getByRole('button', { name: 'Проём', exact: true }).click();
+    await clickAt(page, px(size, 0.2, 0.5));
+    await expect(notice).toContainText('нет стены');
+    expect((await savePlan(page)).openings).toHaveLength(before.openings.length);
+
+    // Проём по самой перегородке: встаёт на неё и держится в её пределах.
+    await clickAt(page, px(size, 0.45, 0.5));
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+    const withOpening = await savePlan(page);
+    expect(withOpening.openings).toHaveLength(before.openings.length + 1);
+    const opening = withOpening.openings.find(
+      (entry) => !before.openings.some((old) => old.id === entry.id),
+    );
+    expect(opening?.wallId).toBe((added as SavedPlan['walls'][number]).id);
+    expect(opening?.offset_m).toBeGreaterThanOrEqual(0);
+
+    // Одна команда на жест: «Отменить» убирает только проём.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    const undone = await savePlan(page);
+    expect(undone.openings).toHaveLength(before.openings.length);
+    expect(undone.walls).toHaveLength(5);
+
+    expect(errors).toEqual([]);
+  });
 });
