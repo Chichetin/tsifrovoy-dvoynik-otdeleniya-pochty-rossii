@@ -30,6 +30,6 @@
 - `use-plan-tool-controller.ts` — U03.
 - `vertex-edit.ts`, `notice.ts`, `delete-key.ts` — U03.
 
-**Проверки:** `vertex-edit.test.ts`, `delete-key.test.ts`, `use-plan-tool-controller.test.ts`, `PlanTools.test.tsx` (Vitest) и `tests/e2e/plan-tools.spec.ts` (браузер); после подключения — общий Q01.
+**Проверки:** `vertex-edit.test.ts`, `delete-key.test.ts`, `use-plan-tool-controller.test.ts`, `PlanTools.test.tsx` (Vitest) и `tests/e2e/plan-tools.spec.ts` (браузер: в том числе нарисованная зона сразу выбрана, а соседняя зона Т-стыком не вставляет ей вершину — под инструментом рисования ручек и выбора кликом нет, D-147); после подключения — общий Q01.
 
 [Карта проекта и владельцы](../../../docs/project-structure.md) · [Контракты](../../../docs/contracts-v1.md) · [План задач](../../../docs/plans/2026-09-16-parallel-plan.md)

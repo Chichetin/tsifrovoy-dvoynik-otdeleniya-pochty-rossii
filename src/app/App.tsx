@@ -97,6 +97,23 @@ export function App(): React.JSX.Element {
     [store],
   );
 
+  // A drawing tool that just created something hands it over selected: the
+  // card shows what was drawn, not what was picked a minute ago (operator
+  // finding 9). The room is not created, only reshaped, so `room.set` stays
+  // out. Moves and edits go through `dispatch` untouched.
+  const dispatchAndSelect = useCallback(
+    (command: Command): Result<PlanDocument> => {
+      const result = dispatch(command);
+      if (!result.ok) return result;
+      if (command.type === 'zone.put') select({ kind: 'zone', id: command.zone.id });
+      if (command.type === 'object.put') select({ kind: 'object', id: command.object.id });
+      if (command.type === 'wall.put') select({ kind: 'wall', id: command.wall.id });
+      if (command.type === 'opening.put') select({ kind: 'opening', id: command.opening.id });
+      return result;
+    },
+    [dispatch, select],
+  );
+
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -106,8 +123,8 @@ export function App(): React.JSX.Element {
     [select],
   );
 
-  const planTool = usePlanToolController({ document, session, onCommand: dispatch });
-  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatch });
+  const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
+  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatchAndSelect });
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
