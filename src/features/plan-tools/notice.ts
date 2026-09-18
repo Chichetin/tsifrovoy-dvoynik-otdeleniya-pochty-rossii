@@ -49,5 +49,12 @@ export const DRAFT_SELF_INTERSECTION_NOTICE =
   'Контур самопересекается — добавьте точки или отмените рисование клавишей Esc';
 export const HIDDEN_ZONE_NOTICE =
   'Зона лежит на скрытом слое — покажите слой, чтобы её удалить';
+export const NO_WALL_UNDER_POINTER_NOTICE =
+  'Здесь нет стены — проём ставится кликом по стене или перегородке';
+export const WALL_TOO_SHORT_NOTICE =
+  'Отрезок слишком короткий для перегородки — проведите линию длиннее';
+export const OPENING_WIDER_THAN_WALL_NOTICE =
+  'Стена короче проёма — выберите стену длиннее или другой вид проёма';
+
 export const NEAR_VERTEX_NOTICE =
   'Клик пришёлся у вершины — вершина не добавлена; кликните ближе к середине ребра';
