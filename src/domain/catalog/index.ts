@@ -31,6 +31,8 @@ export const CATALOG_ISSUE_CODES = {
   INVALID_COLOR: 'INVALID_COLOR',
   EMPTY_RULE_BOUNDS: 'EMPTY_RULE_BOUNDS',
   INVERTED_RULE_BOUNDS: 'INVERTED_RULE_BOUNDS',
+  /** The file schema takes only whole non-negative counts; catch it before save. */
+  NON_INTEGER_RULE_BOUNDS: 'NON_INTEGER_RULE_BOUNDS',
 } as const;
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -253,6 +255,16 @@ export function validateCatalog(catalog: Catalog): Issue[] {
           problem(
             CATALOG_ISSUE_CODES.EMPTY_RULE_BOUNDS,
             `Правило «${rule.id}»: не задано ни min, ни max — проверять нечего.`,
+            path,
+          ),
+        );
+      }
+      const bounds = [rule.min, rule.max].filter((b): b is number => b !== null);
+      if (bounds.some((b) => !Number.isInteger(b) || b < 0)) {
+        issues.push(
+          problem(
+            CATALOG_ISSUE_CODES.NON_INTEGER_RULE_BOUNDS,
+            `Правило «${rule.id}»: границы должны быть целыми числами не меньше нуля.`,
             path,
           ),
         );

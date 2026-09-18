@@ -101,6 +101,7 @@ README каждого каталога описывает назначение, 
 | [src/features/layers](../src/features/layers/README.md) | 2 | U05 |
 | [src/features/properties](../src/features/properties/README.md) | 2 | U06 |
 | [src/features/library](../src/features/library/README.md) | 2 | U07 |
+| [src/features/catalog-editor](../src/features/catalog-editor/README.md) | 3 | C01 U07 |
 | [src/features/files](../src/features/files/README.md) | 3 | IO03 |
 | [src/features/inventory](../src/features/inventory/README.md) | 3 | M02 |
 | [src/features/validation](../src/features/validation/README.md) | 3 | V02 |

@@ -793,3 +793,54 @@ body {
 .view3d__id {
   font-size: 12px;
 }
+
+/* Справочник: формы нового типа, атрибута и правила */
+
+.catalog__form {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.catalog__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.catalog__row .assistant__field {
+  flex: 1 1 90px;
+}
+
+.catalog__check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  align-self: end;
+}
+
+.catalog__types {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.catalog__types li {
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.catalog__types li.is-selected {
+  background: #e7f5ff;
+}
+
+.catalog__remove {
+  margin-left: 8px;
+  color: var(--muted);
+}
+
+.catalog__remove:disabled {
+  color: var(--line);
+  cursor: not-allowed;
+}
