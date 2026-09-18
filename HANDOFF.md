@@ -16,6 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
+| Максим / Codex | `worktree-qa-q01-maxim`, MR при первом push | Q01: сквозной браузерный сценарий и регрессия, без правки production-модулей | `tests/e2e/round-trip.spec.ts`, `tests/e2e/catalog-extension.spec.ts`, `docs/verification/e2e.md`, строки матрицы по факту | первый готовый сценарий 1/1; далее расширенный каталог и полный прогон | в работе: первый проверенный шаг коммитится и публикуется отдельно |
 | Максим / Codex | `worktree-docs-research-return`, [MR !39](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/39), отчёт `5d4d6bf` | R01: внешний PASS-2 и [сверка выводов](docs/research/deep-research-report.md); пакет документов готов | `docs/research/*`, строки А8/Т4 матрицы, эта доска; без изменения кода | SHA-256 копии совпал; 13 ссылок; ручная сверка кода/источников; секрет-скан; reviewer: merge. Diff-check новых документов чист; в исходнике сохранены Markdown-переносы из двух пробелов. Fetch выполнен отдельно: база `a25cbd7`. По карточке R01 приложение не запускалось | push и создание MR успешны; ожидает merge: запрос API `show 39` вернул 403, браузер требует вход. R01 частичный: первый отчёт не предоставлен, режим Deep Research не подтверждён |
 
 
