@@ -91,6 +91,15 @@ test('обязательный атрибут без умолчания откл
   await expect(panel(page).getByTestId('catalog-error')).toBeVisible();
   await expect(panel(page).getByTestId('catalog-attributes')).not.toContainText('Серийный номер');
 
+  // Дробная граница правила отклоняется сразу: файл такую не принял бы при сохранении.
+  const rulesBefore = await panel(page).getByTestId('catalog-rules').locator('li').count();
+  await panel(page).getByTestId('catalog-rule-zone').selectOption({ index: 1 });
+  await panel(page).getByTestId('catalog-rule-object').selectOption({ index: 1 });
+  await panel(page).getByTestId('catalog-rule-min').fill('1,5');
+  await panel(page).getByTestId('catalog-add-rule').click();
+  await expect(panel(page).getByTestId('catalog-error')).toContainText('целые числа');
+  await expect(panel(page).getByTestId('catalog-rules').locator('li')).toHaveCount(rulesBefore);
+
   // У камеры угол и дальность обзора читает слой «Камеры и зоны обзора» — рядом с
   // атрибутом об этом сказано до клика «удалить».
   await panel(page).getByTestId('catalog-types').locator('li', { hasText: 'Камера' }).first().locator('.table__link').first().click();

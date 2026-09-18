@@ -282,6 +282,16 @@ describe('проверка справочника ловит ошибки ред
     expect(codesOf(inverted)).toContain(CATALOG_ISSUE_CODES.INVERTED_RULE_BOUNDS);
   });
 
+  test('границы правила — целые не меньше нуля, как в схеме файла', () => {
+    const countRule = catalog.rules.find((rule) => rule.kind === 'count')!;
+    const fractional = { ...catalog, rules: [{ ...countRule, min: 1.5, max: null }] };
+    const negative = { ...catalog, rules: [{ ...countRule, min: null, max: -1 }] };
+    const whole = { ...catalog, rules: [{ ...countRule, min: 0, max: 2 }] };
+    expect(codesOf(fractional)).toContain(CATALOG_ISSUE_CODES.NON_INTEGER_RULE_BOUNDS);
+    expect(codesOf(negative)).toContain(CATALOG_ISSUE_CODES.NON_INTEGER_RULE_BOUNDS);
+    expect(codesOf(whole)).not.toContain(CATALOG_ISSUE_CODES.NON_INTEGER_RULE_BOUNDS);
+  });
+
   test('тип слоя с неизвестным типом объекта, без типов и с чужим цветом', () => {
     const cameras = findLayerType(catalog, 'lt_cameras')!;
     const field = cameras.representation as Extract<

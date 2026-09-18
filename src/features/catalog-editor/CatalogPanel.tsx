@@ -35,10 +35,22 @@ const SYMBOLS: { value: ObjectSymbol; label: string }[] = [
   { value: 'triangle', label: 'треугольник' },
 ];
 
-function num(value: string, fallback: number): number {
-  const parsed = Number(value.replace(',', '.'));
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+/** Metres typed by a person: a comma is a decimal point; anything else is refused, not replaced. */
+function metres(value: string): number | null {
+  const parsed = Number(value.trim().replace(',', '.'));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
+
+/** A count bound: empty means no bound; otherwise a whole number >= 0. */
+function bound(value: string): number | null | undefined {
+  const raw = value.trim();
+  if (raw === '') return null;
+  const parsed = Number(raw.replace(',', '.'));
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+const ATTRIBUTE_KEY = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+const BOOLEAN_WORDS: Record<string, boolean> = { да: true, true: true, нет: false, false: false };
 
 export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): React.JSX.Element {
   const catalog = plan.catalog;
@@ -82,15 +94,28 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
   const usedBy = (typeId: Id): number => plan.objects.filter((o) => o.typeId === typeId).length;
 
   const submitType = (): void => {
-    if (typeLabel.trim() === '') {
+    const label = typeLabel.trim();
+    if (label === '') {
       setError('У нового типа должно быть название.');
       return;
     }
+    const twin = catalog.objectTypes.find((t) => t.label.trim().toLowerCase() === label.toLowerCase());
+    if (twin !== undefined) {
+      setError(`Тип «${twin.label}» уже есть в справочнике (${twin.id}); дайте новому другое название.`);
+      return;
+    }
+    const width = metres(typeWidth);
+    const depth = metres(typeDepth);
+    const height = metres(typeHeight);
+    if (width === null || depth === null || height === null) {
+      setError('Ширина, глубина и высота — числа больше нуля, в метрах.');
+      return;
+    }
     const { catalog: next, id } = addObjectType(catalog, {
-      label: typeLabel,
+      label,
       category: typeCategory.trim() === '' ? 'Свой тип' : typeCategory,
-      size_m: [num(typeWidth, 0.6), num(typeDepth, 0.6)],
-      height_m: num(typeHeight, 0.8),
+      size_m: [width, depth],
+      height_m: height,
       physical: typePhysical,
       occupiesFloor: typePhysical,
       symbol: typeSymbol,
@@ -104,8 +129,13 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
 
   const submitAttribute = (): void => {
     if (chosen === null) return;
-    if (attrKey.trim() === '' || attrLabel.trim() === '') {
+    const key = attrKey.trim();
+    if (key === '' || attrLabel.trim() === '') {
       setError('У атрибута нужны ключ и подпись.');
+      return;
+    }
+    if (!ATTRIBUTE_KEY.test(key)) {
+      setError('Ключ атрибута — латиница, цифры и «_», начинается с буквы: например, serialNumber.');
       return;
     }
     const raw = attrDefault.trim();
@@ -115,14 +145,18 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
         : attrType === 'number'
           ? Number(raw.replace(',', '.'))
           : attrType === 'boolean'
-            ? raw === 'да' || raw === 'true'
+            ? BOOLEAN_WORDS[raw.toLowerCase()]
             : raw;
     if (attrType === 'number' && parsedDefault !== undefined && !Number.isFinite(parsedDefault)) {
       setError('Умолчание числового атрибута должно быть числом.');
       return;
     }
+    if (attrType === 'boolean' && raw !== '' && parsedDefault === undefined) {
+      setError('Умолчание логического атрибута — «да» или «нет».');
+      return;
+    }
     const next = addAttribute(catalog, chosen.id, {
-      key: attrKey,
+      key,
       label: attrLabel,
       type: attrType,
       required: attrRequired,
@@ -140,14 +174,18 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
       setError('Правилу нужны тип зоны и тип оборудования.');
       return;
     }
-    const min = ruleMin.trim() === '' ? null : Number(ruleMin);
-    const max = ruleMax.trim() === '' ? null : Number(ruleMax);
+    const min = bound(ruleMin);
+    const max = bound(ruleMax);
+    if (min === undefined || max === undefined) {
+      setError('Границы правила — целые числа не меньше нуля; пустое поле — без границы.');
+      return;
+    }
     const { catalog: next } = addCountRule(catalog, {
       zoneTypeId: ruleZone,
       objectTypeId: ruleObject,
       scope: 'inclusive',
-      min: min !== null && Number.isFinite(min) ? min : null,
-      max: max !== null && Number.isFinite(max) ? max : null,
+      min,
+      max,
       rationale: ruleWhy.trim() === '' ? 'Правило добавлено в редакторе.' : ruleWhy,
     });
     if (apply(next)) setRuleWhy('');
@@ -284,7 +322,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
                         title={
                           readers.length === 0
                             ? 'Удалить атрибут'
-                            : 'Слой перестанет показывать это число; значения у объектов останутся в файле'
+                            : 'Уже введённые значения слой продолжит рисовать; исчезнут поле в карточке и умолчание для новых объектов'
                         }
                         onClick={() => apply(removeAttribute(catalog, chosen.id, a.key))}
                       >

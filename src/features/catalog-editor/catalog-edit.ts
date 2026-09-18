@@ -151,10 +151,10 @@ export function removeRule(catalog: Catalog, id: Id): Catalog {
 }
 
 /**
- * Типы слоёв, которые читают этот ключ атрибута: тепловой слой — `loadPercent`,
- * камеры — угол и дальность обзора. Удалить такой атрибут можно — слой лишь
- * перестанет показывать число, — но пользователь должен узнать об этом до
- * клика, а не после того, как карта нагрузки опустела.
+ * Layer types that read this attribute key: the heat layer reads `loadPercent`,
+ * cameras read view angle and range. Removing such an attribute is allowed —
+ * values already stored stay in the file and the layer keeps drawing them — but
+ * the card loses the field and new objects get no default, so say so up front.
  */
 export function layersReading(catalog: Catalog, key: string): LayerType[] {
   return catalog.layerTypes.filter((layer) => {

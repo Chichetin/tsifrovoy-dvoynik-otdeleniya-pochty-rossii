@@ -194,6 +194,21 @@ describe('правила комплектования', () => {
     expect(validateCatalog(catalog).map((i) => i.code)).toContain('INVERTED_RULE_BOUNDS');
   });
 
+  test('дробная и отрицательная граница отвергаются до сохранения (схема файла их не примет)', () => {
+    const plan = loadPlan('nested.json');
+    const zoneType = plan.zones[0]?.typeId;
+    const objectType = plan.objects[0]?.typeId;
+    if (zoneType === undefined || objectType === undefined) throw new Error('нет данных');
+    for (const [min, max] of [[1.5, null], [-1, null], [null, 2.25]] as const) {
+      const { catalog } = addCountRule(plan.catalog, {
+        zoneTypeId: zoneType, objectTypeId: objectType, scope: 'direct', min, max, rationale: 'x',
+      });
+      const result = applyCommand(plan, { type: 'catalog.replace', catalog });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.issues.map((i) => i.code)).toContain('NON_INTEGER_RULE_BOUNDS');
+    }
+  });
+
   test('правило удаляется по id', () => {
     const plan = loadPlan('nested.json');
     const zoneType = plan.zones[0]?.typeId;
