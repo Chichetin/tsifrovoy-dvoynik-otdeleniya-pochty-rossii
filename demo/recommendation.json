@@ -1,0 +1,1576 @@
+{
+  "note": "Рекомендация получена расчётом ассистента (src/domain/advice) без обращения к LLM. Числа посчитал код, тексты собраны из шаблонов справочника объяснений.",
+  "mode": "fallback",
+  "fallbackReason": "Ключ провайдера LLM команде на момент сборки комплекта не выдан, поэтому использован обязательный режим без модели (D-016): показан расчёт с шаблонным объяснением.",
+  "generatedBy": "npx tsx demo/build.ts",
+  "planId": "plan_demo_ops_synthetic",
+  "requests": [
+    {
+      "scenario": "equipment",
+      "zoneId": null
+    },
+    {
+      "scenario": "place",
+      "typeId": "ot_bench",
+      "zoneId": "z_waiting",
+      "anchor": [
+        2.2,
+        2
+      ]
+    },
+    {
+      "scenario": "place",
+      "typeId": "ot_queue_terminal",
+      "zoneId": "z_entrance",
+      "anchor": [
+        7.9,
+        2.1
+      ]
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "adv_rule_bench_min_z_waiting_missing",
+      "scenario": "equipment",
+      "refs": [
+        {
+          "kind": "zone",
+          "id": "z_waiting"
+        },
+        {
+          "kind": "object",
+          "id": "eq_6"
+        }
+      ],
+      "candidates": [],
+      "facts": [
+        {
+          "id": "adv_rule_bench_min_z_waiting_missing.count",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        },
+        {
+          "id": "adv_rule_bench_min_z_waiting_missing.bound",
+          "metric": "equipment.min",
+          "phase": "current",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [
+        "rule_bench_min"
+      ],
+      "assumptions": [
+        "Правило команды: в зоне ожидания не меньше двух мест ожидания.",
+        "Источник правила: допущение команды, не норматив Почты России (rule_bench_min).",
+        "Считались объекты самой зоны, без вложенных."
+      ],
+      "reasonCodes": [
+        "equipment.missing"
+      ],
+      "limitations": [
+        "Правило комплектования принято командой и не является нормативом Почты России."
+      ],
+      "changes": []
+    },
+    {
+      "id": "adv_rule_info_display_max_z_client_excess",
+      "scenario": "equipment",
+      "refs": [
+        {
+          "kind": "zone",
+          "id": "z_client"
+        },
+        {
+          "kind": "object",
+          "id": "eq_7"
+        },
+        {
+          "kind": "object",
+          "id": "eq_8"
+        }
+      ],
+      "candidates": [],
+      "facts": [
+        {
+          "id": "adv_rule_info_display_max_z_client_excess.count",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ]
+        },
+        {
+          "id": "adv_rule_info_display_max_z_client_excess.bound",
+          "metric": "equipment.max",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [
+        "rule_info_display_max"
+      ],
+      "assumptions": [
+        "Правило команды: одно центральное информационное табло на клиентскую зону, второе избыточно.",
+        "Источник правила: допущение команды, не норматив Почты России (rule_info_display_max).",
+        "Считались объекты зоны вместе с вложенными."
+      ],
+      "reasonCodes": [
+        "equipment.excess"
+      ],
+      "limitations": [
+        "Правило комплектования принято командой и не является нормативом Почты России."
+      ],
+      "changes": []
+    },
+    {
+      "id": "adv_place_ot_bench_z_waiting",
+      "scenario": "place",
+      "refs": [
+        {
+          "kind": "zone",
+          "id": "z_waiting"
+        }
+      ],
+      "candidates": [
+        {
+          "id": "adv_ot_bench_1",
+          "object": {
+            "id": "adv_ot_bench_1",
+            "typeId": "ot_bench",
+            "label": "Скамья / кресла для ожидания",
+            "position": [
+              2.2,
+              2
+            ],
+            "size_m": [
+              1.6,
+              0.5
+            ],
+            "rotation_deg": 0,
+            "base_m": 0,
+            "height_m": 0.45,
+            "zoneId": "z_waiting",
+            "layerId": "l_base",
+            "attributes": {
+              "seats": 3
+            }
+          },
+          "facts": [
+            {
+              "id": "adv_ot_bench_1.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 0,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_waiting"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_1.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.49,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_1.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 113.69,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_1.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 3,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_1.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 4,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2",
+          "object": {
+            "id": "adv_ot_bench_2",
+            "typeId": "ot_bench",
+            "label": "Скамья / кресла для ожидания",
+            "position": [
+              2.2,
+              2
+            ],
+            "size_m": [
+              1.6,
+              0.5
+            ],
+            "rotation_deg": 90,
+            "base_m": 0,
+            "height_m": 0.45,
+            "zoneId": "z_waiting",
+            "layerId": "l_base",
+            "attributes": {
+              "seats": 3
+            }
+          },
+          "facts": [
+            {
+              "id": "adv_ot_bench_2.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 0,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_waiting"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_2.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.49,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_2.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 113.69,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_2.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 3,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_2.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 4,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_15",
+          "object": {
+            "id": "adv_ot_bench_15",
+            "typeId": "ot_bench",
+            "label": "Скамья / кресла для ожидания",
+            "position": [
+              2.1,
+              2
+            ],
+            "size_m": [
+              1.6,
+              0.5
+            ],
+            "rotation_deg": 0,
+            "base_m": 0,
+            "height_m": 0.45,
+            "zoneId": "z_waiting",
+            "layerId": "l_base",
+            "attributes": {
+              "seats": 3
+            }
+          },
+          "facts": [
+            {
+              "id": "adv_ot_bench_15.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 0.1,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_waiting"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_15.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.49,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_15.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 113.69,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_15.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 3,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_15.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 4,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "adv_place_ot_bench_z_waiting.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_place_ot_bench_z_waiting.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 3,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_1.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 0,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_1.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_1.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 113.69,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_1.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 3,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_1.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 4,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 0,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 113.69,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 3,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 4,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_15.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 0.1,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_15.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_15.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 113.69,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_15.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 3,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_15.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 4,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [
+        "rule_bench_min"
+      ],
+      "assumptions": [
+        "Размеры и высота взяты из справочника: Скамья / кресла для ожидания, Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России..",
+        "Перебор: сетка 0.1 м, углы 0 и 90°, не более 60000 проверок, кольцами от указанной точки.",
+        "Правило команды: в зоне ожидания не меньше двух мест ожидания. (допущение команды, не норматив Почты России, rule_bench_min)"
+      ],
+      "reasonCodes": [
+        "placement.available"
+      ],
+      "limitations": [
+        "Проверена геометрия размещения, а не доступность прохода, эргономика или нормативы."
+      ],
+      "changes": []
+    },
+    {
+      "id": "adv_place_ot_queue_terminal_z_entrance",
+      "scenario": "place",
+      "refs": [
+        {
+          "kind": "zone",
+          "id": "z_entrance"
+        }
+      ],
+      "candidates": [
+        {
+          "id": "adv_ot_queue_terminal_1",
+          "object": {
+            "id": "adv_ot_queue_terminal_1",
+            "typeId": "ot_queue_terminal",
+            "label": "Терминал управления очередью",
+            "position": [
+              7.9,
+              2.1
+            ],
+            "size_m": [
+              0.5,
+              0.5
+            ],
+            "rotation_deg": 0,
+            "base_m": 0,
+            "height_m": 1.4,
+            "zoneId": "z_entrance",
+            "layerId": "l_base",
+            "attributes": {}
+          },
+          "facts": [
+            {
+              "id": "adv_ot_queue_terminal_1.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 0,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_entrance"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.49,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 114.24,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 2,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_4",
+          "object": {
+            "id": "adv_ot_queue_terminal_4",
+            "typeId": "ot_queue_terminal",
+            "label": "Терминал управления очередью",
+            "position": [
+              7.8,
+              2.1
+            ],
+            "size_m": [
+              0.5,
+              0.5
+            ],
+            "rotation_deg": 0,
+            "base_m": 0,
+            "height_m": 1.4,
+            "zoneId": "z_entrance",
+            "layerId": "l_base",
+            "attributes": {}
+          },
+          "facts": [
+            {
+              "id": "adv_ot_queue_terminal_4.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 0.1,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_entrance"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_4.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.49,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_4.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 114.24,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_4.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_4.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 2,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3",
+          "object": {
+            "id": "adv_ot_queue_terminal_3",
+            "typeId": "ot_queue_terminal",
+            "label": "Терминал управления очередью",
+            "position": [
+              7.9,
+              2
+            ],
+            "size_m": [
+              0.5,
+              0.5
+            ],
+            "rotation_deg": 0,
+            "base_m": 0,
+            "height_m": 1.4,
+            "zoneId": "z_entrance",
+            "layerId": "l_base",
+            "attributes": {}
+          },
+          "facts": [
+            {
+              "id": "adv_ot_queue_terminal_3.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 0.1,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_entrance"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.49,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 114.24,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 1,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 2,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "facts": [
+        {
+          "id": "adv_place_ot_queue_terminal_z_entrance.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_place_ot_queue_terminal_z_entrance.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 0,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_entrance"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 114.24,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_4.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 0.1,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_entrance"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_4.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_4.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 114.24,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_4.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_4.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 0.1,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_entrance"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 114.24,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [
+        "rule_queue_terminal_entrance"
+      ],
+      "assumptions": [
+        "Размеры и высота взяты из справочника: Терминал управления очередью, Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Перечень требует размещение у входа, радиус не более 3 м — правило rule_queue_terminal_entrance..",
+        "Перебор: сетка 0.1 м, углы 0 и 90°, не более 60000 проверок, кольцами от указанной точки.",
+        "Перечень оборудования ОПС: терминал управления очередью размещается у входа, радиус не более 3 м. (материалы организаторов, rule_queue_terminal_entrance)"
+      ],
+      "reasonCodes": [
+        "placement.available"
+      ],
+      "limitations": [
+        "Проверена геометрия размещения, а не доступность прохода, эргономика или нормативы."
+      ],
+      "changes": []
+    },
+    {
+      "id": "adv_compare",
+      "scenario": "compare",
+      "refs": [
+        {
+          "kind": "room",
+          "id": "room_main"
+        }
+      ],
+      "candidates": [],
+      "facts": [
+        {
+          "id": "adv_compare.area.total.before",
+          "metric": "area.total",
+          "phase": "before",
+          "value": 132,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.total.after",
+          "metric": "area.total",
+          "phase": "after",
+          "value": 132,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.total.delta",
+          "metric": "area.total",
+          "phase": "delta",
+          "value": 0,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.occupied.before",
+          "metric": "area.occupied",
+          "phase": "before",
+          "value": 17.51,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.occupied.after",
+          "metric": "area.occupied",
+          "phase": "after",
+          "value": 18.31,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.occupied.delta",
+          "metric": "area.occupied",
+          "phase": "delta",
+          "value": 0.8,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.free.before",
+          "metric": "area.free",
+          "phase": "before",
+          "value": 114.49,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 113.69,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.area.free.delta",
+          "metric": "area.free",
+          "phase": "delta",
+          "value": -0.8,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.equipment.count.before",
+          "metric": "equipment.count",
+          "phase": "before",
+          "value": 53,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 53,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.equipment.count.delta",
+          "metric": "equipment.count",
+          "phase": "delta",
+          "value": 0,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.objects.added",
+          "metric": "objects.added",
+          "phase": "delta",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.objects.removed",
+          "metric": "objects.removed",
+          "phase": "delta",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_compare.placement.distance",
+          "metric": "placement.distance",
+          "phase": "delta",
+          "value": 6.760178,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [],
+      "assumptions": [
+        "Свободная площадь — это площадь помещения минус объединение отпечатков оборудования: пересечение объектов не вычитается дважды.",
+        "Площади вложенных зон не складываются: объект занимает пол и во вложенной зоне, и в родительской."
+      ],
+      "reasonCodes": [
+        "comparison.changed"
+      ],
+      "limitations": [
+        "Сравниваются два снимка плана; влияние на очереди, маршруты и загрузку не оценивается."
+      ],
+      "changes": [
+        {
+          "ref": {
+            "kind": "object",
+            "id": "eq_1"
+          },
+          "kind": "moved"
+        },
+        {
+          "ref": {
+            "kind": "object",
+            "id": "eq_54"
+          },
+          "kind": "added"
+        },
+        {
+          "ref": {
+            "kind": "object",
+            "id": "eq_8"
+          },
+          "kind": "removed"
+        }
+      ]
+    }
+  ],
+  "explanations": [
+    {
+      "recommendationId": "adv_rule_bench_min_z_waiting_missing",
+      "candidateId": null,
+      "reasonCode": "equipment.missing",
+      "factIds": [
+        "adv_rule_bench_min_z_waiting_missing.count",
+        "adv_rule_bench_min_z_waiting_missing.bound"
+      ]
+    },
+    {
+      "recommendationId": "adv_rule_info_display_max_z_client_excess",
+      "candidateId": null,
+      "reasonCode": "equipment.excess",
+      "factIds": [
+        "adv_rule_info_display_max_z_client_excess.count",
+        "adv_rule_info_display_max_z_client_excess.bound"
+      ]
+    },
+    {
+      "recommendationId": "adv_place_ot_bench_z_waiting",
+      "candidateId": "adv_ot_bench_1",
+      "reasonCode": "placement.available",
+      "factIds": [
+        "adv_place_ot_bench_z_waiting.area.free.current",
+        "adv_ot_bench_1.area.free.after",
+        "adv_place_ot_bench_z_waiting.equipment.count.current",
+        "adv_ot_bench_1.equipment.count.after"
+      ]
+    },
+    {
+      "recommendationId": "adv_place_ot_queue_terminal_z_entrance",
+      "candidateId": "adv_ot_queue_terminal_1",
+      "reasonCode": "placement.available",
+      "factIds": [
+        "adv_place_ot_queue_terminal_z_entrance.area.free.current",
+        "adv_ot_queue_terminal_1.area.free.after",
+        "adv_place_ot_queue_terminal_z_entrance.equipment.count.current",
+        "adv_ot_queue_terminal_1.equipment.count.after"
+      ]
+    },
+    {
+      "recommendationId": "adv_compare",
+      "candidateId": null,
+      "reasonCode": "comparison.changed",
+      "factIds": [
+        "adv_compare.area.free.before",
+        "adv_compare.area.free.after",
+        "adv_compare.area.free.delta",
+        "adv_compare.area.occupied.delta"
+      ]
+    }
+  ],
+  "texts": {
+    "adv_rule_bench_min_z_waiting_missing": "Не хватает оборудования: 1 при минимуме 2. Разница: 1.",
+    "adv_rule_info_display_max_z_client_excess": "Оборудования больше нормы: 2 при максимуме 1. Разница: 1.",
+    "adv_place_ot_bench_z_waiting": "Место найдено: Скамья / кресла для ожидания, размер 1,60 × 0,50 м, центр 2,20; 2,00, поворот 0°. Свободная площадь: 114,49 → 113,69 м². Объектов этого типа: 3 → 4.",
+    "adv_place_ot_queue_terminal_z_entrance": "Место найдено: Терминал управления очередью, размер 0,50 × 0,50 м, центр 7,90; 2,10, поворот 0°. Свободная площадь: 114,49 → 114,24 м². Объектов этого типа: 1 → 2.",
+    "adv_compare": "Планировка изменилась. Свободная площадь: 114,49 → 113,69 м² (−0,80 м²). Изменения объектов: добавлено 1, удалено 1, перемещено 1."
+  },
+  "applied": [
+    {
+      "recommendationId": "adv_place_ot_bench_z_waiting",
+      "candidateId": "adv_ot_bench_1",
+      "action": "object.put",
+      "objectId": "eq_54",
+      "description": "Вторая скамья поставлена в найденную точку [2.2, 2], поворот 0°; редактор присвоил ей следующий свободный id eq_54, название и атрибуты заполнены в карточке свойств."
+    },
+    {
+      "recommendationId": "adv_rule_info_display_max_z_client_excess",
+      "candidateId": null,
+      "action": "object.delete",
+      "objectId": "eq_8",
+      "description": "Лишнее информационное табло eq_8 удалено: правило команды разрешает одно табло на клиентскую зону вместе с вложенными."
+    },
+    {
+      "recommendationId": "adv_place_ot_queue_terminal_z_entrance",
+      "candidateId": "adv_ot_queue_terminal_1",
+      "action": "object.put",
+      "objectId": "eq_1",
+      "description": "Существующий терминал очереди eq_1 перенесён в найденную точку [7.9, 2.1] во входной группе; id, название и атрибуты сохранены, новый объект не создавался."
+    }
+  ],
+  "effect": [
+    {
+      "metric": "area.free",
+      "unit": "m2",
+      "before": 114.49,
+      "after": 113.69,
+      "delta": -0.8
+    },
+    {
+      "metric": "area.occupied",
+      "unit": "m2",
+      "before": 17.51,
+      "after": 18.31,
+      "delta": 0.8
+    },
+    {
+      "metric": "equipment.count",
+      "unit": "count",
+      "before": 53,
+      "after": 53,
+      "delta": 0
+    },
+    {
+      "metric": "bench.in.waiting",
+      "unit": "count",
+      "before": 1,
+      "after": 2,
+      "delta": 1
+    },
+    {
+      "metric": "display.in.client",
+      "unit": "count",
+      "before": 2,
+      "after": 1,
+      "delta": -1
+    },
+    {
+      "metric": "entrance.distance",
+      "unit": "m",
+      "before": 6.62,
+      "after": 2.25,
+      "delta": -4.37
+    },
+    {
+      "metric": "issues.error",
+      "unit": "count",
+      "before": 1,
+      "after": 0,
+      "delta": -1
+    },
+    {
+      "metric": "issues.warning",
+      "unit": "count",
+      "before": 2,
+      "after": 0,
+      "delta": -2
+    }
+  ]
+}
