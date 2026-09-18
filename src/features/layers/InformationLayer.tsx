@@ -11,11 +11,12 @@
  * экрана в презентации выглядит как измеренные данные.
  */
 
-import { Circle, Layer, Line, Text } from 'react-konva';
-import type { Equipment, Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
+import { Circle, Layer, Line, Shape, Text } from 'react-konva';
+import type { Equipment, Id, LayerType, Point, Polygon } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
 import { modelToScreen, viewSector } from '../../domain/geometry';
+import { heatRegions, type HeatRegion } from './heat-regions';
 
 const CAPTION_FILL = '#495057';
 const BADGE_TEXT = '#FFFFFF';
@@ -69,19 +70,34 @@ export function InformationLayer({
         : [{ id: layer.id, type }];
     });
 
-  const zoneShapes = (
+  /**
+   * Область зоны вместе с дырами под вложенными зонами. Дыры нельзя выразить
+   * через `Line`, поэтому кольца рисуются подпутями: канва заливает их
+   * правилом nonzero, а направление обхода задал `heatRegions`.
+   */
+  const regionShape = (
     layerId: Id,
-    zone: Zone,
+    region: HeatRegion,
     fill: string,
     opacity: number,
   ): React.JSX.Element => (
-    <Line
-      key={`${layerId}-${zone.id}`}
-      points={zone.polygon.flatMap((point) => modelToScreen(point, viewport))}
-      closed
+    <Shape
+      key={`${layerId}-${region.zoneId}`}
       fill={fill}
       opacity={opacity}
       listening={false}
+      sceneFunc={(context, shape) => {
+        context.beginPath();
+        for (const ring of region.rings) {
+          ring.forEach((point, index) => {
+            const [x, y] = modelToScreen(point, viewport);
+            if (index === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          });
+          context.closePath();
+        }
+        context.fillStrokeShape(shape);
+      }}
     />
   );
 
@@ -91,15 +107,17 @@ export function InformationLayer({
     if (representation.kind === 'objects') return [];
 
     if (representation.kind === 'zone-heat') {
-      return plan.zones.flatMap((zone) => {
-        const value = numberAttribute(zone.attributes, representation.attribute);
-        if (value === null) return [];
+      const regions = heatRegions(plan.zones, representation.attribute);
+      return regions.flatMap((region) => {
+        const zone = plan.zones.find((entry) => entry.id === region.zoneId);
+        if (zone === undefined) return [];
+        const value = region.value;
         const ratio = Math.min(Math.max(value / representation.max, 0), 1);
         const [x, y] = modelToScreen(labelAnchor(zone.polygon), viewport);
         return [
-          zoneShapes(
+          regionShape(
             layerId,
-            zone,
+            region,
             mixColors(representation.colors[0], representation.colors[1], ratio),
             0.7,
           ),
