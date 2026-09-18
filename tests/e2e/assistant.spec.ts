@@ -25,6 +25,26 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент');
 
 test.describe('ассистент в браузере', () => {
+  test('лимит 429 на сервере оставляет рекомендации в режиме без LLM', async ({ page }) => {
+    await page.route('**/api/advice', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          issues: [{ code: 'LLM_HTTP_ERROR', severity: 'error', message: 'Лимит модели', refs: [] }],
+        }),
+      }),
+    );
+    await page.goto('/');
+    await drawZone(page);
+
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    await expect(panel(page).locator('.assistant__mode')).toContainText('Без LLM');
+    await expect(panel(page).locator('.assistant__mode')).toContainText('429');
+    await expect(panel(page).locator('.advice__sentence').first()).toContainText('Место найдено');
+  });
+
   test('сценарий «найти место»: варианты, числа и пометка «без LLM»', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
