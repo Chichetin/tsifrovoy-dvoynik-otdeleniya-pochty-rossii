@@ -9,7 +9,7 @@
 |---|---|---|---|
 | Код | [GitLab](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii) и [README](../README.md) | Репозиторий есть; commit сдачи ещё не зафиксирован | Открыть ссылку без локальных файлов, сверить `origin/main` с commit сдачи |
 | Редактор | Публичный адрес в README | **Не указан:** площадка не выбрана | Открыть URL с другой сети, пройти сценарий и API health |
-| Демо | `build/demo/ops-digital-twin-demo.zip` по E01 | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) открыт и требует устранить конфликт с `main`; архив пока не часть `main` | После merge выполнить `npm run package:demo`, распаковать сторонним архиватором, открыть оба JSON в редакторе |
+| Демо | `build/demo/ops-digital-twin-demo.zip` по E01 | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 171 Б, пять файлов | `npm run package:demo`; тест открывает оба файла из ZIP в браузере (2/2), на финальной сборке повторить независимую распаковку и загрузку |
 | Презентация | Один PDF ≤ 20 МБ | **Не предоставлен**; [факты для слайдов](presentation-facts.md) подготовлены отдельно | Проверить размер, открыть все страницы, убедиться в совпадении чисел с артефактами |
 
 Приёмка на релизной версии: зафиксировать SHA из `origin/main`, выполнить
