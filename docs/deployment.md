@@ -122,7 +122,11 @@ docker compose down              # остановить и удалить кон
    `HEALTHCHECK` на `/api/health`.
 
 Размер образа на 17.09.2026: 322 МБ на диске (70,8 МБ в реестре), из них ~75 МБ —
-production-зависимости, 1,5 МБ — собранный SPA, 119 КБ — сервер.
+production-зависимости по слоям образа, 1,5 МБ — собранный SPA, 119 КБ — сервер.
+После переноса клиентских библиотек в `devDependencies` (D-116, 18.09) чистая
+установка `npm ci --omit=dev` по `du -sh node_modules` весит 29 МБ вместо 65
+(замер тем же способом на `origin/main` до переноса; число по слоям образа
+считается иначе и ещё не пересчитывалось — образ после переноса не пересобирался).
 
 Сервер написан на TypeScript и в разработке запускается через `tsx`, но `tsx` —
 devDependency, и тащить весь dev-набор в runtime ради него незачем. Поэтому сервер
@@ -158,16 +162,7 @@ docker run -d --name ops-digital-twin -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 
   нагрузки — предел одного Node-процесса на раздаче статики и расчёте рекомендаций.
 - **Только Linux/amd64 проверен.** Сборка на arm64 должна работать (в lockfile есть
   бинарники rolldown под arm64-musl), но не проверялась.
-- **В runtime-образе лежат и клиентские зависимости.** `npm ci --omit=dev` ставит весь
-  раздел `dependencies`, а там вместе с серверными `fastify`, `@fastify/static`, `zod` и
-  `polyclip-ts` лежат `three`, `react`, `react-dom`, `react-konva`, `konva`, `zustand` —
-  они уже собраны внутрь `dist/` и процессу не нужны. Это ~34 МБ лишнего из 322 МБ
-  образа (`du -sch node_modules/{three,konva,react,react-dom,react-konva,zustand}`);
-  основной вес — базовый образ `node:22-alpine`. Чистое решение — перенести клиентские
-  библиотеки в `devDependencies`, но это правка `package.json` и `package-lock.json`,
-  общих для всех потоков: отдельный MR владельца tooling, не этот. Ставить пакеты
-  поимённо или удалять каталоги из `node_modules` в `Dockerfile` не стали: такой список
-  расходится с `package.json` молча.
+- **Клиентские зависимости из runtime-образа убраны (D-116).** В `dependencies` теперь только `fastify`, `@fastify/static`, `zod` и `polyclip-ts` — ровно то, что импортирует `build/server/main.js`; `three`, `react`, `react-dom`, `react-konva`, `konva`, `zustand` живут в `devDependencies` и в runtime-ступень не попадают. Проверено чистой установкой `npm ci --omit=dev` (29 МБ) и запуском сервера с неё: `/api/health` и SPA отвечают. Основной вес образа по-прежнему базовый `node:22-alpine`.
 - **Логи — в stdout контейнера** (`docker compose logs`), ротацию и сбор настраивает
   хост.
 
