@@ -39,7 +39,7 @@ import {
   type PlanDraft,
 } from '../../persistence/browser-draft';
 import type { OpenedPlan } from '../../persistence/format';
-import { renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
+import { planFileName, renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
 
 export type FileControlsProps = {
   document: PlanDocument;
@@ -90,8 +90,7 @@ function replacementWarning(action: 'Новый' | 'Открыть', dirty: bool
 }
 
 function fileName(plan: PlanDocument): string {
-  const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-  return `${stem === '' ? 'plan' : stem}.json`;
+  return planFileName(plan, 'json');
 }
 
 /** Хранилище браузера, если оно вообще доступно: приватный режим бросает. */
@@ -281,7 +280,10 @@ export function FileControls({
     link.download = svgFileName(plan);
     link.click();
     URL.revokeObjectURL(url);
+    // Own result state, like «Сохранить»: otherwise a stale «План не открыт…»
+    // would stay on screen next to a file that downloaded fine.
     setNotice(`Картинка ${svgFileName(plan)} передана браузеру на скачивание.`);
+    setState({ status: 'done' });
   };
 
 

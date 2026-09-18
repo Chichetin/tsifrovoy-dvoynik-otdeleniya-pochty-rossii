@@ -93,8 +93,67 @@ describe('SVG плана', () => {
     const svg = renderPlanSvg(outside);
     const viewBox = /viewBox="([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)"/.exec(svg);
     if (viewBox === null) throw new Error('нет viewBox');
-    const [, minX, , width] = viewBox;
+    const [, minX, minY, width, height] = viewBox;
     expect(Number(minX) + Number(width)).toBeGreaterThan(30);
+    // Ось Y отражена: модельный y = 30 лежит на SVG-y = −30, и viewBox должен
+    // начинаться не ниже, чем −30 − запас.
+    expect(Number(minY)).toBeLessThanOrEqual(-30);
+    expect(Number(minY) + Number(height)).toBeGreaterThanOrEqual(-30 + 1);
+  });
+
+  test('стена вне контура попадает в охват картинки', () => {
+    const plan = loadFixture('minimal.json');
+    const away: PlanDocument = {
+      ...plan,
+      walls: [...plan.walls, { id: 'w_far', from: [25, 1], to: [25, 5], thickness_m: 0.2, height_m: 3 }],
+    };
+    const viewBox = /viewBox="([-\d.]+) [-\d.]+ ([-\d.]+) /.exec(renderPlanSvg(away));
+    if (viewBox === null) throw new Error('нет viewBox');
+    expect(Number(viewBox[1]) + Number(viewBox[2])).toBeGreaterThan(25);
+  });
+
+  test('мелкий объект без подписи, крупный — с подписью', () => {
+    const plan = loadFixture('minimal.json');
+    const first = plan.objects[0];
+    if (first === undefined) throw new Error('нет объектов');
+    const tiny = { ...first, id: 'eq_tiny', label: 'Датчик-крошка', size_m: [0.3, 0.3] as Point };
+    const big = { ...first, id: 'eq_big', label: 'Стол-великан', size_m: [1, 1] as Point, position: [5, 5] as Point };
+    const svg = renderPlanSvg({ ...plan, objects: [tiny, big] });
+
+    expect(svg).toContain('data-id="eq_tiny"');
+    expect(svg).not.toContain('Датчик-крошка');
+    expect(svg).toContain('Стол-великан');
+  });
+
+  test('название зоны — бледнее и до объектов, чтобы не спорить с оборудованием', () => {
+    const plan = loadFixture('nested.json');
+    const svg = renderPlanSvg(plan);
+    const zone = plan.zones[0];
+    const object = plan.objects[0];
+    if (zone === undefined || object === undefined) throw new Error('нет данных');
+    const zoneLabel = svg.indexOf(`>${zone.name}</text>`);
+    const objectGroup = svg.indexOf(`data-id="${object.id}"`);
+    expect(zoneLabel).toBeGreaterThan(-1);
+    expect(zoneLabel).toBeLessThan(objectGroup);
+    // Сам тег подписи зоны: от последнего `<text` до названия.
+    const tagStart = svg.lastIndexOf('<text', zoneLabel);
+    const tag = svg.slice(tagStart, zoneLabel);
+    expect(tag).toContain('fill-opacity="0.45"');
+    expect(tag).toContain('font-size="0.5"');
+  });
+
+  test('цвет из справочника экранируется как всё из документа', () => {
+    const plan = loadFixture('minimal.json');
+    const hostile: PlanDocument = {
+      ...plan,
+      catalog: {
+        ...plan.catalog,
+        zoneTypes: plan.catalog.zoneTypes.map((t) => ({ ...t, color: '#fff" onload="x' })),
+      },
+    };
+    const svg = renderPlanSvg(hostile);
+    expect(svg).not.toContain('onload="x');
+    expect(svg).toContain('&quot; onload=&quot;x');
   });
 
   test('спецсимволы в названии экранируются', () => {

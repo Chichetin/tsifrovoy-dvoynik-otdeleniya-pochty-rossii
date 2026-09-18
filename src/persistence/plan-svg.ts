@@ -56,7 +56,7 @@ function label(at: Point, text: string, size_m: number, fill = LABEL_FILL, opaci
 
 function objectSymbol(object: Equipment, plan: PlanDocument): string {
   const type = findObjectType(plan.catalog, object.typeId);
-  const fill = type?.color ?? OBJECT_FALLBACK;
+  const fill = esc(type?.color ?? OBJECT_FALLBACK);
   const [x, y] = object.position;
   const [w, h] = object.size_m;
   const paint = `fill="${fill}" fill-opacity="0.9" stroke="#343A40" stroke-width="0.02"`;
@@ -76,9 +76,15 @@ function objectSymbol(object: Equipment, plan: PlanDocument): string {
 
 /** Полный SVG-документ плана. */
 export function renderPlanSvg(plan: PlanDocument): string {
-  const shapes: Polygon[] = [plan.room.boundary, ...plan.zones.map((z) => z.polygon), ...plan.objects.map(footprint)];
-  const all = shapes.flat();
-  const box = boundingBox(all.length > 0 ? all : plan.room.boundary);
+  // Everything drawn takes part in the extent: a wall outside the outline
+  // must not be cut off.
+  const shapes: Polygon[] = [
+    plan.room.boundary,
+    ...plan.zones.map((z) => z.polygon),
+    ...plan.walls.map(wallPolygon),
+    ...plan.objects.map(footprint),
+  ];
+  const box = boundingBox(shapes.flat());
   const minX = box.minX - MARGIN_M;
   const minY = box.minY - MARGIN_M;
   const width = box.maxX - box.minX + MARGIN_M * 2;
@@ -88,7 +94,7 @@ export function renderPlanSvg(plan: PlanDocument): string {
     .slice()
     .sort((a, b) => (a.parentId === null ? 0 : 1) - (b.parentId === null ? 0 : 1))
     .map((zone) => {
-      const fill = findZoneType(plan.catalog, zone.typeId)?.color ?? ZONE_FALLBACK;
+      const fill = esc(findZoneType(plan.catalog, zone.typeId)?.color ?? ZONE_FALLBACK);
       return (
         `<polygon points="${points(zone.polygon)}" fill="${fill}" fill-opacity="0.75" stroke="#ADB5BD" stroke-width="0.02" data-id="${esc(zone.id)}"/>` +
         // Under the objects, large and pale: a zone name is context, not a label
@@ -142,8 +148,16 @@ export function renderPlanSvg(plan: PlanDocument): string {
     .join('\n');
 }
 
+/**
+ * Имя файла из названия плана: буквы и цифры остаются, остальное — дефис.
+ * Одно правило для `.json` и `.svg`, чтобы план и его картинка лежали рядом.
+ */
+export function planFileName(plan: PlanDocument, extension: 'json' | 'svg'): string {
+  const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
+  return `${stem === '' ? 'plan' : stem}.${extension}`;
+}
+
 /** Имя файла картинки — как у файла плана, но `.svg`. */
 export function svgFileName(plan: PlanDocument): string {
-  const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-  return `${stem === '' ? 'plan' : stem}.svg`;
+  return planFileName(plan, 'svg');
 }
