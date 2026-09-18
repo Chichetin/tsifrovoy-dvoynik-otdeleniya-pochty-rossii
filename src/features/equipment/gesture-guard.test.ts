@@ -10,7 +10,9 @@ import { describe, expect, it } from 'vitest';
 import type { Point } from '../../contracts/model';
 import { createGestureGuard, type GestureNode, type GestureStart } from './gesture-guard';
 
-function node(): GestureNode & { put: { x: number; y: number }[]; stopped: number } {
+function node(
+  dragging = true,
+): GestureNode & { put: { x: number; y: number }[]; stopped: number } {
   return {
     put: [],
     stopped: 0,
@@ -20,6 +22,9 @@ function node(): GestureNode & { put: { x: number; y: number }[]; stopped: numbe
     },
     stopDrag() {
       this.stopped += 1;
+    },
+    isDragging() {
+      return dragging;
     },
   };
 }
@@ -86,6 +91,23 @@ describe('сторож жеста', () => {
     expect(guard.started?.grab).toEqual([-0.3, 0.1]);
     guard.finish();
     expect(guard.started).toBeNull();
+  });
+
+  it('нажатие на ручку без перетаскивания Escape не отменяет', () => {
+    // Ручка размера заводит жест на pointerdown: смещение захвата нужно знать
+    // до порога перетаскивания. Нажали и отпустили, не потянув, — жеста не
+    // было, и Escape принадлежит холсту: он снимает выделение, а не двигает
+    // ручку в экранную точку, от которой холст мог уехать зумом.
+    const guard = createGestureGuard();
+    const pressed = node(false);
+    guard.begin({ node: pressed, origin: { x: 5, y: 6 }, grab: [0.2, 0] });
+    expect(guard.cancel()).toBeNull();
+    expect(pressed.put).toEqual([]);
+    expect(pressed.stopped).toBe(0);
+    // Жест остаётся открытым: dragend его и закроет, если перетаскивание всё
+    // же начнётся, а захват ручки до тех пор помнится.
+    expect(guard.started?.grab).toEqual([0.2, 0]);
+    expect(guard.finish()).toBe(true);
   });
 
   it('отменённый жест возвращает узел туда, откуда начался', () => {
