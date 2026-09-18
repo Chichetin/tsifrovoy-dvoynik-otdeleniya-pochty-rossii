@@ -18,12 +18,33 @@ import type {
   Attributes,
   Equipment,
   Issue,
+  Opening,
+  OpeningKind,
+  Wall,
   Zone,
 } from '../../contracts/model';
+import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
 
 type Errors = Record<string, string>;
+
+/** Что карточка умеет править: по форме сущности понятно, какой командой. */
+type Editable = Zone | Equipment | Wall | Opening;
+
+/** Названия видов проёма: подписи для человека, значения — из контракта. */
+const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
+  { kind: 'entrance', label: 'Вход' },
+  { kind: 'door', label: 'Дверь' },
+  { kind: 'window', label: 'Окно' },
+];
+
+function commandFor(entity: Editable): Command {
+  if ('polygon' in entity) return { type: 'zone.put', zone: entity };
+  if ('wallId' in entity) return { type: 'opening.put', opening: entity };
+  if ('thickness_m' in entity) return { type: 'wall.put', wall: entity };
+  return { type: 'object.put', object: entity };
+}
 
 /** Раскладывает отказ команды по полям: `/attributes/seats` → `attributes.seats`. */
 function errorsByField(issues: Issue[], fallback: string): Errors {
@@ -64,12 +85,15 @@ export function PropertiesPanel({
   const zone = selection?.kind === 'zone' ? plan.zones.find((item) => item.id === selection.id) : undefined;
   const object =
     selection?.kind === 'object' ? plan.objects.find((item) => item.id === selection.id) : undefined;
+  const wall = selection?.kind === 'wall' ? plan.walls.find((item) => item.id === selection.id) : undefined;
+  const opening =
+    selection?.kind === 'opening' ? plan.openings.find((item) => item.id === selection.id) : undefined;
 
   /**
    * Одна правка — одна команда. Принятая правка стирает свой черновик и свою
    * ошибку; отклонённая оставляет и то, и другое.
    */
-  const commit = (field: string, entity: Zone | Equipment | null, raw?: string): void => {
+  const commit = (field: string, entity: Editable | null, raw?: string): void => {
     if (raw !== undefined) setDraft((current) => ({ ...current, [field]: raw }));
 
     if (entity === null) {
@@ -77,10 +101,7 @@ export function PropertiesPanel({
       return;
     }
 
-    const result =
-      'polygon' in entity
-        ? onCommand({ type: 'zone.put', zone: entity })
-        : onCommand({ type: 'object.put', object: entity });
+    const result = onCommand(commandFor(entity));
 
     if (result.ok) {
       setErrors((current) => without(current, field));
@@ -114,7 +135,7 @@ export function PropertiesPanel({
     name: string,
     label: string,
     value: number,
-    apply: (next: number) => Zone | Equipment,
+    apply: (next: number) => Editable,
     step = 0.1,
   ): React.JSX.Element =>
     field(
@@ -401,10 +422,103 @@ export function PropertiesPanel({
     );
   }
 
+  if (wall !== undefined) {
+    const openings = plan.openings.filter((entry) => entry.wallId === wall.id);
+    const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+    return (
+      <section className="panel props" aria-label="Свойства">
+        <h2 className="panel__title">Свойства перегородки</h2>
+        {identity(wall.id, 'перегородка')}
+
+        <div className="props__pair">
+          {numberField('thickness_m', 'Толщина, м', wall.thickness_m, (next) => ({
+            ...wall,
+            thickness_m: next,
+          }))}
+          {numberField('height_m', 'Высота, м', wall.height_m, (next) => ({
+            ...wall,
+            height_m: next,
+          }))}
+        </div>
+
+        {/* Концы стены тянутся на плане: править их числами здесь значило бы
+            держать две правды об одной геометрии. */}
+        <p className="props__hint">
+          Длина {length.toFixed(2)} м, от ({wall.from[0].toFixed(2)}; {wall.from[1].toFixed(2)}) до (
+          {wall.to[0].toFixed(2)}; {wall.to[1].toFixed(2)}); концы тянутся на плане
+        </p>
+        <p className="props__hint">
+          {openings.length === 0
+            ? 'Проёмов нет; инструмент «Проём» ставит их кликом по стене'
+            : `Проёмов на стене: ${openings.length}; удаление стены уносит их вместе с ней`}
+        </p>
+      </section>
+    );
+  }
+
+  if (opening !== undefined) {
+    const host = plan.walls.find((entry) => entry.id === opening.wallId);
+    const hostLength =
+      host === undefined ? null : Math.hypot(host.to[0] - host.from[0], host.to[1] - host.from[1]);
+    return (
+      <section className="panel props" aria-label="Свойства">
+        <h2 className="panel__title">Свойства проёма</h2>
+        {identity(opening.id, 'проём')}
+
+        {field(
+          'kind',
+          'Вид',
+          <select
+            aria-label="Вид"
+            value={opening.kind}
+            onChange={(event) =>
+              commit('kind', { ...opening, kind: event.target.value as OpeningKind })
+            }
+          >
+            {OPENING_KINDS.map((entry) => (
+              <option key={entry.kind} value={entry.kind}>
+                {entry.label}
+              </option>
+            ))}
+          </select>,
+          'Вход участвует в правиле «терминал не далее 3 м от входа»',
+        )}
+
+        <div className="props__pair">
+          {numberField('offset_m', 'Отступ от начала, м', opening.offset_m, (next) => ({
+            ...opening,
+            offset_m: next,
+          }))}
+          {numberField('width_m', 'Ширина, м', opening.width_m, (next) => ({
+            ...opening,
+            width_m: next,
+          }))}
+        </div>
+
+        <div className="props__pair">
+          {numberField('sill_m', 'От пола, м', opening.sill_m, (next) => ({
+            ...opening,
+            sill_m: next,
+          }))}
+          {numberField('height_m', 'Высота, м', opening.height_m, (next) => ({
+            ...opening,
+            height_m: next,
+          }))}
+        </div>
+
+        <p className="props__hint" data-testid="props-wall">
+          {host === undefined
+            ? `Стена «${opening.wallId}» не найдена: проём требует пересчёта`
+            : `На перегородке «${host.id}» длиной ${hostLength?.toFixed(2) ?? '—'} м`}
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section className="panel props" aria-label="Свойства">
       <h2 className="panel__title">Свойства</h2>
-      <p className="panel__empty">Выберите зону или объект на плане</p>
+      <p className="panel__empty">Выберите зону, объект, перегородку или проём на плане</p>
     </section>
   );
 }
