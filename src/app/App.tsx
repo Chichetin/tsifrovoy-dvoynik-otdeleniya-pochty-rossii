@@ -22,6 +22,7 @@ import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
+import { CatalogPanel } from '../features/catalog-editor/CatalogPanel';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
 import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
@@ -263,6 +264,7 @@ export function App(): React.JSX.Element {
           <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
           <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
           <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
+          <CatalogPanel document={document} onCommand={dispatch} />
         </aside>
       </div>
     </div>
