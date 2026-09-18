@@ -105,25 +105,22 @@ async function drag(
 }
 
 /**
- * Масштаб и начало координат холста по двум поставленным объектам: их центры
- * — точки клика, а X/Y показывает карточка. Так тест не зависит от того, как
- * холст вписал план в окно. Оба объекта стираются кнопкой «Новый».
+ * Масштаб и начало координат холста — из того, что холст сам публикует о
+ * текущем виде (`data-visible`: видимый кусок мира в метрах).
+ *
+ * Раньше калибровка ставила два объекта и считала масштаб по их карточкам, но
+ * такой замер живёт до первой смены вида, а открытый файл теперь вписывается в
+ * холст (U02). Поэтому вид спрашивается после того, как план открыт.
  */
-async function calibrate(page: Page): Promise<Calibration> {
-  const box = await page.getByTestId('editor-canvas').boundingBox();
+async function canvasView(page: Page): Promise<Calibration> {
+  const canvas = page.getByTestId('editor-canvas');
+  const box = await canvas.boundingBox();
   if (box === null) throw new Error('холст не виден');
-  const a: Screen = { x: 300, y: 300 };
-  const b: Screen = { x: Math.min(700, box.width - 60), y: 300 };
-  await placeFromLibrary(page, RACK, a.x, a.y);
-  await selectRow(page, 0);
-  const xa = await numberOf(page, 'X, м');
-  const ya = await numberOf(page, 'Y, м');
-  await placeFromLibrary(page, RACK, b.x, b.y);
-  await selectRow(page, 1);
-  const xb = await numberOf(page, 'X, м');
-  const scale = (b.x - a.x) / (xb - xa);
-  await newPlan(page);
-  return { scale, origin: { x: a.x - xa * scale, y: a.y + ya * scale } };
+  const raw = await canvas.getAttribute('data-visible');
+  if (raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX] = raw.split(',').map(Number) as [number, number, number];
+  const scale = box.width / (maxX - minX);
+  return { scale, origin: { x: -minX * scale, y: box.height + minY * scale } };
 }
 
 function toScreen(view: Calibration, x: number, y: number): Screen {
@@ -353,8 +350,6 @@ test.describe('жесты над оборудованием', () => {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('/');
 
-    const view = await calibrate(page);
-
     // Пример лежит в формате организаторов; в формат редактора его переводит
     // тот же импортёр, что и в unit-тестах.
     const source = JSON.parse(readFileSync(join(process.cwd(), 'example_plan.json'), 'utf8'));
@@ -367,6 +362,9 @@ test.describe('жесты над оборудованием', () => {
       buffer: Buffer.from(JSON.stringify(imported.value)),
     });
     await expect(page.getByText('сохранено')).toBeVisible();
+
+    // Вид спрашивается после открытия файла: холст уже вписал в себя план.
+    const view = await canvasView(page);
 
     await selectByLabel(page, 'Стеллаж посылок');
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
