@@ -24,6 +24,7 @@ import {
   boundingBox,
   footprint,
   openingCentre,
+  toWorld,
   wallObstacles,
   type BoundingBox,
 } from '../../domain/geometry';
@@ -79,12 +80,22 @@ export function isSelected(prism: ScenePrism, selection: Ref | null): boolean {
 }
 
 export function buildScene(plan: PlanDocument, catalog: Catalog = plan.catalog): Scene {
+  // Скрытый слой не рисуется и здесь: 3D показывает то же, что холст 2D, иначе
+  // выключенный «глаз» в панели слоёв врал бы в одном из двух видов. Помещение,
+  // стены и проёмы слоёв не имеют и остаются всегда. Ссылка на несуществующий
+  // слой не показывается — то же правило, что в `EquipmentLayer`.
+  const shown = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
   const prisms: ScenePrism[] = [
     floorPrism(plan),
-    ...plan.zones.map((zone) => zonePrism(zone, plan.zones, catalog)),
+    // Глубина вложенности считается по всем зонам: родитель может быть скрыт.
+    ...plan.zones
+      .filter((zone) => shown.has(zone.layerId))
+      .map((zone) => zonePrism(zone, plan.zones, catalog)),
     ...plan.walls.flatMap((wall) => wallPrisms(wall, plan.openings)),
     ...plan.openings.flatMap((opening) => openingPrism(opening, plan.walls)),
-    ...plan.objects.map((object) => objectPrism(object, catalog)),
+    ...plan.objects
+      .filter((object) => shown.has(object.layerId))
+      .map((object) => objectPrism(object, catalog)),
   ];
   return {
     prisms,
@@ -170,7 +181,14 @@ function wallPrisms(wall: Wall, openings: Opening[]): ScenePrism[] {
   return prisms;
 }
 
-/** Translucent pane in the wall plane: the opening stays visible as a thing with an id. */
+/**
+ * Translucent pane in the wall plane: the opening stays visible as a thing with
+ * an id. Position and orientation come from geometry — `openingCentre` for the
+ * middle and `toWorld` for the turn, the same clockwise convention `footprint`
+ * uses — so the pane never drifts from the wall it belongs to. (Geometry's own
+ * `wallSpanPolygon` would give the rectangle outright, but it is private to
+ * G01 and exporting it belongs to that module's owner.)
+ */
 function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
   const wall = walls.find((candidate) => candidate.id === opening.wallId);
   if (!wall) return [];
@@ -179,19 +197,19 @@ function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
   const length = Math.hypot(tx - fx, ty - fy);
   if (length <= TOLERANCE.coordinate_m) return [];
 
-  const ux = (tx - fx) / length;
-  const uy = (ty - fy) / length;
+  // Heading that turns the local +X axis along the wall: clockwise, as in
+  // `rotateOffset`, where (1,0) at angle a becomes (cos a, -sin a).
+  const heading_deg = (Math.atan2(-(ty - fy), tx - fx) * 180) / Math.PI;
   const halfWidth = opening.width_m / 2;
   const halfThick = (wall.thickness_m * PANE_SHARE) / 2;
-  const [cx, cy] = openingCentre(opening, wall);
-  const along: Point = [ux * halfWidth, uy * halfWidth];
-  const across: Point = [-uy * halfThick, ux * halfThick];
-  const polygon: Polygon = [
-    [cx - along[0] + across[0], cy - along[1] + across[1]],
-    [cx + along[0] + across[0], cy + along[1] + across[1]],
-    [cx + along[0] - across[0], cy + along[1] - across[1]],
-    [cx - along[0] - across[0], cy - along[1] - across[1]],
+  const centre = openingCentre(opening, wall);
+  const corners: Point[] = [
+    [-halfWidth, halfThick],
+    [halfWidth, halfThick],
+    [halfWidth, -halfThick],
+    [-halfWidth, -halfThick],
   ];
+  const polygon: Polygon = corners.map((corner) => toWorld(centre, corner, heading_deg));
   return [
     {
       kind: 'opening',
