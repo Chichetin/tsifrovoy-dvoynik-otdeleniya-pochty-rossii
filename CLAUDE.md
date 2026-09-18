@@ -199,14 +199,16 @@
   ```bash
   npm ci                              # установка строго по lockfile
   npx playwright install chromium     # один раз на машину: браузер для e2e
-  npm run dev                         # http://localhost:5173
+  npm run dev                         # http://127.0.0.1:5173 (свой порт — DEV_PORT=5174)
   npm test                            # unit-тесты (Vitest)
   npm run test:e2e                    # браузерные тесты (Playwright сам поднимает dev)
+  DEV_PORT=5174 npm run test:e2e      # из worktree: свой порт, чужой сервер не берётся
   npm run typecheck && npm run lint && npm run build
   ```
 
 - Стенд UI-пакета до подключения в приложение: `tests/harness/<ID>.tsx` с default
-  export компонента → `npm run dev` → `http://localhost:5173/tests/harness/?id=<ID>`.
+  export компонента → `npm run dev` → `http://127.0.0.1:5173/tests/harness/?id=<ID>`
+  (порт — из `DEV_PORT`, по умолчанию 5173).
   В production-сборку стенды не попадают.
 - Границы импортов из `docs/project-structure.md` проверяет `npm run lint`
   (`no-restricted-imports` в `eslint.config.js`): domain без React и UI-библиотек,

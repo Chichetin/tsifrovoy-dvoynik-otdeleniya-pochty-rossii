@@ -9,6 +9,7 @@
 
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { LIMITS } from '../src/contracts/model';
@@ -52,7 +53,7 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
 }
 
 const isEntryPoint =
-  process.argv[1] !== undefined && import.meta.url === `file://${resolve(process.argv[1])}`;
+  process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (isEntryPoint) {
   const { app, config } = await buildServer();

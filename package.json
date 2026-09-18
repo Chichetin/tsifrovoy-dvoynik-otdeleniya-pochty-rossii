@@ -9,10 +9,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:server": "vite build --ssr server/main.ts --outDir build/server",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:perf": "playwright test -c playwright.perf.config.ts",
     "serve": "tsx server/main.ts"
   },
   "dependencies": {
