@@ -84,6 +84,10 @@ export function EquipmentLayer({
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
+  // Как и в слое геометрии: клик по объекту выделяет его только инструментом
+  // «Выбор», иначе установка нового объекта поверх старого тут же уводит
+  // карточку на старый (находка operator №9).
+  const picking = session.tool.kind === 'select';
   const [gesture, setGesture] = useState<Gesture | null>(null);
   // Lazy initialiser: one guard per layer, kept across renders. It holds the
   // gesture in progress — the dragged node, where it started and where inside
@@ -196,7 +200,9 @@ export function EquipmentLayer({
         rotation={current.rotation_deg}
         draggable={!ghost && !lockedLayers.has(object.layerId)}
         listening={!ghost}
-        onPointerClick={() => onSelect({ kind: 'object', id: object.id })}
+        onPointerClick={() => {
+          if (picking) onSelect({ kind: 'object', id: object.id });
+        }}
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
           setGesture({ id: object.id, object: { ...object, position: movedTo(event.target) } });

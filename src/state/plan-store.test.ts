@@ -61,6 +61,102 @@ describe('открытие документа', () => {
   });
 });
 
+describe('созданное выделяется', () => {
+  // Находка operator №9: сотрудник ставит объект из библиотеки или рисует
+  // зону, а карточка свойств продолжает показывать прежнее — понять, что
+  // именно сейчас создано и какие у него атрибуты, неоткуда.
+
+  test('поставленный объект становится выделением', () => {
+    const sample = store.getState().document.objects[0]!;
+    expect(store.getState().selection).toBeNull();
+
+    store.getState().dispatch({
+      type: 'object.put',
+      object: { ...sample, id: 'eq_new', position: [2, 2] },
+    });
+
+    expect(store.getState().selection).toEqual({ kind: 'object', id: 'eq_new' });
+  });
+
+  test('нарисованная зона становится выделением', () => {
+    const plan = store.getState().document;
+    store.getState().dispatch({
+      type: 'zone.put',
+      zone: {
+        id: 'z_new',
+        typeId: plan.catalog.zoneTypes[0]!.id,
+        name: 'Зона 2',
+        polygon: [
+          [0, 0],
+          [2, 0],
+          [2, 2],
+          [0, 2],
+        ],
+        layerId: plan.layers[0]!.id,
+        parentId: null,
+        attributes: {},
+      },
+    });
+
+    expect(store.getState().selection).toEqual({ kind: 'zone', id: 'z_new' });
+  });
+
+  test('перемещение существующего объекта выделение не переносит', () => {
+    const sample = store.getState().document.objects[0]!;
+    store.getState().select({ kind: 'zone', id: 'z_client' });
+
+    store.getState().dispatch({ type: 'object.put', object: { ...sample, position: [3, 3] } });
+
+    // Правка — не создание: пользователь смотрит на карточку зоны, и
+    // перетаскивание объекта не должно её подменять.
+    expect(store.getState().selection).toEqual({ kind: 'zone', id: 'z_client' });
+  });
+
+  test('отклонённая команда выделение не трогает', () => {
+    const sample = store.getState().document.objects[0]!;
+    store.getState().dispatch({ type: 'object.delete', id: sample.id });
+    store.getState().select({ kind: 'zone', id: 'z_client' });
+
+    // Идентификатор удалённого не переиспользуется: команда отклоняется, и
+    // «выделить созданное» не должно срабатывать на том, что не создано.
+    const result = store.getState().dispatch({
+      type: 'object.put',
+      object: { ...sample, position: [2, 2] },
+    });
+
+    expect(result.ok).toBe(false);
+    expect(store.getState().selection).toEqual({ kind: 'zone', id: 'z_client' });
+  });
+
+  test('новый слой карточку не подменяет: его заводят в панели, а не рисуют', () => {
+    store.getState().select({ kind: 'object', id: store.getState().document.objects[0]!.id });
+
+    store.getState().dispatch({
+      type: 'layer.put',
+      layer: { id: 'l_new', name: 'Слой 2', typeId: null, order: 1, visible: true, locked: false },
+    });
+
+    expect(store.getState().document.layers).toHaveLength(2);
+    expect(store.getState().selection).toEqual({
+      kind: 'object',
+      id: store.getState().document.objects[0]!.id,
+    });
+  });
+
+  test('undo созданного снимает выделение, потому что сущности больше нет', () => {
+    const sample = store.getState().document.objects[0]!;
+    store.getState().dispatch({
+      type: 'object.put',
+      object: { ...sample, id: 'eq_new', position: [2, 2] },
+    });
+    expect(store.getState().selection).toEqual({ kind: 'object', id: 'eq_new' });
+
+    store.getState().undo();
+
+    expect(store.getState().selection).toBeNull();
+  });
+});
+
 describe('undo и redo', () => {
   test('undo перемещения возвращает и геометрию, и zoneId', () => {
     const before = store.getState().document.objects[0]!;

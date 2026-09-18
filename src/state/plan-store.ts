@@ -9,7 +9,7 @@
 
 import { createStore, type StoreApi } from 'zustand';
 import type { Command, DocumentOrigin, PlanStore } from '../contracts/commands';
-import type { Id, PlanDocument, Ref, Result } from '../contracts/model';
+import type { Id, PlanDocument, Ref, RefKind, Result } from '../contracts/model';
 import { applyCommand, idOwners, COMMAND_ISSUE_CODES } from '../domain/commands';
 
 export type PlanStoreState = PlanStore;
@@ -65,6 +65,26 @@ function putTarget(command: Command): Id | null {
 }
 
 /**
+ * Что этот жест создал: put по идентификатору, которого в плане ещё не было.
+ * Замена существующего (перетаскивание, смена типа, правка атрибута) созданием
+ * не считается — иначе карточка прыгала бы на каждое движение мышью.
+ *
+ * Слой из правила исключён намеренно: его заводят в панели слоёв, а не рисуют
+ * на плане, и подменять им карточку того, что пользователь сейчас правит,
+ * нечестно (находка operator №9, D-TBD).
+ */
+function createdRef(
+  before: Map<Id, RefKind>,
+  after: PlanDocument,
+  putId: Id | null,
+): Ref | undefined {
+  if (putId === null || before.has(putId)) return undefined;
+  const kind = idOwners(after).get(putId);
+  if (kind === undefined || kind === 'layer') return undefined;
+  return { kind, id: putId };
+}
+
+/**
  * Creates a store over an already parsed document.
  *
  * `origin` says whether the document is a saved state: a plan read from a file
@@ -94,11 +114,11 @@ export function createPlanStore(
       return idOwners(document).get(selection.id) === selection.kind ? selection : null;
     };
 
-    const commit = (document: PlanDocument): void => {
+    const commit = (document: PlanDocument, select?: Ref): void => {
       set((state) => ({
         document,
         revision: state.revision + 1,
-        selection: keepSelection(document, state.selection),
+        selection: keepSelection(document, select ?? state.selection),
         dirty: isDirty(document),
       }));
     };
@@ -144,7 +164,7 @@ export function createPlanStore(
 
         past = [...past, current];
         future = [];
-        commit(result.value);
+        commit(result.value, createdRef(owners, result.value, reusedId));
         return result;
       },
 
