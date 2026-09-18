@@ -31,6 +31,7 @@ import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
+import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
@@ -209,6 +210,9 @@ export function App(): React.JSX.Element {
               preview={preview}
             />
             <InformationLayer document={document} session={session} />
+            {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
+                тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
+            <IssueLayer issues={issues} focus={selection} viewport={viewport} />
           </EditorCanvas>
           {view === '3d' ? <View3D document={document} selection={selection} /> : null}
         </main>

@@ -1,0 +1,63 @@
+/**
+ * V02 (подсветка): находка проверки видна на плане, а не только в списке.
+ *
+ * Сцена Konva недоступна из теста как объект, но каждый её слой — отдельный
+ * `<canvas>`, и слой подсветки — последний. Подсветка красная и полупрозрачная,
+ * поэтому её наличие читается прямо из пикселей этого canvas: до клика по
+ * находке красных пикселей нет, после — есть, после Escape — снова нет.
+ */
+
+import { join } from 'node:path';
+import { expect, test, type Page } from '@playwright/test';
+
+const EXAMPLE = join(process.cwd(), 'example_plan.json');
+
+/** Доля непрозрачных пикселей с преобладанием красного в последнем canvas сцены. */
+async function redShare(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const layers = document.querySelectorAll<HTMLCanvasElement>('.editor-canvas canvas');
+    const canvas = layers[layers.length - 1];
+    if (canvas === undefined) return -1;
+    const context = canvas.getContext('2d');
+    if (context === null) return -1;
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    let red = 0;
+    let painted = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      const alpha = data[i + 3] ?? 0;
+      if (alpha === 0) continue;
+      painted += 1;
+      const r = data[i] ?? 0;
+      const g = data[i + 1] ?? 0;
+      const b = data[i + 2] ?? 0;
+      if (r > 150 && r > g + 60 && r > b + 60) red += 1;
+    }
+    return painted === 0 ? 0 : red / painted;
+  });
+}
+
+test('находка из списка подсвечивается на плане и гаснет по Escape', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto('/');
+  await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
+
+  // Пример организаторов: у стеллажа eq_rack_1 три находки сразу.
+  await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
+  const validation = page.getByLabel('Проверка плана');
+  await expect(validation.getByText('OBJECT_COLLISION').first()).toBeVisible();
+
+  // До клика слой подсветки пуст.
+  expect(await redShare(page)).toBe(0);
+
+  // Клик по ссылке на стеллаж в первой же находке.
+  await validation.getByRole('button', { name: 'eq_rack_1' }).first().click();
+  await expect.poll(() => redShare(page), { timeout: 5_000 }).toBeGreaterThan(0.5);
+
+  // Escape снимает выделение — подсветка гаснет вместе с ним.
+  await page.keyboard.press('Escape');
+  await expect.poll(() => redShare(page), { timeout: 5_000 }).toBe(0);
+
+  expect(errors).toEqual([]);
+});
