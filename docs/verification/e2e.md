@@ -43,3 +43,54 @@ playwright.qa.config.ts --workers=2 --reporter=dot` — **43 passed, 5 skipped**
 пунктами перед сдачей. Для повторения Windows-прогона Vite на 5186 нужно
 запустить именно из этого worktree; `PW_REUSE_SERVER=1` разрешает использование
 уже работающего сервера и потому не подходит для чужого порта.
+
+## Прогон по README на машине без Google Chrome (18.09.2026)
+
+Проверялось то, что делает проверяющий: клонировать репозиторий и выполнить
+команды из README. Машина — Arch Linux, системного Chrome нет
+(`which google-chrome` пусто, каталога `/opt/google/chrome` нет).
+
+До правки четыре сценария (`round-trip.spec.ts`, оба теста `demo.spec.ts`,
+`catalog-extension.spec.ts`) падали на запуске браузера:
+
+```bash
+$ DEV_PORT=5193 npx playwright test tests/e2e/round-trip.spec.ts \
+    tests/e2e/catalog-extension.spec.ts tests/e2e/demo.spec.ts --workers=2
+Error: browserType.launch: Chromium distribution 'chrome' is not found at /opt/google/chrome/chrome
+4 failed
+```
+
+После перевода набора на бандловый Chromium (D-125) те же четыре — зелёные:
+
+```bash
+$ DEV_PORT=5193 npx playwright test tests/e2e/round-trip.spec.ts \
+    tests/e2e/catalog-extension.spec.ts tests/e2e/demo.spec.ts --workers=2
+4 passed (9.3s)
+
+$ DEV_PORT=5193 npm run test:e2e -- --workers=2
+55 passed, 5 skipped (1.6m)
+```
+
+Пять пропущенных — `tests/e2e/deployment.spec.ts` без `DEPLOY_URL`, это ожидаемо.
+
+### Чистый клон, команды README дословно
+
+Ветка `worktree-infra-e2e-chrome`, commit `36976b4`, каталог вне рабочей копии,
+свой `node_modules`:
+
+```bash
+$ git clone --branch worktree-infra-e2e-chrome <репозиторий> clean && cd clean
+$ npm ci
+$ npx playwright install chromium
+$ DEV_PORT=5193 npm run test:e2e
+55 passed, 5 skipped (1.9m)
+$ npm test
+Test Files  35 passed | 1 skipped (36)
+     Tests  495 passed | 1 skipped (496)
+$ npm run typecheck && npm run lint && npm run build
+без ошибок, сборка «built in 1.00s»
+```
+
+Проверка на системном браузере не потеряна: `PW_CHANNEL=chrome npm run test:e2e`
+запускает тот же набор в установленном Chrome, а `playwright.qa.config.ts`
+остаётся входом для QA-машины с Chrome.
