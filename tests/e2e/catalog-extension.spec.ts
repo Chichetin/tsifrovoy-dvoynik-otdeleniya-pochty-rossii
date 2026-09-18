@@ -2,8 +2,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 
-test.use({ channel: 'chrome' });
-
 async function save(page: Page): Promise<string> {
   const download = await Promise.all([
     page.waitForEvent('download'),

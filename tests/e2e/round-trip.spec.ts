@@ -4,8 +4,6 @@ import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
-// The hackathon Windows machine already has Chrome; no duplicate 115 MiB download.
-test.use({ channel: 'chrome' });
 
 test('готовый план → правка → файл → новая страница → те же данные', async ({ page }) => {
   const errors: string[] = [];

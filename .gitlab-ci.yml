@@ -96,6 +96,8 @@ e2e:
   script:
     # Playwright сам поднимает `npm run dev`; Docker в CI не запускается, поэтому
     # tests/e2e/deployment.spec.ts пропускается с причиной — это ожидаемо.
+    # Браузер — бандловый Chromium из образа: системного Google Chrome в образе
+    # нет, и набор его не требует (D-125). PW_CHANNEL здесь намеренно не задан.
     - npm run test:e2e -- --workers=2
   artifacts:
     when: on_failure
