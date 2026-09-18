@@ -19,6 +19,8 @@ import type { Point } from '../../contracts/model';
 export type GestureNode = {
   position(point: { x: number; y: number }): unknown;
   stopDrag(): void;
+  /** Konva: true only while this node is the one being dragged. */
+  isDragging(): boolean;
 };
 
 export type GestureStart = {
@@ -50,7 +52,12 @@ export function createGestureGuard(): GestureGuard {
       cancelled = false;
     },
     cancel(): GestureStart | null {
-      if (started === null) return null;
+      // A resize handle opens its gesture at `pointerdown`, because the grab
+      // offset has to be read before Konva's drag threshold is passed. A press
+      // that never became a drag leaves that gesture open, and Escape then
+      // belongs to the canvas, not to us: cancelling it would snap the handle
+      // back to a screen position the viewport may have long moved away from.
+      if (started === null || !started.node.isDragging()) return null;
       const gesture = started;
       started = null;
       cancelled = true;
