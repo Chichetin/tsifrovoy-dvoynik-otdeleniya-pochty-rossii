@@ -16,6 +16,7 @@ import { parseCatalog } from '../contracts/schema';
 
 /** Conventional size of a new branch, in metres. The user redraws it. */
 const NEW_ROOM = { width: 12, height: 9, ceiling: 3 } as const;
+// Same value as OUTER_WALL_THICKNESS_M in src/domain/commands (D-132): keep equal.
 const WALL_THICKNESS_M = 0.25;
 const BASE_LAYER = 'l_base';
 

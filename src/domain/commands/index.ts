@@ -29,10 +29,14 @@ import { validateCatalog } from '../catalog';
 import { hasZoneCycle, reconcileZones } from '../relations';
 import { rebuildOuterWalls } from './room-walls';
 
-/** Codes owned by this module, next to its own checks. */
-/** Thickness for outer walls of a plan that had none (team assumption, D-132). */
+/**
+ * Thickness for outer walls of a plan that had none (team assumption, D-132).
+ * The starter plan in src/app/default-plan.ts uses the same 0.25; domain cannot
+ * import app, so the two are kept equal by hand.
+ */
 const OUTER_WALL_THICKNESS_M = 0.25;
 
+/** Codes owned by this module. */
 export const COMMAND_ISSUE_CODES = {
   /** The layer holding the target rejects edits of its content. */
   LAYER_LOCKED: 'LAYER_LOCKED',

@@ -64,6 +64,23 @@ describe('какая стена наружная', () => {
     expect(outerWallIds([sticking], BOX).size).toBe(0);
   });
 
+  test('стена вдоль двух коллинеарных рёбер — наружная, а не перегородка', () => {
+    // План, сохранённый до того, как стены пошли за контуром: в южное ребро
+    // вставлена вершина, а стена по-прежнему одна на всю длину.
+    const split: Polygon = [
+      [0, 0],
+      [6, 0],
+      [12, 0],
+      [12, 9],
+      [0, 9],
+    ];
+    expect(outerWallIds(boxWalls, split).has('w_south')).toBe(true);
+    // И после пересборки старая южная стена не остаётся дублем поверх новых.
+    const { walls } = rebuildOuterWalls(boxWalls, [], split, split, fallback);
+    expect(walls.find((w) => w.id === 'w_south')).toBeUndefined();
+    expect(walls).toHaveLength(5);
+  });
+
   test('направление отрезка роли не играет', () => {
     const reversed = wall('w_rev', [12, 0], [0, 0]);
     expect(outerWallIds([reversed], BOX).has('w_rev')).toBe(true);
@@ -180,6 +197,64 @@ describe('проёмы наружных стен', () => {
     const { openings } = rebuildOuterWalls(boxWalls, [entrance], BOX, tiny, fallback);
     // Северное ребро (12,9)→(11,9) длиной 1 м короче входа 1.5 м.
     expect(openings.find((o) => o.id === 'op_entrance')).toBeUndefined();
+  });
+
+  // Ревью MR !64: перенос «по номеру ребра» ломался на штатном жесте — клик по
+  // ребру вставляет вершину и сдвигает индексы всех следующих рёбер, и вход с
+  // северной стены молча уезжал на восточную. Ребро ищется по геометрии.
+  test('вставка вершины в южное ребро не сдвигает вход с северной стены', () => {
+    const split: Polygon = [
+      [0, 0],
+      [6, 0],
+      [12, 0],
+      [12, 9],
+      [0, 9],
+    ];
+    const { walls, openings } = rebuildOuterWalls(boxWalls, [entrance], BOX, split, fallback);
+    const moved = openings[0] as Opening;
+    const host = walls.find((w) => w.id === moved.wallId) as Wall;
+    expect(host.from[1]).toBe(9);
+    expect(host.to[1]).toBe(9);
+    expect(moved.offset_m + moved.width_m / 2).toBeCloseTo(6, 1);
+  });
+
+  test('удаление вершины перед северным ребром не сдвигает вход', () => {
+    // Контур с лишней вершиной на юге → без неё: индексы уменьшаются на 1.
+    const withExtra: Polygon = [
+      [0, 0],
+      [6, 0],
+      [12, 0],
+      [12, 9],
+      [0, 9],
+    ];
+    const wallsOnExtra: Wall[] = [
+      wall('w_s1', [0, 0], [6, 0]),
+      wall('w_s2', [6, 0], [12, 0]),
+      wall('w_east', [12, 0], [12, 9]),
+      wall('w_north', [12, 9], [0, 9]),
+      wall('w_west', [0, 9], [0, 0]),
+    ];
+    const { walls, openings } = rebuildOuterWalls(wallsOnExtra, [entrance], withExtra, BOX, fallback);
+    const moved = openings[0] as Opening;
+    const host = walls.find((w) => w.id === moved.wallId) as Wall;
+    expect(host.from[1]).toBe(9);
+    expect(host.to[1]).toBe(9);
+  });
+
+  test('потянули угол северной стены — вход остаётся на ней', () => {
+    // Вершина (12,9) → (14,10): северное ребро сменило и начало, и наклон.
+    const dragged: Polygon = [
+      [0, 0],
+      [12, 0],
+      [14, 10],
+      [0, 9],
+    ];
+    const { walls, openings } = rebuildOuterWalls(boxWalls, [entrance], BOX, dragged, fallback);
+    const moved = openings[0] as Opening;
+    const host = walls.find((w) => w.id === moved.wallId) as Wall;
+    // Хозяин — ребро, заканчивающееся в нетронутой вершине (0,9).
+    expect(host.to).toEqual([0, 9]);
+    expect(host.from).toEqual([14, 10]);
   });
 
   test('неизменённый контур: стены пересобраны на тех же местах, вход на месте', () => {

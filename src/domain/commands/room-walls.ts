@@ -8,9 +8,11 @@
  *
  * When the outline changes, outer walls are rebuilt edge by edge and partitions
  * are left alone. Openings on an outer wall survive when their edge survives:
- * the opening keeps its relative position along the edge, so widening a room
- * does not push the entrance off its wall. An opening on an edge that no longer
- * exists is dropped together with the wall — there is nothing to hang it on.
+ * the edge is found again by its corners, not by its number, so inserting a
+ * vertex elsewhere in the outline does not move the entrance; the opening keeps
+ * its relative position along the edge, so widening a room does not push the
+ * entrance off its wall. An opening on an edge that no longer exists is dropped
+ * together with the wall — there is nothing to hang it on.
  */
 
 import type { Id, Opening, Point, Polygon, Wall } from '../../contracts/model';
@@ -88,15 +90,42 @@ export function rebuildOuterWalls(
  * Index of the boundary edge this wall lies on, or null for a partition. Both
  * ends must sit on the edge's line within tolerance and inside its extent —
  * a wall that runs along an edge but sticks out past a corner is not that edge.
+ *
+ * A wall that spans several collinear edges (a plan saved with a vertex
+ * inserted into a straight wall before walls followed the outline) is outer
+ * too: its ends lie on the boundary and every point between them does. It is
+ * attributed to the edge its `from` end sits on.
  */
 function edgeIndexOf(wall: Wall, boundary: Polygon): number | null {
-  for (let index = 0; index < boundary.length; index += 1) {
+  const count = boundary.length;
+  const edge = (index: number): [Point, Point] | null => {
     const a = boundary[index];
-    const b = boundary[(index + 1) % boundary.length];
-    if (a === undefined || b === undefined) continue;
-    if (onSegment(wall.from, a, b) && onSegment(wall.to, a, b)) return index;
+    const b = boundary[(index + 1) % count];
+    return a === undefined || b === undefined ? null : [a, b];
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const pair = edge(index);
+    if (pair === null) continue;
+    if (onSegment(wall.from, pair[0], pair[1]) && onSegment(wall.to, pair[0], pair[1])) return index;
+  }
+
+  // Spanning run: from `from` walk forward along collinear edges until `to`.
+  for (let start = 0; start < count; start += 1) {
+    const first = edge(start);
+    if (first === null || !onSegment(wall.from, first[0], first[1])) continue;
+    for (let step = 1; step < count; step += 1) {
+      const next = edge((start + step) % count);
+      if (next === null || !collinear(first[0], first[1], next[1])) break;
+      if (onSegment(wall.to, next[0], next[1])) return start;
+    }
   }
   return null;
+}
+
+function collinear(a: Point, b: Point, c: Point): boolean {
+  const cross = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+  return Math.abs(cross) <= 1e-6 * Math.max(1, Math.hypot(b[0] - a[0], b[1] - a[1]));
 }
 
 function onSegment(point: Point, a: Point, b: Point): boolean {
@@ -111,10 +140,46 @@ function onSegment(point: Point, a: Point, b: Point): boolean {
 }
 
 /**
- * The same edge of the new boundary, if the corner it starts from is still
- * there: an edge is matched by its start vertex, which is how a person sees a
- * dragged corner — "the north wall moved", not "a new wall appeared".
+ * Which edge of the new boundary is "the same wall" as an old edge. Matched by
+ * geometry, not by index: inserting or deleting a vertex shifts every index
+ * after it, and an index match would move the entrance onto a wall the user
+ * never touched. A wall whose both corners are still in place is the same wall.
+ * With a corner dragged (vertex count unchanged) the other corner identifies it;
+ * after an insertion or deletion a single shared corner is ambiguous — the
+ * neighbouring edge shares it too — so only a full match counts there.
  */
+function matchEdge(
+  oldA: Point,
+  oldB: Point,
+  oldIndex: number,
+  oldCount: number,
+  newBoundary: Polygon,
+): number | null {
+  const count = newBoundary.length;
+  const same = (p: Point | undefined, q: Point): boolean =>
+    p !== undefined && Math.hypot(p[0] - q[0], p[1] - q[1]) <= TOLERANCE.coordinate_m;
+  const startOf = (index: number): Point | undefined => newBoundary[index];
+  const endOf = (index: number): Point | undefined => newBoundary[(index + 1) % count];
+
+  // Both corners still there: the same wall, wherever it is in the list.
+  for (let index = 0; index < count; index += 1) {
+    if (same(startOf(index), oldA) && same(endOf(index), oldB)) return index;
+  }
+
+  // One corner dragged. Only when the vertex count is unchanged can a single
+  // shared corner mean "this wall moved": after an insertion or deletion the
+  // neighbouring edge shares that corner too, and it is a different wall.
+  if (count !== oldCount) return null;
+  for (let index = 0; index < count; index += 1) {
+    if (same(startOf(index), oldA)) return index;
+  }
+  for (let index = 0; index < count; index += 1) {
+    if (same(endOf(index), oldB)) return index;
+  }
+  return oldIndex < count ? oldIndex : null;
+}
+
+/** The opening carried onto the matched edge, or null when it cannot fit. */
 function carryOpening(
   opening: Opening,
   wall: Wall,
@@ -123,16 +188,17 @@ function carryOpening(
   edge: number,
   idByEdge: Map<number, Id>,
 ): Opening | null {
-  // An edge the new boundary no longer has yields no vertex below, and the
-  // opening is dropped with its wall.
-  const targetId = idByEdge.get(edge);
-  const a = newBoundary[edge];
-  const b = newBoundary[(edge + 1) % newBoundary.length];
   const oldA = oldBoundary[edge];
   const oldB = oldBoundary[(edge + 1) % oldBoundary.length];
-  if (targetId === undefined || a === undefined || b === undefined || oldA === undefined || oldB === undefined) {
-    return null;
-  }
+  if (oldA === undefined || oldB === undefined) return null;
+
+  // No matching edge — the wall is gone, and the opening goes with it.
+  const target = matchEdge(oldA, oldB, edge, oldBoundary.length, newBoundary);
+  if (target === null) return null;
+  const targetId = idByEdge.get(target);
+  const a = newBoundary[target];
+  const b = newBoundary[(target + 1) % newBoundary.length];
+  if (targetId === undefined || a === undefined || b === undefined) return null;
 
   // Relative position along the old edge, measured from the wall's own `from`
   // end and re-expressed from the new edge's start vertex.

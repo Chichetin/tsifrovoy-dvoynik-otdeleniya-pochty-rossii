@@ -538,18 +538,9 @@ test.describe('инструменты плана', () => {
       expect(vertices.has(`${w.from[0].toFixed(2)},${w.from[1].toFixed(2)}`)).toBe(true);
       expect(vertices.has(`${w.to[0].toFixed(2)},${w.to[1].toFixed(2)}`)).toBe(true);
     }
-    // Вход переехал на третье ребро нового контура — то же по порядку обхода,
-    // что северная стена коробки, — и лежит в пределах своей новой стены, а не
-    // висит снаружи помещения.
-    expect(drawn.openings).toHaveLength(1);
-    const entrance = drawn.openings[0];
-    const host = drawn.walls.find((w) => w.id === entrance?.wallId);
-    expect(host).toBeDefined();
-    const hostLength = Math.hypot(
-      (host as SavedPlan['walls'][number]).to[0] - (host as SavedPlan['walls'][number]).from[0],
-      (host as SavedPlan['walls'][number]).to[1] - (host as SavedPlan['walls'][number]).from[1],
-    );
-    expect((entrance?.offset_m ?? 0) + (entrance?.width_m ?? 0)).toBeLessThanOrEqual(hostLength + 0.01);
+    // Новый контур не делит с коробкой ни одной вершины — это другое помещение,
+    // и вход коробки в него не переезжает, а уходит вместе со своей стеной.
+    expect(drawn.openings).toHaveLength(0);
 
     // Проём теперь ставится на свою стену: клик по середине верхнего ребра.
     await page.getByRole('button', { name: 'Проём', exact: true }).click();
@@ -557,9 +548,8 @@ test.describe('инструменты плана', () => {
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     const withOpening = await savePlan(page);
-    expect(withOpening.openings).toHaveLength(2);
-    const added = withOpening.openings.find((o) => o.id !== entrance?.id);
-    expect(drawn.walls.map((w) => w.id)).toContain(added?.wallId);
+    expect(withOpening.openings).toHaveLength(1);
+    expect(drawn.walls.map((w) => w.id)).toContain(withOpening.openings[0]?.wallId);
 
     // Одно «Отменить» на контур: старые стены и вход возвращаются целиком.
     await page.getByRole('button', { name: 'Отменить' }).click();
@@ -567,6 +557,50 @@ test.describe('инструменты плана', () => {
     const undone = await savePlan(page);
     expect(undone.walls.map((w) => w.id).sort()).toEqual([...oldIds].sort());
     expect(undone.openings).toHaveLength(1);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('вставка вершины в контур помещения не сдвигает вход на другую стену', async ({ page }) => {
+    // Ревью MR !64: перенос входа по номеру ребра ломался на этом жесте.
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const size = await openEditor(page);
+
+    const before = await savePlan(page);
+    const entrance = before.openings[0];
+    if (entrance === undefined) throw new Error('в стартовом плане нет входа');
+    const hostBefore = before.walls.find((w) => w.id === entrance.wallId);
+    if (hostBefore === undefined) throw new Error('вход без стены');
+    const y = hostBefore.from[1];
+    expect(hostBefore.to[1]).toBe(y);
+    expect(before.room.boundary).toHaveLength(4);
+
+    // Выбрать помещение: клик по полу, подсказка контура появляется.
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(page.getByText(/Контур: тяните вершину/)).toBeVisible();
+
+    // Клик по нижнему ребру вставляет вершину. Где ребро на экране, редактор
+    // знает лучше теста: идём снизу вверх по оси, пока в файле не станет
+    // пять вершин, — это и есть попадание по ребру.
+    let boundaryAfter: Point[] = before.room.boundary;
+    for (const fy of [0.95, 0.93, 0.91, 0.89, 0.87, 0.85, 0.83]) {
+      await clickAt(page, px(size, 0.5, fy));
+      boundaryAfter = (await savePlan(page)).room.boundary;
+      if (boundaryAfter.length === 5) break;
+    }
+    expect(boundaryAfter).toHaveLength(5);
+
+    const after = await savePlan(page);
+    expect(after.walls).toHaveLength(5);
+    const moved = after.openings.find((o) => o.id === entrance.id);
+    expect(moved).toBeDefined();
+    const hostAfter = after.walls.find((w) => w.id === moved?.wallId);
+    expect(hostAfter).toBeDefined();
+    // Вход остался на северной стене, а не уехал на восточную.
+    expect(hostAfter?.from[1]).toBe(y);
+    expect(hostAfter?.to[1]).toBe(y);
 
     expect(errors).toEqual([]);
   });
