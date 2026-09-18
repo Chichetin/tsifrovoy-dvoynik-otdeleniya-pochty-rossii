@@ -119,7 +119,9 @@ npm test && npm run test:e2e && npm run typecheck && npm run lint && npm run bui
 ```
 
 Браузерным тестам хватает того самого Chromium из `npx playwright install chromium`:
-системный Google Chrome ставить не нужно (D-125). Прогнать набор на установленном
+системный Google Chrome ставить не нужно (D-125). Это относится и к нагрузочному
+набору `npm run test:perf`, и к скрипту снимков презентации
+`npx tsx scripts/capture-presentation.ts` (D-142). Прогнать их на установленном
 Chrome или Edge можно явно — `PW_CHANNEL=chrome npm run test:e2e`
 (`PW_CHANNEL=msedge` соответственно); без переменной идёт бандловый Chromium.
 
