@@ -1,2 +1,3 @@
 # The submitted demo files must have identical bytes on Windows and Linux.
 demo/* text eol=lf
+*.pdf binary

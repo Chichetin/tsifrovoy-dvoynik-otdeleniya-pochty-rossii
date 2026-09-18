@@ -42,6 +42,8 @@
 - [Проверка архитектурного плана](docs/verification/architecture.md) и [структуры каталогов](docs/verification/layout.md).
 - [Сквозная проверка](docs/verification/e2e.md), [замер масштаба](docs/verification/performance.md)
   и [статус сдачи](docs/submission.md).
+- [PDF-презентация](output/pdf/posttech-digital-twin-2026-09-18.pdf) на основе собственного демо
+  и проверенных фактов; перед отправкой жюри её должен просмотреть участник команды.
 
 Данные только синтетические. В продукте LLM — Qwen/DeepSeek по API, ключи только
 на сервере. Геометрию и числа считает код; инвентаризация, 3D и рекомендации используют
