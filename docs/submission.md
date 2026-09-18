@@ -9,7 +9,7 @@
 |---|---|---|---|
 | Код | [GitLab](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii) и [README](../README.md) | Репозиторий есть; commit сдачи ещё не зафиксирован | Открыть ссылку без локальных файлов, сверить `origin/main` с commit сдачи |
 | Редактор | Публичный адрес в README | **Не указан:** площадка не выбрана | Открыть URL с другой сети, пройти сценарий и API health |
-| Демо | `build/demo/ops-digital-twin-demo.zip` по E01 | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 171 Б, пять файлов | `npm run package:demo`; тест открывает оба файла из ZIP в браузере (2/2), на финальной сборке повторить независимую распаковку и загрузку |
+| Демо | `build/demo/ops-digital-twin-demo.zip` по E01 | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 171 Б, пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
 | Презентация | Один PDF ≤ 20 МБ | **Не предоставлен**; [факты для слайдов](presentation-facts.md) подготовлены отдельно | Проверить размер, открыть все страницы, убедиться в совпадении чисел с артефактами |
 
 Приёмка на релизной версии: зафиксировать SHA из `origin/main`, выполнить
@@ -19,6 +19,14 @@
 E01 не подменяют проверку публичного адреса. Для внешней LLM отдельно нужен
 настоящий ключ у сервера и `mode: llm` в API-ответе; до этого демонстрировать
 можно только честно обозначенный режим «Без LLM».
+
+На промежуточном кандидате с продуктовым кодом `a2810d0` локально прошли
+475 unit-тестов (+1 пропущен), typecheck, lint и сборка. Полный браузерный
+прогон через `playwright.qa.config.ts` на установленном Chrome: 55 passed,
+5 skipped (деплойные требуют `DEPLOY_URL`). Обычный Playwright-конфиг на этой
+машине ищет отдельный `chromium_headless_shell`, которого нет; для прогона
+использован предусмотренный проектом QA-конфиг. Это не замена проверке
+публичного сервиса и не свидетельство вызова внешней модели.
 
 ZIP и PDF прикладываются как отдельные файлы по правилам площадки хакатона.
 В репозиторий не включать `.env`, токены, реальные планы БТИ и персональные

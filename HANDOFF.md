@@ -16,7 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| Максим / Codex | `worktree-readme-e02-maxim`, [MR !50](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/50) | E02: актуальный README, инструкция сдачи, факты презентации и протокол проверки жюри | `README.md`, `docs/submission.md`, `docs/presentation-facts.md`, `docs/verification/jury.md`, повтор Q02 | проектные тесты и хуки прошли; повтор Q02 3/3, пять замеров 100/500/1000 объектов, сырые данные сохранены; E01 MR !48 слит и браузерный сценарий из ZIP 2/2 | в работе; независимый проход README, публичный URL, PDF и реальный LLM не подтверждены |
+| Максим / Codex | `worktree-readme-e02-maxim`, [MR !50](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/50) | E02: актуальный README, инструкция сдачи, факты презентации и протокол проверки жюри | `README.md`, `docs/submission.md`, `docs/presentation-facts.md`, `docs/verification/jury.md`, повтор Q02 | Q02 3/3, пять замеров 100/500/1000; E01 в `main`, ZIP 25 171 Б и Expand-Archive 5/5 SHA-256; кандидат `a2810d0`: unit 475/475 +1 skipped, Chrome e2e 55 passed +5 skipped, typecheck/lint/build | в работе; независимый проход README, публичный URL, PDF и реальный LLM не подтверждены |
 
 
 ## Блокеры и вопросы
