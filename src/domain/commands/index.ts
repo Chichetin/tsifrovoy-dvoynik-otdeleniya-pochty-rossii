@@ -27,8 +27,12 @@ import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
 import { hasZoneCycle, reconcileZones } from '../relations';
+import { rebuildOuterWalls } from './room-walls';
 
 /** Codes owned by this module, next to its own checks. */
+/** Thickness for outer walls of a plan that had none (team assumption, D-132). */
+const OUTER_WALL_THICKNESS_M = 0.25;
+
 export const COMMAND_ISSUE_CODES = {
   /** The layer holding the target rejects edits of its content. */
   LAYER_LOCKED: 'LAYER_LOCKED',
@@ -502,7 +506,18 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       const ref: Ref = { kind: 'room', id: plan.room.id };
       const shape = checkPolygon(ref, command.boundary, 'boundary');
       if (!shape.ok) return shape;
-      return withRelations({ ...plan, room: { ...plan.room, boundary: command.boundary } });
+      // Outer walls are part of the outline: they are rebuilt with it, and the
+      // entrance follows its edge. Partitions and their openings stay (D-132).
+      const rebuilt = rebuildOuterWalls(plan.walls, plan.openings, plan.room.boundary, command.boundary, {
+        thickness_m: OUTER_WALL_THICKNESS_M,
+        height_m: plan.room.ceilingHeight_m,
+      });
+      return withRelations({
+        ...plan,
+        room: { ...plan.room, boundary: command.boundary },
+        walls: rebuilt.walls,
+        openings: rebuilt.openings,
+      });
     }
 
     case 'zone.put':

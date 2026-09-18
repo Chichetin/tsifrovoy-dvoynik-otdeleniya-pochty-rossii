@@ -504,4 +504,70 @@ test.describe('инструменты плана', () => {
 
     expect(errors).toEqual([]);
   });
+
+  test('свой контур помещения заменяет стены стартовой коробки, проём встаёт на новую стену', async ({ page }) => {
+    // Находка operator'а 18.09: после «Помещение» стены и вход коробки 12×9
+    // оставались на месте, проём на свой контур не ставился, а правило
+    // «терминал ≤ 3 м от входа» считалось от входа вне помещения.
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const size = await openEditor(page);
+
+    const before = await savePlan(page);
+    expect(before.walls).toHaveLength(4);
+    const oldIds = before.walls.map((w) => w.id);
+
+    // L-образный контур внутри стартовой коробки.
+    await drawRing(page, 'Помещение', [
+      px(size, 0.15, 0.15),
+      px(size, 0.7, 0.15),
+      px(size, 0.7, 0.5),
+      px(size, 0.45, 0.5),
+      px(size, 0.45, 0.85),
+      px(size, 0.15, 0.85),
+    ]);
+    await page.keyboard.press('Escape');
+
+    const drawn = await savePlan(page);
+    // Шесть рёбер — шесть стен, ни одной старой.
+    expect(drawn.walls).toHaveLength(6);
+    for (const w of drawn.walls) expect(oldIds).not.toContain(w.id);
+    // Каждая стена лежит на ребре нового контура: концы совпадают с вершинами.
+    const vertices = new Set(drawn.room.boundary.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`));
+    for (const w of drawn.walls) {
+      expect(vertices.has(`${w.from[0].toFixed(2)},${w.from[1].toFixed(2)}`)).toBe(true);
+      expect(vertices.has(`${w.to[0].toFixed(2)},${w.to[1].toFixed(2)}`)).toBe(true);
+    }
+    // Вход переехал на третье ребро нового контура — то же по порядку обхода,
+    // что северная стена коробки, — и лежит в пределах своей новой стены, а не
+    // висит снаружи помещения.
+    expect(drawn.openings).toHaveLength(1);
+    const entrance = drawn.openings[0];
+    const host = drawn.walls.find((w) => w.id === entrance?.wallId);
+    expect(host).toBeDefined();
+    const hostLength = Math.hypot(
+      (host as SavedPlan['walls'][number]).to[0] - (host as SavedPlan['walls'][number]).from[0],
+      (host as SavedPlan['walls'][number]).to[1] - (host as SavedPlan['walls'][number]).from[1],
+    );
+    expect((entrance?.offset_m ?? 0) + (entrance?.width_m ?? 0)).toBeLessThanOrEqual(hostLength + 0.01);
+
+    // Проём теперь ставится на свою стену: клик по середине верхнего ребра.
+    await page.getByRole('button', { name: 'Проём', exact: true }).click();
+    await clickAt(page, px(size, 0.42, 0.15));
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+    const withOpening = await savePlan(page);
+    expect(withOpening.openings).toHaveLength(2);
+    const added = withOpening.openings.find((o) => o.id !== entrance?.id);
+    expect(drawn.walls.map((w) => w.id)).toContain(added?.wallId);
+
+    // Одно «Отменить» на контур: старые стены и вход возвращаются целиком.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    const undone = await savePlan(page);
+    expect(undone.walls.map((w) => w.id).sort()).toEqual([...oldIds].sort());
+    expect(undone.openings).toHaveLength(1);
+
+    expect(errors).toEqual([]);
+  });
 });
