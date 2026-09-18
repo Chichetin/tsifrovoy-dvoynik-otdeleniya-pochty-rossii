@@ -20,6 +20,9 @@ const EXAMPLE = join(process.cwd(), 'example_plan.json');
 /** Ключ черновика из `src/persistence/browser-draft.ts`. */
 const DRAFT_KEY = 'ops-twin.draft.v1';
 
+/** Название отделения во втором файле: по нему узнаём черновик на экране. */
+const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
+
 /** Строки перечня оборудования — первая таблица панели «Инвентаризация». */
 function inventoryRows(page: Page) {
   return page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
@@ -33,6 +36,25 @@ async function openFile(page: Page, file: string): Promise<void> {
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<void> {
   await page.locator('.library__item').first().click();
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
+}
+
+/**
+ * Второй файл для сценария «открыл другой план»: тот же пример организаторов,
+ * но с другим названием отделения и тремя позициями вместо двенадцати — по
+ * названию в предложении черновика видно, какой из двух планов запомнен.
+ */
+function secondPlanFile(): { name: string; mimeType: string; buffer: Buffer } {
+  const source = JSON.parse(readFileSync(EXAMPLE, 'utf8')) as {
+    ops: { name: string };
+    equipment: unknown[];
+  };
+  source.ops.name = SECOND_PLAN_NAME;
+  source.equipment = source.equipment.slice(0, 3);
+  return {
+    name: 'second_plan.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(source)),
+  };
 }
 
 async function download(page: Page): Promise<string> {
@@ -171,6 +193,42 @@ test.describe('файлы плана', () => {
     await expect(offer).toBeVisible();
     await offer.getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
+  });
+
+  test('после «Открыть» и правки черновик снова пишется: предлагают новый, а не старый', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await openFile(page, EXAMPLE);
+    await expect(inventoryRows(page)).toHaveCount(12);
+    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+
+    await page.reload();
+    await expect(page.getByTestId('draft-restore')).toContainText('ОПС-1');
+
+    // Пользователь не ответил на предложение, а открыл другой файл: этим он и
+    // ответил — предложение уходит, а запись черновика возобновляется.
+    await page.getByTestId('plan-file-input').setInputFiles(secondPlanFile());
+    await expect(inventoryRows(page)).toHaveCount(3);
+    await expect(page.getByTestId('draft-restore')).toHaveCount(0);
+
+    // Правка второго плана — то, что нельзя потерять при закрытии вкладки.
+    await placeFirstLibraryItem(page, 320, 240);
+    await expect(inventoryRows(page)).toHaveCount(4);
+    // Ждём именно записи правки, а не подписи времени: подпись уже стоит от
+    // черновика открытого файла, а дебаунс — 700 мс.
+    await page.waitForFunction((key) => {
+      const raw = window.localStorage.getItem(key as string);
+      if (raw === null) return false;
+      const draft = JSON.parse(raw) as { text: string };
+      return (JSON.parse(draft.text) as { objects: unknown[] }).objects.length === 4;
+    }, DRAFT_KEY);
+
+    await page.reload();
+    const offer = page.getByTestId('draft-restore');
+    await expect(offer).toContainText(SECOND_PLAN_NAME);
+    await offer.getByRole('button', { name: 'Восстановить' }).click();
+    await expect(inventoryRows(page)).toHaveCount(4);
   });
 
   test('«Удалить» убирает черновик, и после перезагрузки его больше не предлагают', async ({
