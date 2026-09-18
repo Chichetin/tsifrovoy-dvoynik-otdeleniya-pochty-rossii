@@ -35,7 +35,7 @@ import {
   objectsShareSpace,
   openingCentre,
 } from '../geometry';
-import { relationIssues } from '../relations';
+import { RELATION_ISSUE_CODES, relationIssues } from '../relations';
 
 /** Codes owned by this module. */
 export const VALIDATION_ISSUE_CODES = {
@@ -97,14 +97,34 @@ export function validatePlan(plan: PlanDocument): Issue[] {
   // polygon, so the first thing to fix is reported alone.
   if (unusable.length > 0) return unusable;
 
+  const placement = objectPlacementIssues(plan);
   return [
     ...zoneIssues(plan),
-    ...objectPlacementIssues(plan),
+    ...placement,
     ...collisionIssues(plan),
     ...wallIssues(plan),
     ...ruleIssues(plan),
-    ...relationIssues(plan),
+    ...withoutRepeats(relationIssues(plan), placement),
   ];
+}
+
+/**
+ * One problem, one line (D-138). An object that claims a zone and does not
+ * fit in it is already reported by OBJECT_OUTSIDE_ZONE, which names the zone;
+ * "fits in no zone at all" about the same object would be the same footprint
+ * said twice. The relation warning stays for objects without a claimed zone.
+ */
+function withoutRepeats(relations: Issue[], placement: Issue[]): Issue[] {
+  const outsideOwnZone = new Set(
+    placement
+      .filter((entry) => entry.code === VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE)
+      .map((entry) => entry.refs[0]?.id),
+  );
+  return relations.filter(
+    (entry) =>
+      entry.code !== RELATION_ISSUE_CODES.ZONE_UNASSIGNED ||
+      !outsideOwnZone.has(entry.refs[0]?.id),
+  );
 }
 
 function unusableGeometry(plan: PlanDocument): Issue[] {

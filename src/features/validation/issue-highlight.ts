@@ -11,7 +11,8 @@
  * проверяется тестом; слой лишь рисует.
  */
 
-import type { Issue, Polygon, Ref, Severity } from '../../contracts/model';
+import type { Issue, Point, Polygon, Ref, Severity, Viewport } from '../../contracts/model';
+import { modelToScreen } from '../../domain/geometry';
 
 export type IssueHighlight = {
   code: string;
@@ -28,9 +29,9 @@ function sameRef(a: Ref, b: Ref): boolean {
  * порядок списка: ошибки рисуются поверх предупреждений, потому что список
  * уже отсортировал их первыми.
  *
- * Полигоны без сфокусированного объекта не подсвечиваются намеренно: если
- * рисовать все находки сразу, план с примером организаторов превращается в
- * красное пятно, и не видно, куда именно кликнул пользователь.
+ * Заливкой подсвечивается только сфокусированное: если залить все находки
+ * сразу, план с примером организаторов превращается в красное пятно. Что
+ * находки вообще есть, показывают маркеры `issueMarkers` — они видны всегда.
  */
 export function highlightsFor(issues: Issue[], focus: Ref | null): IssueHighlight[] {
   if (focus === null) return [];
@@ -48,3 +49,53 @@ export const HIGHLIGHT_COLORS: Readonly<Record<Severity, string>> = {
   error: '#C92A2A',
   warning: '#E8590C',
 };
+
+/** Значок на плане: одна затронутая сущность и сколько находок о ней. */
+export type IssueMarker = {
+  ref: Ref;
+  count: number;
+  /** Самая серьёзная из её находок: одна ошибка красит значок в красный. */
+  severity: Severity;
+  /** Где стоит значок: полигон первой находки о сущности. */
+  polygon: Polygon;
+  focused: boolean;
+};
+
+/**
+ * Маркеры находок, видимые без клика (D-138). Находка помечает свою первую
+ * ссылку: её `polygon` — отпечаток именно этой сущности (объекта в коллизии,
+ * стеллажа у стены, зоны в правиле комплектования). Находка без полигона
+ * показать место не может и живёт только в списке.
+ */
+export function issueMarkers(issues: Issue[], focus: Ref | null): IssueMarker[] {
+  const byKey = new Map<string, IssueMarker>();
+  for (const issue of issues) {
+    const ref = issue.refs[0];
+    if (ref === undefined) continue;
+    if (issue.polygon === undefined || issue.polygon.length < 3) continue;
+    const key = `${ref.kind}:${ref.id}`;
+    const known = byKey.get(key);
+    if (known === undefined) {
+      byKey.set(key, {
+        ref,
+        count: 1,
+        severity: issue.severity,
+        polygon: issue.polygon,
+        focused: focus !== null && sameRef(ref, focus),
+      });
+      continue;
+    }
+    known.count += 1;
+    if (issue.severity === 'error') known.severity = 'error';
+  }
+  return [...byKey.values()];
+}
+
+/** Правый верхний угол фигуры на экране — там значок не закрывает саму фигуру. */
+export function markerAnchor(polygon: Polygon, viewport: Viewport): Point {
+  const screen = polygon.map((point) => modelToScreen(point, viewport));
+  return [
+    Math.max(...screen.map((point) => point[0])),
+    Math.min(...screen.map((point) => point[1])),
+  ];
+}

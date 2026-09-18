@@ -210,3 +210,83 @@ describe('правила комплектования', () => {
     expect(issues[0]?.severity).toBe('error');
   });
 });
+
+describe('одна проблема — одна находка (operator №19, D-138)', () => {
+  const placementCodes = new Set<string>([
+    VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE,
+    'ZONE_UNASSIGNED',
+  ]);
+
+  function placementIssuesOf(plan: PlanDocument, id: string): Issue[] {
+    return validatePlan(plan).filter(
+      (entry) => placementCodes.has(entry.code) && entry.refs.some((ref) => ref.id === id),
+    );
+  }
+
+  test('объект со своей зоной вне всех зон — только «не лежит в своей зоне»', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    // Центр на x = 7 кладёт стол поперёк границы зоны 0..7, но внутри помещения 0..10.
+    const straddling: PlanDocument = {
+      ...plan,
+      objects: [{ ...object, position: [7, 2] as Point }],
+    };
+
+    const found = placementIssuesOf(straddling, object.id);
+    expect(codesOf(found)).toEqual([VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE]);
+    expect(found[0]?.refs.map((ref) => ref.id)).toEqual([object.id, 'z_client']);
+  });
+
+  test('объект без зоны вне всех зон по-прежнему сообщается', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    const loose: PlanDocument = {
+      ...plan,
+      objects: [{ ...object, position: [7, 2] as Point, zoneId: null }],
+    };
+
+    expect(codesOf(placementIssuesOf(loose, object.id))).toEqual(['ZONE_UNASSIGNED']);
+  });
+
+  test('другая проблема о том же объекте не снимается: неоднозначная зона остаётся', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    const base = plan.zones[0];
+    if (base === undefined) throw new Error('в фикстуре нет зон');
+    // Две корневые зоны одинаковой глубины накрывают стол, своя z_client — нет.
+    const ambiguous: PlanDocument = {
+      ...plan,
+      zones: [
+        ...plan.zones,
+        { ...base, id: 'z_right', polygon: [[7, 0], [10, 0], [10, 8], [7, 8]] as Point[] },
+        { ...base, id: 'z_right_low', polygon: [[7, 0], [10, 0], [10, 4], [7, 4]] as Point[] },
+      ],
+      objects: [{ ...object, position: [8.5, 2] as Point }],
+    };
+
+    const about = validatePlan(ambiguous).filter((entry) =>
+      entry.refs.some((ref) => ref.id === object.id),
+    );
+    expect(codesOf(about)).toEqual(
+      expect.arrayContaining([VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE, 'ZONE_AMBIGUOUS']),
+    );
+    expect(codesOf(about)).not.toContain('ZONE_UNASSIGNED');
+  });
+
+  test('чужой объект вне зон не теряет свою находку из-за соседа', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    const two: PlanDocument = {
+      ...plan,
+      objects: [
+        { ...object, position: [7, 2] as Point },
+        { ...object, id: 'eq_loose', position: [7, 6] as Point, zoneId: null },
+      ],
+    };
+
+    expect(codesOf(placementIssuesOf(two, object.id))).toEqual([
+      VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE,
+    ]);
+    expect(codesOf(placementIssuesOf(two, 'eq_loose'))).toEqual(['ZONE_UNASSIGNED']);
+  });
+});

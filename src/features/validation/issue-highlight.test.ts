@@ -3,8 +3,8 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import type { Issue, Polygon } from '../../contracts/model';
-import { HIGHLIGHT_COLORS, highlightsFor } from './issue-highlight';
+import type { Issue, Polygon, Viewport } from '../../contracts/model';
+import { HIGHLIGHT_COLORS, highlightsFor, issueMarkers, markerAnchor } from './issue-highlight';
 
 const square: Polygon = [
   [0, 0],
@@ -60,5 +60,57 @@ describe('подсветка находок', () => {
   test('вырожденный полигон не подсвечивается', () => {
     const broken = [issue('X', [rack], [[0, 0], [1, 1]] as Polygon)];
     expect(highlightsFor(broken, rack)).toEqual([]);
+  });
+});
+
+describe('маркеры находок видны без клика (operator №10, D-138)', () => {
+  test('без фокуса у каждой затронутой сущности свой маркер с числом находок', () => {
+    const markers = issueMarkers(issues, null);
+    expect(markers.map((marker) => [marker.ref.id, marker.count])).toEqual([
+      ['eq_cashier_1', 1],
+      ['eq_rack_1', 2],
+      ['z_back', 1],
+    ]);
+    expect(markers.every((marker) => !marker.focused)).toBe(true);
+  });
+
+  test('находка без полигона маркера не даёт и в число не входит', () => {
+    const zoneMarker = issueMarkers(issues, null).find((marker) => marker.ref.id === 'z_back');
+    expect(zoneMarker?.count).toBe(1);
+    expect(issueMarkers([issue('RULE_ENTRANCE_MISSING', [zone])], null)).toEqual([]);
+    expect(issueMarkers([issue('X', [rack], [[0, 0], [1, 1]] as Polygon)], null)).toEqual([]);
+    expect(issueMarkers([issue('X', [], square)], null)).toEqual([]);
+  });
+
+  test('цвет маркера — по самой серьёзной находке сущности', () => {
+    const mixed = [
+      issue('RULE_COUNT_BELOW_MIN', [zone], square, 'warning'),
+      issue('ZONE_OUTSIDE_ROOM', [zone], square, 'error'),
+    ];
+    expect(issueMarkers(mixed, null)[0]?.severity).toBe('error');
+    expect(issueMarkers([mixed[0]!], null)[0]?.severity).toBe('warning');
+    expect(issueMarkers([...mixed].reverse(), null)[0]?.severity).toBe('error');
+  });
+
+  test('выделенная сущность помечена, соседи — нет; совпадают вид и id', () => {
+    const markers = issueMarkers(issues, rack);
+    expect(markers.filter((marker) => marker.focused).map((marker) => marker.ref.id)).toEqual([
+      'eq_rack_1',
+    ]);
+    expect(issueMarkers(issues, { kind: 'zone', id: 'eq_rack_1' }).some((m) => m.focused)).toBe(
+      false,
+    );
+  });
+
+  test('маркер стоит в правом верхнем углу фигуры на экране', () => {
+    // Ось Y модели вверх, экрана — вниз: верх фигуры на экране — это max Y модели.
+    const viewport: Viewport = { origin: [100, 500], scale: 10 };
+    const shape: Polygon = [
+      [1, 2],
+      [4, 2],
+      [4, 6],
+      [1, 6],
+    ];
+    expect(markerAnchor(shape, viewport)).toEqual([140, 440]);
   });
 });
