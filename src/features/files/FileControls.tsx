@@ -256,20 +256,6 @@ export function FileControls({
     setState({ status: 'done' });
   };
 
-  /*
-   * Сообщения живут отдельной строкой шапки и занимают её всегда, даже пустые:
-   * подпись, появившаяся через секунду после правки, иначе переносила бы группу
-   * кнопок на новую строку и двигала холст под курсором пользователя. Высота
-   * задана здесь, а не в `app/styles.css`: файл стилей принадлежит потоку 2.
-   */
-  const strip: React.CSSProperties = {
-    flexBasis: '100%',
-    minHeight: 20,
-    display: 'flex',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-  };
 
   return (
     <>
@@ -328,7 +314,7 @@ export function FileControls({
 
     </div>
 
-    <div className="files__messages" style={strip}>
+    <div className="files__messages">
       {state.status === 'loading' ? (
         <span className="files__status" data-testid="files-loading">
           читаем файл…
