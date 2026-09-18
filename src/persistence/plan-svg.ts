@@ -25,6 +25,9 @@ const OPENING_STROKE = '#FFFFFF';
 const ZONE_FALLBACK = '#E9ECEF';
 const OBJECT_FALLBACK = '#868E96';
 const LABEL_FILL = '#212529';
+const ZONE_LABEL_FILL = '#495057';
+/** Objects smaller than this (a sensor, a socket) get no label on the picture. */
+const MIN_LABELLED_AREA_M2 = 0.15;
 
 function esc(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
@@ -44,10 +47,10 @@ function centreOf(polygon: Polygon): Point {
 }
 
 /** Текст подписи: Y отражён обратно, иначе буквы стоят вверх ногами. */
-function label(at: Point, text: string, size_m: number, anchor = 'middle'): string {
+function label(at: Point, text: string, size_m: number, fill = LABEL_FILL, opacity = 1): string {
   return (
     `<text x="${n(at[0])}" y="${n(-at[1])}" transform="scale(1,-1)" ` +
-    `font-size="${n(size_m)}" text-anchor="${anchor}" dominant-baseline="middle" fill="${LABEL_FILL}">${esc(text)}</text>`
+    `font-size="${n(size_m)}" text-anchor="middle" dominant-baseline="middle" fill="${fill}" fill-opacity="${n(opacity)}">${esc(text)}</text>`
   );
 }
 
@@ -88,7 +91,9 @@ export function renderPlanSvg(plan: PlanDocument): string {
       const fill = findZoneType(plan.catalog, zone.typeId)?.color ?? ZONE_FALLBACK;
       return (
         `<polygon points="${points(zone.polygon)}" fill="${fill}" fill-opacity="0.75" stroke="#ADB5BD" stroke-width="0.02" data-id="${esc(zone.id)}"/>` +
-        label(centreOf(zone.polygon), zone.name, 0.35)
+        // Under the objects, large and pale: a zone name is context, not a label
+        // that must win over the equipment standing in it.
+        label(centreOf(zone.polygon), zone.name, 0.5, ZONE_LABEL_FILL, 0.45)
       );
     })
     .join('\n');
@@ -113,7 +118,8 @@ export function renderPlanSvg(plan: PlanDocument): string {
 
   const objects = plan.objects.map((object) => objectSymbol(object, plan)).join('\n');
   const objectLabels = plan.objects
-    .map((object) => label([object.position[0], object.position[1] - object.size_m[1] / 2 - 0.15], object.label, 0.18))
+    .filter((object) => object.size_m[0] * object.size_m[1] >= MIN_LABELLED_AREA_M2)
+    .map((object) => label([object.position[0], object.position[1] - object.size_m[1] / 2 - 0.15], object.label, 0.16))
     .join('\n');
 
   return [
