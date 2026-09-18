@@ -1,5 +1,6 @@
 /**
- * U03 (gesture): drawing a room boundary or a zone polygon.
+ * U03 (gesture): drawing a room boundary, a zone polygon, a partition or an
+ * opening.
  *
  * A click adds a vertex, a click near the first vertex closes the ring, and
  * Escape throws the draft away. The document is only touched on closing — one
@@ -8,13 +9,25 @@
  * A ring that crosses itself is refused here, before the command: the store
  * would accept it as a diagnosable state, and a plan nobody meant to draw is a
  * worse outcome than a refusal with the draft still on screen.
+ *
+ * Перегородка — это тот же черновик, только из двух точек: первый клик ставит
+ * начало, второй заканчивает стену. Проём — один клик по стене. Оба отказа
+ * (промах мимо стены, слишком короткий отрезок) объясняются строкой, а не
+ * молчанием: клик, после которого ничего не произошло, читается как поломка.
  */
 
 import { useCallback, useRef, useState } from 'react';
 import type { Id, Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
-import { DRAFT_SELF_INTERSECTION_NOTICE, setNotice } from './notice';
+import {
+  DRAFT_SELF_INTERSECTION_NOTICE,
+  NO_WALL_UNDER_POINTER_NOTICE,
+  OPENING_WIDER_THAN_WALL_NOTICE,
+  WALL_TOO_SHORT_NOTICE,
+  setNotice,
+} from './notice';
 import { canCommitRing, parentForRing } from './vertex-edit';
+import { createOpening, createWall, nearestWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
@@ -83,14 +96,69 @@ export const usePlanToolController: UsePlanToolController = ({
     [kind, onCommand, plan.catalog.zoneTypes, plan.layers, plan.zones],
   );
 
+  /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
+  const drawWall = useCallback(
+    (from: Point, to: Point): boolean => {
+      const taken = new Set<Id>(plan.walls.map((entry) => entry.id));
+      const wall = createWall(from, to, plan.room, taken);
+      if (wall === null) {
+        setNotice(WALL_TOO_SHORT_NOTICE);
+        return false;
+      }
+      onCommand({ type: 'wall.put', wall });
+      setNotice(null);
+      return true;
+    },
+    [onCommand, plan.room, plan.walls],
+  );
+
+  /** Проём на стене под курсором; мимо стены — объяснение, а не тишина. */
+  const placeOpening = useCallback(
+    (point: Point): void => {
+      const hit = nearestWall(plan.walls, point);
+      if (hit === null) {
+        setNotice(NO_WALL_UNDER_POINTER_NOTICE);
+        return;
+      }
+      const taken = new Set<Id>(plan.openings.map((entry) => entry.id));
+      // Вид проёма правится карточкой свойств; ставим обычную дверь.
+      const opening = createOpening(hit.wall, point, 'door', taken);
+      if (opening === null) {
+        setNotice(OPENING_WIDER_THAN_WALL_NOTICE);
+        return;
+      }
+      onCommand({ type: 'opening.put', opening });
+      setNotice(null);
+    },
+    [onCommand, plan.openings, plan.walls],
+  );
+
   const handlePointer = useCallback(
     (event: WorldPointer): void => {
       if (event.phase === 'cancel') {
         setDraft(null);
         return;
       }
-      if (kind !== 'room.draw' && kind !== 'zone.draw') return;
       if (event.phase !== 'down') return;
+
+      if (kind === 'opening.place') {
+        placeOpening(event.point);
+        return;
+      }
+
+      if (kind === 'wall.draw') {
+        const start = draft?.[0];
+        // Первый клик запоминает начало, второй заканчивает перегородку.
+        if (start === undefined) {
+          setNotice(null);
+          setDraft([event.point]);
+          return;
+        }
+        if (drawWall(start, event.point)) setDraft(null);
+        return;
+      }
+
+      if (kind !== 'room.draw' && kind !== 'zone.draw') return;
 
       const current = draft ?? [];
       const first = current[0];
@@ -107,7 +175,7 @@ export const usePlanToolController: UsePlanToolController = ({
       }
       setDraft([...current, event.point]);
     },
-    [commit, draft, kind],
+    [commit, draft, drawWall, kind, placeOpening],
   );
 
   return { handlePointer, cancel, draft };
