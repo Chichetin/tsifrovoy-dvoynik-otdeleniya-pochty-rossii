@@ -115,6 +115,18 @@ test.describe('ассистент в браузере', () => {
     }
   });
 
+  test('комплектование демо называет оборудование и зону рядом с числами', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await panel(page).getByLabel('Сценарий').selectOption('equipment');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    const bench = panel(page).locator('.advice').filter({ hasText: 'Скамья / кресла для ожидания' });
+    await expect(bench).toHaveCount(1);
+    await expect(bench.locator('.advice__sentence')).toContainText('Зона ожидания');
+    await expect(bench.locator('.advice__sentence')).toContainText('Не хватает оборудования: 1 при минимуме 2');
+  });
+
   test('сценарий сравнения после правки показывает «было → стало», а не нули', async ({ page }) => {
     // Находка operator'а 18.09: после удаления объекта «Эффект изменений» отвечал
     // «Объектов 52 → 52» — сравнивал текущий план с ним же. «Было» — это
