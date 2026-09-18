@@ -28,7 +28,7 @@ color: green
 
    ```bash
    npm run typecheck && npm run lint && npm test && npm run build
-   npm run test:e2e
+   npm run test:e2e                             # из worktree: DEV_PORT=5174, свой сервер
    bash .claude/hooks/check-secrets.sh          # пусто = чисто
    ```
 
