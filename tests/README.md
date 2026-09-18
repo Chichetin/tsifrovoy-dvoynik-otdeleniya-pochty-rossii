@@ -12,7 +12,8 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 ## Запуск
 
 - `npm test` — unit-тесты; `dev-port.test.ts` проверяет, что Vite и Playwright берут
-  один и тот же порт из `DEV_PORT`.
+  один и тот же порт из `DEV_PORT`, а `e2e-channel.test.ts` — что браузер набора
+  берётся из `PW_CHANNEL` и по умолчанию остаётся бандловым Chromium (D-125).
 - Стенд компонента: `npm run dev` → `http://127.0.0.1:5173/tests/harness/?id=<ID>`;
   при своём `DEV_PORT=5174` адрес стенда — `http://127.0.0.1:5174/tests/harness/?id=<ID>`.
 

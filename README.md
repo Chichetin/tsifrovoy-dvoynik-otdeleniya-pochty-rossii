@@ -118,6 +118,11 @@ npm run serve                     # API ассистента и раздача �
 npm test && npm run test:e2e && npm run typecheck && npm run lint && npm run build
 ```
 
+Браузерным тестам хватает того самого Chromium из `npx playwright install chromium`:
+системный Google Chrome ставить не нужно (D-125). Прогнать набор на установленном
+Chrome или Edge можно явно — `PW_CHANNEL=chrome npm run test:e2e`
+(`PW_CHANNEL=msedge` соответственно); без переменной идёт бандловый Chromium.
+
 Порт редактора — переменная `DEV_PORT` (по умолчанию 5173); её же берут браузерные
 тесты, поэтому `DEV_PORT=5174 npm run test:e2e` (любой свободный порт, например 5174
 или 5175) поднимет и проверит свой сервер, а не чужой, уже занявший 5173 (D-095).
