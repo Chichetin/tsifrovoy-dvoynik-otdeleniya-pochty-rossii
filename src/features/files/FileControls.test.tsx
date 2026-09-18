@@ -170,7 +170,29 @@ describe('FileControls: предложение восстановить черн
     expect(screen.queryByTestId('draft-restore')).toBeNull();
     expect(storage.removeItem).toHaveBeenCalledWith(DRAFT_KEY);
 
+    // Запись возобновляется сразу, до всякой правки: ворота снимает сам ответ
+    // на предложение, а не то, что план стал отличаться от стартового.
+    waitDebounce();
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+
     rerender({ document: filled });
+    waitDebounce();
+    expect(storage.setItem).toHaveBeenCalledTimes(2);
+  });
+
+  test('«Открыть» снимает предложение и возвращает запись черновика', async () => {
+    const storage = fakeStorage(draftOf(filled));
+    const { onReplace } = renderControls({ storage });
+    const file = new File([JSON.stringify(filled)], 'plan.json', { type: 'application/json' });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), { target: { files: [file] } });
+    });
+
+    expect(onReplace).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('draft-restore')).toBeNull();
+    // Документ в пропсах остался стартовым (родитель — заглушка), и всё равно
+    // пишется: открытие файла — ответ на предложение.
     waitDebounce();
     expect(storage.setItem).toHaveBeenCalledTimes(1);
   });
@@ -224,6 +246,19 @@ describe('FileControls: восстановление поверх открыто
     expect(onReplace).toHaveBeenCalledTimes(1);
     expect(onReplace.mock.calls[0]?.[1]).toBe('draft');
     expect(screen.queryByTestId('draft-restore')).toBeNull();
+  });
+
+  test('пустой, но уже тронутый план тоже спрашивает: зон и объектов нет, а правки есть', () => {
+    const storage = fakeStorage(draftOf(filled));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onReplace, rerender } = renderControls({ storage, document: empty, dirty: true });
+
+    // Ни зон, ни объектов — но помещение переименовали, и это работа человека.
+    rerender({ document: { ...empty, name: 'Переименованное ОПС' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onReplace).not.toHaveBeenCalled();
   });
 
   test('в пустом плане терять нечего: черновик восстанавливается без вопроса', () => {

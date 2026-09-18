@@ -206,8 +206,12 @@ export function FileControls({
 
   const restore = (draft: PlanDraft): void => {
     // Спрашиваем, когда в плане уже что-то есть: только что открытый файл по
-    // `dirty` чист, но это работа пользователя. В пустом плане терять нечего.
-    if (hasContent(plan) && !window.confirm(RESTORE_WARNING)) return;
+    // `dirty` чист, но это работа пользователя. И когда план тронут с момента
+    // открытия страницы: зон и объектов может не быть, а контур, стены и
+    // название уже правились. Нетронутый пустой план терять нечего.
+    const current = encode(plan);
+    const touched = !current.ok || current.value !== start.opening;
+    if ((hasContent(plan) || touched) && !window.confirm(RESTORE_WARNING)) return;
     const opened = read(draft.text);
     setOffered(null);
     setAnswered(true);

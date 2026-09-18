@@ -141,6 +141,47 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
     });
   });
 
+  test('двадцать переключений «2D / 3D» подряд: контекст жив, чёрного холста нет', async ({
+    playwright,
+    browserName,
+    baseURL,
+  }) => {
+    await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto('/');
+      await placeFirstLibraryItem(page, 320, 240);
+
+      // Браузер держит считанное число контекстов (около шестнадцати) и, дойдя
+      // до предела, отбирает самый старый — им может оказаться контекст сцены, и
+      // холст чернеет. Здесь сторожится именно этот исход, видимый человеку.
+      // Что проба не тратит контекст на каждое переключение, проверяет
+      // `webgl.test.ts`: в headless-браузере выброшенные пробы собираются сборщиком
+      // мусора когда придётся, и на числе переключений это не отпечатывается.
+      for (let i = 0; i < 20; i += 1) {
+        await switchTo(page, '3D');
+        await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+        await switchTo(page, '2D');
+      }
+
+      await switchTo(page, '3D');
+      await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+      await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
+      await expect(page.getByTestId('view3d-unavailable')).toHaveCount(0);
+      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+
+      // Главное: контекст последнего холста действительно живой, а не отобранный.
+      const alive = await page.evaluate(() => {
+        const canvas = document.querySelector('[data-testid="view3d-canvas"]');
+        if (!(canvas instanceof HTMLCanvasElement)) return null;
+        const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
+        return gl === null ? null : !gl.isContextLost();
+      });
+      expect(alive).toBe(true);
+      expect(errors).toEqual([]);
+    });
+  });
+
   test('демо-план организаторов: зоны и объекты примера видны в 3D', async ({ playwright, browserName, baseURL }) => {
     await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
     const errors: string[] = [];
@@ -242,9 +283,12 @@ test.describe('3D-вид: потеря контекста WebGL', () => {
       await expect(prisms(page, '[data-kind="object"]')).toHaveCount(2);
 
       // Контекст вернули на том же холсте — сцена пересобирается без перезагрузки.
+      // Старый холст помечаем: после восстановления на его месте обязан стоять
+      // новый, иначе «восстановление» — это снятая надпись над мёртвым GPU.
       const restored = await page.evaluate(() => {
         const canvas = document.querySelector('[data-testid="view3d-canvas"]');
         if (!(canvas instanceof HTMLCanvasElement)) return false;
+        canvas.dataset['stale'] = 'yes';
         const gl = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
         gl?.getExtension('WEBGL_lose_context')?.loseContext();
         canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
@@ -259,6 +303,7 @@ test.describe('3D-вид: потеря контекста WebGL', () => {
       });
       await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
       await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+      await expect(page.locator('[data-testid="view3d-canvas"][data-stale="yes"]')).toHaveCount(0);
       await expect(prisms(page, '[data-kind="object"]')).toHaveCount(2);
       expect(errors).toEqual([]);
     });

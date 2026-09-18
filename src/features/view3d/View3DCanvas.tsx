@@ -75,6 +75,9 @@ export default function View3DCanvas({ scene, selection }: Props): React.JSX.Ele
     const canvas = created.renderer.domElement;
     const onLost = (event: Event): void => {
       // Без preventDefault браузер не станет восстанавливать контекст вовсе.
+      // Свой слушатель three тоже это делает, но он висит на рендерере, который
+      // мы тут же и освобождаем: полагаться на чужой порядок обработчиков в
+      // единственном месте, где решается судьба сцены, нельзя.
       event.preventDefault();
       setLost(true);
       // Рендерер на потерянном контексте больше не нужен: `dispose` снимает и
