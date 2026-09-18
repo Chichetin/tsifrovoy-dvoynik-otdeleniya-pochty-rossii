@@ -144,6 +144,32 @@ async function shownScale(page: Page): Promise<number> {
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('поставленный из библиотеки объект сразу выбран, ручки не мешают ставить следующий', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.locator('.library__item', { hasText: RACK }).first().click();
+    const centre: Screen = { x: 420, y: 330 };
+    await clickCanvas(page, centre.x, centre.y);
+    // Ещё до переключения на «Выбор» карточка — про только что поставленный объект.
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+
+    // Второй стеллаж «в столбик»: клик приходится ровно туда, где у выбранного
+    // объекта была бы ручка поворота. Под инструментом установки ручек нет, и
+    // клик ставит объект, а не начинает поворот первого.
+    const depth = await numberOf(page, 'Глубина, м');
+    const scale = await shownScale(page);
+    const handle = rotationHandle(centre, depth, scale, 0);
+    await clickCanvas(page, handle.x, handle.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // Клик по первому объекту под инструментом установки ставит третий, а не выбирает первый.
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
+    await expect(inventoryRows(page)).toHaveCount(3);
+  });
+
   test('поворот за ручку: 90° с Shift, свободный 37°, одно «Отменить» на жест', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
