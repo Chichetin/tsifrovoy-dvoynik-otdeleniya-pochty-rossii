@@ -6,14 +6,28 @@
  * spot on the plan.
  */
 
-import type { Issue } from '../../contracts/model';
+import type { Issue, PlanDocument } from '../../contracts/model';
 import type { ValidationPanelProps } from '../../contracts/ui';
+import { refName } from './naming';
+
+/**
+ * The document is optional: without it the list keeps working and names each
+ * finding by id, exactly as it did before names existed.
+ */
+export type ValidationPanelViewProps = ValidationPanelProps & { document?: PlanDocument };
 
 function order(issue: Issue): number {
   return issue.severity === 'error' ? 0 : 1;
 }
 
-export function ValidationPanel({ issues, onFocus }: ValidationPanelProps): React.JSX.Element {
+/** The raw id after the name: secondary, but never hidden. */
+const ID_STYLE = { marginLeft: '6px', fontSize: '11px' } as const;
+
+export function ValidationPanel({
+  issues,
+  document: plan,
+  onFocus,
+}: ValidationPanelViewProps): React.JSX.Element {
   const sorted = [...issues].sort((a, b) => order(a) - order(b));
   const errors = issues.filter((issue) => issue.severity === 'error').length;
 
@@ -35,16 +49,25 @@ export function ValidationPanel({ issues, onFocus }: ValidationPanelProps): Reac
               <p className="issues__message">{issue.message}</p>
               <p className="issues__refs">
                 <span className="issues__code">{issue.code}</span>
-                {issue.refs.map((ref) => (
-                  <button
-                    key={`${ref.kind}-${ref.id}`}
-                    type="button"
-                    className="table__link"
-                    onClick={() => onFocus(ref)}
-                  >
-                    {ref.id}
-                  </button>
-                ))}
+                {issue.refs.map((ref) => {
+                  const name = refName(plan, ref);
+                  return (
+                    <button
+                      key={`${ref.kind}-${ref.id}`}
+                      type="button"
+                      className="table__link"
+                      title={ref.id}
+                      onClick={() => onFocus(ref)}
+                    >
+                      {name ?? ref.id}
+                      {name === null ? null : (
+                        <span className="table__muted" style={ID_STYLE}>
+                          {ref.id}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </p>
             </li>
           ))}
