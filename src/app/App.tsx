@@ -36,7 +36,7 @@ import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
 import { createPlanStore } from '../state/plan-store';
-import { catalog, createEmptyPlan } from './default-plan';
+import { createEmptyPlan } from './default-plan';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
@@ -174,7 +174,7 @@ export function App(): React.JSX.Element {
 
       <div className="shell__body">
         <aside className="shell__side">
-          <LibraryPanel catalog={catalog} onTool={setTool} />
+          <LibraryPanel catalog={document.catalog} onTool={setTool} />
           <LayersPanel
             document={document}
             session={session}
