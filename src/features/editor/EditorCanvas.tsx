@@ -1,26 +1,73 @@
 /**
- * U02: the canvas. Grid, pan, zoom and the translation of every pointer event
- * into world metres — and nothing else.
+ * U02: the canvas. Grid, pan, zoom, the translation of every pointer event into
+ * world metres — and answering «покажи мне это».
  *
  * Shapes are not drawn here. The app composition passes them as children, so
  * the plan layer and the equipment layer stay independent of each other and of
- * this file; what they receive is already in world coordinates.
+ * this file; what they receive is already in world coordinates. The one shape
+ * this file does draw is the short-lived focus ring: it belongs to the view,
+ * never to the document, and disappears by itself.
+ *
+ * Fitting is a view decision too, so it lives here, next to the only place that
+ * knows the size of the canvas in pixels: a replaced document opens fitted, and
+ * after that the view belongs to the user until they ask for «Вписать».
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Layer, Line, Stage } from 'react-konva';
+import { Circle, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
-import type { Point } from '../../contracts/model';
+import type { Point, Polygon } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
-import { screenToModel } from '../../domain/geometry';
-import { type CanvasSize, fitToExtent, gridLines, panBy, zoomByWheel } from './viewport';
+import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
+import { focusViewport, planExtent, refExtent } from './focus';
+import {
+  type CanvasSize,
+  fitToExtent,
+  gridLines,
+  panBy,
+  visibleExtent,
+  zoomByWheel,
+} from './viewport';
 
 const GRID_COLOR = '#E9ECEF';
 const AXIS_COLOR = '#CED4DA';
 const BACKGROUND = '#FFFFFF';
+const FOCUS_STROKE = '#E8590C';
+const FOCUS_FILL = 'rgba(232, 89, 12, 0.12)';
+
+/** How long the ring stays on the found object, in milliseconds. */
+const HIGHLIGHT_MS = 1600;
+
+/** The ring is never smaller than this, or a 40 cm object stays invisible. */
+const MIN_RING_PX = 28;
+const RING_GAP_PX = 14;
 
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
+
+/** Hotkeys belong to the plan, not to a text field the user is typing in. */
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+/** Мировой контур в плоский список экранных координат для Konva. */
+function screenPoints(extent: Polygon, viewport: { origin: Point; scale: number }): number[] {
+  return extent.flatMap((point) => modelToScreen(point, viewport));
+}
+
+/** Кольцо вокруг найденного: видно даже там, где сам отпечаток в пару пикселей. */
+function ringOf(
+  extent: Polygon,
+  viewport: { origin: Point; scale: number },
+): { centre: Point; radius: number } | null {
+  if (extent.length === 0) return null;
+  const box = boundingBox(extent);
+  const centre = modelToScreen([(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2], viewport);
+  const half = (Math.hypot(box.maxX - box.minX, box.maxY - box.minY) / 2) * viewport.scale;
+  return { centre, radius: Math.max(MIN_RING_PX, half + RING_GAP_PX) };
+}
 
 export function EditorCanvas({
   document: plan,
@@ -33,7 +80,16 @@ export function EditorCanvas({
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const panning = useRef<Point | null>(null);
-  const fitted = useRef(false);
+  /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
+  const fitted = useRef<string | null>(null);
+  /** Номер последнего запроса, подсветка которого уже погасла. */
+  const [dismissed, setDismissed] = useState(0);
+  const handledFocus = useRef(0);
+  const documentKey = `${plan.id}\u0000${plan.name}`;
+
+  const focus = session.focus;
+  const focusExtent = focus === null ? null : refExtent(plan, focus.ref);
+  const highlighted = focus !== null && focusExtent !== null && focus.sequence > dismissed;
 
   useLayoutEffect(() => {
     const element = host.current;
@@ -48,12 +104,63 @@ export function EditorCanvas({
     return () => observer.disconnect();
   }, []);
 
-  // The plan opens already fitted; after that the view belongs to the user.
+  /**
+   * Вписать весь план: помещение вместе с тем, что вынесено за его стены.
+   * По границе помещения вписывать нельзя — объект, о котором как раз кричит
+   * проверка, остался бы за кадром.
+   */
+  const fitPlan = useCallback((): void => {
+    if (size.width === 0 || size.height === 0) return;
+    onViewport(fitToExtent(planExtent(plan), size));
+  }, [onViewport, plan, size]);
+
+  // Каждый новый документ открывается вписанным — открытый файл, «Новый»,
+  // восстановленный черновик и пример организаторов одинаково. Дальше вид
+  // принадлежит пользователю: правка плана масштаб не сбрасывает.
   useEffect(() => {
-    if (fitted.current || size.width === 0 || size.height === 0) return;
-    fitted.current = true;
-    onViewport(fitToExtent(plan.room.boundary, size));
-  }, [plan.room.boundary, size, onViewport]);
+    if (size.width === 0 || size.height === 0) return;
+    if (fitted.current === documentKey) return;
+    fitted.current = documentKey;
+    fitPlan();
+  }, [documentKey, fitPlan, size]);
+
+  // «Покажи мне это»: панель называет ссылку, холст переводит взгляд. Масштаб
+  // меняется только если иначе не влезает, а видный целиком объект вид не
+  // двигает — иначе список находок дёргает план на каждом клике.
+  //
+  // Ссылка на то, чего в плане нет (панель могла отстать от документа), даёт
+  // пустой `extent`: вид не двигается и подсветки не появляется.
+  useEffect(() => {
+    if (focus === null || focusExtent === null || size.width === 0 || size.height === 0) return;
+    if (handledFocus.current === focus.sequence) return;
+    handledFocus.current = focus.sequence;
+
+    const next = focusViewport(focusExtent, session.viewport, size);
+    if (next !== session.viewport) onViewport(next);
+  }, [focus, focusExtent, onViewport, session.viewport, size]);
+
+  // Подсветка живёт секунду с небольшим и гаснет сама: это подсказка «вот оно»,
+  // а не состояние документа. Гасит её таймер, а состояние хранит номер уже
+  // погашенного запроса — сама подсветка выводится из props при отрисовке.
+  useEffect(() => {
+    if (!highlighted || focus === null) return;
+    const sequence = focus.sequence;
+    const timer = window.setTimeout(() => setDismissed(sequence), HIGHLIGHT_MS);
+    return () => window.clearTimeout(timer);
+  }, [focus, highlighted]);
+
+  // Клавиша вписывания — по коду, а не по букве: на русской раскладке та же
+  // клавиша даёт «а», и hotkey не должен от этого пропадать.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.code !== 'KeyF' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      fitPlan();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fitPlan]);
 
   const toWorld = useCallback(
     (stage: Konva.Stage): Point | null => {
@@ -148,9 +255,25 @@ export function EditorCanvas({
   }, [onPointer, onSelect]);
 
   const grid = size.width > 0 ? gridLines(session.viewport, size) : null;
+  // Видимый кусок мира числами: на нём держится браузерная проверка «объект
+  // действительно в кадре», которую по картинке не сделать.
+  const visible = size.width > 0 ? boundingBox(visibleExtent(session.viewport, size)) : null;
+  const ring = highlighted ? ringOf(focusExtent as Polygon, session.viewport) : null;
 
   return (
-    <div className="editor-canvas" ref={host} data-testid="editor-canvas">
+    <div
+      className="editor-canvas"
+      ref={host}
+      data-testid="editor-canvas"
+      data-visible={
+        visible === null
+          ? undefined
+          : [visible.minX, visible.minY, visible.maxX, visible.maxY]
+              .map((value) => value.toFixed(3))
+              .join(',')
+      }
+      data-focus={highlighted && focus !== null ? `${focus.ref.kind}:${focus.ref.id}` : undefined}
+    >
       {size.width > 0 && size.height > 0 ? (
         <Stage
           width={size.width}
@@ -193,8 +316,39 @@ export function EditorCanvas({
             />
           </Layer>
           {children}
+          {ring === null || focusExtent === null ? null : (
+            <Layer listening={false}>
+              <Line
+                points={screenPoints(focusExtent, session.viewport)}
+                closed
+                stroke={FOCUS_STROKE}
+                strokeWidth={2}
+                dash={[10, 6]}
+                fill={FOCUS_FILL}
+              />
+              <Circle
+                x={ring.centre[0]}
+                y={ring.centre[1]}
+                radius={ring.radius}
+                stroke={FOCUS_STROKE}
+                strokeWidth={2}
+                opacity={0.8}
+              />
+            </Layer>
+          )}
         </Stage>
       ) : null}
+      {grid === null ? null : (
+        <button
+          type="button"
+          className="editor-canvas__fit"
+          data-testid="canvas-fit"
+          title="Показать план целиком (клавиша F)"
+          onClick={fitPlan}
+        >
+          Вписать
+        </button>
+      )}
       {grid === null ? null : (
         <p className="editor-canvas__scale" data-testid="canvas-scale">
           Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
