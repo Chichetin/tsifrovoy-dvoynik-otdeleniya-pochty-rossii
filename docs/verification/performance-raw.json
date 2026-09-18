@@ -1,0 +1,173 @@
+[
+  {
+    "commit": "d02ecb822ffcc1dcd56835c50b2fe9f67e88dd61",
+    "seed": 20260918,
+    "objects": 100,
+    "zones": 10,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+      "platform": "win32",
+      "release": "10.0.26200",
+      "cpu": "AMD Ryzen AI 9 365 w/ Radeon 880M              ",
+      "cores": 20,
+      "ramBytes": 24823836672
+    },
+    "samples": [
+      {
+        "coldOpenMs": 205.41930000000002,
+        "warmOpenMs": 130.2179000000001,
+        "selectMs": 54.78309999999988,
+        "validateMs": 4.5,
+        "saveReopenMs": 222.2514000000001,
+        "heapBytes": 47109645
+      },
+      {
+        "coldOpenMs": 304.86400000000003,
+        "warmOpenMs": 127.55580000000009,
+        "selectMs": 53.000600000000304,
+        "validateMs": 4.600000023841858,
+        "saveReopenMs": 196.6522,
+        "heapBytes": 59297679
+      },
+      {
+        "coldOpenMs": 308.7844,
+        "warmOpenMs": 129.8175000000001,
+        "selectMs": 50.30919999999969,
+        "validateMs": 4,
+        "saveReopenMs": 313.33910000000014,
+        "heapBytes": 75845548
+      },
+      {
+        "coldOpenMs": 387.59590000000026,
+        "warmOpenMs": 165.76170000000002,
+        "selectMs": 79.14279999999962,
+        "validateMs": 3.9000000059604645,
+        "saveReopenMs": 310.53479999999945,
+        "heapBytes": 54281019
+      },
+      {
+        "coldOpenMs": 384.1980999999996,
+        "warmOpenMs": 154.61110000000008,
+        "selectMs": 57.22779999999966,
+        "validateMs": 3.5999999940395355,
+        "saveReopenMs": 289.6145999999999,
+        "heapBytes": 69362861
+      }
+    ]
+  },
+  {
+    "commit": "d02ecb822ffcc1dcd56835c50b2fe9f67e88dd61",
+    "seed": 20260918,
+    "objects": 500,
+    "zones": 30,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+      "platform": "win32",
+      "release": "10.0.26200",
+      "cpu": "AMD Ryzen AI 9 365 w/ Radeon 880M              ",
+      "cores": 20,
+      "ramBytes": 24823836672
+    },
+    "samples": [
+      {
+        "coldOpenMs": 1244.2356,
+        "warmOpenMs": 1090.8071,
+        "selectMs": 171.63030000000072,
+        "validateMs": 56.400000005960464,
+        "saveReopenMs": 1288.2330999999995,
+        "heapBytes": 201984828
+      },
+      {
+        "coldOpenMs": 1357.8101000000006,
+        "warmOpenMs": 1101.955100000001,
+        "selectMs": 156.11629999999968,
+        "validateMs": 64.40000000596046,
+        "saveReopenMs": 1319.3117999999995,
+        "heapBytes": 197750057
+      },
+      {
+        "coldOpenMs": 1337.9552999999996,
+        "warmOpenMs": 1113.1003999999994,
+        "selectMs": 154.2616999999991,
+        "validateMs": 58.19999998807907,
+        "saveReopenMs": 1304.9628000000012,
+        "heapBytes": 43017131
+      },
+      {
+        "coldOpenMs": 1354.4114000000009,
+        "warmOpenMs": 1102.2093000000023,
+        "selectMs": 155.33459999999832,
+        "validateMs": 60.099999994039536,
+        "saveReopenMs": 1300.558100000002,
+        "heapBytes": 75631437
+      },
+      {
+        "coldOpenMs": 1380.8196000000025,
+        "warmOpenMs": 1133.611499999999,
+        "selectMs": 154.58899999999994,
+        "validateMs": 60.10000002384186,
+        "saveReopenMs": 1299.530700000003,
+        "heapBytes": 43027620
+      }
+    ]
+  },
+  {
+    "commit": "d02ecb822ffcc1dcd56835c50b2fe9f67e88dd61",
+    "seed": 20260918,
+    "objects": 1000,
+    "zones": 50,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+      "platform": "win32",
+      "release": "10.0.26200",
+      "cpu": "AMD Ryzen AI 9 365 w/ Radeon 880M              ",
+      "cores": 20,
+      "ramBytes": 24823836672
+    },
+    "samples": [
+      {
+        "coldOpenMs": 4469.796200000001,
+        "warmOpenMs": 4231.5461,
+        "selectMs": 177.75209999999788,
+        "validateMs": 208.19999998807907,
+        "saveReopenMs": 4664.842299999997,
+        "heapBytes": 153267799
+      },
+      {
+        "coldOpenMs": 4470.620799999997,
+        "warmOpenMs": 4138.072899999999,
+        "selectMs": 176.27769999999873,
+        "validateMs": 200.5,
+        "saveReopenMs": 4657.144999999997,
+        "heapBytes": 155930869
+      },
+      {
+        "coldOpenMs": 4486.031999999999,
+        "warmOpenMs": 4157.712700000004,
+        "selectMs": 186.75770000000193,
+        "validateMs": 208.19999998807907,
+        "saveReopenMs": 4760.221799999999,
+        "heapBytes": 156784540
+      },
+      {
+        "coldOpenMs": 4373.697100000005,
+        "warmOpenMs": 3983.9526999999944,
+        "selectMs": 170.7448999999906,
+        "validateMs": 194.10000002384186,
+        "saveReopenMs": 4369.515499999994,
+        "heapBytes": 134560360
+      },
+      {
+        "coldOpenMs": 4113.305699999997,
+        "warmOpenMs": 3830.7938999999897,
+        "selectMs": 162.05999999999767,
+        "validateMs": 192.5,
+        "saveReopenMs": 4296.46620000001,
+        "heapBytes": 133198210
+      }
+    ]
+  }
+]
