@@ -311,6 +311,115 @@ describe('buildScene: стены и проёмы', () => {
   });
 });
 
+describe('buildScene: скрытые слои', () => {
+  /** Второй слой, выключенный «глазом» в панели слоёв: на нём очередь и камера. */
+  const hidden: PlanDocument = {
+    ...plan,
+    layers: [
+      { id: 'l_base', name: 'Основной', visible: true, locked: false, order: 0, typeId: null },
+      { id: 'l_hidden', name: 'Служебный', visible: false, locked: false, order: 1, typeId: null },
+    ],
+    zones: [client, { ...queue, layerId: 'l_hidden' }],
+    objects: [rack, { ...camera, layerId: 'l_hidden' }],
+  };
+
+  test('объект и зона скрытого слоя в сцену не попадают', () => {
+    const { prisms } = buildScene(hidden);
+    expect(only(prisms, 'zone', 'z_queue')).toEqual([]);
+    expect(only(prisms, 'object', 'eq_cam')).toEqual([]);
+    // Всё, что на показанном слое, на месте — скрывается слой, а не сцена.
+    expect(only(prisms, 'zone', 'z_client')).toHaveLength(1);
+    expect(only(prisms, 'object', 'eq_rack')).toHaveLength(1);
+  });
+
+  test('помещение, стены и проёмы слоёв не имеют и остаются видимыми', () => {
+    const { prisms } = buildScene({ ...hidden, layers: hidden.layers.map((l) => ({ ...l, visible: false })) });
+    expect(only(prisms, 'floor')).toHaveLength(1);
+    expect(only(prisms, 'wall', 'w_south').length).toBeGreaterThan(0);
+    expect(only(prisms, 'opening', 'op_door')).toHaveLength(1);
+    expect(only(prisms, 'zone')).toEqual([]);
+    expect(only(prisms, 'object')).toEqual([]);
+  });
+
+  test('слой снова показан — призмы возвращаются', () => {
+    const shown: PlanDocument = {
+      ...hidden,
+      layers: hidden.layers.map((layer) => ({ ...layer, visible: true })),
+    };
+    const { prisms } = buildScene(shown);
+    expect(only(prisms, 'zone', 'z_queue')).toHaveLength(1);
+    expect(only(prisms, 'object', 'eq_cam')).toHaveLength(1);
+  });
+
+  test('ссылка на несуществующий слой не показывается: как и на холсте 2D', () => {
+    const orphan: PlanDocument = {
+      ...plan,
+      objects: [{ ...rack, layerId: 'l_missing' }],
+      zones: [{ ...client, layerId: 'l_missing' }],
+    };
+    const { prisms } = buildScene(orphan);
+    expect(only(prisms, 'object')).toEqual([]);
+    expect(only(prisms, 'zone')).toEqual([]);
+  });
+
+  test('вложенность считается по всем зонам, даже когда родитель скрыт', () => {
+    const childVisible: PlanDocument = {
+      ...hidden,
+      zones: [{ ...client, layerId: 'l_hidden' }, queue],
+    };
+    const [child] = only(buildScene(childVisible).prisms, 'zone', 'z_queue');
+    expect(child).toBeDefined();
+    // Родитель в сцену не попал, но очередь по-прежнему лежит слоем выше него.
+    expect(child!.base_m).toBeGreaterThan(0);
+  });
+});
+
+describe('buildScene: проём на наклонной стене', () => {
+  const diagonal: Wall = { id: 'w_diag', from: [0, 0], to: [3, 4], thickness_m: 0.3, height_m: 3 };
+  const sash: Opening = {
+    id: 'op_win',
+    wallId: 'w_diag',
+    offset_m: 1.5,
+    width_m: 1,
+    kind: 'window',
+    sill_m: 0.9,
+    height_m: 1.2,
+  };
+  const slanted: PlanDocument = { ...plan, walls: [diagonal], openings: [sash] };
+
+  test('плоскость окна стоит в стене: центр, ширина и толщина по её направлению', () => {
+    const [pane] = only(buildScene(slanted).prisms, 'opening', 'op_win');
+    expect(pane).toBeDefined();
+    expect(pane!.base_m).toBe(0.9);
+    expect(pane!.height_m).toBe(1.2);
+    expect(pane!.opacity).toBeLessThan(1);
+
+    // Центр — середина проёма вдоль стены длиной 5 м: from + (1.5 + 0.5) * u.
+    const centre = pane!.polygon.reduce(
+      (sum, [x, y]) => [sum[0] + x / 4, sum[1] + y / 4] as [number, number],
+      [0, 0] as [number, number],
+    );
+    expect(centre[0]).toBeCloseTo(1.2, 9);
+    expect(centre[1]).toBeCloseTo(1.6, 9);
+
+    // Четыре стороны: две по ширине проёма и две по доле толщины стены.
+    const sides = pane!.polygon.map((point, index) => {
+      const next = pane!.polygon[(index + 1) % pane!.polygon.length]!;
+      return Math.hypot(next[0] - point[0], next[1] - point[1]);
+    });
+    expect(sides.map((side) => Number(side.toFixed(9))).sort((a, b) => a - b)).toEqual([
+      0.12, 0.12, 1, 1,
+    ]);
+
+    // Длинная сторона параллельна стене: векторное произведение с (0.6, 0.8) — ноль.
+    const long = pane!.polygon.map((point, index) => {
+      const next = pane!.polygon[(index + 1) % pane!.polygon.length]!;
+      return [next[0] - point[0], next[1] - point[1]] as [number, number];
+    }).filter(([dx, dy]) => Math.hypot(dx, dy) > 0.5);
+    for (const [dx, dy] of long) expect(dx * 0.8 - dy * 0.6).toBeCloseTo(0, 9);
+  });
+});
+
 /** Total solid height of wall parts whose footprint covers x on the south wall. */
 function coverAt(parts: ScenePrism[], x: number): number {
   return parts

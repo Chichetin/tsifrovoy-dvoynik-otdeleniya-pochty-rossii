@@ -52,6 +52,24 @@ describe('detectPlanFormat', () => {
     expect(detectPlanFormat('{"ops": {"id": "x"}, "zones": [], "equipment": []}')).toBe('organizer');
   });
 
+  test('файл без schemaVersion, но с помещением и объектами, — всё равно наш: отказ даёт кодек', () => {
+    // Такой файл мог написать наш же экспорт до версионирования или собрать
+    // руками проверяющий. Определитель не решает, годится ли он, — он только
+    // выбирает, кому его отдать; отказ приходит от `decodePlan` с кодом схемы.
+    const text = JSON.stringify({
+      room: { id: 'room_main', boundary: [[0, 0], [4, 0], [4, 3], [0, 3]], ceilingHeight_m: 3 },
+      objects: [],
+    });
+    expect(detectPlanFormat(text)).toBe('ours');
+
+    const result = readPlanFile(text);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues.map((issue) => issue.code)).toContain(
+      CONTRACT_ISSUE_CODES.SCHEMA_INVALID,
+    );
+  });
+
   test('наш формат проверяется раньше: файл с обоими наборами полей читается как наш', () => {
     expect(detectPlanFormat('{"schemaVersion": 1, "ops": {}, "zones": [], "equipment": []}')).toBe(
       'ours',
