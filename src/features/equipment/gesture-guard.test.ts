@@ -110,6 +110,17 @@ describe('сторож жеста', () => {
     expect(guard.finish()).toBe(true);
   });
 
+  it('Escape вне своего жеста ничего не отменяет и следующий жест доходит', () => {
+    const guard = createGestureGuard();
+
+    // Escape по пустому холсту: отменять нечего.
+    expect(guard.cancel()).toBeNull();
+
+    // И он не должен «зарядить» отмену на жест, которого ещё не было:
+    // dragend без dragstart прилетает от Konva, и команда обязана дойти.
+    expect(guard.finish()).toBe(true);
+  });
+
   it('отменённый жест возвращает узел туда, откуда начался', () => {
     const guard = createGestureGuard();
     const dragged = node();
