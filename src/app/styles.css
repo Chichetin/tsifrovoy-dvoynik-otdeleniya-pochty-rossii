@@ -101,6 +101,27 @@ body {
   font-size: 12px;
 }
 
+/* Вписывание — действие вида, а не документа, поэтому кнопка живёт на холсте
+   рядом с масштабом, а не в панели инструментов плана. */
+.editor-canvas__fit {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: rgb(255 255 255 / 92%);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.editor-canvas__fit:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .toolbar {
   display: flex;
   align-items: center;
