@@ -11,14 +11,27 @@
  * экрана в презентации выглядит как измеренные данные.
  */
 
-import { Circle, Layer, Line, Text } from 'react-konva';
-import type { Equipment, Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
+import { Layer, Line, Rect, Shape, Text } from 'react-konva';
+import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
 import { modelToScreen, viewSector } from '../../domain/geometry';
+import { labelWidth, placeLabels, type Box } from './label-layout';
+import { formatValue, legendLine, legendOf } from './legend';
+import { paintRings, zonePaintRegions } from './zone-paint';
 
 const CAPTION_FILL = '#495057';
-const BADGE_TEXT = '#FFFFFF';
+const LABEL_BACKGROUND = '#FFFFFF';
+const LABEL_FONT = 11;
+const LABEL_HEIGHT = 16;
+/** Space between labels: the 1 px stroke is drawn half outside the box. */
+const LABEL_GAP = 3;
+const SWATCH = 8;
+const LEGEND_FONT = 12;
+const LEGEND_ROW = 18;
+/** The zone name drawn by the geometry layer: 12 px, centred on the anchor. */
+const ZONE_NAME_FONT = 12;
+const ZONE_NAME_COLUMN = 120;
 
 /** Середина габаритов полигона: достаточно, чтобы повесить на зону подпись. */
 function labelAnchor(polygon: Polygon): Point {
@@ -47,16 +60,22 @@ function mixColors(from: string, to: string, ratio: number): string {
   return `#${blend(1)}${blend(3)}${blend(5)}`;
 }
 
-function formatValue(value: number, unit: string): string {
-  const text = Number.isInteger(value) ? String(value) : value.toFixed(1).replace('.', ',');
-  return unit === '' ? text : `${text} ${unit}`;
+/** Colour that stands for the layer in its labels and in the canvas legend. */
+function layerColor(type: LayerType): string {
+  const representation = type.representation;
+  if (representation.kind === 'zone-heat') return representation.colors[1];
+  if (representation.kind === 'objects') return CAPTION_FILL;
+  return representation.color;
 }
+
+type ZoneLabel = { key: string; text: string; color: string; request: Box };
 
 export function InformationLayer({
   document: plan,
   session,
 }: InformationLayerProps): React.JSX.Element {
   const { viewport } = session;
+  const screen = (point: Point): [number, number] => modelToScreen(point, viewport);
 
   const active: { id: Id; type: LayerType }[] = plan.layers
     .filter((layer) => layer.visible)
@@ -69,127 +88,214 @@ export function InformationLayer({
         : [{ id: layer.id, type }];
     });
 
-  const zoneShapes = (
-    layerId: Id,
-    zone: Zone,
-    fill: string,
-    opacity: number,
-  ): React.JSX.Element => (
-    <Line
-      key={`${layerId}-${zone.id}`}
-      points={zone.polygon.flatMap((point) => modelToScreen(point, viewport))}
-      closed
-      fill={fill}
-      opacity={opacity}
-      listening={false}
-    />
+  // Canvas legend, top left: one row per active layer.
+  const legendRows = active.map((entry, index) => ({
+    ...entry,
+    legend: legendOf(entry.type),
+    text: legendLine(entry.type, legendOf(entry.type)),
+    y: 12 + index * LEGEND_ROW,
+  }));
+  const legendWidth = Math.max(0, ...legendRows.map((row) => 44 + labelWidth(row.text, LEGEND_FONT)));
+  const legendBox: Box = { x: 6, y: 6, width: legendWidth, height: legendRows.length * LEGEND_ROW + 6 };
+
+  const ring = (polygon: Polygon): number[] => polygon.flatMap((point) => screen(point));
+
+  const fills: React.JSX.Element[] = [];
+  const labels: ZoneLabel[] = [];
+
+  for (const { id: layerId, type } of active) {
+    const representation = type.representation;
+    // Ordinary layers are drawn by the geometry and equipment layers.
+    if (representation.kind === 'objects') continue;
+
+    if (representation.kind === 'zone-heat' || representation.kind === 'zone-count') {
+      const valueOf = (zone: Zone): number | null =>
+        numberAttribute(zone.attributes, representation.attribute);
+
+      for (const zone of plan.zones) {
+        const value = valueOf(zone);
+        if (value === null) continue;
+        const text = formatValue(value, representation.unit);
+        const [x, y] = screen(labelAnchor(zone.polygon));
+        const width = labelWidth(text, LABEL_FONT) + SWATCH + 4;
+        labels.push({
+          key: `${layerId}-${zone.id}`,
+          text,
+          color: layerColor(type),
+          // Below the zone name; collisions are resolved after all layers are in.
+          request: { x: x - width / 2, y: y + 8, width, height: LABEL_HEIGHT },
+        });
+      }
+
+      if (representation.kind === 'zone-heat') {
+        // Deepest zone with a value paints each point; nested zones are holes.
+        for (const region of zonePaintRegions(plan.zones, (zone) => valueOf(zone) !== null)) {
+          const zone = region.zone;
+          const ratio = Math.min(Math.max((valueOf(zone) ?? 0) / representation.max, 0), 1);
+          const rings = paintRings(region).map(ring);
+          fills.push(
+            <Shape
+              key={`${layerId}-${zone.id}`}
+              name="info-fill"
+              sceneFunc={(context, shape) => {
+                context.beginPath();
+                for (const points of rings) {
+                  context.moveTo(points[0] ?? 0, points[1] ?? 0);
+                  for (let i = 2; i < points.length; i += 2) {
+                    context.lineTo(points[i] ?? 0, points[i + 1] ?? 0);
+                  }
+                  context.closePath();
+                }
+                context.fillStrokeShape(shape);
+              }}
+              fill={mixColors(representation.colors[0], representation.colors[1], ratio)}
+              fillRule="evenodd"
+              opacity={0.7}
+              listening={false}
+            />,
+          );
+        }
+      }
+      continue;
+    }
+
+    const types = new Set(representation.objectTypeIds);
+    for (const object of plan.objects) {
+      if (!types.has(object.typeId)) continue;
+      const angle =
+        numberAttribute(object.attributes, representation.angleAttribute) ?? representation.angle_deg;
+      const range =
+        numberAttribute(object.attributes, representation.rangeAttribute) ?? representation.range_m;
+      const sector = viewSector(object.position, object.rotation_deg, angle, range);
+      fills.push(
+        <Line
+          key={`${layerId}-${object.id}-sector`}
+          points={ring(sector)}
+          closed
+          fill={representation.color}
+          opacity={0.22}
+          stroke={representation.color}
+          strokeWidth={1}
+          listening={false}
+        />,
+      );
+    }
+  }
+
+  // Zone names of the geometry layer and the legend are fixed; labels move around them.
+  const obstacles: Box[] = [
+    ...(legendRows.length === 0 ? [] : [legendBox]),
+    ...plan.zones.map((zone) => {
+      const [x, y] = screen(labelAnchor(zone.polygon));
+      // The geometry layer wraps names into a 120 px column: long names take two lines.
+      const full = labelWidth(zone.name, ZONE_NAME_FONT);
+      const lines = Math.ceil(full / ZONE_NAME_COLUMN);
+      const width = Math.min(full, ZONE_NAME_COLUMN);
+      return { x: x - width / 2, y: y - 7, width, height: lines * 15 };
+    }),
+  ];
+  const placed = placeLabels(
+    obstacles,
+    labels.map((label) => label.request),
+    LABEL_GAP,
   );
 
-  const paint = (layerId: Id, type: LayerType): React.JSX.Element[] => {
-    const representation = type.representation;
-    // Обычный слой рисуют слои объектов и геометрии, здесь ему делать нечего.
-    if (representation.kind === 'objects') return [];
+  return (
+    <Layer listening={false}>
+      {fills}
 
-    if (representation.kind === 'zone-heat') {
-      return plan.zones.flatMap((zone) => {
-        const value = numberAttribute(zone.attributes, representation.attribute);
-        if (value === null) return [];
-        const ratio = Math.min(Math.max(value / representation.max, 0), 1);
-        const [x, y] = modelToScreen(labelAnchor(zone.polygon), viewport);
+      {labels.map((label, index) => {
+        const box = placed[index] ?? label.request;
+        return (
+          <Rect
+            key={`${label.key}-box`}
+            name="info-label"
+            x={box.x}
+            y={box.y}
+            width={box.width}
+            height={box.height}
+            cornerRadius={3}
+            fill={LABEL_BACKGROUND}
+            opacity={0.9}
+            stroke={label.color}
+            strokeWidth={1}
+            listening={false}
+          />
+        );
+      })}
+      {labels.flatMap((label, index) => {
+        const box = placed[index] ?? label.request;
         return [
-          zoneShapes(
-            layerId,
-            zone,
-            mixColors(representation.colors[0], representation.colors[1], ratio),
-            0.7,
-          ),
+          <Rect
+            key={`${label.key}-swatch`}
+            x={box.x + 4}
+            y={box.y + (LABEL_HEIGHT - SWATCH) / 2}
+            width={SWATCH}
+            height={SWATCH}
+            fill={label.color}
+            listening={false}
+          />,
           <Text
-            key={`${layerId}-${zone.id}-value`}
-            x={x - 60}
-            y={y + 8}
-            width={120}
-            align="center"
-            text={formatValue(value, representation.unit)}
-            fontSize={13}
+            key={`${label.key}-text`}
+            x={box.x + SWATCH + 6}
+            y={box.y + 3}
+            text={label.text}
+            fontSize={LABEL_FONT}
             fontStyle="bold"
             fill={CAPTION_FILL}
             listening={false}
           />,
         ];
-      });
-    }
+      })}
 
-    if (representation.kind === 'zone-count') {
-      return plan.zones.flatMap((zone) => {
-        const value = numberAttribute(zone.attributes, representation.attribute);
-        if (value === null) return [];
-        const [x, y] = modelToScreen(labelAnchor(zone.polygon), viewport);
-        return [
-          <Circle
-            key={`${layerId}-${zone.id}-badge`}
-            x={x}
-            y={y + 22}
-            radius={16}
-            fill={representation.color}
-            opacity={0.9}
-            listening={false}
-          />,
-          <Text
-            key={`${layerId}-${zone.id}-count`}
-            x={x - 40}
-            y={y + 16}
-            width={80}
-            align="center"
-            text={formatValue(value, representation.unit)}
-            fontSize={12}
-            fill={BADGE_TEXT}
-            listening={false}
-          />,
-        ];
-      });
-    }
-
-    const types = new Set(representation.objectTypeIds);
-    return plan.objects
-      .filter((object: Equipment) => types.has(object.typeId))
-      .map((object) => {
-        const angle =
-          numberAttribute(object.attributes, representation.angleAttribute) ??
-          representation.angle_deg;
-        const range =
-          numberAttribute(object.attributes, representation.rangeAttribute) ??
-          representation.range_m;
-        const sector = viewSector(object.position, object.rotation_deg, angle, range);
-        return (
-          <Line
-            key={`${layerId}-${object.id}-sector`}
-            points={sector.flatMap((point) => modelToScreen(point, viewport))}
-            closed
-            fill={representation.color}
-            opacity={0.22}
-            stroke={representation.color}
-            strokeWidth={1}
-            listening={false}
-          />
-        );
-      });
-  };
-
-  return (
-    <Layer listening={false}>
-      {active.flatMap(({ id, type }) => paint(id, type))}
-
-      {active.map((entry, index) => (
-        <Text
-          key={`caption-${entry.id}`}
-          x={12}
-          y={12 + index * 16}
-          text={`${entry.type.label}: числа синтетические`}
-          fontSize={12}
-          fill={CAPTION_FILL}
+      {legendRows.length === 0 ? null : (
+        <Rect
+          name="info-legend"
+          x={legendBox.x}
+          y={legendBox.y}
+          width={legendBox.width}
+          height={legendBox.height}
+          cornerRadius={4}
+          fill={LABEL_BACKGROUND}
+          opacity={0.85}
           listening={false}
         />
-      ))}
+      )}
+      {legendRows.flatMap((row) => [
+        row.legend.kind === 'scale' ? (
+          <Rect
+            key={`legend-${row.id}-scale`}
+            x={12}
+            y={row.y + 3}
+            width={32}
+            height={9}
+            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+            fillLinearGradientEndPoint={{ x: 32, y: 0 }}
+            fillLinearGradientColorStops={[0, row.legend.from, 1, row.legend.to]}
+            listening={false}
+          />
+        ) : (
+          <Rect
+            key={`legend-${row.id}-swatch`}
+            x={12}
+            y={row.y + 2}
+            width={SWATCH + 2}
+            height={SWATCH + 2}
+            fill={layerColor(row.type)}
+            listening={false}
+          />
+        ),
+        <Text
+          key={`caption-${row.id}`}
+          name="info-caption"
+          x={50}
+          y={row.y + 1}
+          text={row.text}
+          fontSize={LEGEND_FONT}
+          fill={CAPTION_FILL}
+          listening={false}
+        />,
+      ])}
     </Layer>
   );
 }
