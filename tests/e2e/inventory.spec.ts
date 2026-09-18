@@ -28,6 +28,13 @@ function countByType(plan: PlanDocument): Map<string, number> {
   return counts;
 }
 
+/** Название типа из справочника, который приехал вместе с планом. */
+function typeLabel(plan: PlanDocument, typeId: string): string {
+  const type = plan.catalog.objectTypes.find((entry) => entry.id === typeId);
+  if (type === undefined) throw new Error(`Нет типа ${typeId} в справочнике плана`);
+  return type.label;
+}
+
 const panel = (page: Page) => page.getByLabel('Инвентаризация');
 const inventoryRows = (page: Page) => panel(page).locator('table').first().locator('tbody tr');
 const chips = (page: Page) => panel(page).getByTestId('inventory-type');
@@ -84,6 +91,36 @@ test.describe('перечень оборудования', () => {
 
     await panel(page).getByRole('button', { name: 'Сбросить фильтр' }).click();
     await expect(inventoryRows(page)).toHaveCount(demo.objects.length);
+  });
+
+  test('в перечне и в находках стоят названия, а не только ot_* и z_*', async ({ page }) => {
+    await openDemo(page);
+    const bench = typeLabel(demo, 'ot_bench');
+    expect(bench).not.toMatch(/^ot_/);
+
+    // Строка сводки названа словами справочника.
+    await expect(chipOf(page, 'ot_bench')).toContainText(bench);
+
+    await chipOf(page, 'ot_bench').click();
+    const row = inventoryRows(page).first();
+    // В строке перечня: название типа словами и его id рядом, не вместо.
+    await expect(row).toContainText(bench);
+    await expect(row).toContainText('ot_bench');
+    // Зона названа именем из плана, id — рядом.
+    await expect(row).toContainText('Зона ожидания');
+    await expect(row).toContainText('z_waiting');
+    await panel(page).getByRole('button', { name: 'Сбросить фильтр' }).click();
+
+    // Разрез по зонам — тоже по именам.
+    const zones = panel(page).locator('table').nth(1);
+    await expect(zones).toContainText('Клиентский зал');
+    await expect(zones).toContainText('z_client');
+
+    // Находка проверки называет объект, о котором она.
+    const checks = page.getByLabel('Проверка плана');
+    await expect(
+      checks.locator('.table__link', { hasText: 'Терминал электронной очереди' }),
+    ).toContainText('eq_1');
   });
 
   test('поиск находит объект по инвентарному номеру и по зоне', async ({ page }) => {

@@ -229,8 +229,8 @@ export function App(): React.JSX.Element {
             onAsk={askAssistant}
           />
           <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
-          <ValidationPanel issues={issues} onFocus={focusOn} />
-          <InventoryPanel inventory={inventory} onFocus={focusOn} />
+          <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
+          <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
         </aside>
       </div>
     </div>

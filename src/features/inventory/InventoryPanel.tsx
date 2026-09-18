@@ -63,7 +63,15 @@ const CHIP_STYLE = {
 
 const CHIP_SELECTED_STYLE = { ...CHIP_STYLE, borderColor: 'var(--accent)', background: '#f8f9fa' };
 
-const ID_STYLE = { marginLeft: '6px', fontSize: '11px' } as const;
+/**
+ * The id goes under the name, not after it: the side panel is 315 px wide and
+ * a name plus an id on one line pushed the table 138 px past its edge.
+ * `anywhere` lets `ot_fire_sensor` break instead of widening the column.
+ */
+const ID_STYLE = { display: 'block', fontSize: '11px', overflowWrap: 'anywhere' } as const;
+
+/** Fixed columns: the widest name must not decide the width of the panel. */
+const TABLE_STYLE = { tableLayout: 'fixed' } as const;
 
 /** The raw id after the name: secondary, but never hidden. */
 function RawId({ id }: { id: Id }): React.JSX.Element {
@@ -139,7 +147,7 @@ export function InventoryPanel({
           <p className="panel__note">
             {absent === 0
               ? 'Показаны типы справочника, у которых есть объекты. Строка типа фильтрует перечень.'
-              : `Строка типа фильтрует перечень. Ещё ${absent} ${typesWord(absent)} справочника не размещено.`}
+              : `Строка типа фильтрует перечень. Ещё ${absent} ${typesWord(absent)} справочника без объектов.`}
           </p>
         </>
       )}
@@ -158,7 +166,12 @@ export function InventoryPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
 
-          <table className="table">
+          <table className="table" style={TABLE_STYLE}>
+            <colgroup>
+              <col style={{ width: '38%' }} />
+              <col style={{ width: '34%' }} />
+              <col style={{ width: '28%' }} />
+            </colgroup>
             <thead>
               <tr>
                 <th scope="col">Объект</th>
@@ -231,7 +244,12 @@ export function InventoryPanel({
       </dl>
 
       {zones.length === 0 ? null : (
-        <table className="table">
+        <table className="table" style={TABLE_STYLE}>
+          <colgroup>
+            <col style={{ width: '50%' }} />
+            <col style={{ width: '25%' }} />
+            <col style={{ width: '25%' }} />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Зона</th>
