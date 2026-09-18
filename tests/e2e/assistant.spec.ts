@@ -118,6 +118,21 @@ test.describe('ассистент в браузере', () => {
     await expect(sentence).toContainText('удалено 1');
     // Свободная площадь выросла: «было → стало» с разными числами.
     await expect(sentence).toContainText(/Свободная площадь: [\d,]+ → [\d,]+ м² \(\+/);
+
+    // Сохранение переносит «было»: сравнивать нужно с сохранённым, а не с
+    // открытым файлом. После сохранения и ещё одного удаления ответ — снова
+    // «удалено 1», а не «удалено 2» от исходного файла.
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Сохранить' }).click(),
+    ]);
+    await rows.first().locator('.table__link').first().click();
+    await page.keyboard.press('Delete');
+    await expect(rows).toHaveCount(51);
+
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+    await expect(sentence).toContainText('удалено 1');
+    await expect(sentence).not.toContainText('удалено 2');
   });
 
   test('сценарий сравнения на неизменном плане не выдумывает изменений', async ({ page }) => {

@@ -58,10 +58,11 @@ export function App(): React.JSX.Element {
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
-  // «Было» для сценария сравнения: план в момент открытия файла, «Нового» или
-  // последнего сохранения. Store держит такой же снимок для флага dirty, но в
-  // замыкании; вести его здесь дешевле, чем расширять контракт store ради
-  // одного читателя. Обновляется в тех же трёх местах, что и baseline store.
+  // The "before" of the compare scenario: the plan as opened, as reset by "New"
+  // or as last saved; a restored draft is its own "before". The store keeps the
+  // same snapshot for the dirty flag, but in a closure — tracking it here is
+  // cheaper than widening the store contract for one reader. Updated in the
+  // same three places as the store's baseline (D-131).
   const [compareBase, setCompareBase] = useState<PlanDocument>(() => store.getState().document);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
@@ -107,8 +108,8 @@ export function App(): React.JSX.Element {
       setAdviceState({ status: 'loading' });
       // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
       // если план успели поправить, пока сервер считал.
-      // Панель не знает истории документа и в сценарии сравнения присылает
-      // «было» = текущий план; настоящее «было» знает только приложение.
+      // The panel knows no document history and sends the current plan as
+      // "before"; only the app knows the real one.
       const grounded: AdviceRequest =
         request.scenario === 'compare' ? { ...request, before: compareBase } : request;
       const asked = { plan: document, revision, request: grounded, ...(query === undefined ? {} : { query }) };
@@ -177,7 +178,7 @@ export function App(): React.JSX.Element {
           onNew={startNewPlan}
           onExported={() => {
             store.getState().markExported(revision);
-            // Сохранённый план становится новой точкой отсчёта «было».
+            // The saved plan becomes the new "before".
             setCompareBase(document);
           }}
         />
