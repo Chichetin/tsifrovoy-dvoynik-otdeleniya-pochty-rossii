@@ -107,13 +107,20 @@ const honestModel: LlmClient = async ({ user }) => {
 };
 
 describe('A05: маршрут ассистента', () => {
-  test('health отвечает без всякой настройки', async () => {
-    const app = server(null);
-    const response = await app.inject({ method: 'GET', url: '/api/health' });
+  // Первый тест файла платит за импорт маршрута, Fastify и домена советов.
+  // Под параллельной нагрузкой это выходило за стандартные 5 с и давало флейк,
+  // хотя сам вызов — app.inject без сети. Бюджет здесь не про скорость ответа.
+  test(
+    'health отвечает без всякой настройки',
+    async () => {
+      const app = server(null);
+      const response = await app.inject({ method: 'GET', url: '/api/health' });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ status: 'ok' });
-  });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ status: 'ok' });
+    },
+    20_000,
+  );
 
   test('без провайдера ответ приходит с расчётом и пометкой fallback', async () => {
     const response = await ask(server(null), { plan, revision: 4, request: placeRequest });
