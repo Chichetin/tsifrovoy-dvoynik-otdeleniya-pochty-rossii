@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * IO03: что группа кнопок обещает пользователю, когда в браузере лежит черновик.
  *
@@ -61,6 +62,7 @@ function renderControls(overrides: Overrides = {}) {
     <FileControls
       document={empty}
       dirty={true}
+      revision={0}
       read={read}
       encode={encode}
       onReplace={onReplace}
@@ -74,6 +76,7 @@ function renderControls(overrides: Overrides = {}) {
       <FileControls
         document={empty}
         dirty={true}
+        revision={0}
         read={read}
         encode={encode}
         onReplace={onReplace}
@@ -103,6 +106,41 @@ afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
   window.localStorage.clear();
+});
+
+describe('FileControls: замена текущего плана', () => {
+  test('«Новый» на нетронутом пустом плане не спрашивает о несуществующих правках', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 0 });
+    expect(screen.getByText('новый план не сохранён')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onNew).toHaveBeenCalledTimes(1);
+  });
+
+  test('правка даже пустого контура защищена вопросом про новый план', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 1 });
+    expect(screen.getByText('есть несохранённые правки')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+
+    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Создать новый план?'));
+    expect(onNew).not.toHaveBeenCalled();
+  });
+
+  test('сохранённый, но непустой план не заменяется файлом без согласия', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    renderControls({ storage: null, document: filled, dirty: false, revision: 1 });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
+
+    expect(confirm).toHaveBeenCalledWith(
+      'Текущий план будет заменён. Открыть другой файл?',
+    );
+  });
 });
 
 describe('FileControls: хранилище черновика', () => {

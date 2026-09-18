@@ -172,6 +172,7 @@ export function App(): React.JSX.Element {
         <FileControls
           document={document}
           dirty={dirty}
+          revision={revision}
           read={readPlanFile}
           encode={encodePlan}
           onReplace={replaceDocument}

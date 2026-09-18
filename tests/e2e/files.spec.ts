@@ -68,6 +68,31 @@ async function download(page: Page): Promise<string> {
 }
 
 test.describe('файлы плана', () => {
+  test('«Новый» не пугает на пустом старте, но защищает поставленный объект', async ({ page }) => {
+    const dialogs: string[] = [];
+    let accept = false;
+    page.on('dialog', (dialog) => {
+      dialogs.push(dialog.message());
+      void (accept ? dialog.accept() : dialog.dismiss());
+    });
+    await page.goto('/');
+    await expect(page.getByText('новый план не сохранён')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Новый' }).click();
+    expect(dialogs).toEqual([]);
+    await placeFirstLibraryItem(page, 300, 260);
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Новый' }).click();
+    expect(dialogs).toHaveLength(1);
+    expect(dialogs[0]).toContain('Создать новый план?');
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    accept = true;
+    await page.getByRole('button', { name: 'Новый' }).click();
+    await expect(inventoryRows(page)).toHaveCount(0);
+  });
+
   test('кнопка «Открыть» принимает сырой пример организаторов', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));

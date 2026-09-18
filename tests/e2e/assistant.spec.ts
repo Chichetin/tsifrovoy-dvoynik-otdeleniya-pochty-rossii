@@ -26,6 +26,26 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент');
 
 test.describe('ассистент в браузере', () => {
+  test('лимит 429 на сервере оставляет рекомендации в режиме без LLM', async ({ page }) => {
+    await page.route('**/api/advice', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          issues: [{ code: 'LLM_HTTP_ERROR', severity: 'error', message: 'Лимит модели', refs: [] }],
+        }),
+      }),
+    );
+    await page.goto('/');
+    await drawZone(page);
+
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    await expect(panel(page).locator('.assistant__mode')).toContainText('Без LLM');
+    await expect(panel(page).locator('.assistant__mode')).toContainText('429');
+    await expect(panel(page).locator('.advice__sentence').first()).toContainText('Место найдено');
+  });
+
   test('сценарий «найти место»: варианты, числа и пометка «без LLM»', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -93,6 +113,18 @@ test.describe('ассистент в браузере', () => {
       await panel(page).locator('.advice__more summary').first().click();
       await expect(panel(page).locator('.advice__more li').first()).toContainText('команды');
     }
+  });
+
+  test('комплектование демо называет оборудование и зону рядом с числами', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await panel(page).getByLabel('Сценарий').selectOption('equipment');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    const bench = panel(page).locator('.advice').filter({ hasText: 'Скамья / кресла для ожидания' });
+    await expect(bench).toHaveCount(1);
+    await expect(bench.locator('.advice__sentence')).toContainText('Зона ожидания');
+    await expect(bench.locator('.advice__sentence')).toContainText('Не хватает оборудования: 1 при минимуме 2');
   });
 
   test('сценарий сравнения после правки показывает «было → стало», а не нули', async ({ page }) => {

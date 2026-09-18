@@ -43,6 +43,8 @@ import type { OpenedPlan } from '../../persistence/format';
 export type FileControlsProps = {
   document: PlanDocument;
   dirty: boolean;
+  /** A fresh, untouched plan starts at revision 0 even though it is not exported. */
+  revision: number;
   /** Reads a file of either supported format; see `persistence/format.ts`. */
   read: (text: string) => Result<OpenedPlan>;
   encode: (plan: PlanDocument) => Result<string>;
@@ -57,8 +59,6 @@ export type FileControlsProps = {
    */
   storage?: DraftStorage | null;
 };
-
-const DIRTY_WARNING = 'В плане есть несохранённые правки. Открыть другой файл и потерять их?';
 
 const RESTORE_WARNING =
   'План уже изменён с момента открытия страницы. Восстановить черновик и потерять эти правки?';
@@ -77,6 +77,15 @@ function describe(issues: Issue[]): string {
 /** Есть ли в плане что терять: помещение и слои даёт и пустой новый план. */
 function hasContent(plan: PlanDocument): boolean {
   return plan.zones.length > 0 || plan.objects.length > 0;
+}
+
+function needsReplacementWarning(plan: PlanDocument, dirty: boolean, revision: number): boolean {
+  return hasContent(plan) || (dirty && revision > 0);
+}
+
+function replacementWarning(action: 'Новый' | 'Открыть', dirty: boolean): string {
+  const consequence = dirty ? 'Несохранённые правки будут потеряны.' : 'Текущий план будет заменён.';
+  return `${consequence} ${action === 'Новый' ? 'Создать новый план?' : 'Открыть другой файл?'}`;
 }
 
 function fileName(plan: PlanDocument): string {
@@ -102,6 +111,7 @@ function atTime(iso: string): string {
 export function FileControls({
   document: plan,
   dirty,
+  revision,
   read,
   encode,
   onReplace,
@@ -134,6 +144,7 @@ export function FileControls({
   const [draftAt, setDraftAt] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const writer = useRef<DraftWriter | null>(null);
+  const untouchedNew = dirty && revision === 0 && !hasContent(plan);
 
   useEffect(() => {
     if (storage === null) return;
@@ -264,7 +275,8 @@ export function FileControls({
         type="button"
         className="files__button"
         onClick={() => {
-          if (dirty && !window.confirm(DIRTY_WARNING)) return;
+          if (needsReplacementWarning(plan, dirty, revision) &&
+              !window.confirm(replacementWarning('Новый', dirty))) return;
           onNew();
           if (storage !== null) clearDraft(storage);
           // Чистый лист — тоже ответ на предложение: черновика больше нет.
@@ -283,7 +295,8 @@ export function FileControls({
         type="button"
         className="files__button"
         onClick={() => {
-          if (dirty && !window.confirm(DIRTY_WARNING)) return;
+          if (needsReplacementWarning(plan, dirty, revision) &&
+              !window.confirm(replacementWarning('Открыть', dirty))) return;
           input.current?.click();
         }}
       >
@@ -309,7 +322,7 @@ export function FileControls({
       />
 
       <span className={dirty ? 'files__status is-dirty' : 'files__status'}>
-        {dirty ? 'есть несохранённые правки' : 'сохранено'}
+        {untouchedNew ? 'новый план не сохранён' : dirty ? 'есть несохранённые правки' : 'сохранено'}
       </span>
 
     </div>
