@@ -64,6 +64,15 @@ export function App(): React.JSX.Element {
   // cheaper than widening the store contract for one reader. Updated in the
   // same three places as the store's baseline (D-131).
   const [compareBase, setCompareBase] = useState<PlanDocument>(() => store.getState().document);
+  /**
+   * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
+   * вписал, по `id` и имени, а два файла могут нести одну личность:
+   * `demo/before.json` и `demo/after.json` именно такие — второй это тот же
+   * план после рекомендации. Жюри открывает их подряд, поэтому «документ
+   * заменили» решается по самому действию, а не по содержимому файла: смена
+   * этого числа пересоздаёт холст, и вид считается заново.
+   */
+  const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   const session: EditorSession = useMemo(
@@ -136,6 +145,9 @@ export function App(): React.JSX.Element {
       store.getState().replaceDocument(plan, origin);
       setCompareBase(plan);
       setLastError(null);
+      // Открыт другой документ: вид считается заново, даже если файл несёт ту
+      // же личность, что и прежний.
+      setDocumentEpoch((epoch) => epoch + 1);
     },
     [store],
   );
@@ -146,6 +158,7 @@ export function App(): React.JSX.Element {
     setCompareBase(fresh.getState().document);
     setTool({ kind: 'select' });
     setLastError(null);
+    setDocumentEpoch((epoch) => epoch + 1);
   }, []);
 
   return (
@@ -204,6 +217,7 @@ export function App(): React.JSX.Element {
 
         <main className="shell__canvas">
           <EditorCanvas
+            key={documentEpoch}
             document={document}
             session={session}
             onPointer={(event) => {
