@@ -247,7 +247,7 @@ test.describe('жесты над оборудованием', () => {
 
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(card(page).getByText('Выберите зону, объект, перегородку или проём на плане')).toBeVisible();
     await page.keyboard.press('Delete');
     await expect(inventoryRows(page)).toHaveCount(1);
 
