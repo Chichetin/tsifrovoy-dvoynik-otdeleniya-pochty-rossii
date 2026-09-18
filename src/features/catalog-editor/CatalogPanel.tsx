@@ -19,6 +19,7 @@ import {
   addObjectType,
   removeAttribute,
   removeObjectType,
+  layersReading,
   removeRule,
   type NewAttribute,
 } from './catalog-edit';
@@ -267,18 +268,31 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
                 Атрибуты типа «{chosen.label}» — источник: {chosen.provenance}
               </p>
               <ul className="catalog__types">
-                {chosen.attributes.map((a) => (
-                  <li key={a.key}>
-                    {a.label} <span className="table__muted">({a.key}, {a.type}{a.required ? ', обязательный' : ''})</span>
-                    <button
-                      type="button"
-                      className="table__link catalog__remove"
-                      onClick={() => apply(removeAttribute(catalog, chosen.id, a.key))}
-                    >
-                      удалить
-                    </button>
-                  </li>
-                ))}
+                {chosen.attributes.map((a) => {
+                  const readers = layersReading(catalog, a.key);
+                  return (
+                    <li key={a.key}>
+                      {a.label} <span className="table__muted">({a.key}, {a.type}{a.required ? ', обязательный' : ''})</span>
+                      {readers.length === 0 ? null : (
+                        <span className="table__muted" data-testid="catalog-attr-layer-note">
+                          {' '}· читает слой «{readers.map((l) => l.label).join('», «')}»
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="table__link catalog__remove"
+                        title={
+                          readers.length === 0
+                            ? 'Удалить атрибут'
+                            : 'Слой перестанет показывать это число; значения у объектов останутся в файле'
+                        }
+                        onClick={() => apply(removeAttribute(catalog, chosen.id, a.key))}
+                      >
+                        удалить
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
               <div className="catalog__row">
                 <label className="assistant__field">

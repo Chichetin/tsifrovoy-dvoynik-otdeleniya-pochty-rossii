@@ -16,6 +16,7 @@ import {
   TEAM_ASSUMPTION_PROVENANCE,
   addAttribute,
   addCountRule,
+  layersReading,
   addObjectType,
   removeAttribute,
   removeObjectType,
@@ -202,5 +203,24 @@ describe('правила комплектования', () => {
       zoneTypeId: zoneType, objectTypeId: objectType, scope: 'direct', min: 1, max: null, rationale: 'x',
     });
     expect(removeRule(catalog, id).rules.some((r) => r.id === id)).toBe(false);
+  });
+});
+
+describe('атрибуты, которые читают слои', () => {
+  test('ключ теплового слоя и ключи камер находятся, чужой ключ — нет', () => {
+    const catalog = {
+      version: 'test',
+      objectTypes: [],
+      zoneTypes: [],
+      rules: [],
+      layerTypes: [
+        { id: 'lt_heat', label: 'Нагрузка', note: '', representation: { kind: 'zone-heat' as const, attribute: 'loadPercent', unit: '%', max: 100, colors: ['#ffffff', '#ff0000'] as [string, string] } },
+        { id: 'lt_cam', label: 'Камеры', note: '', representation: { kind: 'object-field' as const, objectTypeIds: [], angleAttribute: 'viewAngleDeg', rangeAttribute: 'viewRangeM', angle_deg: 90, range_m: 5, color: '#000000' } },
+        { id: 'lt_plain', label: 'Обычный', note: '', representation: { kind: 'objects' as const } },
+      ],
+    };
+    expect(layersReading(catalog, 'loadPercent').map((l) => l.id)).toEqual(['lt_heat']);
+    expect(layersReading(catalog, 'viewRangeM').map((l) => l.id)).toEqual(['lt_cam']);
+    expect(layersReading(catalog, 'condition')).toEqual([]);
   });
 });

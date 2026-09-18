@@ -12,7 +12,7 @@
  * явно и предсказуемо.
  */
 
-import type { AttributeDef, Catalog, CountRule, Id, ObjectType, Point } from '../../contracts/model';
+import type { AttributeDef, Catalog, CountRule, Id, LayerType, ObjectType, Point } from '../../contracts/model';
 
 /** Новый тип оборудования — все размеры условные, и это записано в источнике. */
 export type NewObjectType = {
@@ -148,4 +148,19 @@ export function addCountRule(catalog: Catalog, input: NewCountRule): { catalog: 
 
 export function removeRule(catalog: Catalog, id: Id): Catalog {
   return { ...catalog, rules: catalog.rules.filter((r) => r.id !== id) };
+}
+
+/**
+ * Типы слоёв, которые читают этот ключ атрибута: тепловой слой — `loadPercent`,
+ * камеры — угол и дальность обзора. Удалить такой атрибут можно — слой лишь
+ * перестанет показывать число, — но пользователь должен узнать об этом до
+ * клика, а не после того, как карта нагрузки опустела.
+ */
+export function layersReading(catalog: Catalog, key: string): LayerType[] {
+  return catalog.layerTypes.filter((layer) => {
+    const r = layer.representation;
+    if (r.kind === 'zone-heat' || r.kind === 'zone-count') return r.attribute === key;
+    if (r.kind === 'object-field') return r.angleAttribute === key || r.rangeAttribute === key;
+    return false;
+  });
 }

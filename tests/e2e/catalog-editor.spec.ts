@@ -90,4 +90,11 @@ test('обязательный атрибут без умолчания откл
 
   await expect(panel(page).getByTestId('catalog-error')).toBeVisible();
   await expect(panel(page).getByTestId('catalog-attributes')).not.toContainText('Серийный номер');
+
+  // У камеры угол и дальность обзора читает слой «Камеры и зоны обзора» — рядом с
+  // атрибутом об этом сказано до клика «удалить».
+  await panel(page).getByTestId('catalog-types').locator('li', { hasText: 'Камера' }).first().locator('.table__link').first().click();
+  const notes = panel(page).getByTestId('catalog-attr-layer-note');
+  await expect(notes).toHaveCount(2);
+  await expect(notes.first()).toContainText('Камеры и зоны обзора');
 });
