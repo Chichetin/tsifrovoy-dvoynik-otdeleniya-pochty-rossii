@@ -86,6 +86,11 @@ export function PlanGeometryLayer({
   onSelect,
 }: PlanGeometryLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
+  // While a drawing tool is active the click belongs to the tool: the shape
+  // under the pointer must not steal the selection from what was just drawn.
+  const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
+  const pick = (ref: Parameters<typeof onSelect>[0]): (() => void) | undefined =>
+    picking ? () => onSelect(ref) : undefined;
   const [editing, setEditing] = useState<Editing | null>(null);
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
@@ -318,7 +323,7 @@ export function PlanGeometryLayer({
           room.invalid ? INVALID_STROKE : isSelected('room', plan.room.id) ? SELECTED_STROKE : ROOM_STROKE
         }
         strokeWidth={2}
-        onPointerClick={() => onSelect({ kind: 'room', id: plan.room.id })}
+        onPointerClick={pick({ kind: 'room', id: plan.room.id })}
       />
 
       {zones.map((zone) => {
@@ -334,7 +339,7 @@ export function PlanGeometryLayer({
               shown.invalid ? INVALID_STROKE : isSelected('zone', zone.id) ? SELECTED_STROKE : '#ADB5BD'
             }
             strokeWidth={isSelected('zone', zone.id) ? 2.5 : 1}
-            onPointerClick={() => onSelect({ kind: 'zone', id: zone.id })}
+            onPointerClick={pick({ kind: 'zone', id: zone.id })}
           />
         );
       })}
@@ -364,7 +369,7 @@ export function PlanGeometryLayer({
           fill={WALL_FILL}
           stroke={isSelected('wall', wall.id) ? SELECTED_STROKE : WALL_FILL}
           strokeWidth={isSelected('wall', wall.id) ? 2.5 : 1}
-          onPointerClick={() => onSelect({ kind: 'wall', id: wall.id })}
+          onPointerClick={pick({ kind: 'wall', id: wall.id })}
         />
       ))}
 
@@ -393,7 +398,7 @@ export function PlanGeometryLayer({
             )}
             stroke={isSelected('opening', opening.id) ? SELECTED_STROKE : OPENING_FILL}
             strokeWidth={Math.max(3, shownWall.thickness_m * viewport.scale)}
-            onPointerClick={() => onSelect({ kind: 'opening', id: opening.id })}
+            onPointerClick={pick({ kind: 'opening', id: opening.id })}
           />
         );
       })}

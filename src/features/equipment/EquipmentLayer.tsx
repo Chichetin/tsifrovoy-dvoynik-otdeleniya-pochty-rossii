@@ -84,6 +84,9 @@ export function EquipmentLayer({
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
+  // A click while placing belongs to the placement tool: the object under the
+  // pointer must not take the selection away from the one just placed.
+  const placing = session.tool.kind === 'object.place';
   const [gesture, setGesture] = useState<Gesture | null>(null);
   // Lazy initialiser: one guard per layer, kept across renders. It holds the
   // gesture in progress — the dragged node, where it started and where inside
@@ -196,7 +199,7 @@ export function EquipmentLayer({
         rotation={current.rotation_deg}
         draggable={!ghost && !lockedLayers.has(object.layerId)}
         listening={!ghost}
-        onPointerClick={() => onSelect({ kind: 'object', id: object.id })}
+        onPointerClick={placing ? undefined : () => onSelect({ kind: 'object', id: object.id })}
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
           setGesture({ id: object.id, object: { ...object, position: movedTo(event.target) } });

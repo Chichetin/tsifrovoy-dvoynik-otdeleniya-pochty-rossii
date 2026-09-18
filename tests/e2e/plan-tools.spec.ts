@@ -165,6 +165,12 @@ async function drawPlan(page: Page, size: Rect): Promise<void> {
 }
 
 test.describe('инструменты плана', () => {
+  test('нарисованная зона сразу выбрана: карточка показывает её', async ({ page }) => {
+    const size = await openEditor(page);
+    await drawRing(page, 'Зона', ring(size, OUTER));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('z_1');
+  });
+
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));

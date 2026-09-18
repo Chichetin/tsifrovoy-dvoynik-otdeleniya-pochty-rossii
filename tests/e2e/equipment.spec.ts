@@ -144,6 +144,16 @@ async function shownScale(page: Page): Promise<number> {
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('поставленный из библиотеки объект сразу выбран: карточка показывает его', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('.library__item', { hasText: RACK }).first().click();
+    await clickCanvas(page, 420, 330);
+    // Ещё до переключения на «Выбор» карточка — про только что поставленный объект.
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await clickCanvas(page, 200, 200);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+  });
+
   test('поворот за ручку: 90° с Shift, свободный 37°, одно «Отменить» на жест', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));

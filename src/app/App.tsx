@@ -97,6 +97,19 @@ export function App(): React.JSX.Element {
     [store],
   );
 
+  // A drawing tool that just created a zone or placed an object hands it over
+  // selected: the card shows what was drawn, not what was picked a minute ago
+  // (operator finding 9). Moves and edits go through `dispatch` untouched.
+  const dispatchAndSelect = useCallback(
+    (command: Command): Result<PlanDocument> => {
+      const result = dispatch(command);
+      if (result.ok && command.type === 'zone.put') select({ kind: 'zone', id: command.zone.id });
+      if (result.ok && command.type === 'object.put') select({ kind: 'object', id: command.object.id });
+      return result;
+    },
+    [dispatch, select],
+  );
+
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -106,8 +119,8 @@ export function App(): React.JSX.Element {
     [select],
   );
 
-  const planTool = usePlanToolController({ document, session, onCommand: dispatch });
-  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatch });
+  const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
+  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatchAndSelect });
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
