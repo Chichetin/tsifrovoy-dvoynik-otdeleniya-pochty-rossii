@@ -17,9 +17,6 @@ import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import { DEMO_FILES, packageDemo, readZip } from '../../scripts/package-demo';
 
-/** На машине хакатона уже есть Chrome — не тянем второй браузер. */
-test.use({ channel: 'chrome' });
-
 /** Каталог с распакованным архивом; наполняется один раз на файл спеки. */
 let unpacked = '';
 

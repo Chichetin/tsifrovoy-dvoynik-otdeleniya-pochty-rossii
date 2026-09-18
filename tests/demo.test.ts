@@ -67,8 +67,16 @@ afterAll(() => {
   for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
 });
 
+/**
+ * Запас по времени для двух тестов, которые пересчитывают демо-комплект с нуля:
+ * `buildDemo()` и расчёт рекомендаций занимают около полусекунды на свободной
+ * машине и заметно дольше, когда `npm test` идёт параллельно по всем файлам.
+ * Дефолтные 5 с срывались таймаутом на чужой нагрузке, а не на дефекте (D-126).
+ */
+const SLOW_CALCULATION = { timeout: 30_000 };
+
 describe('комплект демо-проекта', () => {
-  test('файлы на диске — это то, что считает код, а не устаревшая копия', () => {
+  test('файлы на диске — это то, что считает код, а не устаревшая копия', SLOW_CALCULATION, () => {
     const build = buildDemo();
     expect(demoFile('before.json')).toBe(build.beforeText);
     expect(demoFile('after.json')).toBe(build.afterText);
@@ -125,7 +133,7 @@ describe('комплект демо-проекта', () => {
     expect(validatePlan(after)).toEqual([]);
   });
 
-  test('рекомендация в файле повторяется расчётом на before.json', () => {
+  test('рекомендация в файле повторяется расчётом на before.json', SLOW_CALCULATION, () => {
     const fromCalculation: Recommendation[] = [
       ...run(before, REQUESTS.equipment),
       ...run(before, REQUESTS.bench),

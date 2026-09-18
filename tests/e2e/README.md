@@ -16,6 +16,11 @@
 - Из worktree, когда 5173 занят соседом: `DEV_PORT=5174 npm run test:e2e`.
 - Прицепиться к уже запущенному `npm run dev` вручную: `PW_REUSE_SERVER=1 npm run test:e2e`
   — только для отладки, порт при этом должен быть свой.
+- Браузер — бандловый Chromium из `npx playwright install chromium`. Системный
+  браузер включается переменной: `PW_CHANNEL=chrome npm run test:e2e` (D-125).
+  В самой спеке `test.use({ channel: … })` не пишется — иначе набор перестаёт
+  запускаться по README на машине без Chrome; это проверяет
+  `tests/e2e-channel.test.ts`.
 - Адрес в spec не пишется руками: страница открывается `page.goto('/')` поверх
   `baseURL`, а ручной запуск браузера берёт `baseURL` из фикстуры (`view3d.spec.ts`).
 
