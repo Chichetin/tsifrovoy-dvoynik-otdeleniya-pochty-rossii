@@ -85,6 +85,19 @@ export function absentTypes(inventory: Inventory): number {
   return Object.values(inventory.byType).filter((count) => count === 0).length;
 }
 
+/**
+ * «1 тип», «2 типа», «5 типов» — the note about absent types is shown with a
+ * number, and a Russian interface that says «1 типов» reads as a bug.
+ */
+export function typesWord(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (tens >= 11 && tens <= 14) return 'типов';
+  if (ones === 1) return 'тип';
+  if (ones >= 2 && ones <= 4) return 'типа';
+  return 'типов';
+}
+
 /** Zones in document order: the summary must not reshuffle itself between edits. */
 export function zoneSummary(inventory: Inventory, naming: Naming): ZoneSummaryRow[] {
   return Object.entries(inventory.byZoneDirect).map(([zoneId, direct]) => ({

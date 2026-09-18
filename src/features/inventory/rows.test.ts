@@ -21,6 +21,7 @@ import {
   objectRows,
   RAW_IDS,
   typeSummary,
+  typesWord,
   zoneSummary,
 } from './rows';
 
@@ -136,6 +137,24 @@ describe('сводка по типам', () => {
     expect(typeSummary(tie, labels).map((row) => [row.typeId, row.label])).toEqual([
       ['ot_b', 'Арбуз'],
       ['ot_a', 'Яблоко'],
+    ]);
+  });
+});
+
+describe('подпись о неразмещённых типах', () => {
+  test('склонение по числу, а не «1 типов»', () => {
+    expect([1, 2, 4, 5, 11, 14, 21, 22, 25, 101, 112].map(typesWord)).toEqual([
+      'тип',
+      'типа',
+      'типа',
+      'типов',
+      'типов',
+      'типов',
+      'тип',
+      'типа',
+      'типов',
+      'тип',
+      'типов',
     ]);
   });
 });

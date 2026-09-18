@@ -27,6 +27,7 @@ import {
   namingOf,
   objectRows,
   typeSummary,
+  typesWord,
   zoneSummary,
 } from './rows';
 
@@ -138,7 +139,7 @@ export function InventoryPanel({
           <p className="panel__note">
             {absent === 0
               ? 'Показаны типы справочника, у которых есть объекты. Строка типа фильтрует перечень.'
-              : `Строка типа фильтрует перечень. Ещё ${absent} типов справочника не размещено.`}
+              : `Строка типа фильтрует перечень. Ещё ${absent} ${typesWord(absent)} справочника не размещено.`}
           </p>
         </>
       )}
