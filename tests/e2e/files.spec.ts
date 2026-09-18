@@ -317,4 +317,40 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
     expect(errors).toEqual([]);
   });
+
+  test('«Картинка» скачивает SVG плана и не выдаёт это за сохранение', async ({ page }) => {
+    // Находка operator №6: руководителю нечем показать план, кроме скриншота.
+    await page.goto('/');
+    await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+    await expect(rows).toHaveCount(53);
+
+    // Правка, чтобы план стал «несохранённым», — картинка этого не снимает.
+    await rows.first().locator('.table__link').first().click();
+    await page.keyboard.press('Delete');
+    await expect(rows).toHaveCount(52);
+    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+
+    const event = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-svg').click(),
+    ]).then(([download]) => download);
+    expect(event.suggestedFilename()).toMatch(/\.svg$/);
+    const path = await event.path();
+    const svg = readFileSync(path as string, 'utf8');
+
+    // Файл — настоящий SVG с каждым объектом плана по id.
+    expect(svg.startsWith('<?xml')).toBe(true);
+    expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
+    const saved = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as {
+      zones: { id: string }[];
+      objects: { id: string }[];
+    };
+    for (const zone of saved.zones) expect(svg).toContain(`data-id="${zone.id}"`);
+    // 52 объекта на картинке: удалённого нет, остальные есть.
+    expect((svg.match(/<g transform="translate/g) ?? []).length).toBe(52);
+
+    // Картинка — не сохранение: правки по-прежнему несохранённые.
+    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+  });
 });

@@ -311,3 +311,24 @@ describe('FileControls: восстановление поверх открыто
     expect((onReplace.mock.calls[0]?.[0] as PlanDocument).objects).toHaveLength(1);
   });
 });
+
+describe('FileControls: картинка плана', () => {
+  test('«Картинка» на свежей странице показывает результат, а не молчит', () => {
+    // Ревью MR !73: до починки уведомление ставилось, но состояние оставалось
+    // idle, и строка результата не рендерилась — файл уходил в загрузки молча.
+    const url = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:svg');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const { onExported } = renderControls({ storage: null });
+
+    fireEvent.click(screen.getByTestId('export-svg'));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(url).toHaveBeenCalledTimes(1);
+    expect(revoke).toHaveBeenCalledWith('blob:svg');
+    expect(screen.getByTestId('files-notice').textContent).toContain('Картинка');
+    expect(screen.getByTestId('files-notice').textContent).toContain('.svg');
+    // Картинка — не сохранение.
+    expect(onExported).not.toHaveBeenCalled();
+  });
+});
