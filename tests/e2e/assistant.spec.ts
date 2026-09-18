@@ -6,6 +6,7 @@
  * может — расчёт выполняется в странице и помечается «Без LLM».
  */
 
+import { join } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
@@ -25,6 +26,26 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент');
 
 test.describe('ассистент в браузере', () => {
+  test('лимит 429 на сервере оставляет рекомендации в режиме без LLM', async ({ page }) => {
+    await page.route('**/api/advice', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          issues: [{ code: 'LLM_HTTP_ERROR', severity: 'error', message: 'Лимит модели', refs: [] }],
+        }),
+      }),
+    );
+    await page.goto('/');
+    await drawZone(page);
+
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    await expect(panel(page).locator('.assistant__mode')).toContainText('Без LLM');
+    await expect(panel(page).locator('.assistant__mode')).toContainText('429');
+    await expect(panel(page).locator('.advice__sentence').first()).toContainText('Место найдено');
+  });
+
   test('сценарий «найти место»: варианты, числа и пометка «без LLM»', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -92,6 +113,58 @@ test.describe('ассистент в браузере', () => {
       await panel(page).locator('.advice__more summary').first().click();
       await expect(panel(page).locator('.advice__more li').first()).toContainText('команды');
     }
+  });
+
+  test('комплектование демо называет оборудование и зону рядом с числами', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await panel(page).getByLabel('Сценарий').selectOption('equipment');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    const bench = panel(page).locator('.advice').filter({ hasText: 'Скамья / кресла для ожидания' });
+    await expect(bench).toHaveCount(1);
+    await expect(bench.locator('.advice__sentence')).toContainText('Зона ожидания');
+    await expect(bench.locator('.advice__sentence')).toContainText('Не хватает оборудования: 1 при минимуме 2');
+  });
+
+  test('сценарий сравнения после правки показывает «было → стало», а не нули', async ({ page }) => {
+    // Находка operator'а 18.09: после удаления объекта «Эффект изменений» отвечал
+    // «Объектов 52 → 52» — сравнивал текущий план с ним же. «Было» — это
+    // открытый или последний сохранённый план, а не то, что на экране сейчас.
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    // Первая таблица панели — объекты; вторая — разрез по зонам.
+    const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+    await expect(rows).toHaveCount(53);
+
+    // Удалить один объект через строку перечня и Delete.
+    await rows.first().locator('.table__link').first().click();
+    await page.keyboard.press('Delete');
+    await expect(rows).toHaveCount(52);
+
+    await panel(page).getByLabel('Сценарий').selectOption('compare');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    const sentence = panel(page).locator('.advice__sentence');
+    await expect(sentence).toContainText('Планировка изменилась');
+    await expect(sentence).toContainText('удалено 1');
+    // Свободная площадь выросла: «было → стало» с разными числами.
+    await expect(sentence).toContainText(/Свободная площадь: [\d,]+ → [\d,]+ м² \(\+/);
+
+    // Сохранение переносит «было»: сравнивать нужно с сохранённым, а не с
+    // открытым файлом. После сохранения и ещё одного удаления ответ — снова
+    // «удалено 1», а не «удалено 2» от исходного файла.
+    await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Сохранить' }).click(),
+    ]);
+    await rows.first().locator('.table__link').first().click();
+    await page.keyboard.press('Delete');
+    await expect(rows).toHaveCount(51);
+
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+    await expect(sentence).toContainText('удалено 1');
+    await expect(sentence).not.toContainText('удалено 2');
   });
 
   test('сценарий сравнения на неизменном плане не выдумывает изменений', async ({ page }) => {

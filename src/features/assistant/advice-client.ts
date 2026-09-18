@@ -96,6 +96,17 @@ export async function requestAdvice(
 
   if (response.ok && looksLikeResponse(body)) return { ok: true, value: body };
 
+  // Лимит защищает платный вызов модели, но расчёт пользователю доступен.
+  // Сервер возвращает 429 с issues; обработать его нужно до общей ветки ошибок.
+  if (response.status === 429) {
+    return localAdvice(
+      input.plan,
+      input.revision,
+      input.request,
+      'Сервер ограничил обращения к модели (429): расчёт выполнен в браузере, без модели.',
+    );
+  }
+
   // 400/422 — это про запрос и про план, и их надо показать, а не заменять
   // локальным расчётом, который упрётся в то же самое.
   const issues = issuesOf(body);

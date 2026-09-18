@@ -14,6 +14,7 @@
 
 import { useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
+import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { renderExplanation } from '../../domain/advice';
 
@@ -59,6 +60,20 @@ function ownFacts(recommendation: Recommendation): Fact[] {
   return recommendation.facts.filter((fact) => !owned.has(fact.id));
 }
 
+/** Names from the plan's own catalog, so a count has an identifiable subject. */
+function equipmentSubject(plan: PlanDocument, recommendation: Recommendation): string | null {
+  if (recommendation.scenario !== 'equipment') return null;
+  const rule = plan.catalog.rules.find(
+    (entry) => entry.kind === 'count' && recommendation.ruleIds.includes(entry.id),
+  );
+  if (rule?.kind !== 'count') return null;
+  const type = plan.catalog.objectTypes.find((entry) => entry.id === rule.objectTypeId);
+  const zoneId = recommendation.refs.find((ref) => ref.kind === 'zone')?.id;
+  const zone = plan.zones.find((entry) => entry.id === zoneId);
+  if (type === undefined || zone === undefined) return null;
+  return `${type.label} · ${zone.name}`;
+}
+
 export function AssistantPanel({
   document: plan,
   revision,
@@ -90,7 +105,9 @@ export function AssistantPanel({
       );
       return;
     }
-    // Сравнение — с последним сохранённым или открытым состоянием плана.
+    // Сравнение — с последним сохранённым или открытым состоянием плана. Панель
+    // его не знает и передаёт текущий план как заглушку; приложение подменяет
+    // `before` на настоящий снимок в `askAssistant`.
     onAsk({ scenario: 'compare', before: plan }, query.trim() === '' ? undefined : query.trim());
   }
 
@@ -194,10 +211,12 @@ export function AssistantPanel({
             );
             const sentence =
               explanation === undefined ? null : renderExplanation(recommendation, explanation);
+            const subject = equipmentSubject(plan, recommendation);
 
             return (
               <article key={recommendation.id} className="advice">
                 <p className="advice__sentence">
+                  {subject === null ? null : <><strong>{subject}.</strong>{' '}</>}
                   {sentence ?? 'Объяснение недоступно — ниже расчёт, на который оно опиралось.'}
                 </p>
 
