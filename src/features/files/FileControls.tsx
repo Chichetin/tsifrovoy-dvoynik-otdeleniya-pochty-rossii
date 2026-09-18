@@ -39,6 +39,7 @@ import {
   type PlanDraft,
 } from '../../persistence/browser-draft';
 import type { OpenedPlan } from '../../persistence/format';
+import { planFileName, renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
 
 export type FileControlsProps = {
   document: PlanDocument;
@@ -89,8 +90,7 @@ function replacementWarning(action: 'Новый' | 'Открыть', dirty: bool
 }
 
 function fileName(plan: PlanDocument): string {
-  const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-  return `${stem === '' ? 'plan' : stem}.json`;
+  return planFileName(plan, 'json');
 }
 
 /** Хранилище браузера, если оно вообще доступно: приватный режим бросает. */
@@ -267,6 +267,25 @@ export function FileControls({
     setState({ status: 'done' });
   };
 
+  /**
+   * Картинка плана для согласования — SVG из того же документа (D-061). Это
+   * не сохранение: план после выгрузки остаётся таким же «несохранённым»,
+   * каким был, и черновик не трогается.
+   */
+  const exportImage = (): void => {
+    const svg = renderPlanSvg(plan);
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = svgFileName(plan);
+    link.click();
+    URL.revokeObjectURL(url);
+    // Own result state, like «Сохранить»: otherwise a stale «План не открыт…»
+    // would stay on screen next to a file that downloaded fine.
+    setNotice(`Картинка ${svgFileName(plan)} передана браузеру на скачивание.`);
+    setState({ status: 'done' });
+  };
+
 
   return (
     <>
@@ -305,6 +324,16 @@ export function FileControls({
 
       <button type="button" className="files__button is-primary" onClick={save}>
         Сохранить
+      </button>
+
+      <button
+        type="button"
+        className="files__button"
+        title="Скачать план картинкой (SVG) для согласования и презентации"
+        data-testid="export-svg"
+        onClick={exportImage}
+      >
+        Картинка
       </button>
 
       <input
