@@ -58,6 +58,11 @@ export function App(): React.JSX.Element {
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
+  // «Было» для сценария сравнения: план в момент открытия файла, «Нового» или
+  // последнего сохранения. Store держит такой же снимок для флага dirty, но в
+  // замыкании; вести его здесь дешевле, чем расширять контракт store ради
+  // одного читателя. Обновляется в тех же трёх местах, что и baseline store.
+  const [compareBase, setCompareBase] = useState<PlanDocument>(() => store.getState().document);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   const session: EditorSession = useMemo(
@@ -102,7 +107,11 @@ export function App(): React.JSX.Element {
       setAdviceState({ status: 'loading' });
       // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
       // если план успели поправить, пока сервер считал.
-      const asked = { plan: document, revision, request, ...(query === undefined ? {} : { query }) };
+      // Панель не знает истории документа и в сценарии сравнения присылает
+      // «было» = текущий план; настоящее «было» знает только приложение.
+      const grounded: AdviceRequest =
+        request.scenario === 'compare' ? { ...request, before: compareBase } : request;
+      const asked = { plan: document, revision, request: grounded, ...(query === undefined ? {} : { query }) };
       void requestAdvice(asked).then((result) => {
         if (!result.ok) {
           setAdvice(null);
@@ -116,7 +125,7 @@ export function App(): React.JSX.Element {
         setAdviceState({ status: 'done' });
       });
     },
-    [document, revision],
+    [compareBase, document, revision],
   );
 
   const replaceDocument = useCallback(
@@ -124,13 +133,16 @@ export function App(): React.JSX.Element {
       // 'file' — план пришёл из файла и считается сохранённым состоянием;
       // 'draft' — восстановленный черновик, он никуда ещё не выгружен.
       store.getState().replaceDocument(plan, origin);
+      setCompareBase(plan);
       setLastError(null);
     },
     [store],
   );
 
   const startNewPlan = useCallback(() => {
-    setStore(createPlanStore(createEmptyPlan(), 'new'));
+    const fresh = createPlanStore(createEmptyPlan(), 'new');
+    setStore(fresh);
+    setCompareBase(fresh.getState().document);
     setTool({ kind: 'select' });
     setLastError(null);
   }, []);
@@ -163,7 +175,11 @@ export function App(): React.JSX.Element {
           encode={encodePlan}
           onReplace={replaceDocument}
           onNew={startNewPlan}
-          onExported={() => store.getState().markExported(revision)}
+          onExported={() => {
+            store.getState().markExported(revision);
+            // Сохранённый план становится новой точкой отсчёта «было».
+            setCompareBase(document);
+          }}
         />
       </header>
 
