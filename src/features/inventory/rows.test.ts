@@ -14,12 +14,19 @@ import { parsePlanDocument } from '../../contracts/schema';
 import { buildInventory } from '../../domain/inventory';
 import {
   absentTypes,
+  CSV_BOM,
+  CSV_COLUMNS,
   display,
   filterObjectRows,
+  inventoryCsv,
+  type InventorySort,
   namingOf,
   type Naming,
+  type ObjectRow,
   objectRows,
   RAW_IDS,
+  sortObjectRows,
+  toCsv,
   typeSummary,
   typesWord,
   zoneSummary,
@@ -224,3 +231,161 @@ describe('фильтр строк', () => {
     expect(ids('скамья', 'ot_bench')).toEqual(['eq_bench_1']);
   });
 });
+
+describe('инвентарный номер', () => {
+  test('берётся из атрибута объекта, а у объекта без него остаётся null', () => {
+    const rows = objectRows(inventory, naming);
+
+    expect(rows.map((row) => [row.id, row.inventoryNumber])).toEqual([
+      ['eq_work_1', 'ОПС-0001'],
+      ['eq_bench_1', null],
+    ]);
+  });
+
+  test('число в атрибуте читается как номер, мусор и пустая строка — как его отсутствие', () => {
+    const withAttributes = (attributes: Record<string, unknown>): string | null => {
+      const object = { ...plan.objects[0], attributes } as PlanDocument['objects'][number];
+      const built = objectRows(
+        { ...inventory, rows: [object] } as Inventory,
+        naming,
+      );
+      return first(built).inventoryNumber;
+    };
+
+    expect(withAttributes({ inventoryNumber: 1024 })).toBe('1024');
+    expect(withAttributes({ inventoryNumber: '  ОПС-7  ' })).toBe('ОПС-7');
+    expect(withAttributes({ inventoryNumber: '' })).toBeNull();
+    expect(withAttributes({ inventoryNumber: '   ' })).toBeNull();
+    expect(withAttributes({ inventoryNumber: true })).toBeNull();
+    expect(withAttributes({ inventoryNumber: Number.NaN })).toBeNull();
+    expect(withAttributes({})).toBeNull();
+  });
+});
+
+describe('сортировка перечня', () => {
+  /** Строки собраны руками: сортировку проверяем на порядке, а не на плане. */
+  const rows: ObjectRow[] = [
+    row('eq_2', 'Стеллаж', 'ИНВ-ДЕМО-10', 'ot_rack', 'Стеллаж', 'z_back', 'Служебная зона'),
+    row('eq_1', 'Окно 1', 'ИНВ-ДЕМО-2', 'ot_window', 'Окно', 'z_client', 'Клиентская зона'),
+    row('eq_4', 'Ящик', null, 'ot_box', 'Ящик', null, null),
+    row('eq_3', 'Банкомат', 'инв-демо-3', 'ot_atm', 'Банкомат', 'z_client', 'Клиентская зона'),
+  ];
+  const order = (sort: InventorySort | null) => sortObjectRows(rows, sort).map((item) => item.id);
+
+  test('без сортировки строки остаются в порядке документа', () => {
+    expect(order(null)).toEqual(['eq_2', 'eq_1', 'eq_4', 'eq_3']);
+    expect(sortObjectRows(rows, null)).toBe(rows);
+  });
+
+  test('по инвентарному номеру: 2 раньше 10, регистр не мешает', () => {
+    expect(order({ column: 'inventoryNumber', direction: 'asc' })).toEqual([
+      'eq_1',
+      'eq_3',
+      'eq_2',
+      'eq_4',
+    ]);
+  });
+
+  test('обратный порядок переворачивает номера, но объект без номера остаётся последним', () => {
+    expect(order({ column: 'inventoryNumber', direction: 'desc' })).toEqual([
+      'eq_2',
+      'eq_3',
+      'eq_1',
+      'eq_4',
+    ]);
+  });
+
+  test('по названию объекта, по типу и по зоне — по-русски', () => {
+    expect(order({ column: 'label', direction: 'asc' })).toEqual([
+      'eq_3',
+      'eq_1',
+      'eq_2',
+      'eq_4',
+    ]);
+    expect(order({ column: 'type', direction: 'asc' })).toEqual(['eq_3', 'eq_1', 'eq_2', 'eq_4']);
+    // «вне зон» — это отсутствие зоны, а не имя: такой объект уходит в конец.
+    expect(order({ column: 'zone', direction: 'asc' })).toEqual(['eq_1', 'eq_3', 'eq_2', 'eq_4']);
+    expect(order({ column: 'zone', direction: 'desc' })).toEqual(['eq_2', 'eq_1', 'eq_3', 'eq_4']);
+  });
+
+  test('одинаковые значения упорядочены по id: перерисовка не тасует строки', () => {
+    const same: ObjectRow[] = [
+      row('eq_b', 'Скамья', 'ИНВ-1', 'ot_bench', 'Скамья', 'z_client', 'Клиентская зона'),
+      row('eq_a', 'Скамья', 'ИНВ-1', 'ot_bench', 'Скамья', 'z_client', 'Клиентская зона'),
+    ];
+
+    expect(sortObjectRows(same, { column: 'label', direction: 'asc' }).map((item) => item.id)).toEqual(
+      ['eq_a', 'eq_b'],
+    );
+    expect(
+      sortObjectRows(same, { column: 'label', direction: 'desc' }).map((item) => item.id),
+    ).toEqual(['eq_a', 'eq_b']);
+  });
+
+  test('исходный массив не меняется', () => {
+    const before = rows.map((item) => item.id);
+    sortObjectRows(rows, { column: 'label', direction: 'desc' });
+
+    expect(rows.map((item) => item.id)).toEqual(before);
+  });
+});
+
+describe('CSV', () => {
+  test('экранирует разделитель, кавычки, переносы строк и краевые пробелы', () => {
+    const csv = toCsv([
+      ['простой', 'с;разделителем'],
+      ['с "кавычками"', 'с\nпереносом'],
+      [' с пробелом ', 'с\r\nCRLF'],
+    ]);
+
+    // Перенос внутри ячейки остаётся внутри кавычек и строку файла не делит:
+    // разбиение по CRLF даёт четыре части, потому что ячейка с CRLF — делит.
+    expect(csv.split('\r\n')).toEqual([
+      'простой;"с;разделителем"',
+      '"с ""кавычками""";"с\nпереносом"',
+      '" с пробелом ";"с',
+      'CRLF"',
+    ]);
+  });
+
+  test('пустая таблица — пустая строка, одна строка — без завершающего перевода', () => {
+    expect(toCsv([])).toBe('');
+    expect(toCsv([['а', 'б']])).toBe('а;б');
+  });
+
+  test('перечень выгружается с BOM, шапкой и строками в порядке таблицы', () => {
+    const csv = inventoryCsv(objectRows(inventory, naming));
+    const lines = csv.split('\r\n');
+
+    expect(csv.startsWith(CSV_BOM)).toBe(true);
+    expect(lines[0]).toBe(`${CSV_BOM}${CSV_COLUMNS.join(';')}`);
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe(
+      'ОПС-0001;Рабочее место 1;eq_work_1;Рабочее место;ot_workplace;Клиентская зона;z_client',
+    );
+    expect(lines[2]).toBe(
+      ';Скамья 1;eq_bench_1;Место ожидания;ot_bench;Зона ожидания;z_waiting',
+    );
+  });
+
+  test('объект вне зон подписан словами, а id зоны остаётся пустым', () => {
+    const csv = inventoryCsv([
+      row('eq_4', 'Ящик', null, 'ot_box', null, null, null),
+    ]);
+
+    expect(csv.split('\r\n')[1]).toBe(';Ящик;eq_4;ot_box;ot_box;вне зон;');
+  });
+});
+
+/** Строка перечня без обращения к плану: здесь проверяется порядок, не имена. */
+function row(
+  id: string,
+  label: string,
+  inventoryNumber: string | null,
+  typeId: string,
+  typeLabel: string | null,
+  zoneId: string | null,
+  zoneName: string | null,
+): ObjectRow {
+  return { id, label, inventoryNumber, typeId, typeLabel, zoneId, zoneName, haystack: '' };
+}
