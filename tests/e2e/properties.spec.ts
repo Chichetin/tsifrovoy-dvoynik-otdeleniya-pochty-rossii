@@ -57,7 +57,9 @@ async function selectPlacedObject(page: Page): Promise<void> {
 test.describe('карточка свойств', () => {
   test('без выбора карточка объясняет, чего ждёт', async ({ page }) => {
     await page.goto('/');
-    await expect(card(page).getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(
+      card(page).getByText('Выберите зону, объект, перегородку или проём на плане'),
+    ).toBeVisible();
   });
 
   test('смена типа сохраняет идентификатор и положение', async ({ page }) => {

@@ -26,7 +26,7 @@ type Rect = { x: number; y: number; width: number; height: number };
 
 type SavedPlan = {
   room: { boundary: Point[] };
-  walls: { id: string; from: Point; to: Point }[];
+  walls: { id: string; from: Point; to: Point; thickness_m: number }[];
   openings: { id: string; wallId: string; offset_m: number; width_m: number }[];
   zones: { id: string; name: string; parentId: string | null; polygon: Point[] }[];
 };
@@ -261,7 +261,7 @@ test.describe('инструменты плана', () => {
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(card.getByText('Выберите зону, объект, перегородку или проём на плане')).toBeVisible();
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -339,7 +339,7 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(card.getByText('Выберите зону, объект, перегородку или проём на плане')).toBeVisible();
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));
@@ -429,6 +429,15 @@ test.describe('инструменты плана', () => {
     const middle = toStage([(free.from[0] + free.to[0]) / 2, (free.from[1] + free.to[1]) / 2]);
     await clickAt(page, middle);
     await expect(page.getByRole('button', { name: 'Удалить перегородку' })).toBeVisible();
+
+    // Подсказка инструмента обещает правку в карточке свойств — она открыта и
+    // толщина уходит в модель, а не только в поле ввода.
+    const props = page.getByLabel('Свойства');
+    await expect(props.getByText('Свойства перегородки')).toBeVisible();
+    await expect(props.getByTestId('props-id')).toHaveText(free.id);
+    await props.getByLabel('Толщина, м').fill('0.35');
+    const thicker = await savePlan(page);
+    expect(thicker.walls.find((entry) => entry.id === free.id)?.thickness_m).toBeCloseTo(0.35, 6);
 
     const end = toStage(free.from);
     await dragAt(page, end, { x: end.x + 60, y: end.y + 60 });
