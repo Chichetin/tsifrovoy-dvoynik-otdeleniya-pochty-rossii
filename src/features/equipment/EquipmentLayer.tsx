@@ -7,19 +7,22 @@
  * Move, rotate and resize are each one gesture and one command: the shape
  * follows the pointer locally and only the release dispatches `object.put`,
  * so undo returns the object to where it started rather than stepping back
- * through every frame. The arithmetic lives in transform.ts; this file only
- * converts the pointer to world metres and draws the result.
+ * through every frame. The arithmetic lives in transform.ts, the decision
+ * whether a finished gesture reaches the store — in gesture-guard.ts; this
+ * file only converts the pointer to world metres and draws the result.
  */
 
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Circle, Group, Layer, Line, Rect } from 'react-konva';
 import type Konva from 'konva';
 import type { Equipment, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
+import { createGestureGuard } from './gesture-guard';
 import {
   RESIZE_HANDLES,
+  grabOffset,
   handlePoint,
   resizeFromPointer,
   rotationFromPointer,
@@ -39,9 +42,6 @@ const ROTATION_GAP_PX = 28;
 
 /** The object as the pointer is currently shaping it; null outside a gesture. */
 type Gesture = { id: string; object: Equipment };
-
-/** Konva attribute set on the dragged node while Escape stops its drag. */
-const CANCELLED_ATTR = 'gestureCancelled';
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -85,7 +85,10 @@ export function EquipmentLayer({
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
   const [gesture, setGesture] = useState<Gesture | null>(null);
-  const layerNode = useRef<Konva.Layer>(null);
+  // Lazy initialiser: one guard per layer, kept across renders. It holds the
+  // gesture in progress — the dragged node, where it started and where inside
+  // the handle it was grabbed.
+  const [guard] = useState(createGestureGuard);
 
   const visibleLayers = new Set(
     plan.layers.filter((layer) => layer.visible).map((layer) => layer.id),
@@ -100,20 +103,23 @@ export function EquipmentLayer({
       : null;
   const selectedVisible = selectedObject !== null && visibleLayers.has(selectedObject.layerId);
 
-  // Escape mid-gesture: Konva fires dragend from stopDrag, and the attribute
-  // tells commit to put the shape back instead of dispatching a command.
+  // Escape mid-gesture puts the shape back and drops the command. Only this
+  // layer's own gesture is touched — a vertex or a wall end being dragged
+  // elsewhere on the stage belongs to its own layer. The guard, not the node,
+  // remembers the cancellation, so a `dragend` that arrives later (or never)
+  // cannot turn it into a command.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
-      const node = layerNode.current?.getStage()?.find((entry: Konva.Node) => entry.isDragging())[0];
-      if (node === undefined) return;
-      node.setAttr(CANCELLED_ATTR, true);
-      node.stopDrag();
-      node.setAttr(CANCELLED_ATTR, false);
+      const cancelled = guard.cancel();
+      if (cancelled === null) return;
+      setGesture(null);
+      cancelled.node.position(cancelled.origin);
+      cancelled.node.stopDrag();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [guard]);
 
   // Delete removes what the user sees selected; a hidden object is out of reach,
   // and a key pressed inside a field belongs to that field.
@@ -130,7 +136,7 @@ export function EquipmentLayer({
   }, [onCommand, selectedObject, selectedVisible]);
 
   /** The pointer in world metres, through the one conversion in domain/geometry. */
-  const worldPointer = (event: Konva.KonvaEventObject<DragEvent>): Point | null => {
+  const worldPointer = (event: Konva.KonvaEventObject<unknown>): Point | null => {
     const position = event.target.getStage()?.getPointerPosition();
     if (position === undefined || position === null) return null;
     return screenToModel([position.x, position.y], viewport);
@@ -141,6 +147,20 @@ export function EquipmentLayer({
     if (container !== undefined) container.style.cursor = cursor;
   };
 
+  /** Start of every gesture: select what is being pulled, remember where from. */
+  const beginGesture = (
+    event: Konva.KonvaEventObject<unknown>,
+    id: string,
+    grab: Point = [0, 0],
+  ): void => {
+    const node = event.target;
+    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab });
+    onSelect({ kind: 'object', id });
+  };
+
+  /** How far the handle was grabbed from its centre; zero outside a gesture. */
+  const grabOf = (): Point => guard.started?.grab ?? [0, 0];
+
   /** One put per finished gesture; a cancelled or refused one snaps the handle back. */
   const commit = (
     node: Konva.Node,
@@ -149,8 +169,7 @@ export function EquipmentLayer({
     before: Point,
   ): void => {
     setGesture(null);
-    const cancelled = node.getAttr(CANCELLED_ATTR) === true;
-    const accepted = !cancelled && onCommand({ type: 'object.put', object: next }).ok;
+    const accepted = guard.finish() && onCommand({ type: 'object.put', object: next }).ok;
     const [x, y] = modelToScreen(accepted ? handleAfter(next) : before, viewport);
     node.position({ x, y });
   };
@@ -178,7 +197,7 @@ export function EquipmentLayer({
         draggable={!ghost && !lockedLayers.has(object.layerId)}
         listening={!ghost}
         onPointerClick={() => onSelect({ kind: 'object', id: object.id })}
-        onDragStart={() => onSelect({ kind: 'object', id: object.id })}
+        onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
           setGesture({ id: object.id, object: { ...object, position: movedTo(event.target) } });
         }}
@@ -224,19 +243,28 @@ export function EquipmentLayer({
         onPointerDown={(event) => {
           // The stage must not read this press as a tool click.
           event.cancelBubble = true;
+          // The press rarely lands on the handle's centre, and the side must
+          // grow by what the pointer travels, not by where it grabbed. The
+          // offset is taken here, at the press: by the time Konva fires
+          // dragstart the pointer has already passed its drag threshold.
+          const pointer = worldPointer(event);
+          beginGesture(event, object.id, pointer === null ? [0, 0] : grabOffset(object, handle, pointer));
         }}
         onDragStart={() => onSelect({ kind: 'object', id: object.id })}
         onDragMove={(event) => {
           const pointer = worldPointer(event);
           if (pointer === null) return;
-          setGesture({ id: object.id, object: { ...object, ...resizeFromPointer(object, handle, pointer) } });
+          setGesture({
+            id: object.id,
+            object: { ...object, ...resizeFromPointer(object, handle, pointer, grabOf()) },
+          });
         }}
         onDragEnd={(event) => {
           const pointer = worldPointer(event);
           const next =
             pointer === null
               ? (gesture?.object ?? object)
-              : { ...object, ...resizeFromPointer(object, handle, pointer) };
+              : { ...object, ...resizeFromPointer(object, handle, pointer, grabOf()) };
           commit(
             event.target,
             next,
@@ -280,7 +308,7 @@ export function EquipmentLayer({
           onPointerDown={(event) => {
             event.cancelBubble = true;
           }}
-          onDragStart={() => onSelect({ kind: 'object', id: object.id })}
+          onDragStart={(event) => beginGesture(event, object.id)}
           onDragMove={(event) => {
             const pointer = worldPointer(event);
             if (pointer === null) return;
@@ -307,7 +335,7 @@ export function EquipmentLayer({
   const previewObject = preview?.object ?? null;
 
   return (
-    <Layer ref={layerNode}>
+    <Layer>
       {plan.objects
         .filter((object) => visibleLayers.has(object.layerId))
         .map((object) => render(object, false))}

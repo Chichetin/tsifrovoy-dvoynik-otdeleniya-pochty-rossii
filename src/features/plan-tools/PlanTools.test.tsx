@@ -13,7 +13,7 @@ import type { Command } from '../../contracts/commands';
 import type { Catalog, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { EditorSession } from '../../contracts/ui';
 import { PlanTools } from './PlanTools';
-import { SELF_INTERSECTION_NOTICE, setNotice } from './notice';
+import { SELF_INTERSECTION_NOTICE, getNotice, setNotice } from './notice';
 
 const catalog: Catalog = {
   version: '1.0.0',
@@ -89,6 +89,26 @@ function show(selection: Ref | null): { commands: Command[]; onTool: ReturnType<
   return { commands, onTool };
 }
 
+/** Панель с управляемыми планом и выбором: для проверки, когда гаснет отказ. */
+function showWith(document: PlanDocument, selection: Ref | null) {
+  const session = (ref: Ref | null): EditorSession => ({
+    tool: { kind: 'select' },
+    viewport: { origin: [0, 0], scale: 50 },
+    selection: ref,
+    preview: null,
+    focus: null,
+  });
+  const noop = (): Result<PlanDocument> => ({ ok: true, value: document });
+  const view = render(
+    <PlanTools document={document} session={session(selection)} onTool={vi.fn()} onCommand={noop} />,
+  );
+  return (next: PlanDocument, ref: Ref | null): void => {
+    view.rerender(
+      <PlanTools document={next} session={session(ref)} onTool={vi.fn()} onCommand={noop} />,
+    );
+  };
+}
+
 beforeEach(() => act(() => setNotice(null)));
 afterEach(() => cleanup());
 
@@ -132,6 +152,41 @@ describe('панель инструментов плана', () => {
   it('выбранный контур подсказывает, чем его править', () => {
     show({ kind: 'zone', id: 'z_hall' });
     expect(screen.getByText(/тяните вершину/)).toBeDefined();
+  });
+
+  it('отказ гаснет при смене выделения: он был про прошлую фигуру', () => {
+    const rerender = showWith(plan, { kind: 'zone', id: 'z_hall' });
+    act(() => setNotice(SELF_INTERSECTION_NOTICE));
+    expect(screen.getByTestId('plan-tools-notice')).toBeDefined();
+
+    // Тот же выбор — сообщение на месте: его ещё не прочитали.
+    act(() => rerender(plan, { kind: 'zone', id: 'z_hall' }));
+    expect(screen.queryByTestId('plan-tools-notice')).not.toBeNull();
+
+    act(() => rerender(plan, { kind: 'wall', id: 'w_north' }));
+    expect(screen.queryByTestId('plan-tools-notice')).toBeNull();
+    expect(getNotice()).toBeNull();
+  });
+
+  it('отказ гаснет при смене документа: «Новый» и открытие файла', () => {
+    const rerender = showWith(plan, null);
+    act(() => setNotice(SELF_INTERSECTION_NOTICE));
+
+    // Правка того же документа сообщение не трогает.
+    act(() => rerender({ ...plan, zones: [] }, null));
+    expect(screen.queryByTestId('plan-tools-notice')).not.toBeNull();
+
+    act(() => rerender({ ...plan, id: 'plan_new', name: 'Новое отделение' }, null));
+    expect(screen.queryByTestId('plan-tools-notice')).toBeNull();
+  });
+
+  it('удалить зону на скрытом слое нечем: кнопка исчезает вместе со слоем', () => {
+    const hidden: PlanDocument = {
+      ...plan,
+      layers: [{ ...plan.layers[0]!, visible: false }],
+    };
+    showWith(hidden, { kind: 'zone', id: 'z_hall' });
+    expect(screen.queryByRole('button', { name: /Удалить/ })).toBeNull();
   });
 
   it('отказ жеста виден в DOM и снимается следующим сообщением', () => {

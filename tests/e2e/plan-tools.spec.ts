@@ -268,6 +268,91 @@ test.describe('инструменты плана', () => {
     expect(await zoneArea(page, 'Зона 2')).toBe(before);
   });
 
+  test('Escape в чужом жесте: правка контура не обрывается, выделение остаётся', async ({
+    page,
+  }) => {
+    const size = await openEditor(page);
+    await drawRing(page, 'Зона', ring(size, OUTER));
+    await page.keyboard.press('Escape');
+
+    const card = page.getByLabel('Свойства');
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    const before = await zoneArea(page, 'Зона 1');
+
+    // Жест соседнего слоя: тянем вершину и посреди пути жмём Escape. Ручки
+    // оборудования его не касаются — жест доходит до отпускания кнопки.
+    const from = px(size, 0.2, 0.2);
+    const half = px(size, 0.25, 0.25);
+    const to = px(size, 0.3, 0.3);
+    const rect = await stageRect(page);
+    await page.mouse.move(rect.x + from.x, rect.y + from.y);
+    await page.mouse.down();
+    await page.mouse.move(rect.x + half.x, rect.y + half.y, { steps: 4 });
+    await page.keyboard.press('Escape');
+    await page.mouse.move(rect.x + to.x, rect.y + to.y, { steps: 4 });
+    await page.mouse.up();
+
+    // Выделение не снято: карточка выбранной зоны на месте.
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect.poll(() => zoneArea(page, 'Зона 1')).not.toBe(before);
+    const withEscape = await zoneAreaValue(page, 'Зона 1');
+
+    // Тот же жест без Escape даёт ту же зону: клавиша ничего не оборвала на
+    // полпути — иначе вершина осталась бы в середине пути.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect.poll(() => zoneArea(page, 'Зона 1')).toBe(before);
+    await dragAt(page, from, to);
+    expect(await zoneAreaValue(page, 'Зона 1')).toBeCloseTo(withEscape, 2);
+  });
+
+  test('строка отказа живёт до смены выбора, Backspace удаляет зону', async ({ page }) => {
+    const size = await openEditor(page);
+    await drawPlan(page, size);
+
+    const card = page.getByLabel('Свойства');
+    const notice = page.getByTestId('plan-tools-notice');
+
+    await clickAt(page, px(size, 0.45, 0.45));
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    // Отказ: вершина уезжает за противоположное ребро.
+    await dragAt(page, px(size, 0.3, 0.3), px(size, 0.72, 0.45));
+    await expect(notice).toContainText('самопересекается');
+
+    // Выбрали другую зону — отказ был про прошлую, он гаснет.
+    await clickAt(page, px(size, 0.25, 0.25));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(notice).toHaveCount(0);
+
+    // Клик у вершины не добавляет её: там целились в угол, а не в ребро.
+    await clickAt(page, px(size, 0.45, 0.45));
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+    await clickAt(page, px(size, 0.32, 0.6));
+    await expect(notice).toContainText('вершин');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+
+    // Ближе к середине ребра вершина добавляется, и отказ гаснет.
+    await clickAt(page, px(size, 0.45, 0.6));
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 5');
+    await expect(notice).toHaveCount(0);
+
+    // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
+    await page.keyboard.press('Backspace');
+    await expect(areas(page).locator('tbody tr')).toHaveCount(1);
+    await expect(card.getByText('Выберите зону или объект на плане')).toBeVisible();
+
+    // Новый план гасит строку отказа вместе с планом, о котором она была.
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await clickAt(page, px(size, 0.24, 0.2));
+    await expect(notice).toContainText('вершин');
+
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Новый' }).click();
+    await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
+    await expect(notice).toHaveCount(0);
+  });
+
   test('проём и перегородка правятся, отмена сохраняет связь проёма со стеной', async ({
     page,
   }) => {

@@ -88,19 +88,34 @@ export function rotationFromPointer(
 }
 
 /**
+ * Where the handle sits relative to the pointer at the moment it is grabbed.
+ * A handle is several pixels wide, and the press almost never lands on its
+ * exact centre; without this offset the side jumps by the miss as soon as the
+ * drag starts. World metres, like everything else here.
+ */
+export function grabOffset(object: Equipment, handle: ResizeHandle, pointer: Point): Point {
+  const [hx, hy] = handlePoint(object, handle);
+  return [hx - pointer[0], hy - pointer[1]];
+}
+
+/**
  * New centre and size when `handle` is dragged to `pointer`. The opposite side
  * (or corner) stays where it is, like every drawing tool the jury has used;
  * a side is never shorter than `MIN_SIZE_M`, so the object cannot flip.
+ *
+ * `grab` is the offset from `grabOffset`: the handle follows the pointer
+ * keeping the distance it was grabbed at. Omitted, the pointer is the handle.
  */
 export function resizeFromPointer(
   object: Equipment,
   handle: ResizeHandle,
   pointer: Point,
+  grab: Point = [0, 0],
 ): { position: Point; size_m: Point } {
   const [width, height] = object.size_m;
   // Pointer in the object's own axes: undo the clockwise rotation.
   const [lx, ly] = rotateOffset(
-    [pointer[0] - object.position[0], pointer[1] - object.position[1]],
+    [pointer[0] + grab[0] - object.position[0], pointer[1] + grab[1] - object.position[1]],
     -object.rotation_deg,
   );
 

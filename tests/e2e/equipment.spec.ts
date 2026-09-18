@@ -88,7 +88,7 @@ async function drag(
   page: Page,
   from: Screen,
   to: Screen,
-  options: { shift?: boolean } = {},
+  options: { shift?: boolean; escape?: boolean } = {},
 ): Promise<void> {
   const start = await onPage(page, from);
   const end = await onPage(page, to);
@@ -98,6 +98,8 @@ async function drag(
   await page.mouse.down();
   await page.mouse.move(start.x + 3, start.y + 3);
   await page.mouse.move(end.x, end.y, { steps: 8 });
+  // Escape до отпускания кнопки: жест отменяется на полпути.
+  if (options.escape) await page.keyboard.press('Escape');
   await page.mouse.up();
   if (options.shift) await page.keyboard.up('Shift');
 }
@@ -269,6 +271,67 @@ test.describe('жесты над оборудованием', () => {
     await card(page).getByLabel('Название').focus();
     await page.keyboard.press('Backspace');
     await expect(inventoryRows(page)).toHaveCount(1);
+  });
+
+  test('Escape отменяет жест: команды нет, объект на месте, выделение остаётся', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const x0 = await numberOf(page, 'X, м');
+    const y0 = await numberOf(page, 'Y, м');
+
+    await drag(page, centre, { x: centre.x + 140, y: centre.y - 70 }, { escape: true });
+
+    // Выделение принадлежит объекту, а не холсту: карточка отменённого
+    // объекта остаётся открытой.
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    expect(await numberOf(page, 'X, м')).toBe(x0);
+    expect(await numberOf(page, 'Y, м')).toBe(y0);
+
+    // Команды не было: единственный шаг истории — постановка объекта.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+  });
+
+  test('размер считается от точки захвата ручки, а не от промаха по ней', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const width = await numberOf(page, 'Ширина, м');
+    const scale = await shownScale(page);
+
+    // Нажимаем на 5 px правее центра восточной ручки — ручка радиусом 6 px
+    // это ловит, и эти 5 px не должны прибавиться к ширине.
+    const miss = 5;
+    const east: Screen = { x: centre.x + (width / 2) * scale + miss, y: centre.y };
+    await drag(page, east, { x: east.x + 100, y: east.y });
+
+    const grown = await numberOf(page, 'Ширина, м');
+    expect(Math.abs(grown - (width + 100 / scale))).toBeLessThanOrEqual(0.04);
+    // Прежнее поведение дало бы +105 px: ручка прыгала на промах захвата.
+    expect(grown).toBeLessThan(width + (100 + miss) / scale);
+  });
+
+  test('запертый слой: Delete не удаляет объект и объясняет отказ', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
+
+    await page.keyboard.press('Delete');
+    await expect(page.getByRole('alert')).toContainText('заперт');
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    // Замок снят той же кнопкой — и та же клавиша удаляет.
+    await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
+    await selectRow(page, 0);
+    await page.keyboard.press('Delete');
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
   });
 
   test('запертый слой: объект выбирается, но ручек нет и он не тянется', async ({ page }) => {

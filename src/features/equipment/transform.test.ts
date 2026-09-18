@@ -13,6 +13,7 @@ import {
   MIN_SIZE_M,
   RESIZE_HANDLES,
   ROTATION_SNAP_DEG,
+  grabOffset,
   handlePoint,
   resizeFromPointer,
   rotationFromPointer,
@@ -171,6 +172,42 @@ describe('размер за ручку', () => {
     const result = resizeFromPointer(object(), handle('e'), [7.123456, 5]);
     expect(result.size_m[0]).toBe(3.12);
     expect(result.position[0]).toBe(5.56);
+  });
+
+  test('ручка тянется от точки захвата: промах по ручке не прибавляется к размеру', () => {
+    const item = object();
+    // Ручка «e» стоит в (6, 5); пользователь нажал на 0,3 м правее и на
+    // 0,1 м выше её центра — но всё ещё внутри ручки.
+    const press: [number, number] = [6.3, 5.1];
+    const grab = grabOffset(item, handle('e'), press);
+    expectPoint(grab, [-0.3, -0.1]);
+
+    // Нажатие без движения ничего не меняет: размер прежний.
+    const held = resizeFromPointer(item, handle('e'), press, grab);
+    expectPoint(held.size_m, [2, 1]);
+    expectPoint(held.position, [5, 5]);
+
+    // Провели на метр вправо — сторона выросла ровно на метр, а не на 1,3 м.
+    const dragged = resizeFromPointer(item, handle('e'), [7.3, 5.1], grab);
+    expectPoint(dragged.size_m, [3, 1]);
+    expectPoint(dragged.position, [5.5, 5]);
+  });
+
+  test('захват повёрнутой ручки считается в мире, а не в осях объекта', () => {
+    const item = object({ rotation_deg: 90 });
+    // При 90° ручка «e» лежит в (5, 4).
+    const grab = grabOffset(item, handle('e'), [5.25, 3.9]);
+    expectPoint(grab, [-0.25, 0.1]);
+    const result = resizeFromPointer(item, handle('e'), [5.25, 2.9], grab);
+    expectPoint(result.size_m, [3, 1]);
+    expectPoint(result.position, [5, 4.5]);
+  });
+
+  test('без захвата поведение прежнее: указатель и есть ручка', () => {
+    const item = object();
+    const withoutGrab = resizeFromPointer(item, handle('e'), [7, 5]);
+    const withZeroGrab = resizeFromPointer(item, handle('e'), [7, 5], [0, 0]);
+    expect(withZeroGrab).toEqual(withoutGrab);
   });
 
   test('после zoom тот же экранный жест даёт тот же размер', () => {
