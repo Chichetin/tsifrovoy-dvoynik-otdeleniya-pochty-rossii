@@ -84,9 +84,11 @@ export function EquipmentLayer({
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
-  // A click while placing belongs to the placement tool: the object under the
-  // pointer must not take the selection away from the one just placed.
-  const placing = session.tool.kind === 'object.place';
+  // A click while a drawing or placing tool is active belongs to that tool:
+  // the object under the pointer must not take the selection away from the one
+  // just placed, and the handles of the selected object must not swallow the
+  // next placement click (stacking racks from the library is the normal case).
+  const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
   const [gesture, setGesture] = useState<Gesture | null>(null);
   // Lazy initialiser: one guard per layer, kept across renders. It holds the
   // gesture in progress — the dragged node, where it started and where inside
@@ -199,7 +201,7 @@ export function EquipmentLayer({
         rotation={current.rotation_deg}
         draggable={!ghost && !lockedLayers.has(object.layerId)}
         listening={!ghost}
-        onPointerClick={placing ? undefined : () => onSelect({ kind: 'object', id: object.id })}
+        onPointerClick={picking ? () => onSelect({ kind: 'object', id: object.id }) : undefined}
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
           setGesture({ id: object.id, object: { ...object, position: movedTo(event.target) } });
@@ -360,7 +362,7 @@ export function EquipmentLayer({
       )}
 
       {/* A locked layer shows the selection but offers nothing to pull. */}
-      {selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
+      {!picking || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
         ? null
         : [
             ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),

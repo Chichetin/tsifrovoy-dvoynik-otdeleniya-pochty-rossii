@@ -87,10 +87,11 @@ export function PlanGeometryLayer({
 }: PlanGeometryLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
   // While a drawing tool is active the click belongs to the tool: the shape
-  // under the pointer must not steal the selection from what was just drawn.
+  // under the pointer must not steal the selection from what was just drawn,
+  // and the handles of the selected shape must not catch the next vertex —
+  // a T-junction on a neighbour's edge would insert a vertex instead.
   const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
-  const pick = (ref: Parameters<typeof onSelect>[0]): (() => void) | undefined =>
-    picking ? () => onSelect(ref) : undefined;
+  const pick = (ref: Ref): (() => void) | undefined => (picking ? () => onSelect(ref) : undefined);
   const [editing, setEditing] = useState<Editing | null>(null);
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
@@ -414,16 +415,16 @@ export function PlanGeometryLayer({
         />
       )}
 
-      {isSelected('room', plan.room.id) ? ringHandles(roomRef, plan.room.boundary, true) : null}
-      {selectedZone === undefined
+      {picking && isSelected('room', plan.room.id) ? ringHandles(roomRef, plan.room.boundary, true) : null}
+      {!picking || selectedZone === undefined
         ? null
         : ringHandles(
             { kind: 'zone', id: selectedZone.id },
             selectedZone.polygon,
             !lockedLayers.has(selectedZone.layerId),
           )}
-      {selectedWall === undefined ? null : wallHandles(selectedWall)}
-      {selectedOpening === undefined || selectedOpeningWall === undefined
+      {!picking || selectedWall === undefined ? null : wallHandles(selectedWall)}
+      {!picking || selectedOpening === undefined || selectedOpeningWall === undefined
         ? null
         : openingHandle(selectedOpening, selectedOpeningWall)}
     </Layer>

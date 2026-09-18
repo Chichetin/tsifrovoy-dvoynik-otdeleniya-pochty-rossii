@@ -165,10 +165,40 @@ async function drawPlan(page: Page, size: Rect): Promise<void> {
 }
 
 test.describe('инструменты плана', () => {
-  test('нарисованная зона сразу выбрана: карточка показывает её', async ({ page }) => {
+  test('нарисованная зона сразу выбрана, соседняя зона Т-стыком не портит её контур', async ({
+    page,
+  }) => {
     const size = await openEditor(page);
-    await drawRing(page, 'Зона', ring(size, OUTER));
-    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('z_1');
+    const card = page.getByLabel('Свойства');
+    const left = ring(size, [
+      [0.2, 0.2],
+      [0.5, 0.2],
+      [0.5, 0.8],
+      [0.2, 0.8],
+    ]);
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    for (const point of left) await clickAt(page, point);
+    await clickAt(page, left[0] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+
+    // Вторая зона подряд, без «Выбора»: её первый угол — середина правого ребра
+    // первой. Ручек и «широких» рёбер выбранной зоны под инструментом нет,
+    // поэтому клик ставит вершину черновика, а не вставляет вершину в z_1.
+    const right = ring(size, [
+      [0.5, 0.5],
+      [0.8, 0.5],
+      [0.8, 0.8],
+      [0.5, 0.8],
+    ]);
+    for (const point of right) await clickAt(page, point);
+    await clickAt(page, right[0] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, px(size, 0.3, 0.3));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
   });
 
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {
