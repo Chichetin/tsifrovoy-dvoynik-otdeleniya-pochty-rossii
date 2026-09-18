@@ -73,7 +73,7 @@ export function nearestEdge(polygon: Polygon, point: Point): EdgeHit {
  * vertex that strip overlaps the neighbouring edge and the vertex handle
  * itself. A click closer to an end of the edge than to its middle was aimed at
  * the corner, and adding a vertex there is never what the user wanted; the
- * middle half of every edge inserts (D-099).
+ * middle half of every edge inserts (D-101).
  */
 export function insertionOnEdge(polygon: Polygon, point: Point): EdgeHit | null {
   const hit = nearestEdge(polygon, point);

@@ -1,0 +1,32 @@
+# I01: весь сервис — один контейнер. Поднимается на чистой машине командой
+# `docker compose up --build -d`; подробности и проверка — docs/deployment.md.
+#
+# Секретов здесь нет и быть не может: ключ провайдера LLM живёт только в `.env`
+# рядом с этим файлом, попадает в контейнер переменными окружения и в образ не
+# записывается. Файла `.env` может не быть — сервис тогда работает без LLM
+# (ассистент считает сам и помечает ответ «Без LLM»), это штатный режим.
+
+services:
+  app:
+    build: .
+    image: ops-digital-twin:local
+    container_name: ops-digital-twin
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Эти две переменные задаются здесь, а не в .env: `environment` в compose
+      # сильнее `env_file`, и скопированный из .env.example HOST=127.0.0.1 не
+      # сделает контейнер недоступным снаружи.
+      HOST: 0.0.0.0
+      PORT: ${PORT:-8080}
+    ports:
+      # Порт занят — поднять на другом: `PORT=8081 docker compose up -d`.
+      - "${PORT:-8080}:${PORT:-8080}"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:${PORT:-8080}/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
