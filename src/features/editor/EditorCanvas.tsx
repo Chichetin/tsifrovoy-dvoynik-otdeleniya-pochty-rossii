@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Layer, Line, Stage } from 'react-konva';
-import type Konva from 'konva';
+import Konva from 'konva';
 import type { Point } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { screenToModel } from '../../domain/geometry';
@@ -127,16 +127,24 @@ export function EditorCanvas({
     [onViewport, session.viewport],
   );
 
-  // Escape cancels the gesture in progress; with nothing in progress it clears
+  // Escape cancels the drawing in progress; with nothing in progress it clears
   // the selection. Both are what a drawing tool is expected to do.
+  //
+  // A drag on a shape is a gesture of its own: while one is running, Escape
+  // belongs to the layer that started it — it undoes the drag and the object
+  // stays selected, so the card of the thing just restored is still open. The
+  // check has to happen before the layer stops the drag, and layer effects are
+  // registered first (children mount before this parent), so this listener
+  // takes the capture phase, which runs ahead of every bubbling one.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
+      if (Konva.isDragging()) return;
       onPointer({ phase: 'cancel', point: [0, 0], shift: false, alt: false, button: 0 });
       onSelect(null);
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [onPointer, onSelect]);
 
   const grid = size.width > 0 ? gridLines(session.viewport, size) : null;

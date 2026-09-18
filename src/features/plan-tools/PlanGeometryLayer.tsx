@@ -23,15 +23,21 @@ import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import { findZoneType } from '../../domain/catalog';
 import { modelToScreen, openingCentre, screenToModel, wallPolygon } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
-import { MIN_VERTICES_NOTICE, SELF_INTERSECTION_NOTICE, setNotice } from './notice';
+import { deleteIntent, isDeleteKey } from './delete-key';
+import {
+  MIN_VERTICES_NOTICE,
+  NEAR_VERTEX_NOTICE,
+  SELF_INTERSECTION_NOTICE,
+  setNotice,
+} from './notice';
 import {
   HANDLE_RADIUS_PX,
   canCommitRing,
   insertVertex,
+  insertionOnEdge,
   moveOpeningTo,
   moveVertex,
   moveWallEnd,
-  nearestEdge,
   removeVertex,
 } from './vertex-edit';
 
@@ -95,27 +101,30 @@ export function PlanGeometryLayer({
     .slice()
     .sort((a, b) => (zoneDepth(a.id, plan.zones) ?? 0) - (zoneDepth(b.id, plan.zones) ?? 0));
 
-  // Delete removes the selected zone, wall or opening; the room stays. Objects
-  // belong to the equipment layer and are not touched here.
+  // Delete and Backspace remove the selected zone, wall or opening; the room
+  // stays, and objects belong to the equipment layer. What exactly the keys
+  // remove — and when they refuse — is decided in delete-key.ts, the same rule
+  // the toolbar button follows. The browser's "back" on Backspace is stopped
+  // once the key is ours.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Delete' || isTextTarget(event.target)) return;
-      if (selection === null) return;
-      if (selection.kind !== 'zone' && selection.kind !== 'wall' && selection.kind !== 'opening') {
+      if (!isDeleteKey(event.key) || isTextTarget(event.target)) return;
+      const intent = deleteIntent(selection, plan);
+      if (intent === null) return;
+      event.preventDefault();
+      if (intent.kind === 'refused') {
+        setNotice(intent.notice);
         return;
       }
-      const type =
-        selection.kind === 'zone'
-          ? 'zone.delete'
-          : selection.kind === 'wall'
-            ? 'wall.delete'
-            : 'opening.delete';
-      const result = onCommand({ type, id: selection.id });
-      if (result.ok) onSelect(null);
+      const result = onCommand(intent.command);
+      if (result.ok) {
+        setNotice(null);
+        onSelect(null);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onCommand, onSelect, selection]);
+  }, [onCommand, onSelect, plan, selection]);
 
   const pointerWorld = (event: Konva.KonvaEventObject<unknown>): Point | null => {
     const position = event.target.getStage()?.getPointerPosition();
@@ -158,7 +167,13 @@ export function PlanGeometryLayer({
           onPointerClick={(event) => {
             const point = pointerWorld(event);
             if (point === null) return;
-            const hit = nearestEdge(polygon, point);
+            // Полоса захвата ребра широкая, и у вершины она накрывает и
+            // соседнее ребро, и саму ручку: клик у угла вершины не добавляет.
+            const hit = insertionOnEdge(polygon, point);
+            if (hit === null) {
+              setNotice(NEAR_VERTEX_NOTICE);
+              return;
+            }
             commitRing(ref, insertVertex(polygon, hit.index, hit.point));
           }}
         />
