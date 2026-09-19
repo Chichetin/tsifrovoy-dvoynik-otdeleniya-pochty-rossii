@@ -426,35 +426,56 @@ function footprintKey(shape: Polygon): string {
  * список мест до неё просто не доходит. Порядок перебора ничего не разрешает
  * сам по себе: каждая клетка всё равно проходит `fits` и полную проверку.
  */
-function* wallHugCells(
-  plan: PlanDocument,
-  type: ObjectType,
-  edges: [Point, Point][],
-  step: number,
-): Generator<Point> {
+type HugGroup = { edges: [Point, Point][]; inside: Polygon };
+
+/** Рёбра контура как отрезки, замкнуто. */
+function outlineEdges(polygon: Polygon): [Point, Point][] {
+  const edges: [Point, Point][] = [];
+  for (let i = 0; i < polygon.length; i += 1) {
+    edges.push([polygon[i]!, polygon[(i + 1) % polygon.length]!]);
+  }
+  return edges;
+}
+
+/**
+ * Клетки вдоль границ: объект прижимается к ребру и едет по нему с шагом
+ * сетки, обеими своими сторонами.
+ *
+ * Границ две: сами стены и контур целевой зоны. Зона в настоящем плане
+ * отступает от стены, и место вплотную к стене в неё уже не помещается —
+ * тогда `fits` отбрасывает все места у стены, и перебор снова сваливается в
+ * кольца от середины. Рёбра зоны дают ряд мест у её края, а какое из них
+ * ближе к настоящей стене, решает ранг.
+ *
+ * Порядок ничего не разрешает сам по себе: каждая клетка по-прежнему проходит
+ * `fits` и полную `validatePlan`.
+ */
+function* wallHugCells(type: ObjectType, groups: HugGroup[], step: number): Generator<Point> {
   const halfDepths = [type.defaultSize_m[1] / 2, type.defaultSize_m[0] / 2];
-  for (const [from, to] of edges) {
-    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
-    if (length <= TOLERANCE.coordinate_m) continue;
-    const ux = (to[0] - from[0]) / length;
-    const uy = (to[1] - from[1]) / length;
-    const midX = from[0] + ux * (length / 2);
-    const midY = from[1] + uy * (length / 2);
+  for (const group of groups) {
+    for (const [from, to] of group.edges) {
+      const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+      if (length <= TOLERANCE.coordinate_m) continue;
+      const ux = (to[0] - from[0]) / length;
+      const uy = (to[1] - from[1]) / length;
+      const midX = from[0] + ux * (length / 2);
+      const midY = from[1] + uy * (length / 2);
 
-    for (const sign of [1, -1]) {
-      const nx = -uy * sign;
-      const ny = ux * sign;
-      // Внутрь помещения смотрит только одна сторона ребра; наружные грани
-      // стены и её торцы отсеиваются здесь, а не в геометрии.
-      const probe: Point = [midX + nx * step, midY + ny * step];
-      if (locatePoint(probe, plan.room.boundary) !== 'inside') continue;
+      for (const sign of [1, -1]) {
+        const nx = -uy * sign;
+        const ny = ux * sign;
+        // Внутрь смотрит только одна сторона ребра: наружные грани стены и её
+        // торцы отсеиваются здесь, а не проверкой геометрии на каждой клетке.
+        const probe: Point = [midX + nx * step, midY + ny * step];
+        if (locatePoint(probe, group.inside) !== 'inside') continue;
 
-      for (const depth of halfDepths) {
-        for (let along = 0; along <= length + TOLERANCE.coordinate_m; along += step) {
-          yield [
-            round6(from[0] + ux * along + nx * depth),
-            round6(from[1] + uy * along + ny * depth),
-          ];
+        for (const depth of halfDepths) {
+          for (let along = 0; along <= length + TOLERANCE.coordinate_m; along += step) {
+            yield [
+              round6(from[0] + ux * along + nx * depth),
+              round6(from[1] + uy * along + ny * depth),
+            ];
+          }
         }
       }
     }
@@ -501,7 +522,20 @@ function sweep(
     wallEdges === null
       ? rings
       : (function* both() {
-          yield* wallHugCells(plan, type, wallEdges, PLACEMENT_SEARCH.step_m);
+          yield* wallHugCells(
+            type,
+            [
+              // Граница зоны идёт первой: зона отступает от стены, место
+              // вплотную к стене в неё уже не помещается, и если сначала
+              // пройти вдоль стен, то 24 подтверждаемых места закончатся на
+              // этом отступе — до края зоны очередь не дойдёт. Когда зона
+              // доходит до стены, обе границы совпадают и порядок ничего не
+              // меняет.
+              ...(target === null ? [] : [{ edges: outlineEdges(target), inside: target }]),
+              { edges: wallEdges, inside: plan.room.boundary },
+            ],
+            PLACEMENT_SEARCH.step_m,
+          );
           yield* rings;
         })();
 
