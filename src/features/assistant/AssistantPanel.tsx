@@ -74,6 +74,14 @@ function equipmentSubject(plan: PlanDocument, recommendation: Recommendation): s
   return `${type.label} · ${zone.name}`;
 }
 
+/** Где окажется вариант: имя и id зоны из плана, чтобы его можно было найти. */
+function candidateZone(plan: PlanDocument, candidate: Candidate): string {
+  const zoneId = candidate.object.zoneId;
+  if (zoneId === null) return 'вне зон';
+  const zone = plan.zones.find((entry) => entry.id === zoneId);
+  return zone === undefined ? `зона ${zoneId}` : `зона «${zone.name}» (${zoneId})`;
+}
+
 export function AssistantPanel({
   document: plan,
   revision,
@@ -253,6 +261,9 @@ export function AssistantPanel({
                           Вариант {index + 1}: {candidate.object.position[0].toFixed(2)};{' '}
                           {candidate.object.position[1].toFixed(2)} м, поворот{' '}
                           {candidate.object.rotation_deg}°
+                        </span>
+                        <span className="advice__zone" data-testid="candidate-zone">
+                          {candidateZone(plan, candidate)}
                         </span>
                         <span className="advice__forecast">
                           {candidate.facts

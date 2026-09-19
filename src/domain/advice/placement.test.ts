@@ -30,7 +30,9 @@ import {
   findPlacements,
   separationFor,
   spreadApart,
+  zoneFit,
 } from './placement';
+import { calculateAdvice } from './index';
 
 const DESK: ObjectType = {
   id: 'ot_desk',
@@ -604,5 +606,182 @@ describe('A01: место у стены', () => {
     const [best] = values(document, 'ot_desk', 'z_hall');
     expect(best).toBeDefined();
     expect(gapToOutline(document, best!.object)).toBeLessThanOrEqual(0.3 + TOLERANCE.coordinate_m);
+  });
+});
+
+/** Стеллаж для правила «уместен в служебной зоне». */
+const RACK: ObjectType = {
+  ...DESK,
+  id: 'ot_rack',
+  label: 'Стеллаж',
+  defaultSize_m: [1, 0.5],
+  defaultHeight_m: 2,
+  attributes: [],
+};
+
+function countRule(id: string, zoneTypeId: string, objectTypeId: string, min: number | null, max: number | null): Rule {
+  return {
+    id,
+    source: 'team-assumption',
+    rationale: `Правило команды: ${objectTypeId} в зоне ${zoneTypeId}.`,
+    kind: 'count',
+    zoneTypeId,
+    objectTypeId,
+    scope: 'inclusive',
+    min,
+    max,
+  };
+}
+
+/** Справочник с зоной очереди и хранением: зоны, где уместность различается. */
+function fitCatalog(rules: Rule[]): Catalog {
+  const base = catalog(rules);
+  return {
+    ...base,
+    objectTypes: [...base.objectTypes, RACK],
+    zoneTypes: [
+      ...base.zoneTypes,
+      { id: 'zt_queue', label: 'Зона очереди', color: '#FFF0F6', attributes: [] },
+      { id: 'zt_storage', label: 'Хранение', color: '#FFF5F5', attributes: [] },
+    ],
+  };
+}
+
+const DESK_IN_CLIENT = countRule('rule_desk_min', 'zt_client', 'ot_desk', 1, null);
+
+/** Клиентский зал на всё помещение, очередь вложена в его середину — там же центр помещения. */
+function hallWithQueue(rules: Rule[] = [DESK_IN_CLIENT]): PlanDocument {
+  return plan({
+    zones: [
+      zone('z_client', 'zt_client', [[0, 0], [10, 0], [10, 8], [0, 8]]),
+      zone('z_queue', 'zt_queue', [[3, 2], [7, 2], [7, 6], [3, 6]], 'z_client'),
+    ],
+    catalog: fitCatalog(rules),
+  });
+}
+
+function advice(document: PlanDocument, typeId: string, zoneId: string | null, anchor?: Point) {
+  const result = calculateAdvice(
+    document,
+    anchor === undefined ? { scenario: 'place', typeId, zoneId } : { scenario: 'place', typeId, zoneId, anchor },
+  );
+  if (!result.ok || result.value[0] === undefined) throw new Error('ожидалась рекомендация');
+  return result.value[0];
+}
+
+describe('A-fit: место ищется в зоне, где объект уместен', () => {
+  test('рабочее место не попадает в зону очереди, даже если якорь в ней', () => {
+    // Якорь задан: без фильтра ближайшие к нему места — в самой очереди.
+    const candidates = values(hallWithQueue(), 'ot_desk', null, [5, 4]);
+
+    expect(candidates.length).toBe(PLACEMENT_SEARCH.maxCandidates);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_client');
+  });
+
+  test('без правила о зонах тип ищется по всему помещению, очередь не закрыта', () => {
+    const candidates = values(hallWithQueue([]), 'ot_desk', null, [5, 4]);
+
+    expect(candidates.some((candidate) => candidate.object.zoneId === 'z_queue')).toBe(true);
+  });
+
+  test('стеллаж встаёт только в служебную зону, даже если якорь в клиентской', () => {
+    const document = plan({
+      zones: [
+        zone('z_client', 'zt_client', [[0, 0], [6, 0], [6, 8], [0, 8]]),
+        zone('z_back', 'zt_service', [[6, 0], [10, 0], [10, 8], [6, 8]]),
+      ],
+      catalog: fitCatalog([countRule('rule_rack_service', 'zt_service', 'ot_rack', 0, null)]),
+    });
+
+    const candidates = values(document, 'ot_rack', null, [2, 4]);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_back');
+  });
+
+  test('правило-потолок (только max) не делает зону «домом» типа', () => {
+    const fit = zoneFit(hallWithQueue([countRule('rule_desk_max', 'zt_client', 'ot_desk', null, 1)]), 'ot_desk', null);
+
+    expect(fit.mode).toBe('no-rule');
+    expect(fit.zoneIds).toBeNull();
+  });
+
+  test('уместной зоны в плане нет — пустой ответ и объяснение, а не место в любой зоне', () => {
+    const document = plan({
+      zones: [zone('z_client', 'zt_client', [[0, 0], [10, 0], [10, 8], [0, 8]])],
+      catalog: fitCatalog([countRule('rule_rack_service', 'zt_service', 'ot_rack', 0, null)]),
+    });
+
+    expect(values(document, 'ot_rack', null)).toEqual([]);
+
+    const recommendation = advice(document, 'ot_rack', null);
+    expect(recommendation.reasonCodes).toEqual(['placement.none']);
+    const said = recommendation.limitations.join(' ');
+    expect(said).toContain('Служебная зона');
+    expect(said).toContain('rule_rack_service');
+    expect(recommendation.assumptions.join(' ')).toContain('не норматив Почты');
+  });
+
+  test('уместные зоны заняты — пустой ответ говорит, где искали', () => {
+    const document = plan({
+      zones: [
+        zone('z_client', 'zt_client', [[0, 0], [2, 0], [2, 8], [0, 8]]),
+        zone('z_queue', 'zt_queue', [[2, 0], [10, 0], [10, 8], [2, 8]]),
+      ],
+      objects: [object('eq_block', 'ot_block', [1, 4], [2, 8])],
+      catalog: fitCatalog([DESK_IN_CLIENT]),
+    });
+
+    const recommendation = advice(document, 'ot_desk', null);
+
+    expect(recommendation.candidates).toEqual([]);
+    expect(recommendation.limitations.join(' ')).toContain('z_client');
+  });
+
+  test('план без зон: уместность не проверяется, место ищется по помещению', () => {
+    const document = plan({ catalog: fitCatalog([DESK_IN_CLIENT]) });
+
+    expect(zoneFit(document, 'ot_desk', null).mode).toBe('no-zones');
+    expect(values(document, 'ot_desk', null).length).toBe(PLACEMENT_SEARCH.maxCandidates);
+    expect(advice(document, 'ot_desk', null).assumptions.join(' ')).toContain('нет зон');
+  });
+
+  test('явно выбранная уместная зона не отдаёт место во вложенную очередь', () => {
+    const candidates = values(hallWithQueue(), 'ot_desk', 'z_client', [5, 4]);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_client');
+  });
+
+  test('явно выбранная неуместная зона — выбор человека, но с пометкой', () => {
+    const document = hallWithQueue();
+
+    const candidates = values(document, 'ot_desk', 'z_queue');
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_queue');
+
+    expect(zoneFit(document, 'ot_desk', 'z_queue').mode).toBe('override');
+    expect(advice(document, 'ot_desk', 'z_queue').assumptions.join(' ')).toContain('выбрана явно');
+  });
+
+  test('зона варианта — в refs рекомендации, уместные зоны названы в допущениях', () => {
+    const recommendation = advice(hallWithQueue(), 'ot_desk', null, [5, 4]);
+
+    expect(recommendation.refs).toEqual([
+      { kind: 'room', id: 'room_main' },
+      { kind: 'zone', id: 'z_client' },
+    ]);
+    const said = recommendation.assumptions.join(' ');
+    expect(said).toContain('z_client');
+    expect(said).toContain('rule_desk_min');
+    expect(said).toContain('не норматив Почты');
+    expect(said).not.toContain('z_queue');
+  });
+
+  test('без правила о зонах поиск по помещению говорит об этом', () => {
+    const recommendation = advice(hallWithQueue([]), 'ot_desk', null, [5, 4]);
+
+    expect(recommendation.assumptions.join(' ')).toContain('нет правила');
+    expect(recommendation.refs).toContainEqual({ kind: 'zone', id: 'z_queue' });
   });
 });

@@ -85,6 +85,37 @@ test.describe('ассистент в браузере', () => {
     expect(errors).toEqual([]);
   });
 
+  test('демо: место для рабочего места не в зоне очереди, у варианта названа зона', async ({ page }) => {
+    // Находка jury 19.09: по «Всё помещение» ассистент ставил рабочее место
+    // оператора в зону очереди клиентов и не говорил, в какой зоне вариант.
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
+
+    await panel(page).getByLabel('Объект').selectOption('ot_workplace');
+    await expect(panel(page).getByLabel('Зона')).toHaveValue('');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    await expect(panel(page).locator('.advice__sentence')).toContainText('Место найдено');
+    const candidates = panel(page).locator('.advice__candidates li');
+    await expect(candidates.first()).toBeVisible();
+    const count = await candidates.count();
+    expect(count).toBeGreaterThan(0);
+    for (let index = 0; index < count; index += 1) {
+      const zone = candidates.nth(index).getByTestId('candidate-zone');
+      await expect(zone).toContainText(/зона «.+» \(z_\w+\)/);
+      await expect(zone).not.toContainText('z_queue');
+    }
+    await expect(candidates.first().getByTestId('candidate-zone')).toContainText('«Клиентский зал» (z_client)');
+
+    // Зона варианта — среди ссылок рекомендации, правило уместности — в допущениях.
+    await expect(panel(page).locator('.advice__refs')).toContainText('z_client');
+    await expect(panel(page).locator('.advice__refs')).not.toContainText('z_queue');
+    await panel(page).locator('.advice__more summary').click();
+    await expect(panel(page).locator('.advice__more')).toContainText('rule_workplace_min');
+    await expect(panel(page).locator('.advice__more')).toContainText('не норматив Почты');
+  });
+
   test('план изменили после ответа — панель говорит, что числа устарели', async ({ page }) => {
     await page.goto('/');
     await drawZone(page);
