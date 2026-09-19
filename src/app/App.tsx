@@ -260,12 +260,20 @@ export function App(): React.JSX.Element {
             3D
           </button>
         </div>
-        <div className="shell__history">
-          <button type="button" className="files__button" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
-            Отменить
+        <div className="shell__history" role="group" aria-label="История правок">
+          <button type="button" className="shell__quiet" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
+            <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M5.5 3.5 2.5 6.5l3 3" />
+              <path d="M2.5 6.5h7a4 4 0 0 1 0 8h-3" />
+            </svg>
+            <span className="shell__label">Отменить</span>
           </button>
-          <button type="button" className="files__button" title="Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)" onClick={() => store.getState().redo()}>
-            Вернуть
+          <button type="button" className="shell__quiet" title="Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)" onClick={() => store.getState().redo()}>
+            <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="m10.5 3.5 3 3-3 3" />
+              <path d="M13.5 6.5h-7a4 4 0 0 0 0 8h3" />
+            </svg>
+            <span className="shell__label">Вернуть</span>
           </button>
         </div>
         <div className="shell__anchor" data-tour="files">
@@ -283,12 +291,6 @@ export function App(): React.JSX.Element {
         />
         </div>
       </header>
-
-      {lastError === null ? null : (
-        <p className="shell__error" role="alert">
-          Правка отклонена: {lastError}
-        </p>
-      )}
 
       <div className="shell__body">
         <aside className="shell__side" data-tour="side-left">
@@ -310,6 +312,13 @@ export function App(): React.JSX.Element {
         </aside>
 
         <main className="shell__canvas">
+          {/* The refusal floats over the canvas: a row above it would push the
+              plan down under the pointer that just made the gesture. */}
+          {lastError === null ? null : (
+            <p className="shell__error" role="alert">
+              Правка отклонена: {lastError}
+            </p>
+          )}
           <EditorCanvas
             key={documentEpoch}
             document={document}

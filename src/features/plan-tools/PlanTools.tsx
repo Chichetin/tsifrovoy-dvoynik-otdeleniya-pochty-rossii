@@ -100,20 +100,21 @@ export function PlanTools({
         </button>
       )}
 
-      {session.tool.kind === 'object.place' ? (
-        <span className="toolbar__note">Клик по плану ставит объект</span>
-      ) : null}
-      {hint === null ? null : <span className="toolbar__note">{hint}</span>}
+      {/* Hints live in a plaque over the canvas, not in the header row: a long
+          line there wrapped the header and moved the plan (operator №16). */}
+      {session.tool.kind !== 'object.place' && hint === null && notice === null ? null : (
+        <div className="toolbar__hints">
+          {session.tool.kind === 'object.place' ? (
+            <span className="toolbar__note">Клик по плану ставит объект</span>
+          ) : null}
+          {hint === null ? null : <span className="toolbar__note">{hint}</span>}
 
-      {notice === null ? null : (
-        <span
-          className="toolbar__note"
-          style={{ color: 'var(--error)' }}
-          role="status"
-          data-testid="plan-tools-notice"
-        >
-          {notice}
-        </span>
+          {notice === null ? null : (
+            <span className="toolbar__note is-notice" role="status" data-testid="plan-tools-notice">
+              {notice}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );
