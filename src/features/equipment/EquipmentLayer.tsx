@@ -12,15 +12,16 @@
  * file only converts the pointer to world metres and draws the result.
  */
 
-import { Fragment, memo, useEffect, useState } from 'react';
+import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
 import type Konva from 'konva';
-import type { Equipment, Point } from '../../contracts/model';
+import type { Equipment, Id, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
+import { arrowDelta, moveObjects, pasteObjects } from './selection-edit';
 import {
   RESIZE_HANDLES,
   grabOffset,
@@ -43,6 +44,14 @@ const ROTATION_GAP_PX = 28;
 
 /** The object as the pointer is currently shaping it; null outside a gesture. */
 type Gesture = { id: string; object: Equipment };
+
+/**
+ * Буфер копирования: снимок объектов на момент Ctrl+C и счётчик вставок из
+ * него подряд. Снимок, а не ссылки: оригинал можно подвинуть или удалить, а
+ * вставится то, что копировали. Живёт в слое и не переживает перезагрузку —
+ * это не содержимое документа.
+ */
+type Clipboard = { objects: Equipment[]; pastes: number };
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -118,6 +127,8 @@ export function EquipmentLayer({
       ? (plan.objects.find((object) => object.id === selection.id) ?? null)
       : null;
   const selectedVisible = selectedObject !== null && visibleLayers.has(selectedObject.layerId);
+  const selectedLocked = selectedObject !== null && lockedLayers.has(selectedObject.layerId);
+  const clipboard = useRef<Clipboard | null>(null);
 
   // Escape mid-gesture puts the shape back and drops the command. Only this
   // layer's own gesture is touched — a vertex or a wall end being dragged
@@ -150,6 +161,77 @@ export function EquipmentLayer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCommand, selectedObject, selectedVisible]);
+
+  // Клавиатурная правка выбранного: стрелки двигают на шаг, Shift+стрелка — на
+  // мелкий, Ctrl+C/Ctrl+V копируют и вставляют со смещением. Одно нажатие —
+  // одна команда, поэтому «Отменить» возвращает объект туда, где он был до
+  // нажатия, а не отыгрывает кадры.
+  //
+  // Клавиша, нажатая в поле карточки, принадлежит полю: стрелками там ходят по
+  // тексту, Ctrl+C копирует текст (находка operator №18). Сочетания проверяются
+  // по `code`, а не по букве: на русской раскладке Ctrl+C — это «Ctrl+С»
+  // кириллицей, и по `key` горячая клавиша пропала бы.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (isTypingTarget(event.target)) return;
+      const combo = event.ctrlKey || event.metaKey;
+
+      // Вставка выделения не требует: буфер держит снимок, и «скопировал →
+      // удалил оригинал → вставил» обязан работать, хотя выбирать уже нечего.
+      if (combo && event.code === 'KeyV') {
+        const buffer = clipboard.current;
+        if (buffer === null) return;
+        event.preventDefault();
+        // Свободные номера считаются и по плану, и по удалённым в этой сессии
+        // id (D-156): иначе первая же вставка после удаления ляжет на
+        // retired-id и команда откажет ID_REUSED.
+        const taken = new Set<Id>([
+          ...plan.objects.map((object) => object.id),
+          ...(session.retired ?? []),
+        ]);
+        const copies = pasteObjects(buffer.objects, taken, buffer.pastes + 1);
+        let pasted = 0;
+        for (const copy of copies) {
+          if (onCommand({ type: 'object.put', object: copy }).ok) pasted += 1;
+        }
+        if (pasted === 0) return;
+        buffer.pastes += 1;
+        // Вставленное сразу выбрано: карточка показывает копию, и следующая
+        // стрелка двигает именно её (D-147).
+        const last = copies.at(-1);
+        if (last !== undefined) onSelect({ kind: 'object', id: last.id });
+        return;
+      }
+
+      // Всё остальное правит выбранное — и только то, что видно на плане.
+      if (selectedObject === null || !selectedVisible) return;
+
+      if (combo) {
+        if (event.code !== 'KeyC') return;
+        event.preventDefault();
+        clipboard.current = { objects: [selectedObject], pastes: 0 };
+        return;
+      }
+
+      if (event.altKey) return;
+      const delta = arrowDelta(event.key, event.shiftKey);
+      // Заблокированный слой не тянется мышью — не двигается и стрелками.
+      if (delta === null || selectedLocked) return;
+      event.preventDefault();
+      const [moved] = moveObjects([selectedObject], delta);
+      if (moved !== undefined) onCommand({ type: 'object.put', object: moved });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [
+    onCommand,
+    onSelect,
+    plan.objects,
+    selectedLocked,
+    selectedObject,
+    selectedVisible,
+    session.retired,
+  ]);
 
   /** The pointer in world metres, through the one conversion in domain/geometry. */
   const worldPointer = (event: Konva.KonvaEventObject<unknown>): Point | null => {

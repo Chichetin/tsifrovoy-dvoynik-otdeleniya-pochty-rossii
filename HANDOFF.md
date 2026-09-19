@@ -16,6 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
+| Claude Code (поток 2) | `worktree-editor-group-edit`, MR после push | U04-keys: правка выбранного с клавиатуры — стрелки 0,5 м, Shift+стрелка 0,05 м, Ctrl+C/Ctrl+V со смещением и свежим id мимо `retired` (D-180); рамка и групповые действия отложены до контракта набора в `selection` (D-181) | `src/features/equipment/selection-edit.ts`, `EquipmentLayer.tsx`, `use-equipment-tool-controller.ts`, `tests/e2e/group-edit.spec.ts` | unit 789 passed; e2e `group-edit`+`equipment`+`properties` 25 passed; typecheck/lint/build | готово к MR |
 | Claude (эта сессия) | `worktree-advice-wall-rank`, MR после push | Находка operator №12: ассистент предлагал место посреди зала — ранг и порядок перебора учитывают близость к стене (D-178) | `src/domain/geometry/` (`polygons.ts`, `index.ts`), `src/domain/advice/` (`placement.ts`, `index.ts`), их тесты, `demo/recommendation.json`, ZIP | unit 762 passed + 1 skipped; полный e2e 92 passed (`playwright.qa.config.ts`, `DEV_PORT=5183`); typecheck/lint/build чистые | готово к MR |
 | Максим / Codex | `worktree-inventory-flake-maxim`, MR после push | Убрать ложный 5-секундный порог из функционального e2e, перенести замер фильтра в Q02 | `tests/e2e/inventory.spec.ts`, `tests/perf/editor.spec.ts` | Chrome 1000 объектов 1/1; Q02 100/10 — 5 повторов с `filterMs`; typecheck/lint | готово к MR |
 

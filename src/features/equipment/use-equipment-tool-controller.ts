@@ -11,14 +11,8 @@ import type { Id } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { defaultAttributes, findObjectType } from '../../domain/catalog';
 import { editableContentLayer } from '../../domain/content-layer';
+import { nextObjectId } from './selection-edit';
 import { snapPosition } from './transform';
-
-function nextId(prefix: string, taken: Set<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `${prefix}${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
 
 export const useEquipmentToolController: UsePlanToolController = ({
   document: plan,
@@ -44,12 +38,13 @@ export const useEquipmentToolController: UsePlanToolController = ({
 
       // Ids of everything on the plan plus ids a delete retired this session:
       // the store refuses to resurrect the latter (D-019), so «удалить → поставить
-      // снова» must not offer them.
+      // снова» must not offer them. Один генератор с вставкой из буфера
+      // (`nextObjectId`): два номерователя рядом рано или поздно выдадут один id.
       const taken = new Set<Id>([...plan.objects.map((object) => object.id), ...(session.retired ?? [])]);
       onCommand({
         type: 'object.put',
         object: {
-          id: nextId('eq_', taken),
+          id: nextObjectId(taken),
           typeId: type.id,
           label: type.label,
           // Centimetres, like every other gesture: the file stays readable.
