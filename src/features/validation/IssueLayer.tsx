@@ -34,6 +34,8 @@ export type IssueLayerProps = {
 const HALO = '#FFFFFF';
 const FOCUS_RING = '#212529';
 const MARKER_RADIUS = 9;
+/** Same value as HANDLE_RADIUS_PX in features/equipment: keep equal. */
+const RESIZE_HANDLE_RADIUS_PX = 6;
 const FOCUSED_MARKER_RADIUS = 13;
 
 export function IssueLayer({ issues, focus, viewport }: IssueLayerProps): React.JSX.Element {
@@ -58,9 +60,10 @@ export function IssueLayer({ issues, focus, viewport }: IssueLayerProps): React.
         {markers.map((marker) => {
           const [x, y] = markerAnchor(marker.polygon, viewport);
           const radius = marker.focused ? FOCUSED_MARKER_RADIUS : MARKER_RADIUS;
-          // Half a radius out of the corner: the resize handle of a selected
-          // object sits exactly on the corner and would cover the number.
-          const shift = radius * 0.5;
+          // Clear of the corner by the marker's own radius plus the handle's:
+          // this layer sits above the equipment layer, so a marker centred
+          // near the corner would hide the resize handle of a selected object.
+          const shift = radius + RESIZE_HANDLE_RADIUS_PX;
           return (
             <Group
               key={`${marker.ref.kind}:${marker.ref.id}`}
