@@ -16,9 +16,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Circle, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
-import type { Point, Polygon } from '../../contracts/model';
+import type { Point, Polygon, Ref, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
+import { exportFileName, exportFrame, exportHeader } from './export';
+import { downloadBlob, renderPlanPng } from './export-image';
 import { focusViewport, planExtent, refExtent } from './focus';
 import {
   type CanvasSize,
@@ -42,6 +44,12 @@ const HIGHLIGHT_MS = 1600;
 const MIN_RING_PX = 28;
 const RING_GAP_PX = 14;
 
+/** How long «PNG сохранён» stays on the canvas, in milliseconds. */
+const EXPORT_NOTICE_MS = 4000;
+
+/** If the fitted, unselected frame never arrives, the export gives up visibly. */
+const EXPORT_TIMEOUT_MS = 3000;
+
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
 
@@ -50,6 +58,10 @@ function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const tag = target.tagName;
   return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+function sameViewport(a: Viewport, b: Viewport): boolean {
+  return a.scale === b.scale && a.origin[0] === b.origin[0] && a.origin[1] === b.origin[1];
 }
 
 /** Мировой контур в плоский список экранных координат для Konva. */
@@ -85,6 +97,23 @@ export function EditorCanvas({
   /** Номер последнего запроса, подсветка которого уже погасла. */
   const [dismissed, setDismissed] = useState(0);
   const handledFocus = useRef(0);
+  const stageRef = useRef<Konva.Stage>(null);
+  const gridLayer = useRef<Konva.Layer>(null);
+  const focusLayer = useRef<Konva.Layer>(null);
+  /**
+   * Выгрузка ждёт кадра, в котором план вписан и ничего не выделено: ручки и
+   * рамку выбора рисуют слои соседей, а подписи у них в пикселях экрана, так
+   * что картинка с приближенного вида вышла бы с нечитаемо мелким текстом.
+   * После снимка вид и выделение возвращаются — всё в одном layout-эффекте,
+   * до отрисовки кадра. Запрос живёт в ref: снимок берёт его ровно один раз.
+   */
+  const exportRequest = useRef<{
+    selection: Ref | null;
+    viewport: Viewport;
+    target: Viewport;
+  } | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
+  const [exportNotice, setExportNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const documentKey = `${plan.id}\u0000${plan.name}`;
 
   const focus = session.focus;
@@ -161,6 +190,73 @@ export function EditorCanvas({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [fitPlan]);
+
+  const startExport = useCallback((): void => {
+    if (exportBusy || size.width === 0 || size.height === 0) return;
+    const target = fitToExtent(planExtent(plan), size);
+    setExportBusy(true);
+    setExportNotice(null);
+    exportRequest.current = { selection: session.selection, viewport: session.viewport, target };
+    if (session.selection !== null) onSelect(null);
+    onViewport(target);
+
+    // Страховка: кадр для снимка не пришёл (вид или выделение перехватил кто-то
+    // ещё) — вернуть как было и сказать об этом, а не висеть с «Готовлю PNG…».
+    const request = exportRequest.current;
+    window.setTimeout(() => {
+      if (exportRequest.current !== request) return;
+      exportRequest.current = null;
+      onViewport(request.viewport);
+      if (request.selection !== null) onSelect(request.selection);
+      setExportNotice({ ok: false, text: 'Картинку сохранить не удалось: холст не подготовил кадр' });
+      setExportBusy(false);
+    }, EXPORT_TIMEOUT_MS);
+  }, [exportBusy, onSelect, onViewport, plan, session.selection, session.viewport, size]);
+
+  // Снимок — когда слои уже перерисованы вписанными и без ручек. Он
+  // синхронный, и вид с выделением возвращаются тут же; асинхронно только
+  // кодирование PNG, которому холст уже не нужен.
+  useLayoutEffect(() => {
+    const request = exportRequest.current;
+    if (!exportBusy || request === null || session.selection !== null) return;
+    if (!sameViewport(session.viewport, request.target)) return;
+    exportRequest.current = null;
+
+    let pending: Promise<Blob>;
+    try {
+      const stage = stageRef.current;
+      if (stage === null) throw new Error('холст ещё не готов');
+      const frame = exportFrame(planExtent(plan), session.viewport);
+      if (frame === null) throw new Error('в плане нечего выгружать');
+      const hidden = [gridLayer.current, focusLayer.current].filter(
+        (node): node is Konva.Layer => node !== null,
+      );
+      pending = renderPlanPng(stage, frame, exportHeader(plan), hidden);
+    } catch (error) {
+      pending = Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+    onViewport(request.viewport);
+    if (request.selection !== null) onSelect(request.selection);
+
+    const fileName = exportFileName(plan.name);
+    pending
+      .then((blob) => {
+        downloadBlob(blob, fileName);
+        setExportNotice({ ok: true, text: `Картинка сохранена: ${fileName}` });
+      })
+      .catch((error: unknown) => {
+        const reason = error instanceof Error ? error.message : String(error);
+        setExportNotice({ ok: false, text: `Картинку сохранить не удалось: ${reason}` });
+      })
+      .finally(() => setExportBusy(false));
+  }, [exportBusy, onSelect, onViewport, plan, session.selection, session.viewport]);
+
+  // Сообщение об успехе гаснет само; ошибка остаётся до следующей попытки.
+  useEffect(() => {
+    if (exportNotice === null || !exportNotice.ok) return;
+    const timer = window.setTimeout(() => setExportNotice(null), EXPORT_NOTICE_MS);
+    return () => window.clearTimeout(timer);
+  }, [exportNotice]);
 
   const toWorld = useCallback(
     (stage: Konva.Stage): Point | null => {
@@ -276,6 +372,7 @@ export function EditorCanvas({
     >
       {size.width > 0 && size.height > 0 ? (
         <Stage
+          ref={stageRef}
           width={size.width}
           height={size.height}
           onPointerDown={handleDown}
@@ -287,7 +384,7 @@ export function EditorCanvas({
           }
           style={{ background: BACKGROUND }}
         >
-          <Layer listening={false}>
+          <Layer listening={false} ref={gridLayer}>
             {grid?.vertical.map((x) => (
               <Line
                 key={`v${x}`}
@@ -317,7 +414,7 @@ export function EditorCanvas({
           </Layer>
           {children}
           {ring === null || focusExtent === null ? null : (
-            <Layer listening={false}>
+            <Layer listening={false} ref={focusLayer}>
               <Line
                 points={screenPoints(focusExtent, session.viewport)}
                 closed
@@ -339,15 +436,41 @@ export function EditorCanvas({
         </Stage>
       ) : null}
       {grid === null ? null : (
-        <button
-          type="button"
-          className="editor-canvas__fit"
-          data-testid="canvas-fit"
-          title="Показать план целиком (клавиша F)"
-          onClick={fitPlan}
-        >
-          Вписать
-        </button>
+        <div className="editor-canvas__actions">
+          <button
+            type="button"
+            className="editor-canvas__fit"
+            data-testid="canvas-fit"
+            title="Показать план целиком (клавиша F)"
+            onClick={fitPlan}
+          >
+            Вписать
+          </button>
+          <button
+            type="button"
+            className="editor-canvas__fit"
+            data-testid="canvas-export"
+            title="Сохранить весь план картинкой PNG — для согласования и презентации"
+            onClick={startExport}
+            disabled={exportBusy}
+            aria-busy={exportBusy}
+          >
+            {exportBusy ? 'Готовлю PNG…' : 'Картинка PNG'}
+          </button>
+          {exportNotice === null ? null : (
+            <p
+              className={
+                exportNotice.ok
+                  ? 'editor-canvas__notice'
+                  : 'editor-canvas__notice editor-canvas__notice--error'
+              }
+              data-testid="canvas-export-notice"
+              role={exportNotice.ok ? 'status' : 'alert'}
+            >
+              {exportNotice.text}
+            </p>
+          )}
+        </div>
       )}
       {grid === null ? null : (
         <p className="editor-canvas__scale" data-testid="canvas-scale">
