@@ -97,7 +97,12 @@ export function App(): React.JSX.Element {
   // A drawing tool that just created something hands it over selected: the
   // card shows what was drawn, not what was picked a minute ago (operator
   // finding 9). The room is not created, only reshaped, so `room.set` stays
-  // out. Moves and edits go through `dispatch` untouched.
+  // out.
+  //
+  // A `put` from a tool also arrives when an existing entity is dragged or
+  // resized, and it selects that entity too: the person has just handled it,
+  // so the card follows their hand. Deletions and commands from panels go
+  // through plain `dispatch` and leave the selection alone.
   const dispatchAndSelect = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatch(command);
