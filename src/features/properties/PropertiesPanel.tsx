@@ -26,7 +26,7 @@ import type {
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
-import { polygonArea } from '../../domain/geometry';
+import { footprintArea, polygonArea } from '../../domain/geometry';
 
 type Errors = Record<string, string>;
 
@@ -410,9 +410,19 @@ export function PropertiesPanel({
 
   if (object !== undefined) {
     const type = findObjectType(plan.catalog, object.typeId);
+    // Группа (рамка, Shift+клик): карточка показывает главного, а счёт и площадь
+    // — всей группы, чтобы было видно, на что подействуют стрелки и Delete.
+    const groupMembers = plan.objects.filter((item) => session.selected?.has(item.id) ?? false);
+    const groupArea = groupMembers.reduce((sum, item) => sum + footprintArea(item), 0);
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства объекта</h2>
+        {groupMembers.length > 1 ? (
+          <p className="props__hint" data-testid="props-group">
+            Выбрано объектов: {groupMembers.length}, суммарно {groupArea.toFixed(2)} м². Стрелки, Delete,
+            Ctrl+C и перетаскивание действуют на всю группу; карточка показывает главный.
+          </p>
+        ) : null}
         {identity(object.id, 'объект')}
 
         {field(

@@ -11,7 +11,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
-import type { PlanDocument, Ref, Result, Viewport } from '../contracts/model';
+import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
@@ -87,13 +87,18 @@ export function App(): React.JSX.Element {
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   const retired = useStore(store, (state) => state.retired);
+  const selected = useStore(store, (state) => state.selected);
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, preview, focus, retired }),
-    [tool, viewport, selection, preview, focus, retired],
+    () => ({ tool, viewport, selection, selected, preview, focus, retired }),
+    [tool, viewport, selection, selected, preview, focus, retired],
   );
 
   const select = useCallback(
     (ref: Ref | null) => store.getState().select(ref),
+    [store],
+  );
+  const selectMany = useCallback(
+    (ids: readonly Id[]) => store.getState().selectMany(ids),
     [store],
   );
 
@@ -294,6 +299,7 @@ export function App(): React.JSX.Element {
               session={session}
               onCommand={dispatch}
               onSelect={select}
+              onSelectMany={selectMany}
               preview={preview}
             />
             <InformationLayer document={document} session={session} />
