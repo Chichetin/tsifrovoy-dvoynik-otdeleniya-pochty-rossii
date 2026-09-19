@@ -60,8 +60,10 @@ test('находки примера помечены на плане без кл
   await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
   const validation = page.getByLabel('Проверка плана');
   const items = validation.locator('.issues__item');
-  // Восемь проблем примера — восемь строк: повтор «ни в одной зоне» снят (operator №19).
-  await expect(items).toHaveCount(8);
+  // Восемь геометрических проблем примера — восемь строк: повтор «ни в одной зоне»
+  // снят (operator №19); плюс два правила команды, которые приходят к примеру при
+  // открытии (D-148): терминал очереди дальше 3 м от входа и нехватка в клиентском зале.
+  await expect(items).toHaveCount(10);
 
   // Каждая сущность, которую находка называет первой, помечена на плане.
   const listed = new Set(
@@ -74,11 +76,15 @@ test('находки примера помечены на плане без кл
   expect(new Set(shown.map((marker) => marker.id.replace(/^issue-marker:[a-z]+:/, '')))).toEqual(
     listed,
   );
-  // Шесть сущностей примера: три коллизии помечают кассы и банкомат, стены и
-  // зона — оба стеллажа и ПВЗ. Числа на значках в сумме — 8 находок списка.
-  expect(shown).toHaveLength(6);
-  expect(shown.reduce((sum, marker) => sum + marker.count, 0)).toBe(8);
-  expect(shown.every((marker) => !marker.focused && marker.severity === 'error')).toBe(true);
+  // Восемь сущностей: три коллизии помечают кассы и банкомат, стены и зона — оба
+  // стеллажа и ПВЗ, правило расстояния — терминал, правило комплектования — зону
+  // клиентского зала. Числа на значках в сумме — 10 находок списка.
+  expect(shown).toHaveLength(8);
+  expect(shown.reduce((sum, marker) => sum + marker.count, 0)).toBe(10);
+  expect(shown.every((marker) => !marker.focused)).toBe(true);
+  // Геометрия и норма организаторов — ошибки; правило команды у зоны — предупреждение.
+  expect(shown.filter((marker) => marker.severity === 'error')).toHaveLength(7);
+  expect(shown.find((marker) => marker.id === 'issue-marker:zone:z_client')?.severity).toBe('warning');
   // У стеллажа три находки: коллизия с кассой помечена у кассы, стена и зона — у него.
   expect(shown.find((marker) => marker.id === 'issue-marker:object:eq_rack_1')?.count).toBe(2);
 
