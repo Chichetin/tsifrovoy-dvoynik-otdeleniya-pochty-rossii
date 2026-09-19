@@ -1,0 +1,507 @@
+{
+ "note": "Q02, D-187. before = ea8f9c6 без perfectDrawEnabled:false; after = ea8f9c6 + D-187. PERF_SERVER=preview (production-сборка). Поле commit в каждом наборе — HEAD рабочей копии (ea8f9c6), изменения D-187 в ней ещё не были закоммичены.",
+ "runs": {
+  "before": [
+   {
+    "commit": "ea8f9c6771215bc0b945c19e19aa3afe54cf58ba",
+    "server": "preview",
+    "seed": 20260918,
+    "objects": 100,
+    "zones": 10,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+     "platform": "linux",
+     "release": "7.2.3-arch1-2",
+     "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+     "cores": 8,
+     "ramBytes": 16410009600,
+     "loadavgAtEnd": [
+      5.59,
+      8.76,
+      7.19
+     ]
+    },
+    "samples": [
+     {
+      "coldOpenMs": 431.87536,
+      "warmOpenMs": 615.3421489999996,
+      "selectMs": 48.799999952316284,
+      "selectWallMs": 105.01983900000005,
+      "zoomMs": 147.69999998807907,
+      "filterMs": 58.442091000000346,
+      "clearFilterMs": 98.72561099999984,
+      "validateMs": null,
+      "saveReopenMs": 342.91603900000064,
+      "heapBytes": 24500000
+     },
+     {
+      "coldOpenMs": 375.9421740000007,
+      "warmOpenMs": 461.3048740000004,
+      "selectMs": 30.900000035762787,
+      "selectWallMs": 48.730845000000045,
+      "zoomMs": 97.89999997615814,
+      "filterMs": 26.209907000000385,
+      "clearFilterMs": 30.574642000000495,
+      "validateMs": null,
+      "saveReopenMs": 240.96026700000039,
+      "heapBytes": 21700000
+     },
+     {
+      "coldOpenMs": 279.93867600000067,
+      "warmOpenMs": 129.6525560000009,
+      "selectMs": 31.19999998807907,
+      "selectWallMs": 40.99008800000047,
+      "zoomMs": 107.80000001192093,
+      "filterMs": 41.29552200000035,
+      "clearFilterMs": 40.501319000000876,
+      "validateMs": null,
+      "saveReopenMs": 254.79586500000005,
+      "heapBytes": 21700000
+     },
+     {
+      "coldOpenMs": 279.3185740000008,
+      "warmOpenMs": 119.85870799999975,
+      "selectMs": 32.5,
+      "selectWallMs": 45.84228500000063,
+      "zoomMs": 103.90000003576279,
+      "filterMs": 22.992600000001403,
+      "clearFilterMs": 62.20010800000091,
+      "validateMs": null,
+      "saveReopenMs": 250.71933900000113,
+      "heapBytes": 31200000
+     },
+     {
+      "coldOpenMs": 324.6428399999986,
+      "warmOpenMs": 533.0489689999995,
+      "selectMs": 52.69999998807907,
+      "selectWallMs": 100.05050400000073,
+      "zoomMs": 132.9000000357628,
+      "filterMs": 32.722719999999754,
+      "clearFilterMs": 67.33583699999872,
+      "validateMs": null,
+      "saveReopenMs": 321.278624999999,
+      "heapBytes": 24500000
+     }
+    ]
+   },
+   {
+    "commit": "ea8f9c6771215bc0b945c19e19aa3afe54cf58ba",
+    "server": "preview",
+    "seed": 20260918,
+    "objects": 500,
+    "zones": 30,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+     "platform": "linux",
+     "release": "7.2.3-arch1-2",
+     "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+     "cores": 8,
+     "ramBytes": 16410009600,
+     "loadavgAtEnd": [
+      4.19,
+      7.74,
+      6.94
+     ]
+    },
+    "samples": [
+     {
+      "coldOpenMs": 1404.919672,
+      "warmOpenMs": 2593.8052129999996,
+      "selectMs": 60.39999997615814,
+      "selectWallMs": 73.79534799999965,
+      "zoomMs": 453.4000000357628,
+      "filterMs": 136.39384300000165,
+      "clearFilterMs": 257.4926799999994,
+      "validateMs": null,
+      "saveReopenMs": 1670.8615500000014,
+      "heapBytes": 24500000
+     },
+     {
+      "coldOpenMs": 1405.6377390000016,
+      "warmOpenMs": 2212.316552999997,
+      "selectMs": 63.30000001192093,
+      "selectWallMs": 101.50178600000072,
+      "zoomMs": 470.30000001192093,
+      "filterMs": 137.8517720000018,
+      "clearFilterMs": 279.27304300000105,
+      "validateMs": null,
+      "saveReopenMs": 1401.8851209999993,
+      "heapBytes": 18200000
+     },
+     {
+      "coldOpenMs": 1220.4480419999963,
+      "warmOpenMs": 2306.6357100000023,
+      "selectMs": 70.5,
+      "selectWallMs": 115.1240719999987,
+      "zoomMs": 547.5999999642372,
+      "filterMs": 138.37949699999444,
+      "clearFilterMs": 325.62831300000107,
+      "validateMs": null,
+      "saveReopenMs": 1543.5286380000034,
+      "heapBytes": 23100000
+     },
+     {
+      "coldOpenMs": 1172.3566400000054,
+      "warmOpenMs": 2291.5567879999944,
+      "selectMs": 60.200000047683716,
+      "selectWallMs": 105.56906300000264,
+      "zoomMs": 438.19999998807907,
+      "filterMs": 129.7351819999967,
+      "clearFilterMs": 249.518124000002,
+      "validateMs": null,
+      "saveReopenMs": 1230.6349520000003,
+      "heapBytes": 39600000
+     },
+     {
+      "coldOpenMs": 1416.9807109999965,
+      "warmOpenMs": 2387.4194070000085,
+      "selectMs": 59.10000002384186,
+      "selectWallMs": 78.99650000000838,
+      "zoomMs": 445.39999997615814,
+      "filterMs": 157.63369700001203,
+      "clearFilterMs": 311.5650239999959,
+      "validateMs": null,
+      "saveReopenMs": 1315.5082390000025,
+      "heapBytes": 23100000
+     }
+    ]
+   },
+   {
+    "commit": "ea8f9c6771215bc0b945c19e19aa3afe54cf58ba",
+    "server": "preview",
+    "seed": 20260918,
+    "objects": 1000,
+    "zones": 50,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+     "platform": "linux",
+     "release": "7.2.3-arch1-2",
+     "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+     "cores": 8,
+     "ramBytes": 16410009600,
+     "loadavgAtEnd": [
+      6.16,
+      6.91,
+      6.77
+     ]
+    },
+    "samples": [
+     {
+      "coldOpenMs": 3912.356083,
+      "warmOpenMs": 7865.1804029999985,
+      "selectMs": 135.60000002384186,
+      "selectWallMs": 194.5786079999998,
+      "zoomMs": 1078.7000000476837,
+      "filterMs": 479.33705499999996,
+      "clearFilterMs": 844.1186129999987,
+      "validateMs": null,
+      "saveReopenMs": 5262.014429000003,
+      "heapBytes": 76600000
+     },
+     {
+      "coldOpenMs": 4598.721561999999,
+      "warmOpenMs": 9908.11258,
+      "selectMs": 330.80000001192093,
+      "selectWallMs": 474.5598949999985,
+      "zoomMs": 1281.2000000476837,
+      "filterMs": 1092.6273879999935,
+      "clearFilterMs": 1362.618048000004,
+      "validateMs": null,
+      "saveReopenMs": 6870.981006000002,
+      "heapBytes": 72200000
+     },
+     {
+      "coldOpenMs": 6516.580946999995,
+      "warmOpenMs": 10506.125360999999,
+      "selectMs": 168.69999998807907,
+      "selectWallMs": 219.33515300000727,
+      "zoomMs": 1561.0999999642372,
+      "filterMs": 1484.0779760000005,
+      "clearFilterMs": 1496.5620169999893,
+      "validateMs": null,
+      "saveReopenMs": 7710.840614000001,
+      "heapBytes": 76600000
+     },
+     {
+      "coldOpenMs": 7085.431704000017,
+      "warmOpenMs": 10023.935427999997,
+      "selectMs": 244.39999997615814,
+      "selectWallMs": 280.0739289999765,
+      "zoomMs": 1487.300000011921,
+      "filterMs": 1302.8780020000122,
+      "clearFilterMs": 1556.9566249999916,
+      "validateMs": null,
+      "saveReopenMs": 8015.089333999989,
+      "heapBytes": 24500000
+     },
+     {
+      "coldOpenMs": 6470.554233000003,
+      "warmOpenMs": 9977.392920999991,
+      "selectMs": 126.39999997615814,
+      "selectWallMs": 150.86499800000456,
+      "zoomMs": 1515.8999999761581,
+      "filterMs": 851.9550119999913,
+      "clearFilterMs": 1664.5145219999831,
+      "validateMs": null,
+      "saveReopenMs": 8172.373741999996,
+      "heapBytes": 37300000
+     }
+    ]
+   }
+  ],
+  "after": [
+   {
+    "commit": "ea8f9c6771215bc0b945c19e19aa3afe54cf58ba",
+    "server": "preview",
+    "seed": 20260918,
+    "objects": 100,
+    "zones": 10,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+     "platform": "linux",
+     "release": "7.2.3-arch1-2",
+     "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+     "cores": 8,
+     "ramBytes": 16410009600,
+     "loadavgAtEnd": [
+      6.95,
+      7.05,
+      6.82
+     ]
+    },
+    "samples": [
+     {
+      "coldOpenMs": 358.862971,
+      "warmOpenMs": 286.2029719999998,
+      "selectMs": 43,
+      "selectWallMs": 79.65047600000025,
+      "zoomMs": 31.30000001192093,
+      "filterMs": 47.72501699999975,
+      "clearFilterMs": 70.47325100000035,
+      "validateMs": null,
+      "saveReopenMs": 444.4454770000002,
+      "heapBytes": 27600000
+     },
+     {
+      "coldOpenMs": 390.2909520000003,
+      "warmOpenMs": 254.95446500000025,
+      "selectMs": 50,
+      "selectWallMs": 104.56065300000046,
+      "zoomMs": 32,
+      "filterMs": 27.656081000000086,
+      "clearFilterMs": 45.04635099999996,
+      "validateMs": null,
+      "saveReopenMs": 437.1477240000004,
+      "heapBytes": 29400000
+     },
+     {
+      "coldOpenMs": 392.61400700000013,
+      "warmOpenMs": 271.82406400000036,
+      "selectMs": 35.09999996423721,
+      "selectWallMs": 87.53351999999995,
+      "zoomMs": 30.400000035762787,
+      "filterMs": 36.76992100000007,
+      "clearFilterMs": 67.44995100000051,
+      "validateMs": null,
+      "saveReopenMs": 375.31643800000074,
+      "heapBytes": 26000000
+     },
+     {
+      "coldOpenMs": 417.2897869999997,
+      "warmOpenMs": 266.3496869999999,
+      "selectMs": 57.80000001192093,
+      "selectWallMs": 85.73728899999878,
+      "zoomMs": 28.19999998807907,
+      "filterMs": 41.18583000000035,
+      "clearFilterMs": 84.42596799999956,
+      "validateMs": null,
+      "saveReopenMs": 371.78119999999944,
+      "heapBytes": 29400000
+     },
+     {
+      "coldOpenMs": 411.1915719999997,
+      "warmOpenMs": 221.7133730000005,
+      "selectMs": 41.69999998807907,
+      "selectWallMs": 93.48193800000081,
+      "zoomMs": 30,
+      "filterMs": 38.880387999999584,
+      "clearFilterMs": 81.1231000000007,
+      "validateMs": null,
+      "saveReopenMs": 320.7256930000003,
+      "heapBytes": 31200000
+     }
+    ]
+   },
+   {
+    "commit": "ea8f9c6771215bc0b945c19e19aa3afe54cf58ba",
+    "server": "preview",
+    "seed": 20260918,
+    "objects": 500,
+    "zones": 30,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+     "platform": "linux",
+     "release": "7.2.3-arch1-2",
+     "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+     "cores": 8,
+     "ramBytes": 16410009600,
+     "loadavgAtEnd": [
+      5.25,
+      6.65,
+      6.7
+     ]
+    },
+    "samples": [
+     {
+      "coldOpenMs": 1766.4412359999988,
+      "warmOpenMs": 1667.486046,
+      "selectMs": 152.79999995231628,
+      "selectWallMs": 211.25083400000221,
+      "zoomMs": 66.5,
+      "filterMs": 242.73623700000098,
+      "clearFilterMs": 440.76963199999955,
+      "validateMs": null,
+      "saveReopenMs": 1822.884385999998,
+      "heapBytes": 24500000
+     },
+     {
+      "coldOpenMs": 1693.0796960000007,
+      "warmOpenMs": 1676.8812359999974,
+      "selectMs": 127.20000004768372,
+      "selectWallMs": 188.55422900000121,
+      "zoomMs": 75.90000003576279,
+      "filterMs": 188.01171199999953,
+      "clearFilterMs": 477.5063000000009,
+      "validateMs": null,
+      "saveReopenMs": 1823.6785869999985,
+      "heapBytes": 26000000
+     },
+     {
+      "coldOpenMs": 1239.0747050000027,
+      "warmOpenMs": 1229.578120000002,
+      "selectMs": 65.19999998807907,
+      "selectWallMs": 109.63128499999948,
+      "zoomMs": 51.30000001192093,
+      "filterMs": 132.51247200000216,
+      "clearFilterMs": 253.56966000000102,
+      "validateMs": null,
+      "saveReopenMs": 1391.5204120000017,
+      "heapBytes": 97400000
+     },
+     {
+      "coldOpenMs": 1300.2995689999952,
+      "warmOpenMs": 1244.5910539999968,
+      "selectMs": 62.89999997615814,
+      "selectWallMs": 111.60809999999765,
+      "zoomMs": 54.69999998807907,
+      "filterMs": 183.5964759999988,
+      "clearFilterMs": 309.13896399999794,
+      "validateMs": null,
+      "saveReopenMs": 1386.724411999996,
+      "heapBytes": 24500000
+     },
+     {
+      "coldOpenMs": 1210.9564510000055,
+      "warmOpenMs": 1163.9184539999987,
+      "selectMs": 67.10000002384186,
+      "selectWallMs": 107.7984959999958,
+      "zoomMs": 57.5,
+      "filterMs": 175.93794399999751,
+      "clearFilterMs": 293.6545410000035,
+      "validateMs": null,
+      "saveReopenMs": 1497.4145169999974,
+      "heapBytes": 103000000
+     }
+    ]
+   },
+   {
+    "commit": "ea8f9c6771215bc0b945c19e19aa3afe54cf58ba",
+    "server": "preview",
+    "seed": 20260918,
+    "objects": 1000,
+    "zones": 50,
+    "repeats": 5,
+    "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+    "machine": {
+     "platform": "linux",
+     "release": "7.2.3-arch1-2",
+     "cpu": "11th Gen Intel(R) Core(TM) i5-1135G7 @ 2.40GHz",
+     "cores": 8,
+     "ramBytes": 16410009600,
+     "loadavgAtEnd": [
+      2.86,
+      5.45,
+      6.26
+     ]
+    },
+    "samples": [
+     {
+      "coldOpenMs": 4082.1321549999993,
+      "warmOpenMs": 4141.464031999996,
+      "selectMs": 105,
+      "selectWallMs": 154.92629499999748,
+      "zoomMs": 92.70000004768372,
+      "filterMs": 498.7491050000026,
+      "clearFilterMs": 822.942234999995,
+      "validateMs": null,
+      "saveReopenMs": 4498.218035999998,
+      "heapBytes": 53500000
+     },
+     {
+      "coldOpenMs": 4221.230298000002,
+      "warmOpenMs": 4343.431979000001,
+      "selectMs": 91.5,
+      "selectWallMs": 115.47025899999426,
+      "zoomMs": 87,
+      "filterMs": 419.98644700000295,
+      "clearFilterMs": 817.9287929999991,
+      "validateMs": null,
+      "saveReopenMs": 4706.842922999989,
+      "heapBytes": 31200000
+     },
+     {
+      "coldOpenMs": 4034.643815000003,
+      "warmOpenMs": 5165.776352000001,
+      "selectMs": 97.39999997615814,
+      "selectWallMs": 112.09084099999745,
+      "zoomMs": 96.80000001192093,
+      "filterMs": 440.7618280000024,
+      "clearFilterMs": 851.0768220000027,
+      "validateMs": null,
+      "saveReopenMs": 4636.046599000008,
+      "heapBytes": 68000000
+     },
+     {
+      "coldOpenMs": 5235.878777000005,
+      "warmOpenMs": 5214.799205000003,
+      "selectMs": 140,
+      "selectWallMs": 186.91480100000626,
+      "zoomMs": 118.69999998807907,
+      "filterMs": 510.3424880000093,
+      "clearFilterMs": 881.0288629999995,
+      "validateMs": null,
+      "saveReopenMs": 4688.400108000002,
+      "heapBytes": 72200000
+     },
+     {
+      "coldOpenMs": 4030.2156099999993,
+      "warmOpenMs": 4134.732462,
+      "selectMs": 91.19999998807907,
+      "selectWallMs": 122.58675800000492,
+      "zoomMs": 89.19999998807907,
+      "filterMs": 439.86484599999676,
+      "clearFilterMs": 915.9988169999997,
+      "validateMs": null,
+      "saveReopenMs": 4980.152158000012,
+      "heapBytes": 21700000
+     }
+    ]
+   }
+  ]
+ }
+}

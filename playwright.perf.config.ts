@@ -2,6 +2,11 @@ import { defineConfig, devices } from '@playwright/test';
 import { resolveChannel } from './playwright.config';
 
 const port = Number(process.env.DEV_PORT ?? '5187');
+// PERF_SERVER=preview measures the production build — what the deployed
+// service ships — and turns on the time budgets of the spec. The default stays
+// the dev server, where validation is timed by importing its module (D-187).
+const preview = process.env.PERF_SERVER === 'preview';
+const vite = 'node node_modules/vite/bin/vite.js';
 export default defineConfig({
   testDir: 'tests/perf',
   timeout: 600_000,
@@ -20,7 +25,9 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `node node_modules/vite/bin/vite.js --port ${port} --strictPort`,
+    command: preview
+      ? `${vite} build && ${vite} preview --port ${port} --strictPort`
+      : `${vite} --port ${port} --strictPort`,
     url: `http://127.0.0.1:${port}`,
     timeout: 180_000,
     // For debugging an explicitly started local server, set PW_REUSE_SERVER=1.

@@ -92,13 +92,18 @@ type EquipmentSymbolProps = {
  * Memoised on its primitive props: react-konva repaints a whole layer as soon as
  * one node gets a "new" prop, and a `points` array built on every render is
  * always new. With the memo a click elsewhere leaves a thousand shapes untouched.
+ * `perfectDrawEnabled: false` (D-187): a translucent shape with fill and stroke
+ * is otherwise painted through a stage-sized buffer canvas — one clear and one
+ * full-canvas copy per object on every redraw of the layer (zoom, pan, drag,
+ * open). Before/after numbers: docs/verification/performance-2026-09-19-d187.md.
  */
 const EquipmentSymbol = memo(function EquipmentSymbol({
   symbol,
   width,
   height,
-  ...paint
+  ...style
 }: EquipmentSymbolProps): React.JSX.Element {
+  const paint = { ...style, perfectDrawEnabled: false };
   if (symbol === 'circle') {
     return <Circle radius={Math.max(width, height) / 2} {...paint} />;
   }
