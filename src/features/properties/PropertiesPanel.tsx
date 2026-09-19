@@ -12,7 +12,7 @@
  * месте — иначе пользователь теряет то, что печатал, и не понимает почему.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   AttributeDef,
   Attributes,
@@ -81,6 +81,15 @@ export function PropertiesPanel({
 }: PropertiesPanelProps): React.JSX.Element {
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
+
+  // A click in the inventory or in the findings list asks for this card: the
+  // column may be scrolled far below it, so the card comes to the viewer.
+  const card = useRef<HTMLElement>(null);
+  const focusSequence = session.focus?.sequence ?? null;
+  useEffect(() => {
+    if (focusSequence === null) return;
+    card.current?.scrollIntoView({ block: 'nearest' });
+  }, [focusSequence]);
 
   // Drafts and errors belong to the card they were typed into: a refused name
   // for the plan must not show up in the name field of the zone clicked next.
@@ -280,7 +289,7 @@ export function PropertiesPanel({
     // есть план для сотрудника, а имя файла берётся из названия (D-152).
     const ceiling = parseNumber(shown('ceilingHeight_m', String(room.ceilingHeight_m)));
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства помещения</h2>
         {identity(room.id, 'помещение')}
 
@@ -330,7 +339,7 @@ export function PropertiesPanel({
   if (zone !== undefined) {
     const type = findZoneType(plan.catalog, zone.typeId);
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства зоны</h2>
         {identity(zone.id, 'зона')}
 
@@ -402,7 +411,7 @@ export function PropertiesPanel({
   if (object !== undefined) {
     const type = findObjectType(plan.catalog, object.typeId);
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства объекта</h2>
         {identity(object.id, 'объект')}
 
@@ -495,7 +504,7 @@ export function PropertiesPanel({
     const openings = plan.openings.filter((entry) => entry.wallId === wall.id);
     const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства перегородки</h2>
         {identity(wall.id, 'перегородка')}
 
@@ -530,7 +539,7 @@ export function PropertiesPanel({
     const hostLength =
       host === undefined ? null : Math.hypot(host.to[0] - host.from[0], host.to[1] - host.from[1]);
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства проёма</h2>
         {identity(opening.id, 'проём')}
 
@@ -585,7 +594,7 @@ export function PropertiesPanel({
   }
 
   return (
-    <section className="panel props" aria-label="Свойства">
+    <section ref={card} className="panel props" aria-label="Свойства">
       <h2 className="panel__title">Свойства</h2>
       <p className="panel__empty">Выберите помещение, зону, объект, перегородку или проём на плане</p>
     </section>

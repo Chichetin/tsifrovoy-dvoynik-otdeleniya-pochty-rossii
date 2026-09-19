@@ -10,7 +10,7 @@
 
 import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
 import type { Command } from '../../contracts/commands';
 import type { PlanDocument, Ref } from '../../contracts/model';
@@ -57,6 +57,29 @@ function Live({ selection }: { selection: Ref | null }): React.JSX.Element {
   };
   return <PropertiesPanel document={document} session={session(selection)} onCommand={onCommand} />;
 }
+
+describe('карточка подъезжает к экрану', () => {
+  test('переход из перечня или находок прокручивает карточку, повтор того же перехода — нет', () => {
+    // jsdom не умеет прокрутку: подменяем и считаем вызовы.
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const zone = plan.zones[0];
+    if (zone === undefined) throw new Error('в minimal.json нет зон');
+    const ref: Ref = { kind: 'zone', id: zone.id };
+    const at = (sequence: number | null): EditorSession => ({
+      ...session(ref),
+      focus: sequence === null ? null : { ref, sequence },
+    });
+    const { rerender } = render(<PropertiesPanel document={plan} session={at(null)} onCommand={sink().spy} />);
+    expect(scroll).not.toHaveBeenCalled();
+    rerender(<PropertiesPanel document={plan} session={at(1)} onCommand={sink().spy} />);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    rerender(<PropertiesPanel document={plan} session={at(1)} onCommand={sink().spy} />);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    rerender(<PropertiesPanel document={plan} session={at(2)} onCommand={sink().spy} />);
+    expect(scroll).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('карточка помещения', () => {
   test('название плана набирается посимвольно, пробел между словами не пропадает', () => {
