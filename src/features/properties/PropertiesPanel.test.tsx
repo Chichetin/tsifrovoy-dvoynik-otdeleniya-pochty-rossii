@@ -82,6 +82,13 @@ describe('карточка подъезжает к экрану', () => {
 });
 
 describe('карточка помещения', () => {
+  test('площадь по контуру записана по-русски', () => {
+    render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
+    expect(screen.getByTestId('props-room-area').textContent).toMatch(
+      /^Площадь по контуру \d[\d\u00a0]*,\d\d\u00a0м², вершин \d+;/,
+    );
+  });
+
   test('название плана набирается посимвольно, пробел между словами не пропадает', () => {
     render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
     const input = screen.getByLabelText('Название плана') as HTMLInputElement;
@@ -131,7 +138,10 @@ describe('карточка перегородки', () => {
     show({ kind: 'wall', id: 'w_north' });
 
     // w_north идёт от (0; 8) до (10; 8) — длина 10 м.
-    expect(screen.getByText(/Длина 10\.00 м/)).toBeTruthy();
+    // Числа по-русски (D-197): запятая, «м» не отрывается от числа.
+    // getByText схлопывает пробелы, поэтому неразрывный проверяется по textContent.
+    const hint = screen.getByText(/Длина 10,00 м, от \(0,00; 8,00\) до \(10,00; 8,00\)/);
+    expect(hint.textContent).toContain('10,00\u00a0м,');
     expect(screen.queryByLabelText('X, м')).toBeNull();
   });
 
@@ -196,6 +206,7 @@ describe('карточка проёма', () => {
     show({ kind: 'opening', id: 'op_entrance' });
 
     expect(screen.getByTestId('props-wall').textContent).toContain('w_north');
+    expect(screen.getByTestId('props-wall').textContent).toMatch(/длиной \d+,\d\d\u00a0м$/);
   });
 
   test('вид «вход» подписан связью с правилом про терминал', () => {

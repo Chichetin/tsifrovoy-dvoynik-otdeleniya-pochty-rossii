@@ -269,7 +269,12 @@ body {
 
 .library__item:hover {
   border-color: var(--accent);
-  background: #f8f9fa;
+  background: var(--ground);
+}
+
+.library__item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .library__swatch {
@@ -287,6 +292,7 @@ body {
 .library__size {
   color: var(--muted);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -342,6 +348,55 @@ body {
 .metrics dd {
   margin: 0;
   font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Numbers in the area and inventory tables: right-aligned, equal-width digits,
+   never wrapped — the unit lives in the column header. */
+.metrics__num,
+.inventory__num,
+.table .metrics__num,
+.table .inventory__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+td.metrics__num,
+td.inventory__num,
+span.inventory__num {
+  white-space: nowrap;
+}
+
+.metrics__caption {
+  caption-side: top;
+  padding: 0 0 2px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+}
+
+/* M02: the object list. Smaller type and top-aligned rows fit more of the
+   list into its scroll box; a long word breaks inside its own cell instead
+   of running over the neighbour. */
+.inventory__table {
+  font-size: 12px;
+}
+
+.inventory__table td {
+  vertical-align: top;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.metrics__table th:first-child,
+.metrics__table td:first-child {
+  width: 100%;
+}
+
+.metrics__table td.metrics__num,
+.metrics__table th.metrics__num {
+  padding-left: 8px;
 }
 
 .issues {
@@ -355,7 +410,7 @@ body {
   margin-bottom: 6px;
   border-left: 3px solid var(--line);
   border-radius: 0 4px 4px 0;
-  background: #f8f9fa;
+  background: var(--ground);
 }
 
 .issues__item.is-error {
@@ -405,31 +460,42 @@ body {
   border-radius: 4px;
   font: inherit;
   font-size: 13px;
-  color: var(--text);
-  background: #fff;
+  color: var(--ink);
+  background: var(--surface);
 }
 
+.assistant__field select:focus-visible,
+.assistant__field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: var(--accent);
+}
+
+/* The mode is read, not decoded from a colour: dark text on a tint, the kind
+   of answer said in words, the colour only repeats it on the left edge. */
 .assistant__mode {
   margin: 0 0 8px;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 4px 4px 0;
   font-size: 12px;
-  background: #e6fcf5;
-  color: #0b7285;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  color: var(--ink);
 }
 
 .assistant__mode.is-fallback {
-  background: #fff4e6;
-  color: #a1590b;
+  border-left-color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, var(--surface));
 }
 
 .assistant__stale {
   margin: 0 0 8px;
   padding: 5px 8px;
-  border-radius: 4px;
+  border-left: 3px solid var(--error);
+  border-radius: 0 4px 4px 0;
   font-size: 12px;
-  background: #fff0f6;
-  color: #a61e4d;
+  background: color-mix(in srgb, var(--error) 8%, var(--surface));
+  color: var(--ink);
 }
 
 .advice {
@@ -437,7 +503,7 @@ body {
   margin-bottom: 10px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #f8f9fa;
+  background: var(--ground);
 }
 
 .advice__sentence {
@@ -466,6 +532,11 @@ body {
   border-bottom: 1px dashed var(--line);
 }
 
+.advice__facts b {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .advice__candidates {
   padding-left: 0;
   counter-reset: none;
@@ -478,7 +549,8 @@ body {
   margin-bottom: 4px;
   border: 1px solid var(--line);
   border-radius: 4px;
-  background: #fff;
+  background: var(--surface);
+  font-variant-numeric: tabular-nums;
   cursor: default;
 }
 
@@ -508,22 +580,26 @@ body {
   cursor: pointer;
 }
 
+.advice__more summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .advice__more li {
   padding: 2px 0;
   line-height: 1.4;
 }
 
 .advice__limitations li {
-  padding: 2px 0;
+  padding: 2px 0 2px 8px;
+  border-left: 2px solid var(--warning);
+  margin-bottom: 2px;
   color: var(--muted);
   line-height: 1.4;
 }
 
-.advice__limitations li::before {
-  content: '⚠ ';
-}
-
-/* U05: панель слоёв */
+/* U05: панель слоёв. Карточка — имя, строка «Показывать» с действиями,
+   одна короткая строка о слое; длинное пояснение свёрнуто (D-197). */
 
 .layers__add {
   display: flex;
@@ -534,6 +610,12 @@ body {
 .layers__add select {
   flex: 1;
   min-width: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
 }
 
 .layers__list {
@@ -542,11 +624,11 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .layers__item {
-  padding: 6px;
+  padding: 4px 6px 6px;
   border: 1px solid var(--line);
   border-radius: 6px;
 }
@@ -560,96 +642,151 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
-  margin-top: 2px;
 }
 
 .layers__visible {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  min-height: 26px;
   padding: 2px 4px;
   border: 0;
   border-radius: 4px;
   background: transparent;
+  color: var(--ink);
   font: inherit;
   font-size: 12px;
   cursor: pointer;
 }
 
 .layers__visible:hover {
-  background: var(--line);
+  background: var(--ground);
 }
 
 .layers__check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 13px;
-  height: 13px;
+  width: 14px;
+  height: 14px;
   border: 1px solid var(--muted);
   border-radius: 3px;
-  background: #fff;
-  font-size: 11px;
+  background: var(--surface);
+  font-size: 12px;
   line-height: 1;
 }
 
 .layers__visible[aria-pressed='true'] .layers__check {
   border-color: var(--accent);
   background: var(--accent);
-  color: #fff;
+  color: var(--surface);
 }
 
-/* The name takes a row of its own: five buttons beside it left «Тепловая н». */
+/* The name takes a row of its own: the buttons beside it left «Тепловая н». */
 .layers__name {
   flex: 1 1 100%;
   min-width: 0;
   padding: 3px 5px;
   border: 1px solid transparent;
   border-radius: 4px;
+  color: var(--ink);
   font: inherit;
   font-weight: 600;
   background: transparent;
+  text-overflow: ellipsis;
+}
+
+.layers__name:hover {
+  border-color: var(--line);
 }
 
 .layers__name:focus {
   border-color: var(--accent);
-  background: #fff;
+  background: var(--surface);
+  outline: none;
 }
 
+/* Icon buttons: 26 px square, above the 24 px minimum target (WCAG 2.5.8). */
 .layers__toggle {
-  padding: 2px 4px;
-  border: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
+  color: var(--muted);
   cursor: pointer;
-  font-size: 13px;
-  line-height: 1.2;
 }
 
 .layers__toggle:hover:not(:disabled) {
+  border-color: var(--line);
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.layers__toggle:active:not(:disabled) {
   background: var(--line);
 }
 
 .layers__toggle:disabled {
   opacity: 0.35;
-  cursor: default;
+  cursor: not-allowed;
 }
 
-.layers__toggle[aria-pressed='false'] {
-  opacity: 0.45;
+/* A locked layer is the exception worth noticing: its lock is drawn in ink on a tint. */
+.layers__toggle[aria-pressed='true'] {
+  border-color: var(--line);
+  background: var(--ground);
+  color: var(--ink);
+}
+
+.layers__visible:focus-visible,
+.layers__toggle:focus-visible,
+.layers__about summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.layers__icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .layers__meta,
 .layers__note {
-  margin: 4px 0 0;
-  font-size: 11px;
+  margin: 2px 0 0;
+  padding: 0 4px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
 }
 
-.layers__note::before {
-  content: 'ⓘ ';
+.layers__about {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.layers__about summary {
+  width: fit-content;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.layers__about summary:hover {
+  color: var(--ink);
+}
+
+.layers__about .layers__note {
+  margin-top: 2px;
 }
 
 .layers__data {
@@ -675,12 +812,15 @@ body {
   border: 1px solid var(--line);
   border-radius: 4px;
   font: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .layers__unit {
   width: 34px;
   padding-left: 4px !important;
   color: var(--muted);
+  white-space: nowrap;
 }
 
 .layers__legend {
@@ -698,12 +838,13 @@ body {
 .layers__scale-ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .layers__legend-text {
   margin: 2px 0 0;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -742,7 +883,13 @@ body {
   padding: 4px 6px;
   border: 1px solid var(--line);
   border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
+}
+
+.props__field input[type='number'] {
+  font-variant-numeric: tabular-nums;
 }
 
 .props__field input[type='checkbox'] {
@@ -750,25 +897,25 @@ body {
 }
 
 .props__label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 
 .props__hint {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.4;
 }
 
 .props__error {
-  font-size: 11px;
-  color: #c92a2a;
+  font-size: 12px;
+  color: var(--error);
   line-height: 1.4;
 }
 
 .props__field:has(.props__error) input,
 .props__field:has(.props__error) select {
-  border-color: #c92a2a;
+  border-color: var(--error);
 }
 
 .props__pair {
@@ -779,7 +926,7 @@ body {
 
 .props__extra {
   margin-top: 8px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--muted);
 }
 

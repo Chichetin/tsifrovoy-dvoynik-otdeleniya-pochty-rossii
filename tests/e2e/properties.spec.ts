@@ -69,7 +69,7 @@ test.describe('карточка свойств', () => {
     // Помещение выбирается кликом по полу — там, где нет зон, объектов и стен.
     await clickCanvas(page, 300, 200);
     await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
-    await expect(card(page).getByTestId('props-room-area')).toContainText('108.00 м²');
+    await expect(card(page).getByTestId('props-room-area')).toContainText('108,00 м²');
 
     await card(page).getByLabel('Название плана').fill('ОПС 115534 Тестовое');
     await card(page).getByLabel('Высота потолка, м').fill('3.4');

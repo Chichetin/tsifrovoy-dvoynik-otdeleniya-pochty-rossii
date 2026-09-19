@@ -17,6 +17,7 @@ import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contr
 import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { renderExplanation } from '../../domain/advice';
+import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
 type Scenario = AdviceRequest['scenario'];
 
@@ -46,10 +47,10 @@ const PHASE_LABELS: Record<Fact['phase'], string> = {
 };
 
 function formatValue(fact: Fact): string {
-  const unit = fact.unit === 'm2' ? ' м²' : fact.unit === 'm' ? ' м' : ' шт.';
-  const value = fact.unit === 'count' ? String(fact.value) : fact.value.toFixed(2);
+  const unit = fact.unit === 'm2' ? 'м²' : fact.unit === 'm' ? 'м' : 'шт.';
+  const digits = fact.unit === 'count' ? 0 : 2;
   const sign = fact.phase === 'delta' && fact.value > 0 ? '+' : '';
-  return `${sign}${value}${unit}`;
+  return `${sign}${formatMeasure(fact.value, unit, digits)}`;
 }
 
 /** Факты варианта показываются внутри варианта, а не в общем списке. */
@@ -282,8 +283,8 @@ export function AssistantPanel({
                         onMouseLeave={() => onPreview(null)}
                       >
                         <span>
-                          Вариант {index + 1}: {candidate.object.position[0].toFixed(2)};{' '}
-                          {candidate.object.position[1].toFixed(2)} м, поворот{' '}
+                          Вариант {index + 1}: {formatNumber(candidate.object.position[0])};{' '}
+                          {formatLength(candidate.object.position[1])}, поворот{' '}
                           {candidate.object.rotation_deg}°
                         </span>
                         <span className="advice__zone" data-testid="candidate-zone">
