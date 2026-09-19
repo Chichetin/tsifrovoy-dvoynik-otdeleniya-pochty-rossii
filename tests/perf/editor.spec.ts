@@ -48,6 +48,9 @@ function median(values: number[]): number {
 
 type Probe = { q02: Promise<number> };
 
+/** A broken interaction probe must fail quickly, not consume the 10-minute test timeout. */
+const INTERACTION_PROBE_TIMEOUT_MS = 10_000;
+
 for (const config of CASES) {
   test(`${config.objects} объектов / ${config.zones} зон`, async ({ browser, baseURL }, testInfo) => {
     const plan = generateBenchmark(config.objects);
@@ -81,18 +84,33 @@ for (const config of CASES) {
 
         const rowButton = await rows.first().locator('button').first().elementHandle();
         if (!rowButton) throw new Error('Строка перечня не найдена');
-        await page.evaluate(() => {
-          (window as unknown as Probe).q02 = new Promise<number>((resolve) => {
-            let pressed = 0;
-            window.document.addEventListener('pointerdown', () => { pressed = performance.now(); }, { capture: true, once: true });
+        await page.evaluate((timeoutMs) => {
+          (window as unknown as Probe).q02 = new Promise<number>((resolve, reject) => {
+            let pressed: number | null = null;
+            const onPointerDown = (): void => { pressed = performance.now(); };
             const observer = new MutationObserver(() => {
               if (window.document.querySelector('[data-testid="props-id"]')?.textContent !== 'eq_0') return;
-              observer.disconnect();
-              requestAnimationFrame(() => setTimeout(() => resolve(performance.now() - pressed), 0));
+              cleanup();
+              if (pressed === null) {
+                reject(new Error('Q02: карточка объекта открылась без pointerdown'));
+                return;
+              }
+              const started = pressed;
+              requestAnimationFrame(() => setTimeout(() => resolve(performance.now() - started), 0));
             });
+            const timer = window.setTimeout(() => {
+              cleanup();
+              reject(new Error(`Q02: выбор объекта не завершился за ${timeoutMs} мс`));
+            }, timeoutMs);
+            function cleanup(): void {
+              window.clearTimeout(timer);
+              window.document.removeEventListener('pointerdown', onPointerDown, { capture: true });
+              observer.disconnect();
+            }
+            window.document.addEventListener('pointerdown', onPointerDown, { capture: true, once: true });
             observer.observe(window.document.body, { subtree: true, childList: true, characterData: true });
           });
-        });
+        }, INTERACTION_PROBE_TIMEOUT_MS);
         const selectStarted = performance.now();
         await rowButton.click();
         const selectMs = await page.evaluate(() => (window as unknown as Probe).q02);
