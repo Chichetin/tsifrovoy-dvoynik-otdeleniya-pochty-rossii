@@ -12,6 +12,7 @@ import { parsePlanDocument } from '../../contracts/schema';
 import {
   RELATION_ISSUE_CODES,
   hasZoneCycle,
+  parentZoneFor,
   reconcileZones,
   relationIssues,
   resolveZone,
@@ -181,5 +182,61 @@ describe('пересчёт связей', () => {
     expect(relationIssues(broken).map((entry) => entry.code)).toContain(
       CONTRACT_ISSUE_CODES.RELATIONS_STALE,
     );
+  });
+});
+
+describe('родитель зоны — одно правило для руки и импорта', () => {
+  const square = (x: number, y: number, size: number): Zone['polygon'] => [
+    [x, y],
+    [x + size, y],
+    [x + size, y + size],
+    [x, y + size],
+  ];
+  const zone = (id: string, parentId: string | null, polygon: Zone['polygon']): Zone => ({
+    id,
+    typeId: 'zt_client',
+    name: id,
+    polygon,
+    parentId,
+    layerId: 'l_base',
+    attributes: {},
+  });
+
+  test('самая глубокая содержащая зона; при равной глубине — меньшая по площади', () => {
+    const hall = zone('z_hall', null, square(0, 0, 10));
+    const wait = zone('z_wait', 'z_hall', square(0, 0, 4));
+    const other = zone('z_other', null, square(20, 20, 2));
+    expect(parentZoneFor(square(0.5, 0.5, 1), [hall, wait, other])).toBe('z_wait');
+    expect(parentZoneFor(square(6, 6, 1), [hall, wait, other])).toBe('z_hall');
+    // Две корневые зоны накрывают контур — берётся меньшая.
+    const big = zone('z_big', null, square(0, 0, 10));
+    const small = zone('z_small', null, square(0, 0, 5));
+    expect(parentZoneFor(square(1, 1, 1), [big, small])).toBe('z_small');
+  });
+
+  test('контур через границу, вне зон или равный зоне — самостоятельный', () => {
+    const hall = zone('z_hall', null, square(0, 0, 10));
+    expect(parentZoneFor(square(8, 8, 4), [hall])).toBeNull();
+    expect(parentZoneFor(square(20, 20, 1), [hall])).toBeNull();
+    expect(parentZoneFor(square(0, 0, 10), [hall])).toBeNull();
+    // Своя же запись в списке не считается родителем.
+    expect(parentZoneFor(hall.polygon, [hall], 'z_hall')).toBeNull();
+  });
+
+  test('зона из файла и та же зона, нарисованная последней, получают одного родителя', () => {
+    // nested.json — иерархия из файла: для каждой зоны пересчёт по геометрии
+    // среди остальных даёт ровно записанного родителя.
+    const plan = loadPlan('nested.json');
+    for (const target of plan.zones) {
+      const others = plan.zones.filter((entry) => entry.id !== target.id);
+      const asDrawn = parentZoneFor(target.polygon, others);
+      const asImported = parentZoneFor(
+        target.polygon,
+        plan.zones.map((entry) => ({ id: entry.id, polygon: entry.polygon, parentId: null })),
+        target.id,
+      );
+      expect(asDrawn).toBe(target.parentId);
+      expect(asImported).toBe(target.parentId);
+    }
   });
 });

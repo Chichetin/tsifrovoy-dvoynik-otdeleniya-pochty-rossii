@@ -17,6 +17,7 @@ import {
   polygonContains,
   polygonsOverlap,
   rectangleCorners,
+  segmentLength,
 } from './polygons';
 
 export {
@@ -32,8 +33,11 @@ export {
   boxesOverlap,
   locatePoint,
   isSimplePolygon,
+  pointSegmentDistance,
   polygonArea,
   polygonSegmentDistance,
+  projectOnSegment,
+  segmentLength,
   segmentsProperlyCross,
   signedArea,
   type BoundingBox,
@@ -78,22 +82,35 @@ export function objectsShareSpace(a: Equipment, b: Equipment): boolean {
   return polygonsOverlap(footprint(a), footprint(b));
 }
 
+/** Length of a wall's centreline in metres. */
+export function wallLength(wall: Wall): number {
+  return segmentLength(wall.from, wall.to);
+}
+
 /** The wall as a rectangle of its own thickness. */
 export function wallPolygon(wall: Wall): Polygon {
-  const [fx, fy] = wall.from;
-  const [tx, ty] = wall.to;
-  const length = Math.hypot(tx - fx, ty - fy);
+  const length = wallLength(wall);
   if (length <= TOLERANCE.coordinate_m) return [];
   return wallSpanPolygon(wall, 0, length);
 }
 
-function wallSpanPolygon(wall: Wall, start: number, end: number): Polygon {
+/**
+ * A rectangle along the wall between two offsets from `wall.from` (metres);
+ * `thickness_m` defaults to the wall's own — a thinner value draws a pane
+ * inside the wall, which is how the 3D view shows an opening.
+ */
+export function wallSpanPolygon(
+  wall: Wall,
+  start: number,
+  end: number,
+  thickness_m = wall.thickness_m,
+): Polygon {
   const [fx, fy] = wall.from;
   const [tx, ty] = wall.to;
-  const length = Math.hypot(tx - fx, ty - fy);
+  const length = wallLength(wall);
   const ux = (tx - fx) / length;
   const uy = (ty - fy) / length;
-  const half = wall.thickness_m / 2;
+  const half = thickness_m / 2;
   const nx = -uy * half;
   const ny = ux * half;
   const a: Point = [fx + ux * start + nx, fy + uy * start + ny];
@@ -115,7 +132,7 @@ export function wallObstacles(
 ): Polygon[] {
   const overlap = { base_m: Math.max(0, interval.base_m), top_m: Math.min(wall.height_m, interval.top_m) };
   if (!intervalsOverlap({ base_m: 0, top_m: wall.height_m }, interval)) return [];
-  const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+  const length = wallLength(wall);
   if (length <= TOLERANCE.coordinate_m) return [];
 
   const gaps = openings
@@ -166,7 +183,7 @@ export function objectHitsWall(
  * from the same point.
  */
 export function openingCentre(opening: Opening, wall: Wall): Point {
-  const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+  const length = wallLength(wall);
   if (length === 0) return wall.from;
   const along = opening.offset_m + opening.width_m / 2;
   return [

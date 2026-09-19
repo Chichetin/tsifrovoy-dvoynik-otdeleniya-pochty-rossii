@@ -41,7 +41,8 @@ import {
 } from '../contracts/model';
 import { parsePlanDocument } from '../contracts/schema';
 import { applyCommand } from '../domain/commands';
-import { contains } from '../domain/geometry';
+import { normalizeAngle, projectOnSegment, segmentLength } from '../domain/geometry';
+import { parentZoneFor } from '../domain/relations';
 
 /** Codes owned by this module. */
 export const IMPORT_ISSUE_CODES = {
@@ -387,26 +388,18 @@ function splitLeftovers(
 }
 
 function normalizeRotation(value: number | undefined): number {
-  if (value === undefined) return 0;
-  const wrapped = value % 360;
-  return wrapped < 0 ? wrapped + 360 : wrapped;
-}
-
-function distance(a: Point, b: Point): number {
-  return Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return value === undefined ? 0 : normalizeAngle(value);
 }
 
 /** Distance from `wall.from` to `point`, if the point lies on the wall segment. */
 function offsetAlongWall(wall: Wall, point: Point): number | null {
-  const length = distance(wall.from, wall.to);
+  const length = segmentLength(wall.from, wall.to);
   if (length === 0) return null;
-  const dx = (wall.to[0] - wall.from[0]) / length;
-  const dy = (wall.to[1] - wall.from[1]) / length;
-  const along = (point[0] - wall.from[0]) * dx + (point[1] - wall.from[1]) * dy;
-  const across = Math.abs((point[0] - wall.from[0]) * dy - (point[1] - wall.from[1]) * dx);
-  const tolerance = 1e-6;
-  if (across > tolerance || along < -tolerance || along > length + tolerance) return null;
-  return Math.min(Math.max(along, 0), length);
+  // The foot is clamped to the segment, so a point past either end shows up
+  // as a distance to that end, and a point beside the wall as a distance to it.
+  const { t, distance } = projectOnSegment(point, wall.from, wall.to);
+  // Millimetres are the file's precision; `t · length` alone leaves 5.3999999.
+  return distance > 1e-6 ? null : Math.round(t * length * 1000) / 1000;
 }
 
 /**
@@ -487,39 +480,6 @@ function specToObjectType(spec: TypeSpec, fromExample: boolean): ObjectType {
   };
 }
 
-/**
- * A zone whose polygon fully contains this one, and is itself the smallest such
- * zone. The example writes no nesting, but our model needs it to stop counting
- * the same floor twice.
- */
-function findParent(zoneId: Id, polygon: Polygon, all: { id: Id; polygon: Polygon }[]): Id | null {
-  let parent: Id | null = null;
-  let parentArea = Number.POSITIVE_INFINITY;
-  for (const candidate of all) {
-    if (candidate.id === zoneId) continue;
-    if (!contains(candidate.polygon, polygon)) continue;
-    // Equal polygons contain each other; the smaller container wins, ties are
-    // left unparented rather than guessed.
-    if (contains(polygon, candidate.polygon)) continue;
-    const area = Math.abs(shoelace(candidate.polygon));
-    if (area < parentArea) {
-      parent = candidate.id;
-      parentArea = area;
-    }
-  }
-  return parent;
-}
-
-function shoelace(polygon: Polygon): number {
-  let sum = 0;
-  for (let index = 0; index < polygon.length; index += 1) {
-    const current = polygon[index];
-    const next = polygon[(index + 1) % polygon.length];
-    if (current === undefined || next === undefined) continue;
-    sum += current[0] * next[1] - next[0] * current[1];
-  }
-  return sum / 2;
-}
 
 /**
  * Translates the organizers' example into a plan document. The input is never
@@ -605,7 +565,8 @@ export function importOrganizerExample(input: unknown): Result<PlanDocument> {
   });
 
   const rawZones = Array.isArray(raw.zones) ? raw.zones : [];
-  const zoneShapes = source.zones.map((zone) => ({ id: zone.id, polygon: zone.polygon }));
+  // No nesting yet: every zone is a root while parents are being derived.
+  const zoneShapes = source.zones.map((zone) => ({ id: zone.id, polygon: zone.polygon, parentId: null }));
   const zoneExtras: Record<string, unknown> = {};
   const zones: Zone[] = source.zones.map((zone, index) => {
     const rest = leftovers(rawZones[index], MODELLED_FIELDS.zone);
@@ -616,7 +577,7 @@ export function importOrganizerExample(input: unknown): Result<PlanDocument> {
       typeId: zoneTypeSpec(zone.type).id,
       name: zone.label ?? zone.id,
       polygon: zone.polygon,
-      parentId: findParent(zone.id, zone.polygon, zoneShapes),
+      parentId: parentZoneFor(zone.polygon, zoneShapes, zone.id),
       layerId: LAYER_ID,
       attributes: split.attributes,
     };

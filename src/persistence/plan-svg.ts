@@ -13,7 +13,7 @@
 
 import type { Equipment, PlanDocument, Point, Polygon } from '../contracts/model';
 import { findObjectType, findZoneType } from '../domain/catalog';
-import { boundingBox, footprint, wallPolygon } from '../domain/geometry';
+import { boundingBox, footprint, wallLength, wallPolygon } from '../domain/geometry';
 
 /** Пикселей на метр в файле. Выбрано так, чтобы 15-метровый зал был ~1500 px. */
 const PX_PER_M = 100;
@@ -117,7 +117,7 @@ export function renderPlanSvg(plan: PlanDocument): string {
     .map((opening) => {
       const wall = plan.walls.find((w) => w.id === opening.wallId);
       if (wall === undefined) return '';
-      const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+      const length = wallLength(wall);
       if (length === 0) return '';
       const ux = (wall.to[0] - wall.from[0]) / length;
       const uy = (wall.to[1] - wall.from[1]) / length;

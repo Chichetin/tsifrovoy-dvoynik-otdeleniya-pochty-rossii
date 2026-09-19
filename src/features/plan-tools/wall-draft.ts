@@ -12,6 +12,7 @@
  */
 
 import type { Id, Opening, OpeningKind, Point, Room, Wall } from '../../contracts/model';
+import { pointSegmentDistance, segmentLength } from '../../domain/geometry';
 import { moveOpeningTo, snapPoint, wallLength } from './vertex-edit';
 
 /**
@@ -58,7 +59,7 @@ export function createWall(
 ): Wall | null {
   const start = snapPoint(from);
   const end = snapPoint(to);
-  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < MIN_WALL_LENGTH_M) return null;
+  if (segmentLength(start, end) < MIN_WALL_LENGTH_M) return null;
 
   return {
     id: nextId('w_', taken),
@@ -72,17 +73,9 @@ export function createWall(
 
 export type WallHit = { wall: Wall; distance_m: number };
 
-/** Расстояние от точки до отрезка стены. */
+/** Расстояние от точки до отрезка стены — примитив из `domain/geometry`. */
 function distanceToWall(wall: Wall, point: Point): number {
-  const [ax, ay] = wall.from;
-  const [bx, by] = wall.to;
-  const dx = bx - ax;
-  const dy = by - ay;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) return Math.hypot(point[0] - ax, point[1] - ay);
-
-  const t = Math.min(1, Math.max(0, ((point[0] - ax) * dx + (point[1] - ay) * dy) / lengthSquared));
-  return Math.hypot(point[0] - (ax + t * dx), point[1] - (ay + t * dy));
+  return pointSegmentDistance(point, wall.from, wall.to);
 }
 
 /**

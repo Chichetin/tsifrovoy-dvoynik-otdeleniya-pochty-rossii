@@ -13,7 +13,6 @@ import type {
   Equipment,
   Opening,
   PlanDocument,
-  Point,
   Polygon,
   Ref,
   Wall,
@@ -23,9 +22,9 @@ import { TOLERANCE } from '../../contracts/model';
 import {
   boundingBox,
   footprint,
-  openingCentre,
-  toWorld,
+  wallLength,
   wallObstacles,
+  wallSpanPolygon,
   type BoundingBox,
 } from '../../domain/geometry';
 
@@ -183,33 +182,21 @@ function wallPrisms(wall: Wall, openings: Opening[]): ScenePrism[] {
 
 /**
  * Translucent pane in the wall plane: the opening stays visible as a thing with
- * an id. Position and orientation come from geometry — `openingCentre` for the
- * middle and `toWorld` for the turn, the same clockwise convention `footprint`
- * uses — so the pane never drifts from the wall it belongs to. (Geometry's own
- * `wallSpanPolygon` would give the rectangle outright, but it is private to
- * G01 and exporting it belongs to that module's owner.)
+ * an id. The rectangle is geometry's own `wallSpanPolygon` with a thinner
+ * thickness, so the pane never drifts from the wall it belongs to (D-196).
  */
 function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
   const wall = walls.find((candidate) => candidate.id === opening.wallId);
   if (!wall) return [];
-  const [fx, fy] = wall.from;
-  const [tx, ty] = wall.to;
-  const length = Math.hypot(tx - fx, ty - fy);
+  const length = wallLength(wall);
   if (length <= TOLERANCE.coordinate_m) return [];
 
-  // Heading that turns the local +X axis along the wall: clockwise, as in
-  // `rotateOffset`, where (1,0) at angle a becomes (cos a, -sin a).
-  const heading_deg = (Math.atan2(-(ty - fy), tx - fx) * 180) / Math.PI;
-  const halfWidth = opening.width_m / 2;
-  const halfThick = (wall.thickness_m * PANE_SHARE) / 2;
-  const centre = openingCentre(opening, wall);
-  const corners: Point[] = [
-    [-halfWidth, halfThick],
-    [halfWidth, halfThick],
-    [halfWidth, -halfThick],
-    [-halfWidth, -halfThick],
-  ];
-  const polygon: Polygon = corners.map((corner) => toWorld(centre, corner, heading_deg));
+  const polygon: Polygon = wallSpanPolygon(
+    wall,
+    opening.offset_m,
+    opening.offset_m + opening.width_m,
+    wall.thickness_m * PANE_SHARE,
+  );
   return [
     {
       kind: 'opening',

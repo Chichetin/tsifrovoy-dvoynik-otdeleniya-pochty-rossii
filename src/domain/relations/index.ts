@@ -18,7 +18,7 @@ import type {
   ZoneResolution,
 } from '../../contracts/model';
 import { CONTRACT_ISSUE_CODES } from '../../contracts/model';
-import { contains, footprint, isSimplePolygon } from '../geometry';
+import { contains, footprint, isSimplePolygon, polygonArea } from '../geometry';
 
 /** Codes owned by this module, next to its own checks. */
 export const RELATION_ISSUE_CODES = {
@@ -34,11 +34,43 @@ function issue(code: string, message: string, refs: Ref[], polygon?: Polygon): I
     : { code, severity: 'warning', message, refs, polygon };
 }
 
+/** What `parentZoneFor` needs to know about the zones already on the plan. */
+export type ZoneShape = Pick<Zone, 'id' | 'polygon' | 'parentId'>;
+
+/**
+ * The zone a ring is nested in — one rule for a zone drawn by hand and for a
+ * zone read from the organizers' example, which writes no nesting: among the
+ * simple zones whose polygon contains the whole ring (and is not the same
+ * ring), the deepest in the existing hierarchy wins; equal depth — the
+ * smallest by area. A ring crossing a border, lying outside every zone, or
+ * coinciding with one stands on its own. `exclude` is the ring's own id when
+ * it is already in the list.
+ */
+export function parentZoneFor(
+  ring: Polygon,
+  zones: readonly ZoneShape[],
+  exclude: Id | null = null,
+): Id | null {
+  let best: { id: Id; depth: number; area: number } | null = null;
+  for (const zone of zones) {
+    if (zone.id === exclude) continue;
+    if (!isSimplePolygon(zone.polygon) || !contains(zone.polygon, ring)) continue;
+    // Equal polygons contain each other: neither is the other's parent.
+    if (contains(ring, zone.polygon)) continue;
+    const depth = zoneDepth(zone.id, zones as Zone[]) ?? 0;
+    const area = polygonArea(zone.polygon);
+    if (best === null || depth > best.depth || (depth === best.depth && area < best.area)) {
+      best = { id: zone.id, depth, area };
+    }
+  }
+  return best?.id ?? null;
+}
+
 /**
  * Nesting depth of a zone, 0 for a root. Returns null when the parent chain
  * does not terminate, so a cycle never turns into an endless walk.
  */
-export function zoneDepth(zoneId: Id, zones: Zone[]): number | null {
+export function zoneDepth(zoneId: Id, zones: readonly ZoneShape[]): number | null {
   const parents = new Map<Id, Id | null>(zones.map((zone) => [zone.id, zone.parentId]));
   const seen = new Set<Id>();
   let current: Id | null = zoneId;
