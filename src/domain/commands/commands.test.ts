@@ -484,6 +484,38 @@ describe('applyCommand: числовые инварианты документа
     expect(reshaped.room.boundary).toHaveLength(4);
     expect(reshaped.objects[0]!.zoneId).toBe('z_client');
   });
+
+  test('пересобранные наружные стены не занимают id зоны и объекта', () => {
+    const plan = minimalPlan();
+    // Чужой файл, где зона названа w_1, а объект — w_2. Уникальность id схема
+    // проверяет по всему документу, а не отдельно среди стен, поэтому стена с
+    // таким же именем сделала бы файл неоткрываемым.
+    const renamed: PlanDocument = {
+      ...plan,
+      zones: [{ ...plan.zones[0]!, id: 'w_1' }],
+      objects: [{ ...plan.objects[0]!, id: 'w_2', zoneId: 'w_1' }],
+    };
+
+    const reshaped = expectOk(
+      applyCommand(renamed, {
+        type: 'room.set',
+        boundary: [
+          [0, 0],
+          [12, 0],
+          [12, 8],
+          [0, 8],
+        ],
+      }),
+    );
+
+    const wallIds = reshaped.walls.map((wall) => wall.id);
+    expect(wallIds).not.toContain('w_1');
+    expect(wallIds).not.toContain('w_2');
+    // Файл после правки контура по-прежнему открывается: дублей id нет.
+    const reopened = parsePlanDocument(JSON.parse(JSON.stringify(reshaped)) as unknown);
+    expect(codes(reopened)).not.toContain(CONTRACT_ISSUE_CODES.DUPLICATE_ID);
+    expect(reopened.ok).toBe(true);
+  });
 });
 
 describe('applyCommand: цикл вложенности и пересчёт', () => {

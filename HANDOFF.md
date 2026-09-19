@@ -17,6 +17,7 @@
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
 | — | — | Активных задач на доске нет: все перечисленные ранее MR (!50, !52, !59, !60, !65, !66, !67) слиты, строки перенесены в «Завершено» 19.09 | — | `scripts/gitlab-mr.sh show <n>` → `merged` | — |
+| Claude Code (поток 1) | `worktree-room-walls-followup` / MR TBD | S01-followup: незакрытые замечания ревью MR !64 по наружным стенам — id новых стен мимо всех занятых id документа (D-158), строка о пропавшем проёме в момент жеста (D-159), `room-walls.ts` в README модуля | `src/domain/commands/{room-walls,index,README}`, `src/features/plan-tools/{notice,use-plan-tool-controller,PlanGeometryLayer,README}`, тесты | `npm test`, `typecheck`/`lint`/`build`, `DEV_PORT=5177 npm run test:e2e`; 7 мутаций — все пойманы | в работе |
 
 ## Блокеры и вопросы
 

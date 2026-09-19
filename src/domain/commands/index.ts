@@ -516,10 +516,16 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       if (!shape.ok) return shape;
       // Outer walls are part of the outline: they are rebuilt with it, and the
       // entrance follows its edge. Partitions and their openings stay (D-134).
-      const rebuilt = rebuildOuterWalls(plan.walls, plan.openings, plan.room.boundary, command.boundary, {
-        thickness_m: OUTER_WALL_THICKNESS_M,
-        height_m: plan.room.ceilingHeight_m,
-      });
+      const rebuilt = rebuildOuterWalls(
+        plan.walls,
+        plan.openings,
+        plan.room.boundary,
+        command.boundary,
+        { thickness_m: OUTER_WALL_THICKNESS_M, height_m: plan.room.ceilingHeight_m },
+        // Ids are unique across the whole document, not per kind: a new outer
+        // wall must never take the id of a zone, an object or the room.
+        idOwners(plan).keys(),
+      );
       return withRelations({
         ...plan,
         room: { ...plan.room, boundary: command.boundary },

@@ -82,6 +82,23 @@ async function dragAt(
   await page.mouse.up();
 }
 
+/**
+ * Точка мира в пикселях сцены — по числам, которые холст сам публикует
+ * (`data-visible`: «minX,minY,maxX,maxY» в метрах, D-130). Это не повтор
+ * арифметики вида, а чтение её результата: попасть в угол контура иначе можно
+ * только перебором пикселей. На экране Y вниз, в модели вверх.
+ */
+async function worldPixel(page: Page, x: number, y: number): Promise<Pixel> {
+  const rect = await stageRect(page);
+  const raw = await page.getByTestId('editor-canvas').getAttribute('data-visible');
+  if (raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX, maxY] = raw.split(',').map(Number) as [number, number, number, number];
+  return {
+    x: ((x - minX) / (maxX - minX)) * rect.width,
+    y: ((maxY - y) / (maxY - minY)) * rect.height,
+  };
+}
+
 const areas = (page: Page): Locator => page.getByLabel('Площади');
 
 async function roomArea(page: Page): Promise<string> {
@@ -571,6 +588,10 @@ test.describe('инструменты плана', () => {
       px(size, 0.45, 0.85),
       px(size, 0.15, 0.85),
     ]);
+    // Пропажа входа названа в момент жеста, а не только находкой в «Проверке».
+    await expect(page.getByTestId('plan-tools-notice')).toContainText(
+      'Проёму не нашлось места',
+    );
     await page.keyboard.press('Escape');
 
     const drawn = await savePlan(page);
@@ -602,6 +623,34 @@ test.describe('инструменты плана', () => {
     const undone = await savePlan(page);
     expect(undone.walls.map((w) => w.id).sort()).toEqual([...oldIds].sort());
     expect(undone.openings).toHaveLength(1);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('убранная вершина контура уносит вход — пропажа названа сразу', async ({ page }) => {
+    // Тот же жест, но другой его исполнитель: контур правится ручками на
+    // холсте, а не рисуется инструментом. Молчаливая пропажа единственного
+    // входа — то же самое и здесь.
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await openEditor(page);
+
+    const before = await savePlan(page);
+    expect(before.room.boundary).toHaveLength(4);
+    expect(before.openings).toHaveLength(1);
+
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, await worldPixel(page, 6, 4.5));
+    await expect(page.getByText(/Контур: тяните вершину/)).toBeVisible();
+
+    // Двойной клик по северо-западному углу (0, 9) убирает вершину: северного
+    // ребра (12,9)→(0,9), на котором висит вход, у треугольника нет.
+    await dblclickAt(page, await worldPixel(page, 0, 9));
+
+    const after = await savePlan(page);
+    expect(after.room.boundary).toHaveLength(3);
+    expect(after.openings).toHaveLength(0);
+    await expect(page.getByTestId('plan-tools-notice')).toContainText('Проёму не нашлось места');
 
     expect(errors).toEqual([]);
   });

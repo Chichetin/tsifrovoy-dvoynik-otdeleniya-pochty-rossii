@@ -12,7 +12,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import type { Command } from '../../contracts/commands';
 import type { Catalog, PlanDocument, Point, Result } from '../../contracts/model';
 import type { EditorSession, Tool, WorldPointer } from '../../contracts/ui';
-import { getNotice, setNotice } from './notice';
+import { applyCommand } from '../../domain/commands';
+import { OUTER_OPENING_DROPPED_NOTICE, getNotice, setNotice } from './notice';
 import { usePlanToolController } from './use-plan-tool-controller';
 
 const catalog: Catalog = {
@@ -88,6 +89,49 @@ function setup(tool: Tool, plan: PlanDocument) {
     act(() => hook.result.current.handlePointer(down(point)));
   };
   return { commands, hook, click };
+}
+
+/** Тот же стенд, но команда действительно применяется к плану. */
+function setupApplying(tool: Tool, plan: PlanDocument) {
+  const commands: Command[] = [];
+  let current = plan;
+  const onCommand = (command: Command): Result<PlanDocument> => {
+    commands.push(command);
+    const result = applyCommand(current, command);
+    if (result.ok) current = result.value;
+    return result;
+  };
+  const session: EditorSession = {
+    tool,
+    viewport: { origin: [0, 0], scale: 50 },
+    selection: null,
+    preview: null,
+    focus: null,
+  };
+  const hook = renderHook(() => usePlanToolController({ document: plan, session, onCommand }));
+  const click = (point: Point): void => {
+    act(() => hook.result.current.handlePointer(down(point)));
+  };
+  return { commands, hook, click, plan: () => current };
+}
+
+/** План с одной северной стеной и входом в ней — единственным входом ОПС. */
+function planWithEntrance(): PlanDocument {
+  return {
+    ...planWith([]),
+    walls: [{ id: 'w_north', from: [0, 8], to: [10, 8], thickness_m: 0.2, height_m: 3 }],
+    openings: [
+      {
+        id: 'op_entrance',
+        wallId: 'w_north',
+        offset_m: 4,
+        width_m: 1.2,
+        kind: 'entrance',
+        sill_m: 0,
+        height_m: 2.1,
+      },
+    ],
+  };
 }
 
 beforeEach(() => setNotice(null));
@@ -177,6 +221,35 @@ describe('рисование контура', () => {
         ],
       },
     ]);
+  });
+
+  it('пропавший при правке контура проём объясняется строкой, а не молчанием', () => {
+    // Настоящая команда: новый контур пересобирает наружные стены, и вход не
+    // помещается на новое северное ребро длиной 1 м.
+    const { commands, click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
+
+    click([0, 0]);
+    click([10, 0]);
+    click([10, 8]);
+    click([9, 8]);
+    click([0.05, 0.05]);
+
+    expect(commands).toHaveLength(1);
+    expect(plan().openings).toHaveLength(0);
+    expect(getNotice()).toBe(OUTER_OPENING_DROPPED_NOTICE);
+  });
+
+  it('контур, на котором вход уцелел, ничего не сообщает', () => {
+    const { click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
+
+    click([0, 0]);
+    click([14, 0]);
+    click([14, 8]);
+    click([0, 8]);
+    click([0.05, 0.05]);
+
+    expect(plan().openings).toHaveLength(1);
+    expect(getNotice()).toBeNull();
   });
 
   it('Escape бросает черновик и ничего не меняет в плане', () => {

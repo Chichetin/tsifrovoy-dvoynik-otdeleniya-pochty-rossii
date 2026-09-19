@@ -34,6 +34,13 @@ export type RebuiltWalls = { walls: Wall[]; openings: Opening[] };
  * get ids `w_1`, `w_2`, … that are free in the plan; openings keep their ids.
  * Defaults for a brand-new outer wall come from the outer walls being replaced,
  * or from `fallback` when the plan had none.
+ *
+ * `reserved` is every id the document already spends — the room, layers, zones,
+ * objects, openings, partitions. Ids are unique across the whole document
+ * (`collectDuplicateIds` in contracts/schema), not just among walls, so a plan
+ * whose zone happens to be called `w_1` must not get a wall called `w_1` and
+ * stop opening. The outer walls being replaced are the one group whose ids are
+ * free again: they go away with the old outline.
  */
 export function rebuildOuterWalls(
   walls: Wall[],
@@ -41,13 +48,17 @@ export function rebuildOuterWalls(
   oldBoundary: Polygon,
   newBoundary: Polygon,
   fallback: { thickness_m: number; height_m: number },
+  reserved: Iterable<Id> = [],
 ): RebuiltWalls {
-  const outer = walls.filter((wall) => edgeIndexOf(wall, oldBoundary) !== null);
-  const partitions = walls.filter((wall) => edgeIndexOf(wall, oldBoundary) === null);
+  const outerIds = outerWallIds(walls, oldBoundary);
+  const outer = walls.filter((wall) => outerIds.has(wall.id));
+  const partitions = walls.filter((wall) => !outerIds.has(wall.id));
   const partitionIds = new Set(partitions.map((wall) => wall.id));
 
   const template = outer[0] ?? fallback;
-  const taken = new Set<Id>(partitionIds);
+  const taken = new Set<Id>(reserved);
+  for (const id of outerIds) taken.delete(id);
+  for (const id of partitionIds) taken.add(id);
   const rebuilt: Wall[] = [];
   const idByEdge = new Map<number, Id>();
 

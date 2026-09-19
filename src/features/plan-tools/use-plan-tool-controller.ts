@@ -24,6 +24,7 @@ import {
   NO_WALL_UNDER_POINTER_NOTICE,
   OPENING_WIDER_THAN_WALL_NOTICE,
   WALL_TOO_SHORT_NOTICE,
+  droppedOpeningNotice,
   setNotice,
 } from './notice';
 import { canCommitRing, parentForRing } from './vertex-edit';
@@ -61,8 +62,15 @@ export const usePlanToolController: UsePlanToolController = ({
       committing.current = true;
       try {
         if (kind === 'room.draw') {
-          onCommand({ type: 'room.set', boundary: ring });
-          setNotice(null);
+          // Новый контур пересобирает наружные стены: проём, которому не
+          // нашлось ребра, уходит вместе со стеной — и об этом говорится сразу,
+          // а не только находкой в панели «Проверка» (D-134).
+          const result = onCommand({ type: 'room.set', boundary: ring });
+          setNotice(
+            result.ok
+              ? droppedOpeningNotice(plan.openings.length, result.value.openings.length)
+              : null,
+          );
           return true;
         }
         const taken = new Set<Id>(plan.zones.map((zone) => zone.id));
@@ -93,7 +101,7 @@ export const usePlanToolController: UsePlanToolController = ({
         committing.current = false;
       }
     },
-    [kind, onCommand, plan.catalog.zoneTypes, plan.layers, plan.zones],
+    [kind, onCommand, plan.catalog.zoneTypes, plan.layers, plan.openings, plan.zones],
   );
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
