@@ -16,6 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
+| Claude (эта сессия) | `worktree-layers-buffer-canvas`, MR после push | Зоны и информационный слой без буферного холста Konva (D-190) | `src/features/plan-tools/PlanGeometryLayer.tsx`, `src/features/layers/InformationLayer.tsx`, новые `*.test.tsx` к обоим, README обоих модулей, `docs/decisions.md`, `docs/verification/performance-2026-09-19-d190*` | unit 847 passed + 1 skipped; e2e 109 passed (`playwright.qa.config.ts`, `DEV_PORT=5184`); typecheck/lint/build чисто; Q02 до/после: шаг zoom 1000/50 — 97 → 55 мс | готово к MR |
 
 ## Блокеры и вопросы
 
