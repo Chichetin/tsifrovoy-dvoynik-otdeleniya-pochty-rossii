@@ -12,15 +12,16 @@
  * file only converts the pointer to world metres and draws the result.
  */
 
-import { Fragment, memo, useEffect, useState } from 'react';
+import { Fragment, memo, useEffect, useRef, useState } from 'react';
 import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
-import type Konva from 'konva';
-import type { Equipment, Point } from '../../contracts/model';
+import Konva from 'konva';
+import type { Equipment, Id, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
+import { arrowDelta, marqueeHits, moveObjects, pasteObjects } from './selection-edit';
 import {
   RESIZE_HANDLES,
   grabOffset,
@@ -41,8 +42,34 @@ const ROTATE_FILL = '#E7F5FF';
 const HANDLE_RADIUS_PX = 6;
 const ROTATION_GAP_PX = 28;
 
-/** The object as the pointer is currently shaping it; null outside a gesture. */
-type Gesture = { id: string; object: Equipment };
+/**
+ * The object as the pointer is currently shaping it; null outside a gesture.
+ * `delta` is set while a member of a group is dragged: the other members
+ * follow by the same offset in model metres, from their own positions.
+ */
+type Gesture = { id: string; object: Equipment; delta?: Point };
+
+/**
+ * A marquee in progress, in stage pixels. `width`/`height` are the stage's:
+ * while the marquee runs, a transparent rectangle that size sits on top so the
+ * release lands on it, not on the floor — Konva fires `click` only when the
+ * shape under the release is the one under the press, so the zone or the room
+ * under the marquee does not get picked after it.
+ */
+type Marquee = { from: Point; to: Point; width: number; height: number; shift: boolean };
+
+/** Pixels the pointer must travel from the press before it is a marquee. */
+const MARQUEE_START_PX = 4;
+
+const NO_GROUP: ReadonlySet<Id> = new Set<Id>();
+
+/**
+ * Буфер копирования: снимок объектов на момент Ctrl+C и счётчик вставок из
+ * него подряд. Снимок, а не ссылки: оригинал можно подвинуть или удалить, а
+ * вставится то, что копировали. Живёт в слое и не переживает перезагрузку —
+ * это не содержимое документа.
+ */
+type Clipboard = { objects: Equipment[]; pastes: number };
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -65,13 +92,18 @@ type EquipmentSymbolProps = {
  * Memoised on its primitive props: react-konva repaints a whole layer as soon as
  * one node gets a "new" prop, and a `points` array built on every render is
  * always new. With the memo a click elsewhere leaves a thousand shapes untouched.
+ * `perfectDrawEnabled: false` (D-187): a translucent shape with fill and stroke
+ * is otherwise painted through a stage-sized buffer canvas — one clear and one
+ * full-canvas copy per object on every redraw of the layer (zoom, pan, drag,
+ * open). Before/after numbers: docs/verification/performance-2026-09-19-d187.md.
  */
 const EquipmentSymbol = memo(function EquipmentSymbol({
   symbol,
   width,
   height,
-  ...paint
+  ...style
 }: EquipmentSymbolProps): React.JSX.Element {
+  const paint = { ...style, perfectDrawEnabled: false };
   if (symbol === 'circle') {
     return <Circle radius={Math.max(width, height) / 2} {...paint} />;
   }
@@ -92,6 +124,7 @@ export function EquipmentLayer({
   session,
   onCommand,
   onSelect,
+  onSelectMany,
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
@@ -118,6 +151,102 @@ export function EquipmentLayer({
       ? (plan.objects.find((object) => object.id === selection.id) ?? null)
       : null;
   const selectedVisible = selectedObject !== null && visibleLayers.has(selectedObject.layerId);
+  const selectedLocked = selectedObject !== null && lockedLayers.has(selectedObject.layerId);
+  const clipboard = useRef<Clipboard | null>(null);
+
+  // The group (marquee, Shift+click): visible members only, the primary among
+  // them. One member is the ordinary single selection; two or more make the
+  // keys, the drag and Delete act on all of them, as one command each.
+  const group = session.selected ?? NO_GROUP;
+  const members = plan.objects.filter(
+    (object) => group.has(object.id) && visibleLayers.has(object.layerId),
+  );
+  const isGroup = members.length > 1;
+  // A locked layer neither drags nor moves by key; its members stay put.
+  const movable = members.filter((object) => !lockedLayers.has(object.layerId));
+  const [marquee, setMarquee] = useState<Marquee | null>(null);
+  const press = useRef<{ from: Point; shift: boolean } | null>(null);
+  const layerRef = useRef<Konva.Layer>(null);
+  const put = (object: Equipment) => ({ type: 'object.put', object }) as const;
+
+  // The marquee listens on the stage: a press on the floor, a zone, the grid
+  // or the empty stage may begin one; a press on an object, a handle or any
+  // draggable node belongs to that node's own gesture. Rubber-banding is the
+  // «Выбор» tool's job only — under a drawing or placing tool the press draws.
+  useEffect(() => {
+    const stage = layerRef.current?.getStage();
+    if (!stage || onSelectMany === undefined) return;
+
+    const onDown = (event: Konva.KonvaEventObject<PointerEvent>): void => {
+      press.current = null;
+      if (session.tool.kind !== 'select' || event.evt.button !== 0) return;
+      const layerName = event.target.getLayer()?.name();
+      if (layerName === 'equipment' || layerName === 'equipment-selection') return;
+      if (event.target !== stage && event.target.draggable()) return;
+      const position = stage.getPointerPosition();
+      if (position === null) return;
+      press.current = { from: [position.x, position.y], shift: event.evt.shiftKey };
+    };
+    const onMove = (): void => {
+      const start = press.current;
+      if (start === null) return;
+      // A drag that began meanwhile (a zone vertex, a wall end) owns the pointer.
+      if (Konva.isDragging()) {
+        press.current = null;
+        return;
+      }
+      const position = stage.getPointerPosition();
+      if (position === null) return;
+      const to: Point = [position.x, position.y];
+      if (
+        marquee === null &&
+        Math.abs(to[0] - start.from[0]) < MARQUEE_START_PX &&
+        Math.abs(to[1] - start.from[1]) < MARQUEE_START_PX
+      ) {
+        return;
+      }
+      setMarquee({ from: start.from, to, width: stage.width(), height: stage.height(), shift: start.shift });
+    };
+    const onUp = (): void => {
+      press.current = null;
+      if (marquee === null) return;
+      setMarquee(null);
+      // Hidden and locked layers are out of reach for a group edit, so their
+      // objects do not get caught: the person would see a count that the
+      // next arrow key does not match.
+      const reachable = plan.objects.filter(
+        (object) => visibleLayers.has(object.layerId) && !lockedLayers.has(object.layerId),
+      );
+      const hits = marqueeHits(
+        reachable,
+        screenToModel(marquee.from, viewport),
+        screenToModel(marquee.to, viewport),
+      );
+      // Shift adds to what is already picked; a plain marquee replaces it.
+      onSelectMany(marquee.shift ? [...group.values(), ...hits] : hits);
+    };
+
+    stage.on('pointerdown.marquee', onDown);
+    stage.on('pointermove.marquee', onMove);
+    stage.on('pointerup.marquee', onUp);
+    return () => {
+      stage.off('pointerdown.marquee');
+      stage.off('pointermove.marquee');
+      stage.off('pointerup.marquee');
+    };
+  });
+
+  // Escape drops a marquee in progress: nothing was picked, nothing changes.
+  useEffect(() => {
+    if (marquee === null) return;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      press.current = null;
+      setMarquee(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [marquee]);
 
   // Escape mid-gesture puts the shape back and drops the command. Only this
   // layer's own gesture is touched — a vertex or a wall end being dragged
@@ -145,11 +274,85 @@ export function EquipmentLayer({
       if (isTypingTarget(event.target)) return;
       if (selectedObject === null || !selectedVisible) return;
       event.preventDefault();
-      onCommand({ type: 'object.delete', id: selectedObject.id });
+      // A group goes in one batch: one Delete, one «Отменить» brings all back.
+      onCommand(
+        isGroup
+          ? { type: 'batch', commands: members.map((object) => ({ type: 'object.delete', id: object.id })) }
+          : { type: 'object.delete', id: selectedObject.id },
+      );
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onCommand, selectedObject, selectedVisible]);
+  });
+
+  // Клавиатурная правка выбранного: стрелки двигают на шаг, Shift+стрелка — на
+  // мелкий, Ctrl+C/Ctrl+V копируют и вставляют со смещением. Одно нажатие —
+  // одна команда, поэтому «Отменить» возвращает объект туда, где он был до
+  // нажатия, а не отыгрывает кадры.
+  //
+  // Клавиша, нажатая в поле карточки, принадлежит полю: стрелками там ходят по
+  // тексту, Ctrl+C копирует текст (находка operator №18). Сочетания проверяются
+  // по `code`, а не по букве: на русской раскладке Ctrl+C — это «Ctrl+С»
+  // кириллицей, и по `key` горячая клавиша пропала бы.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (isTypingTarget(event.target)) return;
+      const combo = event.ctrlKey || event.metaKey;
+
+      // Вставка выделения не требует: буфер держит снимок, и «скопировал →
+      // удалил оригинал → вставил» обязан работать, хотя выбирать уже нечего.
+      if (combo && event.code === 'KeyV') {
+        const buffer = clipboard.current;
+        if (buffer === null) return;
+        event.preventDefault();
+        // Свободные номера считаются и по плану, и по удалённым в этой сессии
+        // id (D-156): иначе первая же вставка после удаления ляжет на
+        // retired-id и команда откажет ID_REUSED.
+        const taken = new Set<Id>([
+          ...plan.objects.map((object) => object.id),
+          ...(session.retired ?? []),
+        ]);
+        const copies = pasteObjects(buffer.objects, taken, buffer.pastes + 1);
+        // Одним пакетом: вставка группы — одна правка и одно «Отменить».
+        if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
+        buffer.pastes += 1;
+        // Вставленное сразу выбрано: карточка показывает копию, и следующая
+        // стрелка двигает именно её (D-147). Группа вставляется группой.
+        const last = copies.at(-1);
+        if (copies.length > 1 && onSelectMany !== undefined) {
+          onSelectMany(copies.map((copy) => copy.id));
+        } else if (last !== undefined) {
+          onSelect({ kind: 'object', id: last.id });
+        }
+        return;
+      }
+
+      // Всё остальное правит выбранное — и только то, что видно на плане.
+      if (selectedObject === null || !selectedVisible) return;
+
+      if (combo) {
+        if (event.code !== 'KeyC') return;
+        event.preventDefault();
+        clipboard.current = { objects: isGroup ? members : [selectedObject], pastes: 0 };
+        return;
+      }
+
+      if (event.altKey) return;
+      const delta = arrowDelta(event.key, event.shiftKey);
+      if (delta === null) return;
+      // Заблокированный слой не тянется мышью — не двигается и стрелками.
+      const moving = isGroup ? movable : selectedLocked ? [] : [selectedObject];
+      if (moving.length === 0) return;
+      event.preventDefault();
+      const moved = moveObjects(moving, delta);
+      const [single] = moved;
+      onCommand(
+        isGroup || single === undefined ? { type: 'batch', commands: moved.map(put) } : put(single),
+      );
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   /** The pointer in world metres, through the one conversion in domain/geometry. */
   const worldPointer = (event: Konva.KonvaEventObject<unknown>): Point | null => {
@@ -171,7 +374,13 @@ export function EquipmentLayer({
   ): void => {
     const node = event.target;
     guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab });
-    onSelect({ kind: 'object', id });
+    // Grabbing a member keeps the group and makes that member the primary —
+    // the card follows the hand; anything else is a single pick.
+    if (isGroup && group.has(id) && onSelectMany !== undefined) {
+      onSelectMany([...[...group.values()].filter((member) => member !== id), id]);
+    } else {
+      onSelect({ kind: 'object', id });
+    }
   };
 
   /** How far the handle was grabbed from its centre; zero outside a gesture. */
@@ -190,8 +399,35 @@ export function EquipmentLayer({
     node.position({ x, y });
   };
 
-  const shown = (object: Equipment): Equipment =>
-    gesture !== null && gesture.id === object.id ? gesture.object : object;
+  const shown = (object: Equipment): Equipment => {
+    if (gesture === null) return object;
+    if (gesture.id === object.id) return gesture.object;
+    if (gesture.delta === undefined || !group.has(object.id) || lockedLayers.has(object.layerId)) {
+      return object;
+    }
+    const [dx, dy] = gesture.delta;
+    return { ...object, position: [object.position[0] + dx, object.position[1] + dy] };
+  };
+
+  /** Offset of a dragged member from where it started, in model metres. */
+  const groupDelta = (object: Equipment, next: Equipment): Point | undefined =>
+    isGroup && group.has(object.id)
+      ? [next.position[0] - object.position[0], next.position[1] - object.position[1]]
+      : undefined;
+
+  /** One batch per finished group drag; refused, every member snaps back. */
+  const commitGroup = (node: Konva.Node, dragged: Equipment, next: Equipment): void => {
+    setGesture(null);
+    const delta = groupDelta(dragged, next) ?? [0, 0];
+    const moved = moveObjects(
+      movable.filter((object) => object.id !== dragged.id),
+      delta,
+    );
+    const accepted =
+      guard.finish() && onCommand({ type: 'batch', commands: [next, ...moved].map(put) }).ok;
+    const [x, y] = modelToScreen(accepted ? next.position : dragged.position, viewport);
+    node.position({ x, y });
+  };
 
   const render = (object: Equipment, ghost: boolean): React.JSX.Element => {
     const type = findObjectType(plan.catalog, object.typeId);
@@ -211,19 +447,33 @@ export function EquipmentLayer({
         rotation={current.rotation_deg}
         draggable={!ghost && !lockedLayers.has(object.layerId)}
         listening={!ghost}
-        onPointerClick={picking ? () => onSelect({ kind: 'object', id: object.id }) : undefined}
+        onPointerClick={
+          picking
+            ? (event) => {
+                // Shift+click adds to or removes from the group; a plain click
+                // picks this object alone.
+                if (event.evt.shiftKey && onSelectMany !== undefined) {
+                  const others = [...group.values()].filter((member) => member !== object.id);
+                  onSelectMany(group.has(object.id) ? others : [...others, object.id]);
+                } else {
+                  onSelect({ kind: 'object', id: object.id });
+                }
+              }
+            : undefined
+        }
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
-          setGesture({ id: object.id, object: { ...object, position: movedTo(event.target) } });
+          const next = { ...object, position: movedTo(event.target) };
+          setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
         }}
         onDragEnd={(event) => {
+          const next = { ...object, position: movedTo(event.target) };
+          if (isGroup && group.has(object.id)) {
+            commitGroup(event.target, object, next);
+            return;
+          }
           // A refused move must not leave the shape where the pointer dropped it.
-          commit(
-            event.target,
-            { ...object, position: movedTo(event.target) },
-            (next) => next.position,
-            object.position,
-          );
+          commit(event.target, next, (result) => result.position, object.position);
         }}
       >
         <EquipmentSymbol
@@ -405,28 +655,55 @@ export function EquipmentLayer({
 
       </Layer>
 
-      <Layer name="equipment-selection">
-        {selectedObject === null || !selectedVisible ? null : (
-          <Line
-            key={`outline-${selectedObject.id}`}
-            points={footprint(shown(selectedObject)).flatMap((point) =>
-              modelToScreen(point, viewport),
-            )}
-            closed
-            stroke={SELECTED_STROKE}
-            strokeWidth={2}
-            dash={[4, 3]}
-            listening={false}
-          />
+      <Layer name="equipment-selection" ref={layerRef}>
+        {(isGroup ? members : selectedObject === null || !selectedVisible ? [] : [selectedObject]).map(
+          (object) => (
+            <Line
+              key={`outline-${object.id}`}
+              name={`outline-${object.id}`}
+              points={footprint(shown(object)).flatMap((point) => modelToScreen(point, viewport))}
+              closed
+              stroke={SELECTED_STROKE}
+              strokeWidth={2}
+              dash={[4, 3]}
+              listening={false}
+            />
+          ),
         )}
 
-        {/* A locked layer shows the selection but offers nothing to pull. */}
-        {!picking || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
+        {/* A locked layer shows the selection but offers nothing to pull; a
+            group has no handles — it moves, it is not resized or turned. */}
+        {!picking || isGroup || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
           ? null
           : [
               ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),
               renderRotationHandle(selectedObject),
             ]}
+
+        {marquee === null ? null : (
+          <>
+            <Rect
+              name="marquee-overlay"
+              x={0}
+              y={0}
+              width={marquee.width}
+              height={marquee.height}
+              fill="rgba(0,0,0,0)"
+            />
+            <Rect
+              name="marquee"
+              x={Math.min(marquee.from[0], marquee.to[0])}
+              y={Math.min(marquee.from[1], marquee.to[1])}
+              width={Math.abs(marquee.to[0] - marquee.from[0])}
+              height={Math.abs(marquee.to[1] - marquee.from[1])}
+              fill="rgba(51, 102, 204, 0.08)"
+              stroke={SELECTED_STROKE}
+              strokeWidth={1}
+              dash={[4, 3]}
+              listening={false}
+            />
+          </>
+        )}
       </Layer>
     </>
   );

@@ -1,23 +1,52 @@
 /** Q02: real Chromium, isolated dev port, fixed synthetic plans and five samples. */
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
-import { cpus, totalmem, platform, release } from 'node:os';
+import { cpus, loadavg, totalmem, platform, release } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { expect, test } from '@playwright/test';
 import { BENCHMARK_SEED, CASES, generateBenchmark } from '../../scripts/generate-benchmark';
 
 const REPEATS = 5;
+const SERVER = process.env.PERF_SERVER === 'preview' ? 'preview' : 'dev';
 
+/**
+ * Budgets hold on the production build only (`PERF_SERVER=preview`); the dev
+ * build carries React's development overhead, its numbers are published, not
+ * asserted. Both are medians in the page on 1000 objects. Before/after D-187:
+ * docs/verification/performance-2026-09-19-d187.md — the budgets leave room
+ * for a loaded machine and catch the buffer-canvas path coming back.
+ */
+const SELECT_BUDGET_MS = 400;
+const ZOOM_BUDGET_MS = 300;
+
+/**
+ * `selectMs` — from the pointer press to the first frame after the card shows
+ * the object, measured inside the page; `selectWallMs` — the same click as
+ * Playwright sees it, with its own waiting. Locating a row among 1000 walks
+ * every label of the page and is the test's cost, not the user's, so it is
+ * done before the clock starts. `zoomMs` — one wheel step over the canvas to
+ * the second frame after it, median of five steps. `validateMs` is null on
+ * the production build: the module is not importable there.
+ */
 type Sample = {
   coldOpenMs: number;
   warmOpenMs: number;
   selectMs: number;
+  selectWallMs: number;
+  zoomMs: number;
   filterMs: number;
   clearFilterMs: number;
-  validateMs: number;
+  validateMs: number | null;
   saveReopenMs: number;
   heapBytes: number | null;
 };
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN;
+}
+
+type Probe = { q02: Promise<number> };
 
 for (const config of CASES) {
   test(`${config.objects} объектов / ${config.zones} зон`, async ({ browser, baseURL }, testInfo) => {
@@ -50,10 +79,46 @@ for (const config of CASES) {
         await expect(page.getByTestId('room-free')).toContainText('м²');
         const warmOpenMs = performance.now() - warmStarted;
 
+        const rowButton = await rows.first().locator('button').first().elementHandle();
+        if (!rowButton) throw new Error('Строка перечня не найдена');
+        await page.evaluate(() => {
+          (window as unknown as Probe).q02 = new Promise<number>((resolve) => {
+            let pressed = 0;
+            window.document.addEventListener('pointerdown', () => { pressed = performance.now(); }, { capture: true, once: true });
+            const observer = new MutationObserver(() => {
+              if (window.document.querySelector('[data-testid="props-id"]')?.textContent !== 'eq_0') return;
+              observer.disconnect();
+              requestAnimationFrame(() => setTimeout(() => resolve(performance.now() - pressed), 0));
+            });
+            observer.observe(window.document.body, { subtree: true, childList: true, characterData: true });
+          });
+        });
         const selectStarted = performance.now();
-        await rows.first().locator('button').first().click();
+        await rowButton.click();
+        const selectMs = await page.evaluate(() => (window as unknown as Probe).q02);
         await expect(page.getByTestId('props-id')).toHaveText('eq_0');
-        const selectMs = performance.now() - selectStarted;
+        const selectWallMs = performance.now() - selectStarted;
+
+        // Zoom redraws every shape of every layer: the cost a thousand objects
+        // put on pan, zoom and drag. In and out alternate, so the view ends
+        // where it started.
+        const canvas = await page.locator('.konvajs-content').first().boundingBox();
+        if (!canvas) throw new Error('Холст не найден');
+        await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
+        const zoomSteps: number[] = [];
+        for (let step = 0; step < 5; step += 1) {
+          await page.evaluate(() => {
+            (window as unknown as Probe).q02 = new Promise<number>((resolve) => {
+              window.addEventListener('wheel', () => {
+                const started = performance.now();
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now() - started)));
+              }, { capture: true, once: true });
+            });
+          });
+          await page.mouse.wheel(0, step % 2 === 0 ? -120 : 120);
+          zoomSteps.push(await page.evaluate(() => (window as unknown as Probe).q02));
+        }
+        const zoomMs = median(zoomSteps);
 
         const search = page.getByLabel('Поиск по перечню');
         const filterStarted = performance.now();
@@ -65,7 +130,7 @@ for (const config of CASES) {
         await expect(rows).toHaveCount(config.objects);
         const clearFilterMs = performance.now() - clearFilterStarted;
 
-        const validateMs = await page.evaluate(async (document) => {
+        const validateMs = SERVER === 'preview' ? null : await page.evaluate(async (document) => {
           const path = '/src/domain/validation/index.ts';
           const { validatePlan } = await import(/* @vite-ignore */ path);
           const start = performance.now();
@@ -95,20 +160,24 @@ for (const config of CASES) {
           const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
           return memory?.usedJSHeapSize ?? null;
         });
-        samples.push({ coldOpenMs, warmOpenMs, selectMs, filterMs, clearFilterMs, validateMs, saveReopenMs, heapBytes });
+        samples.push({ coldOpenMs, warmOpenMs, selectMs, selectWallMs, zoomMs, filterMs, clearFilterMs, validateMs, saveReopenMs, heapBytes });
       } finally {
         await context.close();
       }
     }
     const raw = {
       commit: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
-      seed: BENCHMARK_SEED, objects: config.objects, zones: config.zones, repeats: REPEATS,
-      browser: userAgent, machine: { platform: platform(), release: release(), cpu: cpus()[0]?.model, cores: cpus().length, ramBytes: totalmem() },
+      server: SERVER, seed: BENCHMARK_SEED, objects: config.objects, zones: config.zones, repeats: REPEATS,
+      browser: userAgent, machine: { platform: platform(), release: release(), cpu: cpus()[0]?.model, cores: cpus().length, ramBytes: totalmem(), loadavgAtEnd: loadavg() },
       samples,
     };
     const output = testInfo.outputPath('samples.json');
     writeFileSync(output, JSON.stringify(raw, null, 2));
     await testInfo.attach('raw-samples', { path: output, contentType: 'application/json' });
     console.log(`Q02 ${config.objects}/${config.zones}: ${output}`);
+    if (SERVER === 'preview') {
+      expect(median(samples.map((sample) => sample.selectMs)), 'выбор объекта, медиана, мс').toBeLessThan(SELECT_BUDGET_MS);
+      expect(median(samples.map((sample) => sample.zoomMs)), 'шаг zoom, медиана, мс').toBeLessThan(ZOOM_BUDGET_MS);
+    }
   });
 }

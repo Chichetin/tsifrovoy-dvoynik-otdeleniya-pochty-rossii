@@ -35,3 +35,17 @@ export function isFitHotkey(event: HotkeyEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return false;
   return !isTypingTarget(event.target);
 }
+
+/**
+ * История правок с клавиатуры: Ctrl+Z — отменить, Ctrl+Y и Ctrl+Shift+Z —
+ * вернуть (второе — привычка macOS, там же вместо Ctrl работает Cmd).
+ * Alt в сочетании — не наше; в поле ввода Ctrl+Z принадлежит тексту, а не
+ * плану: отменять там должно набранную букву, а не поставленный стеллаж.
+ */
+export function historyHotkey(event: HotkeyEvent): 'undo' | 'redo' | null {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey) return null;
+  if (isTypingTarget(event.target)) return null;
+  if (event.code === 'KeyZ') return event.shiftKey ? 'redo' : 'undo';
+  if (event.code === 'KeyY' && !event.shiftKey) return 'redo';
+  return null;
+}

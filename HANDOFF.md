@@ -16,8 +16,6 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| Claude (эта сессия) | `worktree-advice-wall-rank`, MR после push | Находка operator №12: ассистент предлагал место посреди зала — ранг и порядок перебора учитывают близость к стене (D-178) | `src/domain/geometry/` (`polygons.ts`, `index.ts`), `src/domain/advice/` (`placement.ts`, `index.ts`), их тесты, `demo/recommendation.json`, ZIP | unit 762 passed + 1 skipped; полный e2e 92 passed (`playwright.qa.config.ts`, `DEV_PORT=5183`); typecheck/lint/build чистые | готово к MR |
-| Максим / Codex | `worktree-inventory-flake-maxim`, MR после push | Убрать ложный 5-секундный порог из функционального e2e, перенести замер фильтра в Q02 | `tests/e2e/inventory.spec.ts`, `tests/perf/editor.spec.ts` | Chrome 1000 объектов 1/1; Q02 100/10 — 5 повторов с `filterMs`; typecheck/lint | готово к MR |
 
 ## Блокеры и вопросы
 
@@ -41,62 +39,50 @@
 | 2026-09-16 | закрыт 2026-09-17 | ~~Для G03 нужна библиотека булевых операций над полигонами~~ | поставлен `polyclip-ts` 0.16.8 точной версией, выбран прогоном трёх кандидатов на случаях карточки G03 | решение D-037, действий не требуется |
 | 2026-09-18 | закрыт 2026-09-19 | ~~`demo/before.json` и `demo/after.json` имеют одинаковые `id` и `name`, а ключ вписывания склеен из `plan.id` и `plan.name` через разделитель (`EditorCanvas.tsx`, константа `documentKey`), поэтому второй открытый файл вид не перевыписывает: жюри сравнивает «было → стало» и видит масштаб от первого плана~~ | Проверено: `node -e` по обоим файлам даёт `id=plan_demo_ops_synthetic` и одно имя; ключ читается в `EditorCanvas.tsx`, эффект вписывания — D-127. В `EditorSession` и `EditorCanvasProps` (`src/contracts/ui.ts`) признака «документ заменён» нет, поэтому холст отличить два файла не может | Закрыто в MR !77 (D-145) третьим способом, без правки контракта и без правки демо-планов: замену документа решает `src/app/App.tsx` — счётчик замен меняет `key` у `EditorCanvas`, холст пересоздаётся и вид считается заново. Разные `id` у демо-планов пробовал и отбросил: краснеет `demo.spec.ts`, который проверяет, что те же шаги руками дают ровно `after.json`, а имя и `id` документа в редакторе изменить нечем. Закреплено `tests/e2e/demo-refit.spec.ts`; замер: 41 → 400 → 41 px/м |
 
-## Что дальше (на 19.09, после прогона jury)
+## Что дальше (на вечер 19.09, `main` = `4f8f9c7`)
 
-Повторный `jury` на `373da92` — **2,40 / 3** (модель и справочники 2 → 3), по-прежнему «не готово»
-только из-за частей комплекта, которые требуют человека. После него влиты ещё: подписи объектов
-на холсте, имена слоёв на своей строке, карточка подъезжает к экрану (D-154); сброс ответа
-ассистента при «Открыть»/«Новый» (D-155); дефект «после удаления объект/проём/слой не ставится
-снова» (D-156, контракт `retired`). `main` на вечер 19.09 — `1d61b70`: unit 657/658, полный e2e
-81 passed без ретраев, typecheck/lint/build зелёные.
+Последняя оценка `jury` — **2,40 / 3** на `4b2da0c`,
+[отчёт](docs/verification/2026-09-19-jury.md). После неё влиты: клик без перерисовки
+тысячи фигур (D-177), стрелки и `Ctrl+C`/`Ctrl+V` (D-180, MR !113), `Ctrl+Z`/`Ctrl+Y`
+(D-183, MR !115), групповой выбор рамкой и `Shift`+кликом (D-184, D-185, MR !116, !117),
+«Найти место» по уместным зонам (D-186, MR !118), оборудование без буферного холста (D-187,
+MR !119). На `4f8f9c7` `npm test` — 828 passed, 1 skipped. Открытых MR нет
+(`bash scripts/gitlab-mr.sh list` пусто).
 
-**Что нужно от человека до сдачи 22.09 (агент это сделать не может):**
-1. Хостинг: любой Linux с Docker → `docker compose up --build -d` → URL и сведения доступа в
-   `README.md` (строки с `TBD`) и `docs/submission.md`; после — `DEPLOY_URL=… npx playwright test
-   tests/e2e/deployment.spec.ts` и запись в `docs/verification/`.
-2. ~~Ключ DeepSeek или Qwen~~ — сделано 19.09: DeepSeek-V4-Flash через Yandex AI Studio, `mode: "llm"`
-   записан (D-158). Осталось положить тот же `.env` на публичный сервер.
-3. Пересобрать PDF под commit сдачи (`scripts/make-presentation.py`, скриншоты с публичного
-   адреса) и просмотреть его глазами; зафиксировать commit сдачи, повторить Q02 и `jury` на нём.
-4. ~~Решить судьбу MR !79~~ — сделано 19.09: закрыт как дубль влитого !81 (D-147), разбор
-   в самом MR и в «Блокерах». Ветка на сервере сохранена.
+| Не закрыто | Кто | Почему это следующее | Где |
+|---|---|---|---|
+| **Публичный адрес сервиса.** Любой Linux с Docker, `docker compose up --build -d`, на сервере `.env` с ключом DeepSeek (тот же, что в D-158). Затем `DEPLOY_URL=… npx playwright test tests/e2e/deployment.spec.ts` по адресу, запись в `docs/verification/`, адрес и сведения доступа вместо `TBD` в `README.md` (`grep -n TBD README.md` — четыре места про адрес) и `docs/submission.md` | человек | Часть 1 комплекта сдачи; jury: README 2 → 3, пункт 1 топа (+0,10) | `docs/deployment.md` |
+| **ZIP демо с рекомендацией в режиме `llm`.** ~~Правка сборщика~~ — сделано (D-188): режим пишется по факту, без ключа — `fallback` с причиной. Осталось человеку с `.env`: `npx tsx --env-file=.env demo/build.ts && npm run package:demo`, затем `unzip -p output/demo/ops-digital-twin-demo.zip recommendation.json \| grep -m1 '"mode"'` → `"mode": "llm"` | человек с `.env` | Пункт 2 топа jury; одна команда, код готов | `docs/submission.md` |
+| **PDF заново** через `scripts/make-presentation.py` на коммите сдачи: убрать «LLM не подтверждён», добавить инвентаризацию и CSV, находки на плане, слои, справочник, числа D-187. Черновик `output/pdf/posttech-digital-twin-2026-09-18.pdf` собран на `13dac98` | человек (агент — снимки и факты) | Часть 3 комплекта; пункт 5 топа jury | `scripts/README.md` |
+| **Независимый проход** `docs/verification/jury.md`: 9 шагов с «не проверено» или «ожидается» | человек, не писавший README | Протокол вехи: README должен работать без автора | `docs/verification/jury.md` |
+| **Перезамер Q01/Q02 на коммите сдачи** для таблицы «Прогон проверок» и раздела объёма в README. D-187 снят на `ea8f9c6` + MR, а README ещё показывает старые числа | поток 5 | Условия требуют объём, на котором проверялся редактор; числа должны быть с коммита сдачи (D-171) | `docs/verification/performance-2026-09-19-d187.md` |
+| **Видимость слоя и «несохранённые правки».** Включение слоя делает план `dirty`: `layers[].visible` хранится в документе, `isDirty` в `src/state/plan-store.ts` сравнивает документ целиком. Варианты: исключить `layers[].visible` из сравнения в `isDirty` или вынести видимость в сессию (второе меняет контракт и формат) | решение потока 1 | Находка operator №11: первое действие со слоем спрашивает о потере правок | `src/state/plan-store.ts` |
+| **Зоны и информационный слой на буферном холсте.** `PlanGeometryLayer` (прозрачность 0.75, заливка и обводка) и конусы и подписи `InformationLayer` рисуются через буфер Konva, как оборудование до D-187; в профиле 1000 объектов / 50 зон осталось 117 мс `drawImage`+`restore` на три перерисовки. Правка — `perfectDrawEnabled: false` у владельцев слоёв с unit-тестом на `_useBufferCanvas()` | поток 2 и слои | Критерий 30 %, масштаб | D-187 |
+| Не блокирующее по ревью MR !118 (D-186): текущая расстановка подтверждает сама себя (объект в `z_queue` делает очередь уместной) — ограничение записать в README модуля; счётчик `cells` в поиске места тратится на неуместные клетки | поток 4 | Объяснимость ассистента | `src/domain/advice/placement.ts` |
+| Не блокирующее по ревью MR !119 (D-187): perf-спека может висеть до 600 с, если `pointerdown` не придёт, — нужен свой таймаут в `evaluate`; владельцу `src/features/equipment` не убирать `perfectDrawEnabled: false`, его держит `EquipmentLayer.test.tsx`. Строка README про одиночное выделение поправлена этим MR | поток 5, поток 2 | Надёжность замера | `tests/perf/editor.spec.ts` |
+| Свободный вопрос пользователя модель не читает: LLM выбирает только `reasonCode`, без модели вопрос не учитывается и так подписан (D-153) | поток 4 | Минус jury по критерию ассистента | `src/features/assistant` |
+| Контрольная оценка перед сдачей: `jury` и скилл `submission-checklist` на коммите сдачи, `qa` по публичному адресу и распакованному ZIP | оркестратор | Протокол вехи | `docs/agents.md` |
+| Не блокирующее по ревью MR !121 (D-188): `askModel` не пишет HTTP-статус маршрута в причину fallback и падает на не-JSON теле; folder ID Yandex остаётся в истории git (ec47ca6, f0a0848) | поток 5 | Диагностика fallback, решение по истории git — за человеком | `demo/build.ts` |
+| Архитектурный долг: первые две строки закрыты (снимок «было» — `PlanStore.baseline`, D-175; слой для размещения — `editableContentLayer`, D-174), остальные строки — в отчёте ревью | потоки по строкам | Ревью кода 19.09 | `docs/architecture-review-2026-09-19.md` |
 
-Первый `jury` на `e006411` — **2,20 / 3**, «не готово к сдаче». Из его топ-5 за день закрыто без человека:
-README с таблицей для проверяющего и единым разделом ограничений, ZIP в `output/demo/` в git
-(D-149); типы зон из панели «Справочник» (D-150); правила команды на примере организаторов в
-браузере (D-148); два флаки-теста починены по причине (D-151); вдобавок карточка помещения с
-названием плана и потолком (D-152), выбор созданного (D-147), пометка про неучтённый вопрос
-(D-153). **Остались только пункты человека:** публичный адрес сервиса (README `TBD`), живой прогон
-разрешённой LLM (ключ), пересборка PDF под commit сдачи, повтор Q02 и `jury` на commit сдачи.
-MR !79 закрыт 19.09 как дубль (см. блокеры), открытых MR нет. Таблица ниже — с 18.09, часть строк закрыта, см. «Завершено».
+Закрыто из прежних списков (сверено по `docs/decisions.md`, `git log` и
+`docs/verification/operator-2026-09-18.md`): картинка плана SVG (D-138); колонка «Инв. №»
+и CSV перечня (D-159, D-160); панель слоёв над библиотекой, флажок «Показывать», легенда,
+имена на своей строке (D-154, D-162); ложное «несохранённое» на чистом старте и текст
+вопроса при «Новый» (IO03, MR !67); ассистент называет тип оборудования и зону (A06, MR !66);
+созданное сразу выбрано и варианты разнесены (D-146, D-147); свой контур пересобирает
+наружные стены (D-134); карточки перегородки, проёма и помещения (D-135, D-152); `Shift+F`
+больше не вписывает (D-161); мелочи ревью MR !57 (MR !69); повторное вписывание второго
+демо-плана (D-145); горячие клавиши и групповая правка (D-180, D-183, D-185); медленный
+выбор и zoom на 1000 объектах (D-177, D-187); folder_ID в `llm-live-2026-09-19.md` заменён
+плейсхолдером этим MR. Флейк `tests/smoke.test.tsx`: `afterEach(cleanup)` добавлен
+профилактически в MR !119, флейк не воспроизвёлся 20/20 и 40/40.
 
-### Было на 18.09, после четвёртого окна оркестратора
+Не перепроверено после 18.09: прыжок холста на 48 px при длинной подсказке в шапке
+(operator №16) и перехват кликов кнопкой «Вписать» в левом нижнем углу (ревью MR !59).
+Проверить в браузере при следующем проходе `operator` или `qa`.
 
-Четвёртым окном на `main` пройдена приёмка вехи: `qa` (сценарий проверяющего на `demo/before.json`,
-`after.json`, `example_plan.json`, ZIP, Docker — продуктовых дефектов нет,
-`docs/verification/2026-09-18-acceptance-main.md`), `operator` (три роли сотрудников, 92 скриншота
-во временном каталоге сессии), `jury` — **2,05 / 3** на `e2f20ce`. По их топ-5 влиты: e2e без Google
-Chrome (`1fc4d2d`), вписывание плана и переход холста к находке (`6efe5b8`), инвентаризация с
-названиями, сводкой по типам и поиском (`8b33cfe`). Ниже — что осталось, по отдаче в баллах.
-
-| Не закрыто | Почему это следующее | Где карточка |
-|---|---|---|
-| **Человек: публичный адрес сервиса** — любой Linux с Docker, `docker compose up --build -d`, URL в README и `docs/submission.md`, прогон `DEPLOY_URL=… npx playwright test tests/e2e/deployment.spec.ts` | Часть 1 комплекта сдачи; jury: решать сегодня, не 21-го | `docs/deployment.md` |
-| **Человек: один живой прогон разрешённой LLM** (DeepSeek/Qwen): ключ в `.env` на сервере, `mode: llm` в ответе, снимок в `docs/verification/` | Критерий 20%: путь с моделью ничем не подтверждён; кода менять не нужно | `server/README.md`, `README.md` раздел ассистента |
-| Ассистент и «Проверка» называют предмет словами: «в зоне «Зона ожидания» одна скамья при норме две», ссылки «Клиентский зал (z_client)» (поток 4: `src/domain/advice/templates.ts`, `explanation.ts`) | operator, топ-3: расчёт верный, но руководитель не понимает, чего именно не хватает — тип оборудования в ответе не назван | A04 |
-| Ложное «есть несохранённые правки» на чистом старте и при включении информационного слоя; «Новый» спрашивает про «открыть другой файл» (потоки 1/3: `src/state`, `src/features/files`) | operator, топ-4: первое действие проверяющего упирается в вопрос о потере правок, которых нет | S01/IO03 |
-| Рисование с нуля (поток 2): холст прыгает на 48 px при появлении подсказки в шапке; на холсте нет «клик по первой точке замыкает»; новая зона и поставленный объект не выделяются; нарисованное помещение остаётся внутри стен шаблона 12×9; у перегородки и проёма нет карточки свойств, хотя подсказка её обещает | operator, топ-5: второй вход (D-058) проходится со второй попытки | U03/U04/U06 |
-| Выгрузка: «Сохранить вид картинкой» (PNG/SVG, D-061) и CSV перечня инвентаризации (потоки 2/3) | operator: руководителю нечего положить в презентацию, инвентаризацию не отдать в отчёт | U02/M02 |
-| Слои: список спрятан под 25 позициями библиотеки, переключатель «—»/«👁» нечитаем, имена слоёв обрезаются, два информационных слоя перекрывают друг друга (поток 2) | operator, руководитель | U05 |
-| Мелочи по ревью MR !59: ~~`before.json`/`after.json` имеют один `id`, поэтому повторное вписывание при открытии второго не срабатывает~~ — **на `950d781` не воспроизводилась, на `6daffa7` воспроизвелась и исправлена** (D-145): открытие `after.json` после `before.json` даёт 41 px/м после накрученных 400 px/м, то есть вид пересчитывается; повторное открытие того же файла вид сохраняет (400 px/м), как и задумано. Закреплено `tests/e2e/demo-refit.spec.ts`. Разные `id` у демо-планов при этом не годятся: `demo.spec.ts` проверяет, что те же шаги руками дают ровно `after.json`, а имя и `id` документа в редакторе изменить нечем; кнопка «Вписать» перехватывает клики в левом нижнем углу холста и срабатывает на Shift+F; в матрице число тестов `focus.test.ts` — 17, не 30 | поток 2 | `src/features/editor` |
-| Мелочи по ревью MR !60: `document` в `InventoryPanelProps`/`ValidationPanelProps` расширен локально — согласованный контрактный MR потоку 1; замер 1000 объектов перенести из `tests/e2e/inventory.spec.ts` в `tests/perf`; фильтр не сбрасывается при смене документа; `refName` без мемоизации | потоки 1/3/5 | D-124 |
-| ~~Мелочи по ревью MR !57: `playwright.perf.config.ts` и `scripts/capture-presentation.ts` всё ещё требуют `channel: 'chrome'`; таймаут 30 с в `tests/demo.test.ts` при фактических ~1 с~~ — закрыто в [MR !69](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/69) | поток 5 | D-125, D-142…D-144 |
-| Контрольная оценка перед сдачей: `jury` и скилл `submission-checklist` на commit сдачи, `qa` по публичному адресу и распакованному ZIP | по протоколу вехи | `docs/agents.md` |
-| Повтор Q01/Q02 на release candidate для E02 | В README нужны проверенный end-to-end и измеренные числа именно сборки сдачи | Q01 — `docs/verification/e2e.md`, Q02 — `docs/verification/performance.md`; E02 |
-| E02 — README целиком | 10% критерия; раздел про ассистента написан, остальные разделы нет | там же, E02 |
-| Архитектурный долг, семь строк с путями и критерием готовности. Первые две дешёвые и с прямым эффектом: снимок «было» ведут `compareBase` в `App.tsx` и `baseline` в store (пять мест записи, ноль тестов — «было → стало» ассистента может считаться от не того плана); `src/domain/advice/placement.ts:391` выбирает слой без `typeId === null` и может предложить положить объект на информационный слой вопреки D-063/D-066 | Ревью кода 19.09 на `e006411`: не косметика, а расхождения правил, которые видны в ответе ассистента | `docs/architecture-review-2026-09-19.md` |
-
-Как продолжить: `git fetch --prune`, взять пакет из таблицы, завести worktree по `GIT.md`,
+Как продолжить: `git fetch --prune`, взять строку из таблицы, завести worktree по `GIT.md`,
 строку задачи — в «Активные задачи» выше.
 
 ## Ответы организаторов
@@ -116,6 +102,17 @@ Chrome (`1fc4d2d`), вписывание плана и переход холст
 
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
+| 2026-09-19 | Claude Code (поток 5) | E01-llm: `demo/build.ts` пишет фактический режим ассистента — при `LLM_*` в окружении спрашивает модель через маршрут `/api/advice` и пишет `"mode": "llm"` с провайдером, моделью и датой, иначе `fallback` с причиной; абзац о режиме в `demo/effect.md` генерируется; «ключ не выдан» убран из `demo/*`; инструкция пересборки с ключом — `docs/submission.md` (D-188) | [MR !121](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/121), `5544d2f` | `npm test` 842 passed / 1 skipped (новый `tests/demo-llm.test.ts` — 14, фиктивный провайдер по HTTP; после ревью: вариант модели обязан совпадать с применённым в `after.json`); `DEV_PORT=5196 npm run test:e2e -- --workers=2` 109 passed / 5 skipped, `demo.spec.ts` 2/2; typecheck/lint/build ок; мутаций 10 + 6 после ревью, выживших 0; `check-secrets.sh` rc 0; folder ID убран из `docs/verification/llm-live-2026-09-19.md` |
+| 2026-09-19 | Claude Code (scribe) | Отчёт jury на `4b2da0c` в `docs/verification/2026-09-19-jury.md` с шапкой закрытого после него; «Что дальше» сверено с `main`; активные строки !115–!117 перенесены сюда; README — групповой выбор вместо «выделение одиночное»; `focus.test.ts` в матрице — 17 тестов; folder_ID в `llm-live-2026-09-19.md` заменён плейсхолдером | [MR !120](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/120) | `npm test` 828 passed / 1 skipped; `npx vitest run src/features/editor/focus.test.ts` 17 passed; ссылки на `.md` в изменённых файлах существуют; `check-secrets.sh` rc 0 |
+| 2026-09-19 | Поток 4 / Claude Code | A-fit: «Найти место» ищет только в уместных зонах — по правилам-минимумам справочника и по текущей расстановке плана, объекты не на полу не сужаются — и называет зону каждого варианта (D-186, доработано по ревью) | [MR !118](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/118) | `npm test` 825 passed + 1 skipped (15 тестов «A-fit», в т. ч. на `demo/before.json` и настоящем `data/catalog/rules.json`); `DEV_PORT=5191 npm run test:e2e -- --workers=2` 109 passed / 5 skipped; typecheck/lint/build ок; мутаций 14, выжила 1 эквивалентная (граница предпроверки клетки) |
+| 2026-09-19 | Claude Code (поток 5) | Q02-select: символы оборудования без буферного холста Konva — шаг zoom на 1000 объектах 1487 → 93 мс, открытие 6,5 → 4,1 с, выбор 97 мс (production-сборка, Linux без GPU-ускорения холста); `PERF_SERVER=preview` в perf-конфиге, пороги выбора и zoom в спеке; `afterEach(cleanup)` в smoke — профилактика, флейк не воспроизведён (20/20 и 40/40) (D-187) | [MR !119](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/119), `b490e55` | `PERF_SERVER=preview npx playwright test -c playwright.perf.config.ts`: до — 1/3 (zoom 453 и 1487 мс > 300), после — 3/3; `EquipmentLayer.test.tsx` 3/3, без флага 3 failed; мутации 5/5 убиты; `npm test` 813 passed / 1 skipped, typecheck/lint/build зелёные, `DEV_PORT=5193 npm run test:e2e -- --workers=2` 108 passed / 5 skipped |
+| 2026-09-19 | Claude Code (поток 2) | Групповой выбор, MR 2/3: рамка по пустому полу, `Shift`+клик, перетаскивание члена двигает группу, стрелки, `Delete`, `Ctrl+C`/`Ctrl+V` над группой одной `batch`, карточка «Выбрано объектов: N» (D-185) | [MR !117](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/117), `ea8f9c6` | unit 810; e2e `group-select.spec.ts` 6/6, `equipment`/`group-edit`/`properties`/`plan-tools` 35 |
+| 2026-09-19 | Claude Code (поток 1, контракт) | Групповой выбор, MR 1/3: `PlanStore.selected`/`selectMany`, `EditorSession.selected?`, `SelectManySink`, команда `batch`; прежние поля без изменений (D-184) | [MR !116](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/116), `7d87a57` | unit `commands.test` 44, `plan-store.test` 35 |
+| 2026-09-19 | Claude Code (поток 2) | U02-history: `Ctrl+Z`, `Ctrl+Y`, `Ctrl+Shift+Z`, подсказки на кнопках шапки, абзац про клавиатуру в README (D-183) | [MR !115](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/115), `c0f59b3` | unit `hotkeys.test.ts` 13; e2e `history-keys.spec.ts` 3; typecheck/lint/build |
+| 2026-09-19 | Claude Code (поток 1) | S01-followup по ревью MR !64: пропажа проёма при правке контура называется в момент жеста — `droppedOpeningNotice` в `src/features/plan-tools/notice.ts`, оба исполнителя жеста (D-182) | [MR !114](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/114), `f61f12f` | unit 791 passed; e2e `plan-tools`+`round-trip` 11 passed; typecheck/lint/build |
+| 2026-09-19 | Claude Code (поток 2) | U04-keys: правка выбранного с клавиатуры — стрелки 0,5 м, Shift+стрелка 0,05 м, Ctrl+C/Ctrl+V со смещением и свежим id мимо `retired`; вставка не требует выделения (D-180, D-181) | [MR !113](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/113), `f8e8a06` | unit 789 passed; полный e2e 98 passed + 5 skipped; typecheck/lint/build |
+| 2026-09-19 | Claude Code (интеграция) | MR !112 тиммейта слит после ревью diff: ассистент предлагает место у стены, а не посреди зала (D-178) | [MR !112](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/112), `839e4f9` | unit 762 passed; e2e `assistant`+`round-trip` 8 passed; typecheck/lint |
+| 2026-09-19 | Максим / Codex | Ложный 5-секундный порог убран из функционального e2e, замер фильтра перенесён в Q02 (D-176) | merge `81ddbcc` | Q02 100/10 — 5 повторов с `filterMs` |
 | 2026-09-19 | Максим / Codex | Один baseline для `dirty` и сравнения ассистента; stale-сохранение не меняет снимок «до» (D-175) | [MR !105](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/105), `8ca11f4` | unit 755 passed + 1 skipped; Chrome compare 2/2; typecheck/lint/build; слито в `main` |
 | 2026-09-19 | Максим / Codex | Единое правило обычного незапертого слоя для ассистента, инструментов и переноса при удалении (D-174) | [MR !104](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/104), `4eb5124` | unit 755 passed + 1 skipped; typecheck/lint/build; слито в `main` |
 | 2026-09-19 | Максим / Codex | SVG выгружает текущую видимую схему без зон и объектов скрытых слоёв (D-173) | [MR !102](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/102), `fbe1dac` | unit 727 passed + 1 skipped; `files.spec.ts` 12/12 Chrome; build; слито в `main` |

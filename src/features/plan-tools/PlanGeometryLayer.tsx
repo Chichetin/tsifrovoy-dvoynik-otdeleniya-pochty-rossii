@@ -28,6 +28,7 @@ import {
   MIN_VERTICES_NOTICE,
   NEAR_VERTEX_NOTICE,
   SELF_INTERSECTION_NOTICE,
+  droppedOpeningNotice,
   setNotice,
 } from './notice';
 import {
@@ -152,7 +153,11 @@ export function PlanGeometryLayer({
         : zone === undefined
           ? null
           : onCommand({ type: 'zone.put', zone: { ...zone, polygon } });
-    if (result?.ok === true) setNotice(null);
+    // Правка контура помещения пересобирает наружные стены: проём, которому не
+    // нашлось ребра, уходит вместе со стеной, и пропажу называют сразу (D-134).
+    if (result?.ok === true) {
+      setNotice(droppedOpeningNotice(plan.openings.length, result.value.openings.length));
+    }
     return result?.ok === true;
   };
 

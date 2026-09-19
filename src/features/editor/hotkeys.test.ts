@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import { type HotkeyEvent, isFitHotkey, isTypingTarget } from './hotkeys';
+import { type HotkeyEvent, historyHotkey, isFitHotkey, isTypingTarget } from './hotkeys';
 
 function event(patch: Partial<HotkeyEvent> = {}): HotkeyEvent {
   return {
@@ -49,5 +49,35 @@ describe('клавиша вписывания', () => {
   it('обычный элемент полем ввода не считается', () => {
     expect(isTypingTarget(document.createElement('div'))).toBe(false);
     expect(isTypingTarget(null)).toBe(false);
+  });
+});
+
+describe('история правок с клавиатуры', () => {
+  const ctrl = { ctrlKey: true };
+
+  it('Ctrl+Z — отменить, Ctrl+Y и Ctrl+Shift+Z — вернуть', () => {
+    expect(historyHotkey(event({ code: 'KeyZ', ...ctrl }))).toBe('undo');
+    expect(historyHotkey(event({ code: 'KeyY', ...ctrl }))).toBe('redo');
+    expect(historyHotkey(event({ code: 'KeyZ', ...ctrl, shiftKey: true }))).toBe('redo');
+  });
+
+  it('Cmd работает как Ctrl', () => {
+    expect(historyHotkey(event({ code: 'KeyZ', metaKey: true }))).toBe('undo');
+    expect(historyHotkey(event({ code: 'KeyZ', metaKey: true, shiftKey: true }))).toBe('redo');
+  });
+
+  it('решает код клавиши, а не буква: на русской раскладке Ctrl+Я — та же Ctrl+Z', () => {
+    expect(historyHotkey(event({ code: 'KeyZ', ...ctrl }))).toBe('undo');
+    expect(historyHotkey(event({ code: 'KeyA', ...ctrl }))).toBeNull();
+  });
+
+  it('без Ctrl, с Alt и Ctrl+Shift+Y — не наше', () => {
+    expect(historyHotkey(event({ code: 'KeyZ' }))).toBeNull();
+    expect(historyHotkey(event({ code: 'KeyZ', ...ctrl, altKey: true }))).toBeNull();
+    expect(historyHotkey(event({ code: 'KeyY', ...ctrl, shiftKey: true }))).toBeNull();
+  });
+
+  it('в поле ввода отменяется текст, а не план', () => {
+    expect(historyHotkey(event({ code: 'KeyZ', ...ctrl, target: document.createElement('input') }))).toBeNull();
   });
 });

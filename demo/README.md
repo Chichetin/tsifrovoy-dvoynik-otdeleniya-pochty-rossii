@@ -66,7 +66,8 @@
 и оборудование в метрах.
 
 ```bash
-npx tsx demo/build.ts     # пересобрать before.json, after.json, recommendation.json
+npx tsx demo/build.ts     # пересобрать before.json, after.json, recommendation.json, абзац effect.md
+npx tsx --env-file=.env demo/build.ts   # то же с провайдером LLM из .env → "mode": "llm"
 npm run package:demo      # собрать один ZIP комплекта → output/demo/ops-digital-twin-demo.zip (в git;
                           # после любой правки demo/ пересобрать и закоммитить — tests/demo.test.ts сверяет)
 npm test -- tests/demo.test.ts                  # проверки комплекта
@@ -87,9 +88,12 @@ DEV_PORT=5176 CI=1 npx playwright test tests/e2e/demo.spec.ts   # открыти
 
 ## Известные ограничения комплекта
 
-- Ассистент отработал **без LLM**: ключ провайдера команде на момент сборки не
-  выдан. Это штатный режим (расчёт + шаблонное объяснение, пометка «без LLM»), а не
-  отказ; структура рекомендации и все числа от этого не меняются.
+- Режим, в котором объяснена рекомендация, записан сборщиком в поле `mode` файла
+  `recommendation.json` и в абзаце `effect.md`: `llm` — код причины, вариант и факты
+  выбрала модель (провайдер, модель и дата — в поле `llm`), выбор прошёл проверку
+  кодом; `fallback` — расчёт с шаблонным объяснением (штатный режим, D-016), причина
+  — в поле `fallbackReason`. Структура рекомендации и все числа от режима не
+  меняются.
 - Правила комплектования `rule_bench_min` и `rule_info_display_max` — **допущения
   команды** из `data/catalog/rules.json`, а не нормативы Почты России. Правило
   «терминал очереди не далее 3 м от входа» взято из перечня оборудования

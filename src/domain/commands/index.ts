@@ -52,6 +52,8 @@ export const COMMAND_ISSUE_CODES = {
   NAME_EMPTY: 'NAME_EMPTY',
   /** room.setCeiling needs a finite height above zero. */
   CEILING_INVALID: 'CEILING_INVALID',
+  /** A batch with no commands: nothing to apply, nothing to undo. */
+  BATCH_EMPTY: 'BATCH_EMPTY',
 } as const;
 
 export type CommandIssueCode =
@@ -667,5 +669,19 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
 
     case 'relations.reconcile':
       return withRelations(plan);
+    case 'batch': {
+      if (command.commands.length === 0) {
+        return fail(COMMAND_ISSUE_CODES.BATCH_EMPTY, 'Пакет команд пуст: нечего применять.', []);
+      }
+      // All or nothing: the first refusal is the batch's refusal, and the
+      // caller keeps the plan it started from.
+      let current = plan;
+      for (const step of command.commands) {
+        const result = applyCommand(current, step);
+        if (!result.ok) return result;
+        current = result.value;
+      }
+      return { ok: true, value: current };
+    }
   }
 }

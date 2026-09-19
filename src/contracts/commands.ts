@@ -45,7 +45,13 @@ export type Command =
   | { type: 'plan.rename'; name: string }
   /** Ceiling height; outer walls follow it, partitions keep their own height. */
   | { type: 'room.setCeiling'; ceilingHeight_m: number }
-  | { type: 'relations.reconcile' };
+  | { type: 'relations.reconcile' }
+  /**
+   * Several commands as one edit: applied in order, all or nothing, and one
+   * undo step in the store. A group move or a group delete is a batch. An
+   * empty batch is rejected: a no-op must not land in the history.
+   */
+  | { type: 'batch'; commands: Command[] };
 
 export type CommandType = Command['type'];
 
@@ -98,6 +104,12 @@ export type PlanStore = {
   readonly baseline: PlanDocument;
   readonly revision: number;
   readonly selection: Ref | null;
+  /**
+   * Objects picked as a group (marquee, Shift+click). `selection` is the
+   * primary one — what the card and the 3D view show — and when it is an
+   * object it is a member of this set. Every member exists in the document.
+   */
+  readonly selected: ReadonlySet<Id>;
   readonly dirty: boolean;
   /**
    * Ids retired by a delete in this session (D-019): a put with one of them is
@@ -108,7 +120,14 @@ export type PlanStore = {
   replaceDocument(plan: PlanDocument, origin: DocumentOrigin): Result<PlanDocument>;
   undo(): void;
   redo(): void;
+  /** One entity, or nothing: the group becomes that object alone, or empty. */
   select(ref: Ref | null): void;
+  /**
+   * A group of objects; ids that are not objects of the document are
+   * dropped. The last surviving id becomes `selection`; an empty group
+   * clears it.
+   */
+  selectMany(ids: readonly Id[]): void;
   /** Marks an export prepared for this revision; a stale revision is ignored. */
   markExported(revision: number): void;
 };
