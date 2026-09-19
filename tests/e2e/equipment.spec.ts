@@ -151,7 +151,7 @@ async function captionPixels(page: Page, box: { x: number; y: number; w: number;
       const context = canvas.getContext('2d');
       if (context === null) continue;
       const ratio = canvas.width / canvas.clientWidth;
-      const { data, width } = context.getImageData(
+      const { data } = context.getImageData(
         Math.round(b.x * ratio), Math.round(b.y * ratio), Math.round(b.w * ratio), Math.round(b.h * ratio),
       );
       for (let i = 0; i < data.length; i += 4) {
@@ -159,7 +159,6 @@ async function captionPixels(page: Page, box: { x: number; y: number; w: number;
           count += 1;
         }
       }
-      void width;
     }
     return count;
   }, box);

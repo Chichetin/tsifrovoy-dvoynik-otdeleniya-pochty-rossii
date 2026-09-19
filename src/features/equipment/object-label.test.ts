@@ -24,7 +24,7 @@ const viewport: Viewport = { origin: [0, 0], scale: 40 };
 
 describe('подпись объекта на холсте', () => {
   test('широкий объект подписан в центре своего следа, без поворота', () => {
-    const label = objectLabel(object({ rotation_deg: 37 }), viewport);
+    const label = objectLabel(object(), viewport);
     expect(label).not.toBeNull();
     expect(label?.text).toBe('Стеллаж посылок');
     const [x, y] = modelToScreen([5, 5], viewport);
@@ -35,8 +35,11 @@ describe('подпись объекта на холсте', () => {
     expect(label?.lines).toBe(2);
   });
 
-  test('ширина берётся по длинной стороне: вытянутый по Y объект подписан так же', () => {
-    expect(objectLabel(object({ size_m: [1, 2] }), viewport)?.width).toBe(104);
+  test('ширина — по следу на экране: вытянутый по Y объект узок и ждёт приближения', () => {
+    expect(objectLabel(object({ size_m: [1, 2] }), viewport)).toBeNull();
+    expect(objectLabel(object({ size_m: [2, 1], rotation_deg: 90 }), viewport)).toBeNull();
+    // Поворот на 90° делает след 2 м широким: подпись возвращается.
+    expect(objectLabel(object({ size_m: [1, 2], rotation_deg: 90 }), viewport)?.width).toBe(104);
   });
 
   test('низкий объект — одна строка', () => {
@@ -46,7 +49,7 @@ describe('подпись объекта на холсте', () => {
   test('маленький объект без подписи, пока масштаб не даст места', () => {
     const chair = object({ size_m: [0.6, 0.6] });
     expect(objectLabel(chair, viewport)).toBeNull();
-    expect(objectLabel(chair, { origin: [0, 0], scale: LABEL_MIN_WIDTH_PX / 0.6 })).not.toBeNull();
+    expect(objectLabel(chair, { origin: [0, 0], scale: LABEL_MIN_WIDTH_PX / 0.6 + 1 })).not.toBeNull();
   });
 
   test('пустая подпись — нет текста', () => {
