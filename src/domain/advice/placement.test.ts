@@ -604,6 +604,34 @@ describe('A01: место у стены', () => {
     expect(Math.hypot(best!.object.position[0] - 5, best!.object.position[1] - 4)).toBeLessThan(1);
   });
 
+  test('демо-план: скамья предлагается по краю зоны ожидания, а не в её глубине', () => {
+    // Регрессия на настоящем плане, а не на тестовой коробке: зона ожидания
+    // отступает от стены на 0,1 м, и место вплотную к стене в неё не
+    // помещается. Пока перебор шёл сначала вдоль стен, предел подтверждаемых
+    // мест заканчивался на клетках, отодвинутых на половину длинной стороны
+    // скамьи, и лучшее место стояло в 0,55 м от стены при возможных 0,12 м.
+    const demo = demoBefore();
+    const waiting = demo.zones.find((entry) => entry.id === 'z_waiting');
+    if (waiting === undefined) throw new Error('в демо нет z_waiting');
+
+    const [best] = values(demo, 'ot_bench', 'z_waiting');
+    expect(best).toBeDefined();
+
+    const shape = footprint(best!.object);
+    let gap = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < waiting.polygon.length; i += 1) {
+      gap = Math.min(
+        gap,
+        polygonSegmentDistance(
+          shape,
+          waiting.polygon[i]!,
+          waiting.polygon[(i + 1) % waiting.polygon.length]!,
+        ),
+      );
+    }
+    expect(gap).toBeLessThanOrEqual(PLACEMENT_SEARCH.step_m + TOLERANCE.coordinate_m);
+  });
+
   test('в зоне место у стены помещения предпочитается середине зоны', () => {
     const document = walled({
       zones: [zone('z_hall', 'zt_client', [[0.2, 0.2], [6, 0.2], [6, 6], [0.2, 6]])],
