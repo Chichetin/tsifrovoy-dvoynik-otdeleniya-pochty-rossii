@@ -19,6 +19,7 @@ import {
   collectModelExplanations,
   NO_PROVIDER_REASON,
   publicModelName,
+  readAdviceRouteResponse,
   rebuildFromFile,
   renderModeSection,
   withModeSection,
@@ -145,6 +146,33 @@ function calculated(file: DemoRecommendationFile) {
 }
 
 describe('E01-llm: режим рекомендации в демо-комплекте', () => {
+  test('ошибочный статус маршрута становится причиной fallback, а не исключением', () => {
+    const result = readAdviceRouteResponse('place', 'stub/model', {
+      statusCode: 503,
+      payload: '<html>maintenance</html>',
+    });
+    expect(result).toEqual({
+      ok: false,
+      reason: 'Сценарий «place», stub/model: маршрут ассистента ответил HTTP 503; показан расчёт.',
+    });
+  });
+
+  test('не-JSON и чужая JSON-структура маршрута дают разные понятные причины', () => {
+    const notJson = readAdviceRouteResponse('equipment', 'stub/model', {
+      statusCode: 200,
+      payload: 'gateway said hello',
+    });
+    const malformed = readAdviceRouteResponse('compare', 'stub/model', {
+      statusCode: 200,
+      payload: JSON.stringify({ status: 'ok' }),
+    });
+
+    expect(notJson.ok).toBe(false);
+    if (!notJson.ok) expect(notJson.reason).toContain('вернул не JSON');
+    expect(malformed.ok).toBe(false);
+    if (!malformed.ok) expect(malformed.reason).toContain('не соответствует контракту');
+  });
+
   test('валидный ответ модели → mode llm, числа и id из расчёта', SLOW, async () => {
     const fake = await provider((prompt) => ({ status: 200, content: honestAnswer(prompt) }));
     const build = await buildDemoFromEnv(fake.env, NOW);

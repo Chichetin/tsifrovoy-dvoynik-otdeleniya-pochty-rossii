@@ -670,6 +670,54 @@ function moscowDate(now: Date): string {
 }
 
 type ModelAnswer = { ok: true; explanations: Explanation[] } | { ok: false; reason: string };
+type RouteAnswer = { ok: true; response: AdviceResponse } | { ok: false; reason: string };
+
+function looksLikeAdviceResponse(value: unknown): value is AdviceResponse {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const candidate = value as Partial<AdviceResponse>;
+  return (
+    Number.isInteger(candidate.revision) &&
+    Array.isArray(candidate.recommendations) &&
+    Array.isArray(candidate.explanations) &&
+    (candidate.mode === 'llm' || candidate.mode === 'fallback')
+  );
+}
+
+/**
+ * The in-process route is still an HTTP boundary: a plugin or future handler
+ * can answer with an error page or malformed JSON. The demo build must record
+ * fallback with a useful reason instead of throwing and leaving no ZIP.
+ */
+export function readAdviceRouteResponse(
+  scenario: AdviceRequest['scenario'],
+  label: string,
+  reply: { statusCode: number; payload: string },
+): RouteAnswer {
+  const prefix = `Сценарий «${scenario}», ${label}`;
+  if (reply.statusCode < 200 || reply.statusCode >= 300) {
+    return {
+      ok: false,
+      reason: `${prefix}: маршрут ассистента ответил HTTP ${reply.statusCode}; показан расчёт.`,
+    };
+  }
+
+  let body: unknown;
+  try {
+    body = JSON.parse(reply.payload) as unknown;
+  } catch {
+    return {
+      ok: false,
+      reason: `${prefix}: маршрут ассистента вернул не JSON; показан расчёт.`,
+    };
+  }
+  if (!looksLikeAdviceResponse(body)) {
+    return {
+      ok: false,
+      reason: `${prefix}: ответ маршрута ассистента не соответствует контракту; показан расчёт.`,
+    };
+  }
+  return { ok: true, response: body };
+}
 
 /**
  * Turns the route's answers into the set's explanations, or the reason why
@@ -766,9 +814,9 @@ async function askModel(calculation: DemoCalculation, config: LlmConfig): Promis
         url: '/api/advice',
         payload: { plan, revision: index, request },
       });
-      // A non-200 body has no `mode`; collecting it reports the scenario as
-      // not explained by the model, which is the truth.
-      answers.push({ scenario: request.scenario, response: response.json<AdviceResponse>() });
+      const parsed = readAdviceRouteResponse(request.scenario, label, response);
+      if (!parsed.ok) return parsed;
+      answers.push({ scenario: request.scenario, response: parsed.response });
     }
   } finally {
     await app.close();
