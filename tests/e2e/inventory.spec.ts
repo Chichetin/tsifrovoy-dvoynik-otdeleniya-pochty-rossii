@@ -17,6 +17,7 @@ import type { PlanDocument } from '../../src/contracts/model';
 import { generateBenchmark } from '../../scripts/generate-benchmark';
 
 const BEFORE = join(process.cwd(), 'demo', 'before.json');
+const EXAMPLE = join(process.cwd(), 'example_plan.json');
 const demo = JSON.parse(readFileSync(BEFORE, 'utf8')) as PlanDocument;
 
 /** Сколько объектов каждого типа лежит в файле — ожидания считаются, а не пишутся руками. */
@@ -198,5 +199,130 @@ test.describe('перечень оборудования', () => {
     // Порог мягкий: это защита от обвала, числа для README берутся из вложения.
     expect(filterMs).toBeLessThan(5000);
     expect(clearMs).toBeLessThan(5000);
+  });
+
+  test('колонка «Инв. №» показывает номера и сортирует перечень', async ({ page }) => {
+    await openDemo(page);
+
+    // Номер стоит первой ячейкой строки — его ищут глазами, а не в карточке.
+    const numbers = async (): Promise<string[]> =>
+      inventoryRows(page).locator('td:first-child').allInnerTexts();
+    const own = new Map(
+      demo.objects.map((object) => [object.id, String(object.attributes['inventoryNumber'] ?? '')]),
+    );
+    expect(new Set(own.values()).size).toBe(demo.objects.length);
+    expect(await numbers()).toEqual(demo.objects.map((object) => own.get(object.id)));
+
+    const header = panel(page).locator('th').filter({ hasText: 'Инв. №' });
+    const column = header.getByTestId('inventory-sort');
+    await column.click();
+    const ascending = await numbers();
+    await expect(header).toHaveAttribute('aria-sort', 'ascending');
+    expect(ascending).toEqual(
+      [...ascending].sort((a, b) => a.localeCompare(b, 'ru', { numeric: true })),
+    );
+
+    await column.click();
+    await expect(header).toHaveAttribute('aria-sort', 'descending');
+    expect(await numbers()).toEqual([...ascending].reverse());
+
+    // Третий клик возвращает порядок плана, а не «какой-нибудь».
+    await column.click();
+    await expect(header).toHaveAttribute('aria-sort', 'none');
+    expect(await numbers()).toEqual(demo.objects.map((object) => own.get(object.id)));
+  });
+
+  test('перечень прокручивается внутри панели, а не растягивает страницу', async ({ page }) => {
+    await openDemo(page);
+    const scroll = panel(page).getByTestId('inventory-scroll');
+
+    const box = await scroll.evaluate((node) => ({
+      client: node.clientHeight,
+      content: node.scrollHeight,
+    }));
+    // 53 строки не помещаются в отведённую высоту — значит, панель их прокручивает.
+    expect(box.content).toBeGreaterThan(box.client);
+    expect(box.client).toBeLessThan(600);
+
+    await scroll.evaluate((node) => node.scrollTo(0, node.scrollHeight));
+    expect(await scroll.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+
+    // Разрез по зонам остаётся ниже на той же странице, а не уезжает за перечень.
+    await expect(panel(page).getByText('Столбец «с вложенными» суммировать нельзя', { exact: false })).toBeVisible();
+  });
+
+  test('«Скачать CSV» отдаёт файл с кириллицей и всеми строками перечня', async ({
+    page,
+  }, testInfo) => {
+    await openDemo(page);
+    await expect(panel(page).getByTestId('inventory-csv-scope')).toHaveText(
+      `выгрузится весь перечень: строк ${demo.objects.length}`,
+    );
+
+    const event = await Promise.all([
+      page.waitForEvent('download'),
+      panel(page).getByTestId('inventory-csv').click(),
+    ]).then(([download]) => download);
+
+    expect(event.suggestedFilename()).toMatch(/\.csv$/);
+    const saved = await event.path();
+    expect(saved).not.toBeNull();
+    const bytes = readFileSync(saved as string);
+    // BOM и разделитель «;» — то, ради чего файл открывается в Excel.
+    expect([...bytes.subarray(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+
+    const text = bytes.toString('utf8');
+    const lines = text.split('\r\n');
+    expect(lines).toHaveLength(demo.objects.length + 1);
+    expect(lines[0]).toBe('﻿Инв. №;Объект;id объекта;Тип;id типа;Зона;id зоны');
+    const [firstObject] = demo.objects;
+    if (firstObject === undefined) throw new Error('в демо-плане нет объектов');
+    expect(lines[1]).toContain(String(firstObject.attributes['inventoryNumber']));
+    expect(lines[1]).toContain(firstObject.label);
+    expect(lines[1]).toContain(firstObject.id);
+
+    await expect(panel(page).getByTestId('inventory-csv-done')).toContainText(
+      `строк ${demo.objects.length}`,
+    );
+
+    // Сам файл кладём в отчёт: «кириллица не рассыпалась» проверяется глазами,
+    // а не только длиной строк.
+    await testInfo.attach(event.suggestedFilename(), { body: bytes, contentType: 'text/csv' });
+  });
+
+  test('CSV выгружает то, что показано: фильтр и порядок сортировки', async ({ page }) => {
+    await openDemo(page);
+    const benches = countByType(demo).get('ot_bench') ?? 0;
+    expect(benches).toBeGreaterThan(1);
+
+    await chipOf(page, 'ot_bench').click();
+    await expect(panel(page).getByTestId('inventory-csv-scope')).toHaveText(
+      `выгрузится отфильтрованное: строк ${benches} из ${demo.objects.length}`,
+    );
+
+    const event = await Promise.all([
+      page.waitForEvent('download'),
+      panel(page).getByTestId('inventory-csv').click(),
+    ]).then(([download]) => download);
+
+    const lines = readFileSync((await event.path()) as string, 'utf8').split('\r\n');
+    expect(lines).toHaveLength(benches + 1);
+    for (const line of lines.slice(1)) expect(line).toContain('ot_bench');
+    await expect(panel(page).getByTestId('inventory-csv-done')).toContainText('(по фильтру)');
+  });
+
+  test('открыли другой план — фильтр прошлого не прячет новый перечень', async ({ page }) => {
+    await openDemo(page);
+    await search(page).fill('ИНВ-ДЕМО-010');
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    // Замена плана спрашивает про текущую работу — соглашаемся.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
+
+    await expect(search(page)).toHaveValue('');
+    await expect(panel(page).getByTestId('inventory-shown')).toHaveCount(0);
+    const example = JSON.parse(readFileSync(EXAMPLE, 'utf8')) as { equipment: unknown[] };
+    await expect(inventoryRows(page)).toHaveCount(example.equipment.length);
   });
 });
