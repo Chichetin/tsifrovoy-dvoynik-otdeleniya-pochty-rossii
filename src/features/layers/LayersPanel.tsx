@@ -33,6 +33,37 @@ function valueOf(
   return typeof value === 'number' ? String(value) : '';
 }
 
+type IconName = 'lock' | 'unlock' | 'up' | 'down' | 'delete';
+
+/** Strokes on a 24-unit grid; `currentColor` so hover and disabled states recolour them. */
+const ICON_PATHS: Record<IconName, string> = {
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z',
+  unlock: 'M7 11V8a5 5 0 0 1 9.6-2M5 11h14v10H5z',
+  up: 'M12 19V5M6 11l6-6 6 6',
+  down: 'M12 5v14M6 13l6 6 6-6',
+  delete: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6',
+};
+
+/**
+ * Inline SVG instead of emoji and arrow characters: the same drawing in every
+ * font, and the button's name comes from its `aria-label`, not from the glyph.
+ */
+function Icon({ name }: { name: IconName }): React.JSX.Element {
+  return (
+    <svg
+      className="layers__icon"
+      data-icon={name}
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  );
+}
+
 export function LayersPanel({
   document: plan,
   session,
@@ -222,8 +253,16 @@ export function LayersPanel({
     );
   };
 
-  const describe = (layer: Layer, type: LayerType | null): string => {
-    if (type !== null) return 'информационный слой: рисует поверх всего плана';
+  /**
+   * One short line under the name. An informational layer always says where
+   * its numbers come from (D-060): here while it is hidden, in its legend
+   * once it is shown — the same words are not printed twice.
+   */
+  const describe = (layer: Layer, type: LayerType | null): string | null => {
+    if (type !== null) {
+      const legendSays = layer.visible && legendOf(type).kind !== 'none';
+      return legendSays ? null : 'числа синтетические';
+    }
     const { zones, objects } = contentOf(layer);
     return `обычный слой · зон ${zones.length}, объектов ${objects.length}`;
   };
@@ -245,8 +284,9 @@ export function LayersPanel({
             </option>
           ))}
         </select>
-        <button type="button" className="files__button" onClick={add}>
-          Добавить слой
+        {/* The heading already says «Слои»; a short caption leaves the select room for «Обычный слой». */}
+        <button type="button" className="files__button" aria-label="Добавить слой" onClick={add}>
+          Добавить
         </button>
       </div>
 
@@ -255,6 +295,7 @@ export function LayersPanel({
           const type = findLayerType(plan.catalog, layer.typeId);
           const target = moveTargetFor(layer);
           const selected = session.selection?.kind === 'layer' && session.selection.id === layer.id;
+          const meta = describe(layer, type);
 
           return (
             <li key={layer.id} className={selected ? 'layers__item is-selected' : 'layers__item'}>
@@ -290,7 +331,7 @@ export function LayersPanel({
                   aria-pressed={layer.locked}
                   onClick={() => put({ ...layer, locked: !layer.locked })}
                 >
-                  {layer.locked ? '🔒' : '🔓'}
+                  <Icon name={layer.locked ? 'lock' : 'unlock'} />
                 </button>
                 <button
                   type="button"
@@ -299,7 +340,7 @@ export function LayersPanel({
                   title="Поднять слой"
                   onClick={() => move(layer, -1)}
                 >
-                  ↑
+                  <Icon name="up" />
                 </button>
                 <button
                   type="button"
@@ -308,7 +349,7 @@ export function LayersPanel({
                   title="Опустить слой"
                   onClick={() => move(layer, 1)}
                 >
-                  ↓
+                  <Icon name="down" />
                 </button>
                 <button
                   type="button"
@@ -326,16 +367,22 @@ export function LayersPanel({
                       : onCommand({ type: 'layer.delete', id: layer.id, moveTo: target.id })
                   }
                 >
-                  ✕
+                  <Icon name="delete" />
                 </button>
               </div>
 
-              <p className="layers__meta">{describe(layer, type)}</p>
+              {meta === null ? null : <p className="layers__meta">{meta}</p>}
 
               {type === null ? null : (
                 <>
                   {layer.visible ? legendView(layer, type) : null}
-                  <p className="layers__note">{type.note}</p>
+                  <details className="layers__about">
+                    <summary>Что показывает слой</summary>
+                    <p className="layers__note">
+                      Информационный слой: рисует поверх всего плана, содержимого не хранит.{' '}
+                      {type.note}
+                    </p>
+                  </details>
                   {layer.visible ? dataTable(type) : null}
                 </>
               )}

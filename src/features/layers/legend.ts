@@ -7,6 +7,7 @@
  */
 
 import type { LayerType } from '../../contracts/model';
+import { formatShort, NBSP } from '../../domain/number-format';
 
 export type LayerLegend =
   /** Colour scale: low → high, and the value from which the colour stops changing. */
@@ -15,10 +16,10 @@ export type LayerLegend =
   | { kind: 'swatch'; color: string; text: string }
   | { kind: 'none' };
 
-/** Number with a unit, decimal comma as the rest of the interface. */
+/** Number with a unit, decimal comma and a non-breaking space as the rest of the interface. */
 export function formatValue(value: number, unit: string): string {
-  const text = Number.isInteger(value) ? String(value) : value.toFixed(1).replace('.', ',');
-  return unit === '' ? text : `${text} ${unit}`;
+  const text = formatShort(value);
+  return unit === '' ? text : `${text}${NBSP}${unit}`;
 }
 
 export function legendOf(type: LayerType): LayerLegend {

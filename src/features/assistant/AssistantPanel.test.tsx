@@ -4,6 +4,7 @@ import { afterEach, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
+import { calculateAdvice, defaultExplanation } from '../../domain/advice';
 import { AssistantPanel } from './AssistantPanel';
 
 const parsed = parsePlanDocument(minimal);
@@ -77,4 +78,49 @@ test('без типов оборудования объясняет причин
   expect(ask.disabled).toBe(true);
   fireEvent.click(ask);
   expect(onAsk).not.toHaveBeenCalled();
+});
+
+test('числа ответа записаны по-русски: запятая, единица через неразрывный пробел', () => {
+  const calculated = calculateAdvice(parsed.value, {
+    scenario: 'place',
+    typeId: 'ot_workplace',
+    zoneId: null,
+  });
+  if (!calculated.ok) throw new Error('расчёт не выполнился');
+  const recommendations = calculated.value;
+  expect(recommendations[0]?.candidates.length ?? 0).toBeGreaterThan(0);
+  render(
+    <AssistantPanel
+      document={parsed.value}
+      revision={0}
+      response={{
+        revision: 0,
+        recommendations,
+        explanations: recommendations
+          .map((recommendation) => defaultExplanation(recommendation))
+          .filter((explanation) => explanation !== null),
+        mode: 'fallback',
+        fallbackReason: 'проверка',
+      }}
+      state={{ status: 'done' }}
+      onPreview={vi.fn()}
+      onFocus={vi.fn()}
+      onAsk={vi.fn()}
+    />,
+  );
+
+  const panel = screen.getByLabelText('Ассистент');
+  const facts = [...panel.querySelectorAll('.advice__facts b, .advice__forecast')].map(
+    (node) => node.textContent ?? '',
+  );
+  const variants = [...panel.querySelectorAll('.advice__candidates li > span:first-child')].map(
+    (node) => node.textContent ?? '',
+  );
+  expect(facts.length + variants.length).toBeGreaterThan(0);
+  for (const text of [...facts, ...variants]) expect(text).not.toMatch(/\d\.\d/);
+  expect(variants[0]).toMatch(/^Вариант 1: -?\d+,\d\d; -?\d+,\d\d\u00a0м, поворот \d+°$/);
+  const areaFacts = [...panel.querySelectorAll('.advice__facts b')]
+    .map((node) => node.textContent ?? '')
+    .filter((text) => text.endsWith('м²'));
+  for (const text of areaFacts) expect(text).toMatch(/^[+-]?\d[\d\u00a0]*,\d\d\u00a0м²$/);
 });

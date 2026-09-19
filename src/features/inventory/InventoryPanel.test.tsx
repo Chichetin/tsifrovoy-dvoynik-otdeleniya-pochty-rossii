@@ -307,6 +307,30 @@ describe('перечень прокручивается внутри панел�
     expect(scroll.querySelector('table')).not.toBeNull();
     expect(scroll.style.maxHeight).not.toBe('');
     expect(scroll.style.overflowY).toBe('auto');
+    // Шапка закреплена: при прокрутке 53 строк видно, какая колонка какая.
+    for (const head of scroll.querySelectorAll('thead th')) {
+      expect((head as HTMLElement).style.position).toBe('sticky');
+    }
+  });
+
+  test('числа разреза по зонам — в числовых колонках, выровненных по правому краю', () => {
+    renderPanel();
+    const tables = screen.getByLabelText('Инвентаризация').querySelectorAll('table');
+    const zones = tables[1];
+    if (zones === undefined) throw new Error('нет таблицы по зонам');
+    const heads = [...zones.querySelectorAll('thead th')];
+    expect(heads.slice(1).every((head) => head.className.includes('inventory__num'))).toBe(true);
+    for (const row of zones.querySelectorAll('tbody tr')) {
+      const cells = [...row.querySelectorAll('td')].slice(1);
+      expect(cells).toHaveLength(2);
+      for (const cell of cells) {
+        expect(cell.className).toContain('inventory__num');
+        expect(cell.textContent).toMatch(/^\d+$/);
+      }
+    }
+    for (const count of screen.getAllByTestId('inventory-type-count')) {
+      expect(count.className).toContain('inventory__num');
+    }
   });
 });
 

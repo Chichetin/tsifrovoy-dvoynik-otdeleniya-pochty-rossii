@@ -19,7 +19,8 @@
 
 - `InventoryPanel.tsx` — M02.
 - `rows.ts` — M02: чистые функции строк, сводок, фильтра, сортировки и CSV, без React.
-- `MetricsPanel.tsx` — M02.
+- `MetricsPanel.tsx` — M02; числа через `domain/number-format`, единица в подписи таблицы зон (D-197).
+- `MetricsPanel.test.tsx` — запись площадей по-русски и числовые колонки.
 
 **Проверки:** `rows.test.ts` и `InventoryPanel.test.tsx` (Vitest), `tests/e2e/inventory.spec.ts` в браузере — сводка против строк, фильтр, правка в 2D и объём 1000 объектов; после подключения — общий Q01.
 
