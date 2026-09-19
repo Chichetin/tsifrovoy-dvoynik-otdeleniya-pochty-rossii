@@ -118,6 +118,11 @@ test.describe('файлы плана', () => {
 
     // Зоны нарисованы: площадь помещения и свободный пол посчитаны от плана.
     await expect(page.getByTestId('room-free')).toContainText('м²');
+
+    // Правила команды сомкнулись с примером: ловушка «терминал в ~7 м от входа
+    // при норме 3 м» видна в проверке, а не только в unit-тесте.
+    await expect(page.getByLabel('Проверка плана')).toContainText('от входа');
+    await expect(page.getByLabel('Проверка плана')).toContainText('не более 3 м');
     expect(errors).toEqual([]);
   });
 

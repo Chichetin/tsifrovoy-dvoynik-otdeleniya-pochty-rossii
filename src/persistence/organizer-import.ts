@@ -40,6 +40,7 @@ import {
   SCHEMA_VERSION,
 } from '../contracts/model';
 import { parsePlanDocument } from '../contracts/schema';
+import { applyCommand } from '../domain/commands';
 import { contains } from '../domain/geometry';
 
 /** Codes owned by this module. */
@@ -742,7 +743,56 @@ function buildCatalog(source: OrganizerPlan, raw: Record<string, unknown>): Cata
   // merged by an explicit catalog.replace, not smuggled in by the importer.
   // Layer types are ours too: the example knows nothing about informational
   // layers, so they arrive with the same catalog.replace as the rules.
-  return { version: 'organizer-example-1', objectTypes, zoneTypes, layerTypes: [], rules: [] };
+  return { version: ORGANIZER_CATALOG_VERSION, objectTypes, zoneTypes, layerTypes: [], rules: [] };
+}
+
+/** Catalog version the importer stamps; `withTeamCatalog` recognises it by this. */
+export const ORGANIZER_CATALOG_VERSION = 'organizer-example-1';
+
+/**
+ * Merges the team catalog into an imported example: our types win where the id
+ * matches, the example's own types stay, and our stocking rules and
+ * informational layer types come along — with one hidden overlay layer per
+ * layer type, as a new plan gets. Without this the example opened with only
+ * geometric checks: the "terminal within 3 m of the entrance" rule lives in
+ * data/catalog and never reached the imported plan (jury run, 2026-09-19).
+ * Nothing partial: a refused merge returns the issues and the plan is unchanged.
+ */
+export function withTeamCatalog(plan: PlanDocument, team: Catalog): Result<PlanDocument> {
+  const teamObjectIds = new Set(team.objectTypes.map((type) => type.id));
+  const teamZoneIds = new Set(team.zoneTypes.map((type) => type.id));
+  const merged = applyCommand(plan, {
+    type: 'catalog.replace',
+    catalog: {
+      version: `${team.version}+organizer-example`,
+      objectTypes: [
+        ...team.objectTypes,
+        ...plan.catalog.objectTypes.filter((type) => !teamObjectIds.has(type.id)),
+      ],
+      zoneTypes: [
+        ...team.zoneTypes,
+        ...plan.catalog.zoneTypes.filter((type) => !teamZoneIds.has(type.id)),
+      ],
+      layerTypes: team.layerTypes,
+      rules: team.rules,
+    },
+  });
+  if (!merged.ok) return merged;
+
+  let result = merged.value;
+  const present = new Set(result.layers.map((layer) => layer.typeId));
+  let order = Math.max(0, ...result.layers.map((layer) => layer.order)) + 1;
+  for (const type of team.layerTypes) {
+    if (present.has(type.id)) continue;
+    const put = applyCommand(result, {
+      type: 'layer.put',
+      layer: { id: `l_${type.id}`, name: type.label, visible: false, locked: false, order, typeId: type.id },
+    });
+    if (!put.ok) return put;
+    result = put.value;
+    order += 1;
+  }
+  return { ok: true, value: result };
 }
 
 function announcedTypes(raw: Record<string, unknown>): string[] {
