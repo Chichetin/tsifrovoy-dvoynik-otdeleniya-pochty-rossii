@@ -34,6 +34,7 @@ import {
   objectHitsWall,
   objectsShareSpace,
   openingCentre,
+  segmentLength,
 } from '../geometry';
 import { RELATION_ISSUE_CODES, relationIssues } from '../relations';
 
@@ -399,5 +400,5 @@ function distanceRuleIssues(
 }
 
 function distance(a: Point, b: Point): number {
-  return Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return segmentLength(a, b);
 }

@@ -26,6 +26,7 @@ import type {
 import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
+import { normalizeAngle } from '../geometry';
 import { hasZoneCycle, reconcileZones } from '../relations';
 import { nextFreeId } from './ids';
 import { outerWallIds, rebuildOuterWalls } from './room-walls';
@@ -234,8 +235,7 @@ function checkPolygon(ref: Ref, polygon: Polygon, field: string): Result<null> {
 
 /** `rotation_deg` is normalised by the command, as contracts-v1.md requires. */
 function normaliseRotation(degrees: number): number {
-  const wrapped = degrees % 360;
-  return wrapped < 0 ? wrapped + 360 : wrapped;
+  return normalizeAngle(degrees);
 }
 
 /** Relations are recomputed after any edit that can move an object between zones. */
