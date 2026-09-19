@@ -8,7 +8,7 @@
  * Результат читается из перечня инвентаризации и карточки, не с картинки.
  */
 
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 

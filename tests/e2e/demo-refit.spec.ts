@@ -10,7 +10,7 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const demo = (name: string): string => join(process.cwd(), 'demo', name);
 

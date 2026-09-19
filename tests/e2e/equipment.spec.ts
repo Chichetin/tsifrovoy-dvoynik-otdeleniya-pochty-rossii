@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 
 type Screen = { x: number; y: number };

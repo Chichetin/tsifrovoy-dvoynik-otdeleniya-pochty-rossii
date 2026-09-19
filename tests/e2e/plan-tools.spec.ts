@@ -18,7 +18,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type TestInfo } from './fixtures';
 
 type Point = [number, number];
 type Pixel = { x: number; y: number };

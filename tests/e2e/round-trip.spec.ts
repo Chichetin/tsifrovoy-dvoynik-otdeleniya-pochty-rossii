@@ -1,7 +1,7 @@
 /** Q01: one user's change must survive a real file download and page reload. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
