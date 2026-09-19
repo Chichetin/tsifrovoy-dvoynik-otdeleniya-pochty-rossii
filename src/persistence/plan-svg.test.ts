@@ -48,6 +48,46 @@ describe('SVG плана', () => {
     expect(svg).toContain(`<title>${plan.name}</title>`);
   });
 
+  test('зоны и объекты скрытого слоя не попадают в картинку', () => {
+    const plan = loadFixture('nested.json');
+    const hiddenLayer = plan.layers[0];
+    if (hiddenLayer === undefined) throw new Error('нет слоя');
+    const hidden: PlanDocument = {
+      ...plan,
+      layers: plan.layers.map((layer) =>
+        layer.id === hiddenLayer.id ? { ...layer, visible: false } : layer,
+      ),
+    };
+    const svg = renderPlanSvg(hidden);
+
+    for (const zone of plan.zones.filter((entry) => entry.layerId === hiddenLayer.id)) {
+      expect(svg).not.toContain(`data-id="${zone.id}"`);
+    }
+    for (const object of plan.objects.filter((entry) => entry.layerId === hiddenLayer.id)) {
+      expect(svg).not.toContain(`data-id="${object.id}"`);
+    }
+    // Помещение, стены и проёмы не принадлежат слоям и остаются на схеме.
+    expect(svg).toContain(`data-id="${plan.room.id}"`);
+    for (const wall of plan.walls) expect(svg).toContain(`data-id="${wall.id}"`);
+  });
+
+  test('скрытый объект за пределами помещения не растягивает картинку', () => {
+    const plan = loadFixture('minimal.json');
+    const layer = plan.layers[0];
+    const object = plan.objects[0];
+    if (layer === undefined || object === undefined) throw new Error('нет данных');
+    const hidden: PlanDocument = {
+      ...plan,
+      layers: [{ ...layer, visible: false }],
+      objects: [{ ...object, position: [1000, 1000] as Point }],
+    };
+    const match = /viewBox="[-\d.]+ [-\d.]+ ([-\d.]+) ([-\d.]+)"/.exec(renderPlanSvg(hidden));
+    if (match === null) throw new Error('нет viewBox');
+
+    expect(Number(match[1])).toBeLessThan(20);
+    expect(Number(match[2])).toBeLessThan(20);
+  });
+
   test('цвет зоны и объекта — из справочника, не из кода', () => {
     const plan = loadFixture('nested.json');
     const svg = renderPlanSvg(plan);
