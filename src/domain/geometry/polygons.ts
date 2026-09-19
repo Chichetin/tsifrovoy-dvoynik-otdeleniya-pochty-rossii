@@ -156,7 +156,7 @@ function intersectionParams(a1: Point, a2: Point, b1: Point, b2: Point): number[
  * desks — where every intersection lands on an edge endpoint and neither
  * polygon has a vertex strictly inside the other.
  */
-function edgePassesThroughInterior(a: Polygon, b: Polygon): boolean {
+function edgePassesThrough(a: Polygon, b: Polygon, position: 'inside' | 'outside'): boolean {
   for (let i = 0; i < a.length; i += 1) {
     const a1 = a[i]!;
     const a2 = a[(i + 1) % a.length]!;
@@ -173,7 +173,7 @@ function edgePassesThroughInterior(a: Polygon, b: Polygon): boolean {
       if (to - from <= EPS) continue;
       const mid = (from + to) / 2;
       const point: Point = [a1[0] + (a2[0] - a1[0]) * mid, a1[1] + (a2[1] - a1[1]) * mid];
-      if (locatePoint(point, b) === 'inside') return true;
+      if (locatePoint(point, b) === position) return true;
     }
   }
   return false;
@@ -188,7 +188,10 @@ export function polygonContains(container: Polygon, shape: Polygon): boolean {
   for (const vertex of shape) {
     if (locatePoint(vertex, container) === 'outside') return false;
   }
-  return !anyProperCrossing(container, shape);
+  if (anyProperCrossing(container, shape)) return false;
+  // An edge can leave through a concave vertex and return through another:
+  // neither contact is a proper crossing, yet the segment between them is outside.
+  return !edgePassesThrough(shape, container, 'outside');
 }
 
 /** Positive overlap area. Sharing an edge or a corner is not an overlap. */
@@ -197,8 +200,8 @@ export function polygonsOverlap(a: Polygon, b: Polygon): boolean {
   if (anyProperCrossing(a, b)) return true;
   if (a.some((vertex) => locatePoint(vertex, b) === 'inside')) return true;
   if (b.some((vertex) => locatePoint(vertex, a) === 'inside')) return true;
-  if (edgePassesThroughInterior(a, b)) return true;
-  if (edgePassesThroughInterior(b, a)) return true;
+  if (edgePassesThrough(a, b, 'inside')) return true;
+  if (edgePassesThrough(b, a, 'inside')) return true;
   // Identical or nested rings touch only along the border, yet still overlap.
   if (polygonContains(a, b) && polygonArea(b) > TOLERANCE.area_m2) return true;
   if (polygonContains(b, a) && polygonArea(a) > TOLERANCE.area_m2) return true;
@@ -229,10 +232,23 @@ export function isSimplePolygon(polygon: Polygon): boolean {
   for (let i = 0; i < polygon.length; i += 1) {
     const a1 = polygon[i]!;
     const a2 = polygon[(i + 1) % polygon.length]!;
+    if (Math.hypot(a2[0] - a1[0], a2[1] - a1[1]) <= EPS) return false;
     for (let j = i + 1; j < polygon.length; j += 1) {
       const b1 = polygon[j]!;
       const b2 = polygon[(j + 1) % polygon.length]!;
+      // Adjacent edges may share exactly their common endpoint, but cannot
+      // retrace each other. Other edges cannot touch even at an endpoint.
+      if (j === i + 1) {
+        if (onSegment(b2, a1, a2) || onSegment(a1, b1, b2)) return false;
+        continue;
+      }
+      if (i === 0 && j === polygon.length - 1) {
+        if (onSegment(b1, a1, a2) || onSegment(a2, b1, b2)) return false;
+        continue;
+      }
       if (segmentsProperlyCross(a1, a2, b1, b2)) return false;
+      if (onSegment(a1, b1, b2) || onSegment(a2, b1, b2) ||
+          onSegment(b1, a1, a2) || onSegment(b2, a1, a2)) return false;
     }
   }
   return true;
