@@ -97,6 +97,11 @@ export type PlanStore = {
   readonly revision: number;
   readonly selection: Ref | null;
   readonly dirty: boolean;
+  /**
+   * Ids retired by a delete in this session (D-019): a put with one of them is
+   * refused, so whoever mints ids for new entities must skip them.
+   */
+  readonly retired: ReadonlySet<Id>;
   dispatch(command: Command): Result<PlanDocument>;
   replaceDocument(plan: PlanDocument, origin: DocumentOrigin): Result<PlanDocument>;
   undo(): void;

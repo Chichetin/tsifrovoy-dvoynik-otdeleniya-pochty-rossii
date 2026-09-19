@@ -37,7 +37,10 @@ export const useEquipmentToolController: UsePlanToolController = ({
         plan.layers.find((entry) => !entry.locked && entry.typeId === null) ?? plan.layers[0];
       if (type === null || layer === undefined) return;
 
-      const taken = new Set<Id>(plan.objects.map((object) => object.id));
+      // Ids of everything on the plan plus ids a delete retired this session:
+      // the store refuses to resurrect the latter (D-019), so «удалить → поставить
+      // снова» must not offer them.
+      const taken = new Set<Id>([...plan.objects.map((object) => object.id), ...(session.retired ?? [])]);
       onCommand({
         type: 'object.put',
         object: {
@@ -56,7 +59,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
         },
       });
     },
-    [onCommand, plan.catalog, plan.layers, plan.objects, tool],
+    [onCommand, plan.catalog, plan.layers, plan.objects, session.retired, tool],
   );
 
   return { handlePointer, cancel: () => undefined, draft: null };
