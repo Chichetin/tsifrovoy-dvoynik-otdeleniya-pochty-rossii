@@ -101,6 +101,7 @@ README каждого каталога описывает назначение, 
 | [src/features/layers](../src/features/layers/README.md) | 2 | U05 |
 | [src/features/properties](../src/features/properties/README.md) | 2 | U06 |
 | [src/features/library](../src/features/library/README.md) | 2 | U07 |
+| [src/features/catalog-editor](../src/features/catalog-editor/README.md) | 3 | C01 U07 |
 | [src/features/files](../src/features/files/README.md) | 3 | IO03 |
 | [src/features/inventory](../src/features/inventory/README.md) | 3 | M02 |
 | [src/features/validation](../src/features/validation/README.md) | 3 | V02 |
@@ -127,7 +128,7 @@ README каждого каталога описывает назначение, 
 | contracts | Библиотека схем; type-only UI-типы в ui.ts | Никаких реализаций проекта |
 | domain | contracts, публичные функции других domain-модулей по DAG плана, математические библиотеки | Ни React, ни IO; без циклов между модулями |
 | state | contracts, domain/commands | Не знает о UI/сохранении/сервере |
-| persistence | contracts, domain/catalog/geometry/relations при импорте | DOM только в browser-draft; никакого store |
+| persistence | contracts, domain/catalog/geometry/relations при импорте, domain/commands для слияния справочников (D-148) | DOM только в browser-draft; никакого store |
 | features | contracts, нужные domain/persistence-модули и UI-библиотеки | Без импортов соседних features, app, state и server |
 | app | contracts, state, features, persistence, domain, начальные data/catalog | Единственная композиция и подключение производных расчётов |
 | server | contracts (кроме ui.ts), domain, серверные библиотеки | Не импортирует клиентское состояние/DOM; ключ не попадает в src |

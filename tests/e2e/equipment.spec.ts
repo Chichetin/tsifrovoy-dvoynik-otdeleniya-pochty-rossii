@@ -143,7 +143,68 @@ async function shownScale(page: Page): Promise<number> {
   return Number(match[1]);
 }
 
+/** Пиксели цвета подписи (#212529) внутри прямоугольника холста, по всем слоям сцены. */
+async function captionPixels(page: Page, box: { x: number; y: number; w: number; h: number }): Promise<number> {
+  return page.evaluate((b) => {
+    let count = 0;
+    for (const canvas of document.querySelectorAll<HTMLCanvasElement>('.editor-canvas canvas')) {
+      const context = canvas.getContext('2d');
+      if (context === null) continue;
+      const ratio = canvas.width / canvas.clientWidth;
+      const { data } = context.getImageData(
+        Math.round(b.x * ratio), Math.round(b.y * ratio), Math.round(b.w * ratio), Math.round(b.h * ratio),
+      );
+      for (let i = 0; i < data.length; i += 4) {
+        if ((data[i + 3] ?? 0) > 200 && (data[i] ?? 255) <= 90 && (data[i + 1] ?? 255) <= 90 && (data[i + 2] ?? 255) <= 90) {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  }, box);
+}
+
 test.describe('жесты над оборудованием', () => {
+  test('объект подписан на холсте своим названием, без клика', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await expect(inventoryRows(page)).toHaveCount(1);
+    const scale = await shownScale(page);
+    const w = 1.2 * scale;
+    const h = 0.5 * scale;
+    expect(w).toBeGreaterThanOrEqual(44);
+    // Внутренняя часть следа, без обводки: тёмные пиксели здесь — только текст.
+    const box = { x: centre.x - w / 2 + 4, y: centre.y - h / 2 + 4, w: w - 8, h: h - 8 };
+    await expect.poll(() => captionPixels(page, box)).toBeGreaterThan(30);
+  });
+
+  test('поставленный из библиотеки объект сразу выбран, ручки не мешают ставить следующий', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.locator('.library__item', { hasText: RACK }).first().click();
+    const centre: Screen = { x: 420, y: 330 };
+    await clickCanvas(page, centre.x, centre.y);
+    // Ещё до переключения на «Выбор» карточка — про только что поставленный объект.
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+
+    // Второй стеллаж «в столбик»: клик приходится ровно туда, где у выбранного
+    // объекта была бы ручка поворота. Под инструментом установки ручек нет, и
+    // клик ставит объект, а не начинает поворот первого.
+    const depth = await numberOf(page, 'Глубина, м');
+    const scale = await shownScale(page);
+    const handle = rotationHandle(centre, depth, scale, 0);
+    await clickCanvas(page, handle.x, handle.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // Клик по первому объекту под инструментом установки ставит третий, а не выбирает первый.
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
+    await expect(inventoryRows(page)).toHaveCount(3);
+  });
+
   test('поворот за ручку: 90° с Shift, свободный 37°, одно «Отменить» на жест', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -247,7 +308,8 @@ test.describe('жесты над оборудованием', () => {
 
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByText('Выберите зону или объект на плане')).toBeVisible();
+    // Клик прошёл сквозь невидимый объект и выбрал пол под ним — помещение, а не eq_1.
+    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
     await page.keyboard.press('Delete');
     await expect(inventoryRows(page)).toHaveCount(1);
 

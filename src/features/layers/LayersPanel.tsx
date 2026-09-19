@@ -232,6 +232,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Показывать слой ${layer.name}`}
+                  title={layer.visible ? 'Слой показан — скрыть' : 'Слой скрыт — показать'}
                   aria-pressed={layer.visible}
                   onClick={() => put({ ...layer, visible: !layer.visible })}
                 >
@@ -241,6 +242,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Запереть слой ${layer.name}`}
+                  title={layer.locked ? 'Слой заперт, правки запрещены — отпереть' : 'Слой открыт для правок — запереть'}
                   aria-pressed={layer.locked}
                   onClick={() => put({ ...layer, locked: !layer.locked })}
                 >
@@ -250,6 +252,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Поднять слой ${layer.name}`}
+                  title="Поднять слой"
                   onClick={() => move(layer, -1)}
                 >
                   ↑
@@ -258,6 +261,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Опустить слой ${layer.name}`}
+                  title="Опустить слой"
                   onClick={() => move(layer, 1)}
                 >
                   ↓
