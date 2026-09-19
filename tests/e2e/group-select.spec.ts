@@ -10,7 +10,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 /** Шаг стрелки из src/features/equipment/selection-edit.ts. */

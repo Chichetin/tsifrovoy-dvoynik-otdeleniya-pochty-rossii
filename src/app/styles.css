@@ -926,3 +926,88 @@ body {
   color: var(--line);
   cursor: not-allowed;
 }
+
+/* UX №2: first-run tour (D-194). Anchors carry data-tour without a box of
+   their own, so wrapping a module does not move the header. */
+.shell__anchor {
+  display: contents;
+}
+
+.shell__tour {
+  display: block;
+  margin: 12px 0 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline dotted;
+  cursor: pointer;
+}
+
+.shell__tour:hover,
+.shell__tour:focus-visible {
+  color: var(--accent);
+}
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.onboarding__shade {
+  position: absolute;
+  inset: 0;
+}
+
+.onboarding__dim {
+  fill: rgba(33, 37, 41, 0.45);
+}
+
+.onboarding__ring {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+.onboarding__card {
+  position: absolute;
+  max-width: calc(100vw - 24px);
+  padding: 14px 16px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.onboarding__card:focus {
+  /* Focus sits on the card only for screen readers; a frame would read as a second ring. */
+  outline: none;
+}
+
+.onboarding__count {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.onboarding__title {
+  margin: 2px 0 6px;
+  font-size: 16px;
+}
+
+.onboarding__text {
+  margin: 0 0 12px;
+}
+
+.onboarding__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding__spacer {
+  flex: 1;
+}

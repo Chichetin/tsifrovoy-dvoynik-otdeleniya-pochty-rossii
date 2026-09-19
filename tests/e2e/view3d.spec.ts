@@ -16,7 +16,8 @@ import {
   type Page,
   type PlaywrightWorkerArgs,
   type PlaywrightWorkerOptions,
-} from '@playwright/test';
+  skipOnboarding,
+} from './fixtures';
 import { encodePlan } from '../../src/persistence/codec';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 
@@ -41,6 +42,7 @@ async function withBrowser(
   const browser = await playwright[browserName].launch({ args });
   try {
     const context = await browser.newContext(baseURL === undefined ? {} : { baseURL });
+    await skipOnboarding(context);
     await run(await context.newPage());
   } finally {
     await browser.close();

@@ -5,6 +5,7 @@ import { cpus, loadavg, totalmem, platform, release } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { expect, test } from '@playwright/test';
 import { BENCHMARK_SEED, CASES, generateBenchmark } from '../../scripts/generate-benchmark';
+import { skipOnboarding } from '../e2e/fixtures';
 
 const REPEATS = 5;
 const SERVER = process.env.PERF_SERVER === 'preview' ? 'preview' : 'dev';
@@ -60,6 +61,7 @@ for (const config of CASES) {
     for (let repeat = 0; repeat < REPEATS; repeat += 1) {
       // Fresh context includes an empty browser draft and a new React tree.
       const context = await browser.newContext();
+      await skipOnboarding(context);
       const page = await context.newPage();
       const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
       try {

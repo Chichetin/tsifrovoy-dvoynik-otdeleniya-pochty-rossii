@@ -9,7 +9,7 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 

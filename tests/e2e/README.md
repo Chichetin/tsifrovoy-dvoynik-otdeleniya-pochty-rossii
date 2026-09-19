@@ -21,6 +21,10 @@
   В самой спеке `test.use({ channel: … })` не пишется — иначе набор перестаёт
   запускаться по README на машине без Chrome; это проверяет
   `tests/e2e-channel.test.ts`.
+- `test` и `expect` спека берёт из `./fixtures`, а не из `@playwright/test`: фикстура
+  заранее отмечает мини-обучение пройденным, иначе его модальное окно закрывает
+  приложение (D-195). Свой контекст (`browser.newContext()`) — `skipOnboarding(context)`.
+  Голый `@playwright/test` берёт только `onboarding.spec.ts`.
 - Адрес в spec не пишется руками: страница открывается `page.goto('/')` поверх
   `baseURL`, а ручной запуск браузера берёт `baseURL` из фикстуры (`view3d.spec.ts`).
 

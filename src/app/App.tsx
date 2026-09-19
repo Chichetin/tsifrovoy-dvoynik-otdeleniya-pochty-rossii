@@ -29,6 +29,8 @@ import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
+import { Onboarding } from '../features/onboarding/Onboarding';
+import { browserStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
@@ -59,6 +61,13 @@ export function App(): React.JSX.Element {
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
   const [lastError, setLastError] = useState<string | null>(null);
   const focusSequence = useRef(0);
+  // First-run tour: whether it was seen is a fact about this browser, kept in
+  // localStorage and never in the plan (D-194).
+  const [tourOpen, setTourOpen] = useState(() => shouldShowTour(browserStorage()));
+  const closeTour = useCallback((outcome: TourOutcome) => {
+    rememberTour(browserStorage(), outcome);
+    setTourOpen(false);
+  }, []);
 
   // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
   // store, поэтому слушатель один, здесь, а не в каждом слое холста.
@@ -239,7 +248,10 @@ export function App(): React.JSX.Element {
     <div className="shell">
       <header className="shell__bar">
         <h1 className="shell__title">Цифровой двойник ОПС</h1>
-        <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
+        {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
+        <div className="shell__anchor" data-tour="tools">
+          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
+        </div>
         <div className="shell__view" role="group" aria-label="Вид плана">
           <button type="button" className="files__button" aria-pressed={view === '2d'} onClick={() => setView('2d')}>
             2D
@@ -256,6 +268,7 @@ export function App(): React.JSX.Element {
             Вернуть
           </button>
         </div>
+        <div className="shell__anchor" data-tour="files">
         <FileControls
           document={document}
           dirty={dirty}
@@ -268,6 +281,7 @@ export function App(): React.JSX.Element {
             store.getState().markExported(revision);
           }}
         />
+        </div>
       </header>
 
       {lastError === null ? null : (
@@ -277,7 +291,7 @@ export function App(): React.JSX.Element {
       )}
 
       <div className="shell__body">
-        <aside className="shell__side">
+        <aside className="shell__side" data-tour="side-left">
           <LayersPanel
             document={document}
             session={session}
@@ -285,6 +299,14 @@ export function App(): React.JSX.Element {
             onSelect={select}
           />
           <LibraryPanel catalog={document.catalog} onTool={setTool} />
+          <button
+            type="button"
+            className="shell__tour"
+            title="Четыре шага: открыть план, изменить, проверить, сохранить"
+            onClick={() => setTourOpen(true)}
+          >
+            Обучение
+          </button>
         </aside>
 
         <main className="shell__canvas">
@@ -322,7 +344,7 @@ export function App(): React.JSX.Element {
           {view === '3d' ? <View3D document={document} selection={selection} /> : null}
         </main>
 
-        <aside className="shell__side shell__side--wide">
+        <aside className="shell__side shell__side--wide" data-tour="side-right">
           <PropertiesPanel document={document} session={session} onCommand={dispatch} />
           <AssistantPanel
             document={document}
@@ -339,6 +361,8 @@ export function App(): React.JSX.Element {
           <CatalogPanel document={document} onCommand={dispatch} />
         </aside>
       </div>
+
+      <Onboarding open={tourOpen} onClose={closeTour} />
     </div>
   );
 }
