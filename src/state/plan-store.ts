@@ -100,6 +100,9 @@ export function createPlanStore(
         revision: state.revision + 1,
         selection: keepSelection(document, state.selection),
         dirty: isDirty(document),
+        // Subscribers compare by reference: a fresh copy only when a delete
+        // actually retired something, so a move or an undo keeps the old set.
+        retired: state.retired.size === retired.size ? state.retired : new Set(retired),
       }));
     };
 
@@ -108,6 +111,7 @@ export function createPlanStore(
       revision: 0,
       selection: null,
       dirty: origin !== 'file',
+      retired: new Set<Id>(),
 
       dispatch(command: Command): Result<PlanDocument> {
         const current = get().document;
@@ -163,6 +167,7 @@ export function createPlanStore(
           revision: state.revision + 1,
           selection: null,
           dirty: origin !== 'file',
+          retired: new Set<Id>(),
         }));
         return { ok: true, value: plan };
       },
