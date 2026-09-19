@@ -33,7 +33,36 @@ export type OpenedPlan = {
    * Empty for our own format: there is nothing to invent there.
    */
   assumptions: string[];
+  /**
+   * Fields of our own format that the schema does not know and the next save
+   * will not write (D-201): a file from a newer version, or a hand edit. Named
+   * up front, so nothing disappears in silence. Unknown fields belong in
+   * `extensions`, which travels whole.
+   */
+  dropped: string[];
 };
+
+/**
+ * Paths present in the file but absent from the parsed document: the schema
+ * strips what it does not know. `attributes` and `extensions` are kept whole
+ * by the schema, so they never show up here.
+ */
+export function droppedFields(payload: unknown, parsed: unknown, path = ''): string[] {
+  if (Array.isArray(payload) && Array.isArray(parsed)) {
+    return payload.flatMap((entry, index) => {
+      const label = isObject(entry) && typeof entry.id === 'string' ? entry.id : String(index);
+      return droppedFields(entry, parsed[index], `${path}[${label}]`);
+    });
+  }
+  if (!isObject(payload) || !isObject(parsed)) return [];
+  const dropped: string[] = [];
+  for (const key of Object.keys(payload)) {
+    const here = path === '' ? key : `${path}.${key}`;
+    if (!Object.hasOwn(parsed, key)) dropped.push(here);
+    else dropped.push(...droppedFields(payload[key], parsed[key], here));
+  }
+  return dropped;
+}
 
 function parse(text: string): unknown {
   try {
@@ -109,6 +138,7 @@ export function readPlanFile(text: string): Result<OpenedPlan> {
       plan: opened.value,
       format,
       assumptions: format === 'organizer' ? assumptionsOf(opened.value) : [],
+      dropped: format === 'ours' ? droppedFields(payload, opened.value) : [],
     },
   };
 }

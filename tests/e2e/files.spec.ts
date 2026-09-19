@@ -189,6 +189,30 @@ test.describe('файлы плана', () => {
     });
   });
 
+  test('поле вне формата названо при открытии и не теряется молча', async ({ page }) => {
+    await page.goto('/');
+    const plan = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as Record<string, unknown>;
+    plan.futureField = { from: 'newer version' };
+    (plan.objects as Record<string, unknown>[])[0]!.futureAttr = 1;
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'newer.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(plan)),
+    });
+    await expect(inventoryRows(page)).toHaveCount(53);
+    const details = page.getByTestId('dropped-fields');
+    await expect(details).toContainText('Поля вне формата (2)');
+    await details.locator('summary').click();
+    await expect(details).toContainText('futureField');
+    await expect(details).toContainText('futureAttr');
+    // «Новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Новый' }).click();
+    await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
+    await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
+  });
+
   test('файл не того формата не подменяет открытый план', async ({ page }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
