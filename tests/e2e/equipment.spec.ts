@@ -273,7 +273,8 @@ test.describe('жесты над оборудованием', () => {
 
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByText('Выберите зону, объект, перегородку или проём на плане')).toBeVisible();
+    // Клик прошёл сквозь невидимый объект и выбрал пол под ним — помещение, а не eq_1.
+    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
     await page.keyboard.press('Delete');
     await expect(inventoryRows(page)).toHaveCount(1);
 

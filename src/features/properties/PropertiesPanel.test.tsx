@@ -8,6 +8,7 @@
  * выбора нет.
  */
 
+import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
@@ -15,6 +16,7 @@ import type { Command } from '../../contracts/commands';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { CommandSink, EditorSession } from '../../contracts/ui';
+import { applyCommand } from '../../domain/commands';
 import { PropertiesPanel } from './PropertiesPanel';
 
 afterEach(cleanup);
@@ -44,6 +46,40 @@ function sink(): { spy: CommandSink; commands: Command[] } {
 function show(selection: Ref | null, onCommand: CommandSink = sink().spy): void {
   render(<PropertiesPanel document={plan} session={session(selection)} onCommand={onCommand} />);
 }
+
+/** Живая карточка: команда применяется к плану, и панель перерисовывается, как в приложении. */
+function Live({ selection }: { selection: Ref | null }): React.JSX.Element {
+  const [document, setDocument] = useState(plan);
+  const onCommand: CommandSink = (command) => {
+    const result = applyCommand(document, command);
+    if (result.ok) setDocument(result.value);
+    return result;
+  };
+  return <PropertiesPanel document={document} session={session(selection)} onCommand={onCommand} />;
+}
+
+describe('карточка помещения', () => {
+  test('название плана набирается посимвольно, пробел между словами не пропадает', () => {
+    render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
+    const input = screen.getByLabelText('Название плана') as HTMLInputElement;
+    for (const typed of ['О', 'ОП', 'ОПС', 'ОПС ', 'ОПС 7']) {
+      fireEvent.change(input, { target: { value: typed } });
+      expect(input.value).toBe(typed);
+    }
+  });
+
+  test('отказ на пустом названии остаётся у поля помещения и не переезжает в карточку зоны', () => {
+    const { rerender } = render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
+    fireEvent.change(screen.getByLabelText('Название плана'), { target: { value: '   ' } });
+    expect(screen.getByRole('alert').textContent).toContain('название');
+
+    const zone = plan.zones[0];
+    if (zone === undefined) throw new Error('в minimal.json нет зон');
+    rerender(<Live selection={{ kind: 'zone', id: zone.id }} />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect((screen.getByLabelText('Название') as HTMLInputElement).value).toBe(zone.name);
+  });
+});
 
 describe('карточка перегородки', () => {
   test('выбранная перегородка показывает свою карточку, а не пустое состояние', () => {
