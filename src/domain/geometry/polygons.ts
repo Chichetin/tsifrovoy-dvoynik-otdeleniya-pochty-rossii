@@ -253,3 +253,44 @@ export function isSimplePolygon(polygon: Polygon): boolean {
   }
   return true;
 }
+
+function pointSegmentDistance(point: Point, from: Point, to: Point): number {
+  const dx = to[0] - from[0];
+  const dy = to[1] - from[1];
+  const lengthSq = dx * dx + dy * dy;
+  if (lengthSq <= EPS * EPS) return Math.hypot(point[0] - from[0], point[1] - from[1]);
+  const along = ((point[0] - from[0]) * dx + (point[1] - from[1]) * dy) / lengthSq;
+  const clamped = Math.min(1, Math.max(0, along));
+  return Math.hypot(point[0] - (from[0] + clamped * dx), point[1] - (from[1] + clamped * dy));
+}
+
+/** Nearest approach of two segments; zero when they cross. */
+function segmentDistance(a1: Point, a2: Point, b1: Point, b2: Point): number {
+  if (segmentsProperlyCross(a1, a2, b1, b2)) return 0;
+  return Math.min(
+    pointSegmentDistance(a1, b1, b2),
+    pointSegmentDistance(a2, b1, b2),
+    pointSegmentDistance(b1, a1, a2),
+    pointSegmentDistance(b2, a1, a2),
+  );
+}
+
+/**
+ * Gap between a polygon and a segment, in metres; zero when they touch, cross
+ * or the segment runs inside. The assistant asks it how close a placement is to
+ * a wall, so the primitive lives here instead of being copied into the advice
+ * package.
+ */
+export function polygonSegmentDistance(polygon: Polygon, from: Point, to: Point): number {
+  if (polygon.length < 3) return Number.POSITIVE_INFINITY;
+  if (locatePoint(from, polygon) !== 'outside') return 0;
+
+  let nearest = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const edgeFrom = polygon[i]!;
+    const edgeTo = polygon[(i + 1) % polygon.length]!;
+    nearest = Math.min(nearest, segmentDistance(edgeFrom, edgeTo, from, to));
+    if (nearest <= EPS) return 0;
+  }
+  return nearest;
+}

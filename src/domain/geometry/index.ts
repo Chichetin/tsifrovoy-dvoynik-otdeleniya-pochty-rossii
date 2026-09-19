@@ -33,6 +33,7 @@ export {
   locatePoint,
   isSimplePolygon,
   polygonArea,
+  polygonSegmentDistance,
   segmentsProperlyCross,
   signedArea,
   type BoundingBox,

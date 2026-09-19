@@ -16,6 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
+| Claude (эта сессия) | `worktree-advice-wall-rank`, MR после push | Находка operator №12: ассистент предлагал место посреди зала — ранг и порядок перебора учитывают близость к стене (D-178) | `src/domain/geometry/` (`polygons.ts`, `index.ts`), `src/domain/advice/` (`placement.ts`, `index.ts`), их тесты, `demo/recommendation.json`, ZIP | unit 762 passed + 1 skipped; полный e2e 92 passed (`playwright.qa.config.ts`, `DEV_PORT=5183`); typecheck/lint/build чистые | готово к MR |
 | Максим / Codex | `worktree-inventory-flake-maxim`, MR после push | Убрать ложный 5-секундный порог из функционального e2e, перенести замер фильтра в Q02 | `tests/e2e/inventory.spec.ts`, `tests/perf/editor.spec.ts` | Chrome 1000 объектов 1/1; Q02 100/10 — 5 повторов с `filterMs`; typecheck/lint | готово к MR |
 
 ## Блокеры и вопросы
