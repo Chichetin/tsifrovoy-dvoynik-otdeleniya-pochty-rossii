@@ -20,7 +20,7 @@
  * What is on screen can be taken away as a file: «Скачать CSV» writes exactly
  * the rows that are shown, in the order they are shown, and says so before the
  * click — an inventory check happens on paper and in Excel, not in a browser
- * tab (D-157).
+ * tab (D-160).
  */
 
 import { useDeferredValue, useMemo, useState } from 'react';

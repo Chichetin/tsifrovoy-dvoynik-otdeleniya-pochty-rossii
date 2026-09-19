@@ -77,9 +77,10 @@ export function App(): React.JSX.Element {
   const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
+  const retired = useStore(store, (state) => state.retired);
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, preview, focus }),
-    [tool, viewport, selection, preview, focus],
+    () => ({ tool, viewport, selection, preview, focus, retired }),
+    [tool, viewport, selection, preview, focus, retired],
   );
 
   const select = useCallback(
