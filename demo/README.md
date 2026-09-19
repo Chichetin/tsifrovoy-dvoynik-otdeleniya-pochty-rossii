@@ -67,7 +67,8 @@
 
 ```bash
 npx tsx demo/build.ts     # пересобрать before.json, after.json, recommendation.json
-npm run package:demo      # собрать один ZIP комплекта → output/demo/ops-digital-twin-demo.zip (в git)
+npm run package:demo      # собрать один ZIP комплекта → output/demo/ops-digital-twin-demo.zip (в git;
+                          # после любой правки demo/ пересобрать и закоммитить — tests/demo.test.ts сверяет)
 npm test -- tests/demo.test.ts                  # проверки комплекта
 DEV_PORT=5176 CI=1 npx playwright test tests/e2e/demo.spec.ts   # открытие в браузере
 ```

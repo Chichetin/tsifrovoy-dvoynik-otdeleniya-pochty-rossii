@@ -169,7 +169,15 @@ export function App(): React.JSX.Element {
       const document = merged?.ok ? merged.value : plan;
       store.getState().replaceDocument(document, origin);
       setCompareBase(document);
-      setLastError(null);
+      // A refused merge is not a silent success: the plan opens as it came,
+      // and the user is told the team rules and layers did not apply.
+      setLastError(
+        merged === null || merged.ok
+          ? null
+          : `Справочник команды к примеру не применён (план открыт без правил комплектования и информационных слоёв): ${merged.issues
+              .map((issue) => issue.message)
+              .join('; ')}`,
+      );
       // Открыт другой документ: вид считается заново, даже если файл несёт ту
       // же личность, что и прежний.
       setDocumentEpoch((epoch) => epoch + 1);
