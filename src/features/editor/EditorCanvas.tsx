@@ -20,6 +20,7 @@ import type { Point, Polygon } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
 import { focusViewport, planExtent, refExtent } from './focus';
+import { isFitHotkey } from './hotkeys';
 import {
   type CanvasSize,
   fitToExtent,
@@ -44,13 +45,6 @@ const RING_GAP_PX = 14;
 
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
-
-/** Hotkeys belong to the plan, not to a text field the user is typing in. */
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
 
 /** Мировой контур в плоский список экранных координат для Konva. */
 function screenPoints(extent: Polygon, viewport: { origin: Point; scale: number }): number[] {
@@ -153,8 +147,7 @@ export function EditorCanvas({
   // клавиша даёт «а», и hotkey не должен от этого пропадать.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.code !== 'KeyF' || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isTypingTarget(event.target)) return;
+      if (!isFitHotkey(event)) return;
       event.preventDefault();
       fitPlan();
     };
@@ -338,21 +331,23 @@ export function EditorCanvas({
           )}
         </Stage>
       ) : null}
+      {/* Подпись и кнопка держатся вместе в одном углу: каждый угол, занятый
+          накладкой, — это угол помещения, куда не поставить объект. */}
       {grid === null ? null : (
-        <button
-          type="button"
-          className="editor-canvas__fit"
-          data-testid="canvas-fit"
-          title="Показать план целиком (клавиша F)"
-          onClick={fitPlan}
-        >
-          Вписать
-        </button>
-      )}
-      {grid === null ? null : (
-        <p className="editor-canvas__scale" data-testid="canvas-scale">
-          Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
-        </p>
+        <div className="editor-canvas__hud">
+          <p className="editor-canvas__scale" data-testid="canvas-scale">
+            Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
+          </p>
+          <button
+            type="button"
+            className="editor-canvas__fit"
+            data-testid="canvas-fit"
+            title="Показать план целиком (клавиша F)"
+            onClick={fitPlan}
+          >
+            Вписать
+          </button>
+        </div>
       )}
     </div>
   );
