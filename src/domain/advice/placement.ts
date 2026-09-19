@@ -8,6 +8,11 @@
  * run through the same `validatePlan` the editor shows the user. A candidate is
  * returned only when it adds no new error to the plan.
  *
+ * Where the type belongs is data, not code: a count rule that sets a minimum
+ * for "objects of type T in zones of type Z" says T is expected in Z, so a
+ * search over the whole room only keeps spots whose own (deepest) zone has such
+ * a type — see `zoneFit`. A rule with only a maximum is a cap, not a home.
+ *
  * Nothing here claims optimality or ergonomics: "не найдено" means "not found on
  * this grid, within this budget", and that limitation travels with the answer
  * (REASON_CODE_SPECS['placement.none']).
@@ -155,6 +160,86 @@ function compareLengths(a: number, b: number): number {
   return Math.abs(a - b) <= TOLERANCE.coordinate_m ? 0 : a - b;
 }
 
+
+/**
+ * Where a type is expected: the plan's own stocking rules plus the plan itself.
+ *
+ * A count rule with a minimum names a zone type where the type is expected, but
+ * a minimum is not a ban elsewhere: zones where objects of the type already
+ * stand in this plan are fitting too — the plan is data as much as the catalog.
+ * Only types with such a rule are narrowed; without one the catalog says
+ * nothing about zones and the whole room is searched.
+ *
+ * - `no-rule`: no count rule sets a minimum for the type — not narrowed;
+ * - `off-floor`: the type does not occupy floor (camera, sensor, desk-top
+ *   device) — it hangs or stands on something, zones do not narrow it;
+ * - `no-zones`: the plan has no zones, so there is nothing to be out of place in;
+ * - `override`: the user picked a zone of another type — their choice, reported;
+ * - `missing`: the plan has no zone of a fitting type — nowhere to search;
+ * - `narrowed`: candidates must resolve to one of `zoneIds`.
+ *
+ * The object's own zone is the deepest one that holds it: `inclusive` scope
+ * decides what a rule *counts*, not where the object belongs — a queue nested
+ * in the client hall is not a place for an operator's desk unless the plan
+ * already has one there.
+ */
+export type ZoneFit = {
+  mode: 'no-rule' | 'off-floor' | 'no-zones' | 'override' | 'missing' | 'narrowed';
+  /** Fitting zone types, catalog order: from the rules and from the plan. */
+  zoneTypeIds: Id[];
+  /** The rules that name a zone type. */
+  ruleIds: Id[];
+  /** Zone types where objects of the type already stand in the plan. */
+  placedZoneTypeIds: Id[];
+  /** Zones a candidate may land in; null — the search is not narrowed. */
+  zoneIds: Id[] | null;
+};
+
+export function zoneFit(plan: PlanDocument, typeId: Id, zoneId: Id | null): ZoneFit {
+  const homes = plan.catalog.rules.filter(
+    (rule): rule is Extract<Rule, { kind: 'count' }> =>
+      rule.kind === 'count' && rule.objectTypeId === typeId && rule.min !== null,
+  );
+  const zoneTypeOf = new Map(plan.zones.map((zone) => [zone.id, zone.typeId]));
+  const placed = new Set(
+    plan.objects
+      .filter((object) => object.typeId === typeId && object.zoneId !== null)
+      .map((object) => zoneTypeOf.get(object.zoneId!))
+      .filter((id): id is Id => id !== undefined),
+  );
+  const catalogOrder = plan.catalog.zoneTypes.map((zoneType) => zoneType.id);
+  const placedZoneTypeIds = catalogOrder.filter((id) => placed.has(id));
+  const zoneTypeIds = catalogOrder.filter(
+    (id) => placed.has(id) || homes.some((rule) => rule.zoneTypeId === id),
+  );
+  const ruleIds = homes.map((rule) => rule.id);
+  const open = (mode: ZoneFit['mode']): ZoneFit => ({
+    mode,
+    zoneTypeIds,
+    ruleIds,
+    placedZoneTypeIds,
+    zoneIds: null,
+  });
+
+  if (homes.length === 0) return open('no-rule');
+  const type = findObjectType(plan.catalog, typeId);
+  if (type !== null && !type.occupiesFloor) return open('off-floor');
+  if (plan.zones.length === 0) return open('no-zones');
+  const chosen = zoneId === null ? null : plan.zones.find((zone) => zone.id === zoneId);
+  if (chosen !== null && chosen !== undefined && !zoneTypeIds.includes(chosen.typeId)) {
+    return open('override');
+  }
+  const zoneIds = plan.zones
+    .filter((zone) => zoneTypeIds.includes(zone.typeId))
+    .map((zone) => zone.id);
+  return {
+    mode: zoneIds.length === 0 ? 'missing' : 'narrowed',
+    zoneTypeIds,
+    ruleIds,
+    placedZoneTypeIds,
+    zoneIds,
+  };
+}
 
 function issue(code: string, message: string, refs: Ref[]): Issue {
   return { code, severity: 'error', message, refs };
@@ -376,6 +461,20 @@ function* wallHugCells(
   }
 }
 
+/** The grid only needs to cover the zones a candidate may land in. */
+function searchBox(plan: PlanDocument, target: Polygon | null, allowed: Set<Id> | null): BoundingBox {
+  if (target !== null || allowed === null) return boundingBox(target ?? plan.room.boundary);
+  const boxes = plan.zones
+    .filter((zone) => allowed.has(zone.id))
+    .map((zone) => boundingBox(zone.polygon));
+  return {
+    minX: Math.min(...boxes.map((box) => box.minX)),
+    minY: Math.min(...boxes.map((box) => box.minY)),
+    maxX: Math.max(...boxes.map((box) => box.maxX)),
+    maxY: Math.max(...boxes.map((box) => box.maxY)),
+  };
+}
+
 function sweep(
   plan: PlanDocument,
   type: ObjectType,
@@ -383,11 +482,14 @@ function sweep(
   anchor: Point,
   layerId: Id,
   wallEdges: [Point, Point][] | null,
+  allowed: Set<Id> | null,
 ): Probe[] {
+  if (allowed !== null && allowed.size === 0) return [];
   const blockers = blockersFor(plan, type);
   const reaches = reachesFor(plan, type);
-  const outline = target ?? plan.room.boundary;
-  const box = boundingBox(outline);
+  const box = searchBox(plan, target, allowed);
+  const allowedOutlines =
+    allowed === null ? null : plan.zones.filter((zone) => allowed.has(zone.id)).map((zone) => zone.polygon);
   const separation = separationFor(type);
   const found: Probe[] = [];
   const seen = new Set<string>();
@@ -409,6 +511,15 @@ function sweep(
     if (cells >= PLACEMENT_SEARCH.maxProbes) return found;
     cells += 1;
     if (!withinReach(position, reaches)) continue;
+    // A centre outside every fitting zone cannot give a footprint inside one:
+    // skip it before the geometry, so the wall-side pass does not spend the
+    // probe budget on zones the object does not belong in.
+    if (
+      allowedOutlines !== null &&
+      !allowedOutlines.some((outline) => locatePoint(position, outline) !== 'outside')
+    ) {
+      continue;
+    }
     // Места собираются разнесёнными: обход идёт кольцами от указанной точки,
     // поэтому соседние клетки подошли бы все подряд и бюджет ушёл бы на 24
     // варианта одной точки вместо 24 разных мест.
@@ -417,8 +528,15 @@ function sweep(
       if (probes >= PLACEMENT_SEARCH.maxProbes) return found;
       probes += 1;
 
-      const shape = footprint(trialObject('probe', type, position, rotation_deg, layerId));
+      const trial = trialObject('probe', type, position, rotation_deg, layerId);
+      const shape = footprint(trial);
       if (!fits(shape, plan.room.boundary, target, blockers)) continue;
+      // Only after the cheap geometric test: a spot outside the zones where the
+      // catalog expects this type is not offered at all.
+      if (allowed !== null) {
+        const home = resolveZone(trial, plan.zones).zoneId;
+        if (home === null || !allowed.has(home)) continue;
+      }
       const key = footprintKey(shape);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -570,6 +688,8 @@ export const findPlacements: FindPlacements = (plan, request) => {
   const target = zone === null ? null : zone.polygon;
   const anchor = request.anchor ?? outlineCentre(target ?? plan.room.boundary);
   const wallEdges = wallEdgesFor(plan, type);
+  const fit = zoneFit(plan, type.id, request.zoneId);
+  const allowed = fit.zoneIds === null ? null : new Set(fit.zoneIds);
   const probes = sweep(
     plan,
     type,
@@ -577,6 +697,7 @@ export const findPlacements: FindPlacements = (plan, request) => {
     anchor,
     layer.id,
     request.anchor === undefined ? wallEdges : null,
+    allowed,
   );
 
   const baseline = new Set(validatePlan(plan).map(issueKey));
