@@ -16,6 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
+| Claude (эта сессия) | `worktree-advice-wall-rank`, MR после push | Продолжение D-178: на настоящем плане место у стены не предлагалось — зона отступает от стены, и клетки у стен съедали предел подтверждаемых мест (D-189) | `src/domain/advice/placement.ts` и его тест, `docs/decisions.md`, `HANDOFF.md` | unit 843 passed + 1 skipped; e2e 109 passed (`playwright.qa.config.ts`, `DEV_PORT=5183`); typecheck/lint/build чисто; замер на `demo/before.json`: 0,55 → 0,12 м до стены | готово к MR |
 
 ## Блокеры и вопросы
 
