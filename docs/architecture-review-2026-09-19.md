@@ -81,6 +81,8 @@
 
 ## 4. Примитивы геометрии живут копиями вне `domain/geometry` (Strong)
 
+**Статус 20.09:** исправлено (D-199): `segmentLength`, `projectOnSegment`, `pointSegmentDistance`, `wallLength`, `wallSpanPolygon` экспортированы из `domain/geometry`; родитель зоны — `parentZoneFor` в `domain/relations`, его зовут рисование и импорт; копии в `vertex-edit`, `wall-draft`, `organizer-import`, `commands`, `view3d`, `plan-svg`, `validation` удалены. Тест «зона из файла и та же зона, нарисованная последней, получают одного родителя» — `relations.test.ts`. `onSegment` в `room-walls` переведён на `pointSegmentDistance`; не тронуты `Math.hypot` в `domain/advice` и `collinear` в `room-walls` (расстояния между точками, без второго правила), копия `zoneDepth` в `view3d/scene.ts` — следующий пакет и в `features/properties`/`PlanGeometryLayer` (показ длины).
+
 **Где (проверено `grep`):**
 
 | Примитив | Канон | Копии |

@@ -10,7 +10,6 @@ import {
   nearestEdge,
   parentForRing,
   removeVertex,
-  wallLength,
 } from './vertex-edit';
 
 const square: Polygon = [
@@ -127,7 +126,6 @@ describe('правка стен и проёмов', () => {
     expect(moveWallEnd(wall, 'to', [10.004, 3]).to).toEqual([10, 3]);
     expect(moveWallEnd(wall, 'to', [10, 3]).from).toEqual([0, 0]);
     expect(moveWallEnd(wall, 'from', [1, 1]).from).toEqual([1, 1]);
-    expect(wallLength(wall)).toBe(10);
   });
 
   it('moveOpeningTo держит проём в пределах стены', () => {
