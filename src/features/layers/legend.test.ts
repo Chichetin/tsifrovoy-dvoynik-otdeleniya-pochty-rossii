@@ -23,9 +23,9 @@ describe('legendOf', () => {
       kind: 'scale',
       from: '#D3F9D8',
       to: '#FA5252',
-      low: '0 %',
-      high: '100 %',
-      threshold: 'от 100 % и выше — самый насыщенный цвет',
+      low: '0\u00a0%',
+      high: '100\u00a0%',
+      threshold: 'от 100\u00a0% и выше — самый насыщенный цвет',
     });
   });
 
@@ -33,8 +33,8 @@ describe('legendOf', () => {
     const legend = legendOf(byId('lt_queue'));
     expect(legend.kind).toBe('scale');
     if (legend.kind !== 'scale') return;
-    expect(legend.high).toBe('12 чел.');
-    expect(legend.threshold).toContain('12 чел.');
+    expect(legend.high).toBe('12\u00a0чел.');
+    expect(legend.threshold).toContain('12\u00a0чел.');
   });
 
   test('сотрудники: метка своего цвета и единица', () => {
@@ -49,7 +49,7 @@ describe('legendOf', () => {
     expect(legendOf(byId('lt_cameras'))).toEqual({
       kind: 'swatch',
       color: '#7048E8',
-      text: 'сектор обзора; без атрибутов камеры — 90°, 6 м',
+      text: 'сектор обзора; без атрибутов камеры — 90°, 6\u00a0м',
     });
   });
 
@@ -59,7 +59,7 @@ describe('legendOf', () => {
     ).toEqual({ kind: 'none' });
   });
 
-  test('дробный порог пишется с запятой', () => {
+  test('дробный порог пишется с запятой, единица не отрывается от числа', () => {
     const legend = legendOf({
       id: 'lt_x',
       label: 'x',
@@ -72,6 +72,6 @@ describe('legendOf', () => {
         colors: ['#000000', '#FFFFFF'],
       },
     });
-    expect(legend.kind === 'scale' ? legend.high : '').toBe('2,5 м²');
+    expect(legend.kind === 'scale' ? legend.high : '').toBe('2,5\u00a0м²');
   });
 });

@@ -13,7 +13,8 @@
 
 Следующие файлы создаются при реализации соответствующих пакетов:
 
-- `LibraryPanel.tsx` — U07.
+- `LibraryPanel.tsx` — U07; габариты через `domain/number-format` (D-197).
+- `LibraryPanel.test.tsx` — запись габарита, подпись поиска, скрытый от диктора образец цвета.
 
 **Проверки:** собственный browser harness в `tests/harness/<ID>.tsx`, spec в `tests/e2e/`; после подключения — общий Q01.
 

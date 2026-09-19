@@ -72,14 +72,14 @@ const CHIP_STYLE = {
   cursor: 'pointer',
 } as const;
 
-const CHIP_SELECTED_STYLE = { ...CHIP_STYLE, borderColor: 'var(--accent)', background: '#f8f9fa' };
+const CHIP_SELECTED_STYLE = { ...CHIP_STYLE, borderColor: 'var(--accent)', background: 'var(--ground)' };
 
 /**
  * The id goes under the name, not after it: the side panel is 315 px wide and
  * a name plus an id on one line pushed the table 138 px past its edge.
  * `anywhere` lets `ot_fire_sensor` break instead of widening the column.
  */
-const ID_STYLE = { display: 'block', fontSize: '11px', overflowWrap: 'anywhere' } as const;
+const ID_STYLE = { display: 'block', fontSize: '12px', overflowWrap: 'anywhere' } as const;
 
 /** Fixed columns: the widest name must not decide the width of the panel. */
 const TABLE_STYLE = { tableLayout: 'fixed' } as const;
@@ -88,10 +88,10 @@ const TABLE_STYLE = { tableLayout: 'fixed' } as const;
  * The list scrolls inside the panel. Fifty-three objects made the table
  * 2866 px tall and pushed the areas, the zone breakdown and everything below
  * them off the screen (operator, finding 21); a thousand objects made the page
- * unusable. The height is in `em` so it follows the font, and the header stays
- * put while the body scrolls.
+ * unusable. The height follows the font and the window — about six rows on a
+ * 900 px screen — and the header stays put while the body scrolls.
  */
-const SCROLL_STYLE = { maxHeight: '24em', overflowY: 'auto' } as const;
+const SCROLL_STYLE = { maxHeight: 'min(60vh, 34em)', overflowY: 'auto' } as const;
 
 /**
  * `border-collapse` drops the border of a sticky cell, so the line under the
@@ -277,7 +277,9 @@ export function InventoryPanel({
                     onClick={() => setTypeId(selected ? null : type.typeId)}
                   >
                     <span>{display(type.label, type.typeId)}</span>
-                    <span data-testid="inventory-type-count">{type.count}</span>
+                    <span className="inventory__num" data-testid="inventory-type-count">
+                      {type.count}
+                    </span>
                   </button>
                 </li>
               );
@@ -306,11 +308,11 @@ export function InventoryPanel({
           />
 
           <div style={SCROLL_STYLE} data-testid="inventory-scroll">
-            <table className="table" style={TABLE_STYLE}>
+            <table className="table inventory__table" style={TABLE_STYLE}>
               <colgroup>
-                <col style={{ width: '24%' }} />
-                <col style={{ width: '28%' }} />
+                <col style={{ width: '23%' }} />
                 <col style={{ width: '26%' }} />
+                <col style={{ width: '29%' }} />
                 <col style={{ width: '22%' }} />
               </colgroup>
               <thead>
@@ -458,8 +460,8 @@ export function InventoryPanel({
           <thead>
             <tr>
               <th scope="col">Зона</th>
-              <th scope="col">В самой зоне</th>
-              <th scope="col">С вложенными</th>
+              <th scope="col" className="inventory__num">В самой зоне</th>
+              <th scope="col" className="inventory__num">С вложенными</th>
             </tr>
           </thead>
           <tbody>
@@ -475,8 +477,8 @@ export function InventoryPanel({
                     {zone.name === null ? null : <RawId id={zone.zoneId} />}
                   </button>
                 </td>
-                <td>{zone.direct}</td>
-                <td>{zone.inclusive}</td>
+                <td className="inventory__num">{zone.direct}</td>
+                <td className="inventory__num">{zone.inclusive}</td>
               </tr>
             ))}
           </tbody>

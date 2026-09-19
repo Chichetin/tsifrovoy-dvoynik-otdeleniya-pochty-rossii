@@ -83,7 +83,7 @@ export async function requestAdvice(
       input.plan,
       input.revision,
       input.request,
-      'Сервер ассистента недоступен: расчёт выполнен в браузере, без модели.',
+      'Сервер ассистента не отвечает — показан расчёт в браузере. Проверьте сеть и спросите ещё раз.',
     );
   }
 
@@ -96,6 +96,8 @@ export async function requestAdvice(
 
   if (response.ok && looksLikeResponse(body)) return { ok: true, value: body };
 
+  // Причины пишутся для сотрудника (находка operator №20): что случилось и что
+  // делать; код статуса остаётся в скобках в конце — для разработчика.
   // Лимит защищает платный вызов модели, но расчёт пользователю доступен.
   // Сервер возвращает 429 с issues; обработать его нужно до общей ветки ошибок.
   if (response.status === 429) {
@@ -103,7 +105,7 @@ export async function requestAdvice(
       input.plan,
       input.revision,
       input.request,
-      'Сервер ограничил обращения к модели (429): расчёт выполнен в браузере, без модели.',
+      'Модель сейчас недоступна: исчерпан лимит обращений, показан расчёт. Спросите ещё раз через минуту (код 429).',
     );
   }
 
@@ -117,7 +119,7 @@ export async function requestAdvice(
       input.plan,
       input.revision,
       input.request,
-      `Сервер ассистента ответил ${response.status}: расчёт выполнен в браузере, без модели.`,
+      `Модель сейчас недоступна: сервер ассистента не ответил, показан расчёт в браузере (код ${response.status}).`,
     );
   }
 
@@ -127,7 +129,7 @@ export async function requestAdvice(
       {
         code: ADVICE_CLIENT_ISSUE_CODES.ADVICE_RESPONSE_UNEXPECTED,
         severity: 'error',
-        message: `Ответ сервера ассистента не распознан (статус ${response.status}).`,
+        message: `Сервер ассистента прислал непонятный ответ. Повторите запрос; если не поможет — сообщите разработчикам (код ${response.status}).`,
         refs: [],
       },
     ],
