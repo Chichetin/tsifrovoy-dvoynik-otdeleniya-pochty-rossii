@@ -61,8 +61,9 @@ test.describe('сквозной сценарий редактора', () => {
     // Площади считаются от нарисованного, а не от шаблона: свободного пола
     // стало меньше площади помещения.
     const free = await page.getByTestId('room-free').textContent();
-    expect(free).toMatch(/^\d+\.\d\d м²$/);
-    expect(Number.parseFloat(free ?? '0')).toBeLessThan(12 * 9);
+    // Запись по-русски (D-197): «95,12 м²» — запятая и неразрывный пробел.
+    expect(free).toMatch(/^\d[\d\u00a0]*,\d\d\u00a0м²$/);
+    expect(Number((free ?? '0').replace(/[\s\u00a0]|м²/g, '').replace(',', '.'))).toBeLessThan(12 * 9);
 
     // Сохранение: файл уходит в загрузки, состояние становится «сохранено».
     const download = await Promise.all([

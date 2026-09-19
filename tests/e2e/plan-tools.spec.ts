@@ -110,9 +110,9 @@ async function zoneArea(page: Page, name: string): Promise<string> {
   return ((await row.locator('td').nth(1).textContent()) ?? '').trim();
 }
 
-/** «12.34 м²» → 12.34: площадь нужна числом там, где сравнение с допуском. */
+/** «1 234,56» → 1234.56: площадь нужна числом там, где сравнение с допуском. */
 async function zoneAreaValue(page: Page, name: string): Promise<number> {
-  return Number.parseFloat(await zoneArea(page, name));
+  return Number((await zoneArea(page, name)).replace(/\s/g, '').replace(',', '.'));
 }
 
 async function savePlanFile(page: Page): Promise<string> {
@@ -226,10 +226,10 @@ test.describe('инструменты плана', () => {
     const card = page.getByLabel('Свойства');
 
     // Помещение из шаблона — 12 × 9 м; нарисованное считается по контуру.
-    expect(await roomArea(page)).toBe('108.00 м²');
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
     await drawRing(page, 'Помещение', ring(size, ROOM));
     const drawnRoom = await roomArea(page);
-    expect(drawnRoom).not.toBe('108.00 м²');
+    expect(drawnRoom).not.toBe('108,00\u00a0м²');
 
     // Готовое помещение правится на плане: выбрать и подвинуть вершину.
     await clickAt(page, px(size, 0.5, 0.5));
@@ -280,7 +280,7 @@ test.describe('инструменты плана', () => {
 
     await page.getByTestId('plan-file-input').setInputFiles(file);
     await expect.poll(() => zoneArea(page, 'Зона 2')).toBe(moved);
-    expect(await roomArea(page)).not.toBe('108.00 м²');
+    expect(await roomArea(page)).not.toBe('108,00\u00a0м²');
 
     expect(errors).toEqual([]);
   });

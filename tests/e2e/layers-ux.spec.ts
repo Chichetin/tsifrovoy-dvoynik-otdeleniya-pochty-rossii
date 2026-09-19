@@ -147,3 +147,30 @@ test('вложенная зона красится один раз: зона о�
   expect(Math.abs(nested - single)).toBeLessThan(0.03);
 });
 
+
+test('демо 1440×900: карточки слоёв компактны — библиотека видна без прокрутки, значки не мельче 24 px', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
+  await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
+
+  // Пять слоёв демо со свёрнутыми пояснениями оставляют место библиотеке (D-197).
+  await expect(
+    page.getByLabel('Библиотека оборудования').getByRole('heading', { name: 'Библиотека' }),
+  ).toBeInViewport();
+
+  // Цель нажатия у значков замка, порядка и удаления — не меньше 24×24 (WCAG 2.5.8).
+  const icons = panel(page).locator('.layers__toggle');
+  expect(await icons.count()).toBe(5 * 4);
+  for (const box of await icons.evaluateAll((nodes) =>
+    nodes.map((node) => node.getBoundingClientRect()).map(({ width, height }) => ({ width, height })),
+  )) {
+    expect(box.width).toBeGreaterThanOrEqual(24);
+    expect(box.height).toBeGreaterThanOrEqual(24);
+  }
+
+  // Селект типа нового слоя не обрезает «Обычный слой».
+  const select = panel(page).getByLabel('Тип нового слоя');
+  expect(await select.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+});

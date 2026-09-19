@@ -1,4 +1,4 @@
-import { expect, test } from 'vitest';
+import { describe, expect, test } from 'vitest';
 import type { AdviceHttpRequest } from '../../contracts/advice';
 import minimal from '../../contracts/fixtures/minimal.json';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -47,4 +47,43 @@ test('ошибка структуры плана остаётся ошибкой
   expect(result.ok).toBe(false);
   if (result.ok) return;
   expect(result.issues[0]?.code).toBe('PLAN_INVALID');
+});
+
+describe('причина «без модели» написана для сотрудника, код — в скобках для разработчика', () => {
+  const status = (code: number): typeof fetch => async () =>
+    new Response('Bad Gateway', { status: code, headers: { 'content-type': 'text/plain' } });
+
+  test('502: сервер не ответил — показан расчёт', async () => {
+    const result = await requestAdvice(input, status(502));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const reason = result.value.fallbackReason ?? '';
+    expect(reason).not.toContain('ответил 502');
+    expect(reason).toContain('Модель сейчас недоступна');
+    expect(reason).toContain('показан расчёт');
+    expect(reason).toMatch(/\(код 502\)\.$/);
+  });
+
+  test('сеть не дошла до сервера', async () => {
+    const result = await requestAdvice(input, async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.fallbackReason).toContain('Сервер ассистента не отвечает');
+    expect(result.value.fallbackReason).toContain('показан расчёт');
+  });
+
+  test('непонятный ответ — ошибка с советом, а не молчаливый успех', async () => {
+    const result = await requestAdvice(input, async () =>
+      new Response(JSON.stringify({ hello: 1 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.issues[0]?.message).toContain('Повторите запрос');
+    expect(result.issues[0]?.message).toMatch(/\(код 200\)/);
+  });
 });

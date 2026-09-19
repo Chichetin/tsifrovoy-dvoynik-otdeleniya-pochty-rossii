@@ -21,7 +21,7 @@ function order(issue: Issue): number {
 }
 
 /** The raw id after the name: secondary, but never hidden. */
-const ID_STYLE = { marginLeft: '6px', fontSize: '11px' } as const;
+const ID_STYLE = { marginLeft: '6px', fontSize: '12px' } as const;
 
 export function ValidationPanel({
   issues,
