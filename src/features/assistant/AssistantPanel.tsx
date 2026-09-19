@@ -100,20 +100,31 @@ export function AssistantPanel({
   // почему ответ не про его слова.
   const [askedQuery, setAskedQuery] = useState<string | null>(null);
 
+  // The panel stays mounted when another file is opened. Its form state may
+  // therefore point to a type or zone that belonged only to the previous
+  // document. Derive safe values from the document currently on screen: an
+  // obsolete choice must never be sent to the assistant.
+  const currentTypeId = plan.catalog.objectTypes.some((type) => type.id === typeId)
+    ? typeId
+    : (plan.catalog.objectTypes[0]?.id ?? '');
+  const currentZoneId = zoneId === '' || plan.zones.some((zone) => zone.id === zoneId)
+    ? zoneId
+    : '';
+
   const stale = response !== null && response.revision !== revision;
 
   function ask(): void {
     setAskedQuery(query.trim() === '' ? null : query.trim());
     if (scenario === 'place') {
       onAsk(
-        { scenario: 'place', typeId, zoneId: zoneId === '' ? null : zoneId },
+        { scenario: 'place', typeId: currentTypeId, zoneId: currentZoneId === '' ? null : currentZoneId },
         query.trim() === '' ? undefined : query.trim(),
       );
       return;
     }
     if (scenario === 'equipment') {
       onAsk(
-        { scenario: 'equipment', zoneId: zoneId === '' ? null : zoneId },
+        { scenario: 'equipment', zoneId: currentZoneId === '' ? null : currentZoneId },
         query.trim() === '' ? undefined : query.trim(),
       );
       return;
@@ -145,7 +156,7 @@ export function AssistantPanel({
         {scenario === 'place' ? (
           <label className="assistant__field">
             Объект
-            <select value={typeId} onChange={(event) => setTypeId(event.target.value)}>
+            <select value={currentTypeId} onChange={(event) => setTypeId(event.target.value)}>
               {plan.catalog.objectTypes.map((type) => (
                 <option key={type.id} value={type.id}>
                   {type.label}
@@ -158,7 +169,7 @@ export function AssistantPanel({
         {scenario === 'compare' ? null : (
           <label className="assistant__field">
             Зона
-            <select value={zoneId} onChange={(event) => setZoneId(event.target.value)}>
+            <select value={currentZoneId} onChange={(event) => setZoneId(event.target.value)}>
               <option value="">Всё помещение</option>
               {plan.zones.map((zone) => (
                 <option key={zone.id} value={zone.id}>
