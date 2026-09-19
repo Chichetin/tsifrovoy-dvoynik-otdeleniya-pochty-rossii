@@ -251,13 +251,13 @@ export function App(): React.JSX.Element {
 
       <div className="shell__body">
         <aside className="shell__side">
-          <LibraryPanel catalog={document.catalog} onTool={setTool} />
           <LayersPanel
             document={document}
             session={session}
             onCommand={dispatch}
             onSelect={select}
           />
+          <LibraryPanel catalog={document.catalog} onTool={setTool} />
         </aside>
 
         <main className="shell__canvas">

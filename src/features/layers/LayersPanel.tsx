@@ -15,6 +15,7 @@ import { useState } from 'react';
 import type { Equipment, Layer, LayerType, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
+import { legendOf } from './legend';
 
 /** Пустое поле — это «значения нет», а не ноль. */
 function parseValue(input: string): number | null {
@@ -193,6 +194,34 @@ export function LayersPanel({
     );
   };
 
+  const legendView = (layer: Layer, type: LayerType): React.JSX.Element | null => {
+    const legend = legendOf(type);
+    if (legend.kind === 'none') return null;
+    return (
+      <div className="layers__legend" role="group" aria-label={`Легенда слоя ${layer.name}`}>
+        {legend.kind === 'scale' ? (
+          <>
+            <div
+              className="layers__scale"
+              style={{ background: `linear-gradient(to right, ${legend.from}, ${legend.to})` }}
+            />
+            <div className="layers__scale-ticks">
+              <span>{legend.low}</span>
+              <span>{legend.high}</span>
+            </div>
+            <p className="layers__legend-text">{legend.threshold}</p>
+          </>
+        ) : (
+          <p className="layers__legend-text">
+            <span className="layers__swatch" style={{ background: legend.color }} />
+            {legend.text}
+          </p>
+        )}
+        <p className="layers__legend-text">числа синтетические</p>
+      </div>
+    );
+  };
+
   const describe = (layer: Layer, type: LayerType | null): string => {
     if (type !== null) return 'информационный слой: рисует поверх всего плана';
     const { zones, objects } = contentOf(layer);
@@ -233,19 +262,25 @@ export function LayersPanel({
                 <input
                   className="layers__name"
                   aria-label={`Имя слоя ${layer.name}`}
+                  title={layer.name}
                   value={layer.name}
                   onFocus={() => onSelect({ kind: 'layer', id: layer.id })}
                   onChange={(event) => put({ ...layer, name: event.target.value })}
                 />
+                {/* A pressed button, not an input: other specs and the 3D view
+                    address it by this role; it looks and reads like a checkbox. */}
                 <button
                   type="button"
-                  className="layers__toggle"
+                  className="layers__visible"
                   aria-label={`Показывать слой ${layer.name}`}
                   title={layer.visible ? 'Слой показан — скрыть' : 'Слой скрыт — показать'}
                   aria-pressed={layer.visible}
                   onClick={() => put({ ...layer, visible: !layer.visible })}
                 >
-                  {layer.visible ? '👁' : '—'}
+                  <span className="layers__check" aria-hidden="true">
+                    {layer.visible ? '✓' : ''}
+                  </span>
+                  Показывать
                 </button>
                 <button
                   type="button"
@@ -282,7 +317,7 @@ export function LayersPanel({
                   title={
                     target === undefined
                       ? 'Последний слой удалить нельзя'
-                      : `Содержимое уедет в слой «${target.name}»`
+                      : `Удалить; содержимое уедет в слой «${target.name}»`
                   }
                   disabled={target === undefined}
                   onClick={() =>
@@ -299,6 +334,7 @@ export function LayersPanel({
 
               {type === null ? null : (
                 <>
+                  {layer.visible ? legendView(layer, type) : null}
                   <p className="layers__note">{type.note}</p>
                   {layer.visible ? dataTable(type) : null}
                 </>
