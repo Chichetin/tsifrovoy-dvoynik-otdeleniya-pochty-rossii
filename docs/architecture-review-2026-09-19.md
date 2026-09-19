@@ -37,7 +37,7 @@
 
 ## 2. Ассистент выбирает слой по другому правилу, чем редактор (Strong, дёшево)
 
-**Статус 19.09:** исправлено в ветке `worktree-editable-layer-maxim` (D-174): четыре
+**Статус 19.09:** исправлено в [MR !104](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/104) (D-174): четыре
 потребителя вызывают `editableContentLayer`, отказ и общий предикат закрыты unit-тестами.
 
 **Где:** `src/domain/advice/placement.ts:391` — `plan.layers.find((entry) => !entry.locked)`.
