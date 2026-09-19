@@ -19,6 +19,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { Id, Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
+import { editableContentLayer } from '../../domain/content-layer';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
@@ -69,8 +70,7 @@ export const usePlanToolController: UsePlanToolController = ({
         const taken = new Set<Id>([...plan.zones.map((zone) => zone.id), ...(session.retired ?? [])]);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
-        const layer =
-          plan.layers.find((entry) => !entry.locked && entry.typeId === null) ?? plan.layers[0];
+        const layer = editableContentLayer(plan.layers);
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
         const id = nextId('z_', taken);

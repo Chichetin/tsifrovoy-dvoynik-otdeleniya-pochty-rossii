@@ -97,6 +97,19 @@ describe('LayersPanel', () => {
     expect(heat.getByRole('button', { name: 'Опустить слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Опустить слой');
   });
 
+  test('удаление не переносит содержимое в информационный или запертый слой', () => {
+    const document = demo();
+    document.layers = document.layers.map((layer) =>
+      layer.typeId === null ? { ...layer, locked: true } : layer,
+    );
+    renderPanel(document);
+
+    const remove = within(item('Тепловая нагрузка зон')).getByRole('button', {
+      name: 'Удалить слой Тепловая нагрузка зон',
+    });
+    expect((remove as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test('у включённого теплового слоя легенда: шкала, 0 … max, порог, «синтетические»', () => {
     renderPanel(demo(['l_lt_heat']));
     const legend = within(item('Тепловая нагрузка зон')).getByRole('group', {

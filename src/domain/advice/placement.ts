@@ -41,6 +41,7 @@ import {
   type HeightInterval,
 } from '../geometry';
 import { measurePlan } from '../metrics';
+import { editableContentLayer } from '../content-layer';
 import { resolveZone } from '../relations';
 import { validatePlan } from '../validation';
 
@@ -50,6 +51,8 @@ export const PLACEMENT_ISSUE_CODES = {
   UNKNOWN_OBJECT_TYPE: 'UNKNOWN_OBJECT_TYPE',
   /** The requested zone is not in the plan. */
   TARGET_ZONE_MISSING: 'TARGET_ZONE_MISSING',
+  /** There is no ordinary unlocked layer that may own a new object. */
+  TARGET_LAYER_MISSING: 'TARGET_LAYER_MISSING',
 } as const;
 
 /**
@@ -453,14 +456,14 @@ export const findPlacements: FindPlacements = (plan, request) => {
   const before = measurePlan(plan);
   if (!before.ok) return before;
 
-  const layer = plan.layers.find((entry) => !entry.locked) ?? plan.layers[0];
+  const layer = editableContentLayer(plan.layers);
   if (layer === undefined) {
     return {
       ok: false,
       issues: [
         issue(
-          PLACEMENT_ISSUE_CODES.TARGET_ZONE_MISSING,
-          'В плане нет ни одного слоя: новый объект некуда положить.',
+          PLACEMENT_ISSUE_CODES.TARGET_LAYER_MISSING,
+          'В плане нет незапертого обычного слоя: новый объект некуда положить.',
           [],
         ),
       ],
