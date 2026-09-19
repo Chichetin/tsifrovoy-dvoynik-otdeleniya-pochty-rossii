@@ -27,6 +27,11 @@ export type AdviceRouteOptions = {
   llm: LlmClient | null;
   /** Shown in the fallback reason so the demo says which provider was tried. */
   llmLabel: string | null;
+  /**
+   * What health may say publicly: the provider's name only. The model URI can
+   * carry the cloud folder id, and that stays on the server with the key.
+   */
+  llmProvider?: string | null;
   rateLimit: { max: number; windowMs: number };
 };
 
@@ -126,7 +131,16 @@ function fallbackResponse(
 export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteOptions): void {
   const allow = createLimiter(options.rateLimit);
 
-  app.get('/api/health', async () => ({ status: 'ok' }));
+  // Health says whether a provider is configured — the reviewer can see on the
+  // deployed address which mode the assistant will answer in, without a key
+  // ever leaving the server: only the provider/model label travels.
+  app.get('/api/health', async () => ({
+    status: 'ok',
+    llm:
+      options.llm === null
+        ? { configured: false }
+        : { configured: true, provider: options.llmProvider ?? 'настроен' },
+  }));
 
   app.post('/api/advice', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = bodySchema.safeParse(request.body);

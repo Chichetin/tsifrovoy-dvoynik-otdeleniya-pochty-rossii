@@ -28,6 +28,7 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
   registerAdviceRoutes(app, {
     llm: config.llm === null ? null : createLlmClient(config.llm),
     llmLabel: config.llm === null ? null : `${config.llm.provider}/${config.llm.model}`,
+    llmProvider: config.llm === null ? null : config.llm.provider,
     rateLimit: config.rateLimit,
   });
 

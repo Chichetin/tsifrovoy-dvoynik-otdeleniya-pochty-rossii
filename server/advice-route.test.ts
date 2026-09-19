@@ -68,7 +68,7 @@ const placeRequest = { scenario: 'place', typeId: 'ot_desk', zoneId: null } as c
 
 function server(llm: LlmClient | null, label: string | null = 'stub/stub'): FastifyInstance {
   const app = Fastify({ logger: false, bodyLimit: LIMITS.maxRequestBytes });
-  registerAdviceRoutes(app, { llm, llmLabel: label, rateLimit: { max: 30, windowMs: 60_000 } });
+  registerAdviceRoutes(app, { llm, llmLabel: label, llmProvider: 'stub', rateLimit: { max: 30, windowMs: 60_000 } });
   return app;
 }
 
@@ -117,10 +117,20 @@ describe('A05: маршрут ассистента', () => {
       const response = await app.inject({ method: 'GET', url: '/api/health' });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ status: 'ok' });
+      expect(response.json()).toEqual({ status: 'ok', llm: { configured: false } });
     },
     20_000,
   );
+
+  test('health с провайдером называет его, но не ключ', async () => {
+    const app = server(async () => ({ ok: true, value: '{}' }));
+    const response = await app.inject({ method: 'GET', url: '/api/health' });
+    const body = response.json() as { llm: { configured: boolean; provider?: string } };
+    expect(body.llm.configured).toBe(true);
+    expect(body.llm.provider).toBeTruthy();
+    // Ни ключа, ни URI модели (в нём бывает id облачной папки) — только имя провайдера.
+    expect(JSON.stringify(body)).not.toMatch(/key|secret|AQVN|gpt:\/\/|\//i);
+  });
 
   test('без провайдера ответ приходит с расчётом и пометкой fallback', async () => {
     const response = await ask(server(null), { plan, revision: 4, request: placeRequest });

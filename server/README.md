@@ -3,7 +3,7 @@
 HTTP API, серверная конфигурация, клиент Qwen/DeepSeek, раздача собранного SPA.
 
 **Владелец:** поток 4. **Пакеты:** A05.
-Это место для реализации; пока здесь размещена только карта модуля.
+`GET /api/health` → `{status, llm: {configured, provider?}}` — без ключа (D-200). `llm-client.ts` — OpenAI-совместимый запрос; пустой `content` (рассуждающая модель исчерпала `max_tokens`) — отказ `LLM_EMPTY_CONTENT` с советом поднять `LLM_MAX_OUTPUT_TOKENS`; `llm-client.test.ts` — на подставном `fetch`.
 
 ## Граница модуля
 
