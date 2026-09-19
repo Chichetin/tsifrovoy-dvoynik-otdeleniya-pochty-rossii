@@ -51,6 +51,10 @@
 снова» (D-156, контракт `retired`). `main` на вечер 19.09 — `1d61b70`: unit 657/658, полный e2e
 81 passed без ретраев, typecheck/lint/build зелёные.
 
+Не блокирующие пункты ревью MR !118 (D-186), на будущий пакет: самоподтверждение по текущей
+расстановке (объект в `z_queue` делает очередь уместной) — отдельный пакет, записать в README
+модуля ограничение; счётчик `cells` в поиске места тратится на неуместные клетки.
+
 **Что нужно от человека до сдачи 22.09 (агент это сделать не может):**
 1. Хостинг: любой Linux с Docker → `docker compose up --build -d` → URL и сведения доступа в
    `README.md` (строки с `TBD`) и `docs/submission.md`; после — `DEPLOY_URL=… npx playwright test
@@ -117,6 +121,7 @@ Chrome (`1fc4d2d`), вписывание плана и переход холст
 
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
+| 2026-09-19 | Поток 4 / Claude Code | A-fit: «Найти место» ищет только в уместных зонах — по правилам-минимумам справочника и по текущей расстановке плана, объекты не на полу не сужаются — и называет зону каждого варианта (D-186, доработано по ревью) | [MR !118](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/118) | `npm test` 825 passed + 1 skipped (15 тестов «A-fit», в т. ч. на `demo/before.json` и настоящем `data/catalog/rules.json`); `DEV_PORT=5191 npm run test:e2e -- --workers=2` 109 passed / 5 skipped; typecheck/lint/build ок; мутаций 14, выжила 1 эквивалентная (граница предпроверки клетки) |
 | 2026-09-19 | Claude Code (поток 1) | S01-followup по ревью MR !64: пропажа проёма при правке контура называется в момент жеста — `droppedOpeningNotice` в `src/features/plan-tools/notice.ts`, оба исполнителя жеста (D-182) | [MR !114](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/114), `f61f12f` | unit 791 passed; e2e `plan-tools`+`round-trip` 11 passed; typecheck/lint/build |
 | 2026-09-19 | Claude Code (поток 2) | U04-keys: правка выбранного с клавиатуры — стрелки 0,5 м, Shift+стрелка 0,05 м, Ctrl+C/Ctrl+V со смещением и свежим id мимо `retired`; вставка не требует выделения (D-180, D-181) | [MR !113](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/113), `f8e8a06` | unit 789 passed; полный e2e 98 passed + 5 skipped; typecheck/lint/build |
 | 2026-09-19 | Claude Code (интеграция) | MR !112 тиммейта слит после ревью diff: ассистент предлагает место у стены, а не посреди зала (D-178) | [MR !112](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/112), `839e4f9` | unit 762 passed; e2e `assistant`+`round-trip` 8 passed; typecheck/lint |
