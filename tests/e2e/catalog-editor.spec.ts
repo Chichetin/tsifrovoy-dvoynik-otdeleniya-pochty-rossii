@@ -10,7 +10,17 @@ import { expect, test, type Page } from '@playwright/test';
 
 const panel = (page: Page) => page.getByLabel('Справочник');
 
-async function savePlan(page: Page): Promise<{ catalog: { objectTypes: { id: string; label: string; attributes: { key: string }[] }[]; rules: { id: string; source: string }[] }; objects: { typeId: string; attributes: Record<string, unknown> }[] }> {
+type SavedPlan = {
+  catalog: {
+    objectTypes: { id: string; label: string; attributes: { key: string }[] }[];
+    zoneTypes: { id: string; label: string; attributes: { key: string }[] }[];
+    rules: { id: string; source: string }[];
+  };
+  objects: { typeId: string; attributes: Record<string, unknown> }[];
+  zones: { id: string; typeId: string; attributes: Record<string, unknown> }[];
+};
+
+async function savePlan(page: Page): Promise<SavedPlan> {
   const event = await Promise.all([
     page.waitForEvent('download'),
     page.getByRole('button', { name: 'Сохранить' }).click(),
@@ -106,4 +116,41 @@ test('обязательный атрибут без умолчания откл
   const notes = panel(page).getByTestId('catalog-attr-layer-note');
   await expect(notes).toHaveCount(2);
   await expect(notes.first()).toContainText('Камеры и зоны обзора');
+});
+
+test('новый тип зоны из справочника назначается зоне в карточке и уезжает в файл', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+  await panel(page).getByTestId('catalog-toggle').click();
+
+  await panel(page).getByTestId('catalog-zone-label').fill('Комната охраны');
+  await panel(page).getByTestId('catalog-add-zone-type').click();
+  await expect(panel(page).getByTestId('catalog-error')).toHaveCount(0);
+  await expect(panel(page).getByTestId('catalog-zone-types')).toContainText('Комната охраны');
+
+  // Новый тип выбран — атрибут добавляется ему, а не типу оборудования.
+  await panel(page).getByTestId('catalog-attr-key').fill('guardPost');
+  await panel(page).getByTestId('catalog-attr-label').fill('Пост охраны');
+  await panel(page).getByTestId('catalog-add-attr').click();
+  await expect(panel(page).getByTestId('catalog-error')).toHaveCount(0);
+  await expect(panel(page).getByTestId('catalog-attributes')).toContainText('Пост охраны');
+
+  // Зона демо-плана получает новый тип в карточке; поле атрибута появляется там же.
+  await page.locator('.table__link', { hasText: 'z_back' }).first().click();
+  const card = page.getByLabel('Свойства');
+  await card.getByLabel('Тип зоны').selectOption({ label: 'Комната охраны' });
+  await expect(card).toContainText('Пост охраны');
+
+  // Пока тип используется, удалить его нельзя.
+  const row = panel(page).getByTestId('catalog-zone-types').locator('li', { hasText: 'Комната охраны' });
+  await expect(row.getByRole('button', { name: 'удалить' })).toBeDisabled();
+
+  const saved = await savePlan(page);
+  const added = saved.catalog.zoneTypes.find((t) => t.label === 'Комната охраны');
+  expect(added?.id).toBe('zt_komnata_ohrany');
+  expect(added?.attributes.map((a) => a.key)).toEqual(['guardPost']);
+  expect(saved.zones.find((z) => z.id === 'z_back')?.typeId).toBe('zt_komnata_ohrany');
+  expect(errors).toEqual([]);
 });

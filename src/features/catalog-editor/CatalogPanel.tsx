@@ -17,8 +17,10 @@ import {
   addAttribute,
   addCountRule,
   addObjectType,
+  addZoneType,
   removeAttribute,
   removeObjectType,
+  removeZoneType,
   layersReading,
   removeRule,
   type NewAttribute,
@@ -67,6 +69,9 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
   const [typeColor, setTypeColor] = useState('#4C6EF5');
   const [typePhysical, setTypePhysical] = useState(true);
 
+  const [zoneLabel, setZoneLabel] = useState('');
+  const [zoneColor, setZoneColor] = useState('#D0EBFF');
+
   const [attrKey, setAttrKey] = useState('');
   const [attrLabel, setAttrLabel] = useState('');
   const [attrType, setAttrType] = useState<NewAttribute['type']>('string');
@@ -90,8 +95,31 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
   };
 
   const categories = [...new Set(catalog.objectTypes.map((t) => t.category))];
-  const chosen = catalog.objectTypes.find((t) => t.id === selectedType) ?? null;
+  // The attribute form serves both kinds of type: `addAttribute` finds the id
+  // among object types and zone types alike.
+  const chosenObject = catalog.objectTypes.find((t) => t.id === selectedType) ?? null;
+  const chosenZone = catalog.zoneTypes.find((t) => t.id === selectedType) ?? null;
+  const chosen = chosenObject ?? chosenZone;
   const usedBy = (typeId: Id): number => plan.objects.filter((o) => o.typeId === typeId).length;
+  const zonesOf = (typeId: Id): number => plan.zones.filter((z) => z.typeId === typeId).length;
+
+  const submitZoneType = (): void => {
+    const label = zoneLabel.trim();
+    if (label === '') {
+      setError('У нового типа зоны должно быть название.');
+      return;
+    }
+    const twin = catalog.zoneTypes.find((t) => t.label.trim().toLowerCase() === label.toLowerCase());
+    if (twin !== undefined) {
+      setError(`Тип зоны «${twin.label}» уже есть в справочнике (${twin.id}); дайте новому другое название.`);
+      return;
+    }
+    const { catalog: next, id } = addZoneType(catalog, { label, color: zoneColor });
+    if (apply(next)) {
+      setZoneLabel('');
+      setSelectedType(id);
+    }
+  };
 
   const submitType = (): void => {
     const label = typeLabel.trim();
@@ -196,7 +224,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
       <h2 className="panel__title">
         Справочник{' '}
         <span className="panel__count">
-          {catalog.objectTypes.length} тип. · {catalog.rules.length} прав.
+          {catalog.objectTypes.length} тип. · {catalog.zoneTypes.length} зон. · {catalog.rules.length} прав.
         </span>
         <button
           type="button"
@@ -300,10 +328,53 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             })}
           </ul>
 
+          <h3 className="library__category">Новый тип зоны</h3>
+          <div className="catalog__form">
+            <div className="catalog__row">
+              <label className="assistant__field">
+                Название
+                <input value={zoneLabel} onChange={(e) => setZoneLabel(e.target.value)} data-testid="catalog-zone-label" />
+              </label>
+              <label className="assistant__field">
+                Цвет пола
+                <input type="color" value={zoneColor} onChange={(e) => setZoneColor(e.target.value)} />
+              </label>
+            </div>
+            <button type="button" className="files__button" onClick={submitZoneType} data-testid="catalog-add-zone-type">
+              Добавить тип зоны
+            </button>
+          </div>
+
+          <h3 className="library__category">Типы зон и их атрибуты</h3>
+          <ul className="catalog__types" data-testid="catalog-zone-types">
+            {catalog.zoneTypes.map((type) => {
+              const count = zonesOf(type.id);
+              return (
+                <li key={type.id} className={type.id === selectedType ? 'is-selected' : ''}>
+                  <button type="button" className="table__link" onClick={() => setSelectedType(type.id)}>
+                    {type.label}
+                  </button>
+                  <span className="table__muted"> · {type.attributes.length} атр. · на плане {count}</span>
+                  <button
+                    type="button"
+                    className="table__link catalog__remove"
+                    title={count > 0 ? 'Тип используется на плане — сначала смените тип у зон' : 'Удалить тип зоны'}
+                    disabled={count > 0}
+                    onClick={() => apply(removeZoneType(catalog, type.id))}
+                  >
+                    удалить
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+
           {chosen === null ? null : (
             <div className="catalog__form" data-testid="catalog-attributes">
               <p className="panel__note">
-                Атрибуты типа «{chosen.label}» — источник: {chosen.provenance}
+                {chosenObject === null
+                  ? `Атрибуты типа зоны «${chosen.label}»`
+                  : `Атрибуты типа «${chosen.label}» — источник: ${chosenObject.provenance}`}
               </p>
               <ul className="catalog__types">
                 {chosen.attributes.map((a) => {

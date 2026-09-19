@@ -18,8 +18,10 @@ import {
   addCountRule,
   layersReading,
   addObjectType,
+  addZoneType,
   removeAttribute,
   removeObjectType,
+  removeZoneType,
   removeRule,
   slugId,
 } from './catalog-edit';
@@ -237,5 +239,42 @@ describe('атрибуты, которые читают слои', () => {
     expect(layersReading(catalog, 'loadPercent').map((l) => l.id)).toEqual(['lt_heat']);
     expect(layersReading(catalog, 'viewRangeM').map((l) => l.id)).toEqual(['lt_cam']);
     expect(layersReading(catalog, 'condition')).toEqual([]);
+  });
+});
+
+describe('типы зон', () => {
+  test('новый тип зоны проходит команду, получает читаемый id и принимает атрибут', () => {
+    const plan = loadPlan('nested.json');
+    const { catalog, id } = addZoneType(plan.catalog, { label: 'Комната охраны', color: '#FFE8CC' });
+    expect(id).toBe('zt_komnata_ohrany');
+    const withAttr = addAttribute(catalog, id, {
+      key: 'guardPost', label: 'Пост охраны', type: 'boolean', required: false,
+    });
+    const result = applyCommand(plan, { type: 'catalog.replace', catalog: withAttr });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      const type = result.value.catalog.zoneTypes.find((t) => t.id === id);
+      expect(type?.attributes.map((a) => a.key)).toEqual(['guardPost']);
+    }
+  });
+
+  test('тип зоны, которым пользуется зона, удалить нельзя; свободный — можно, вместе с его правилами', () => {
+    const plan = loadPlan('nested.json');
+    const used = plan.zones[0]?.typeId;
+    if (used === undefined) throw new Error('нет зон');
+    const refused = applyCommand(plan, { type: 'catalog.replace', catalog: removeZoneType(plan.catalog, used) });
+    expect(refused.ok).toBe(false);
+
+    const { catalog: withType, id } = addZoneType(plan.catalog, { label: 'Склад', color: '#EEEEEE' });
+    const objectType = plan.objects[0]?.typeId;
+    if (objectType === undefined) throw new Error('нет объектов');
+    const { catalog: withRule, id: ruleId } = addCountRule(withType, {
+      zoneTypeId: id, objectTypeId: objectType, scope: 'direct', min: 1, max: null, rationale: 'x',
+    });
+    expect(withRule.rules.some((r) => r.id === ruleId)).toBe(true);
+    const removed = removeZoneType(withRule, id);
+    expect(removed.zoneTypes.some((t) => t.id === id)).toBe(false);
+    expect(removed.rules.some((r) => r.id === ruleId)).toBe(false);
+    expect(applyCommand(plan, { type: 'catalog.replace', catalog: removed }).ok).toBe(true);
   });
 });
