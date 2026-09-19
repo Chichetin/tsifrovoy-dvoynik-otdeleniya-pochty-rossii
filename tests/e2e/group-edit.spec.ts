@@ -158,6 +158,25 @@ test.describe('правка выбранного с клавиатуры', () =>
     await expect(inventoryRows(page)).toHaveCount(2);
   });
 
+  test('вставка не требует выделения: скопировал, удалил оригинал — копия возвращается', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await placeFromLibrary(page, RACK, 420, 330);
+    await selectRow(page, 0);
+    const [x0, y0] = await positionOf(page);
+
+    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Delete');
+    await expect(inventoryRows(page)).toHaveCount(0);
+
+    // Выделять больше нечего — буфер держит снимок и вставляет его сам.
+    await page.keyboard.press('Control+v');
+    await expect(inventoryRows(page)).toHaveCount(1);
+    await expectPosition(page, x0 + PASTE_OFFSET_M[0], y0 + PASTE_OFFSET_M[1]);
+    await expect(page.getByText('Правка отклонена')).toHaveCount(0);
+  });
+
   test('вставка после удаления не переиспользует удалённый id (D-156)', async ({ page }) => {
     await page.goto('/');
     await placeFromLibrary(page, RACK, 380, 300);

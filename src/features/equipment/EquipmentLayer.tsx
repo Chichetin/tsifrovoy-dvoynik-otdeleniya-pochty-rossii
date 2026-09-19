@@ -164,27 +164,11 @@ export function EquipmentLayer({
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (isTypingTarget(event.target)) return;
-      if (selectedObject === null || !selectedVisible) return;
+      const combo = event.ctrlKey || event.metaKey;
 
-      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
-        const delta = arrowDelta(event.key, event.shiftKey);
-        // Заблокированный слой не тянется мышью — не двигается и стрелками.
-        if (delta === null || selectedLocked) return;
-        event.preventDefault();
-        const [moved] = moveObjects([selectedObject], delta);
-        if (moved !== undefined) onCommand({ type: 'object.put', object: moved });
-        return;
-      }
-
-      if (!event.ctrlKey && !event.metaKey) return;
-
-      if (event.code === 'KeyC') {
-        event.preventDefault();
-        clipboard.current = { objects: [selectedObject], pastes: 0 };
-        return;
-      }
-
-      if (event.code === 'KeyV') {
+      // Вставка выделения не требует: буфер держит снимок, и «скопировал →
+      // удалил оригинал → вставил» обязан работать, хотя выбирать уже нечего.
+      if (combo && event.code === 'KeyV') {
         const buffer = clipboard.current;
         if (buffer === null) return;
         event.preventDefault();
@@ -206,7 +190,26 @@ export function EquipmentLayer({
         // стрелка двигает именно её (D-147).
         const last = copies.at(-1);
         if (last !== undefined) onSelect({ kind: 'object', id: last.id });
+        return;
       }
+
+      // Всё остальное правит выбранное — и только то, что видно на плане.
+      if (selectedObject === null || !selectedVisible) return;
+
+      if (combo) {
+        if (event.code !== 'KeyC') return;
+        event.preventDefault();
+        clipboard.current = { objects: [selectedObject], pastes: 0 };
+        return;
+      }
+
+      if (event.altKey) return;
+      const delta = arrowDelta(event.key, event.shiftKey);
+      // Заблокированный слой не тянется мышью — не двигается и стрелками.
+      if (delta === null || selectedLocked) return;
+      event.preventDefault();
+      const [moved] = moveObjects([selectedObject], delta);
+      if (moved !== undefined) onCommand({ type: 'object.put', object: moved });
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
