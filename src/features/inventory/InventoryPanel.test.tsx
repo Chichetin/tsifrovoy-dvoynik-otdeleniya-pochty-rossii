@@ -8,7 +8,7 @@
  * стоит название типа и зоны, а `id` остаётся рядом, а не вместо названия.
  */
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
 import type { PlanDocument } from '../../contracts/model';
@@ -17,6 +17,7 @@ import { buildInventory } from '../../domain/inventory';
 import { InventoryPanel } from './InventoryPanel';
 
 afterEach(cleanup);
+afterEach(() => vi.restoreAllMocks());
 
 const parsed = parsePlanDocument(nested);
 if (!parsed.ok) throw new Error('nested.json не разобрался');
@@ -24,8 +25,10 @@ const plan: PlanDocument = parsed.value;
 
 function renderPanel() {
   const onFocus = vi.fn();
-  render(<InventoryPanel inventory={buildInventory(plan)} document={plan} onFocus={onFocus} />);
-  return { onFocus };
+  const { rerender } = render(
+    <InventoryPanel inventory={buildInventory(plan)} document={plan} onFocus={onFocus} />,
+  );
+  return { onFocus, rerender };
 }
 
 /** Панель без документа: композиция приложения ещё не передаёт его в пропсах. */
@@ -42,6 +45,67 @@ function objectRows(): HTMLElement[] {
 
 function chips(): HTMLElement[] {
   return screen.getAllByTestId('inventory-type');
+}
+
+/** Текст ячеек строки перечня: «Инв. №», объект, тип, зона. */
+function cells(row: HTMLElement): string[] {
+  return [...row.querySelectorAll('td')].map((cell) => cell.textContent ?? '');
+}
+
+/** Заголовок колонки как кнопка сортировки. */
+function sortBy(column: string): HTMLElement {
+  const header = screen
+    .getAllByTestId('inventory-sort')
+    .find((button) => button.dataset['column'] === column);
+  if (header === undefined) throw new Error(`нет колонки ${column}`);
+  return header;
+}
+
+/**
+ * Выгрузка отдаёт кадр браузеру перед сборкой файла, поэтому тест ждёт тот же
+ * таймер, а не «какое-то время».
+ */
+async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  });
+}
+
+/**
+ * Скачивание в jsdom: `URL.createObjectURL` там не реализован, а клик по
+ * ссылке ничего не открывает. Подменяем оба и забираем то, что браузеру
+ * действительно отдали, — содержимое файла и его имя.
+ */
+function stubDownload(): {
+  text: () => Promise<string>;
+  bytes: () => Promise<Uint8Array>;
+  get name(): string;
+} {
+  let blob: Blob | null = null;
+  let name = '';
+  vi.spyOn(URL, 'createObjectURL').mockImplementation((given: Blob | MediaSource) => {
+    blob = given as Blob;
+    return 'blob:inventory';
+  });
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    name = this.download;
+  });
+  const given = (): Blob => {
+    if (blob === null) throw new Error('браузеру ничего не отдали');
+    return blob;
+  };
+  return {
+    // `Blob.text()` снимает BOM при декодировании, поэтому его проверяют по
+    // байтам: в файле, который получит Excel, он есть.
+    text: () => given().text(),
+    bytes: async () => new Uint8Array(await given().arrayBuffer()),
+    get name() {
+      return name;
+    },
+  };
 }
 
 /** Первый элемент там, где его отсутствие — уже провал теста. */
@@ -173,5 +237,213 @@ describe('названия вместо сырых id', () => {
     expect(row.getByText('ot_workplace')).not.toBeNull();
     expect(row.getByRole('button', { name: 'z_client' })).not.toBeNull();
     expect(chips().map((chip) => chip.textContent)).toEqual(['ot_bench1', 'ot_workplace1']);
+  });
+});
+
+describe('инвентарный номер и сортировка', () => {
+  test('колонка «Инв. №» стоит первой, а объект без номера подписан прочерком', () => {
+    renderPanel();
+    const head = [...screen.getAllByTestId('inventory-sort')].map((cell) => cell.textContent);
+
+    expect(head).toEqual(['Инв. №', 'Объект', 'Тип', 'Зона']);
+    expect(cells(first(objectRows()))[0]).toBe('ОПС-0001');
+    expect(cells(objectRows()[1] as HTMLElement)[0]).toBe('—');
+  });
+
+  test('клик по заголовку сортирует, второй — переворачивает, третий — возвращает порядок плана', () => {
+    renderPanel();
+    const numbers = () => objectRows().map((row) => cells(row)[0]);
+    const header = () => sortBy('inventoryNumber').closest('th') as HTMLElement;
+
+    expect(numbers()).toEqual(['ОПС-0001', '—']);
+    expect(header().getAttribute('aria-sort')).toBe('none');
+
+    fireEvent.click(sortBy('inventoryNumber'));
+    // По возрастанию: номер есть — первый, «нет номера» всегда в конце.
+    expect(numbers()).toEqual(['ОПС-0001', '—']);
+    expect(header().getAttribute('aria-sort')).toBe('ascending');
+
+    fireEvent.click(sortBy('inventoryNumber'));
+    expect(header().getAttribute('aria-sort')).toBe('descending');
+    expect(numbers()).toEqual(['ОПС-0001', '—']);
+
+    fireEvent.click(sortBy('inventoryNumber'));
+    expect(header().getAttribute('aria-sort')).toBe('none');
+  });
+
+  test('сортировка по названию объекта переставляет строки', () => {
+    renderPanel();
+    const labels = () => objectRows().map((row) => cells(row)[1]);
+
+    expect(labels()).toEqual(['Рабочее место 1', 'Скамья 1']);
+
+    fireEvent.click(sortBy('label'));
+    expect(labels()).toEqual(['Рабочее место 1', 'Скамья 1']);
+
+    fireEvent.click(sortBy('label'));
+    expect(labels()).toEqual(['Скамья 1', 'Рабочее место 1']);
+
+    // Порядок документа возвращается третьим кликом, а не перезагрузкой.
+    fireEvent.click(sortBy('label'));
+    expect(labels()).toEqual(['Рабочее место 1', 'Скамья 1']);
+  });
+
+  test('сортировка не мешает фильтру: сортируется то, что осталось', () => {
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText('Поиск по перечню'), { target: { value: 'скамья' } });
+    fireEvent.click(sortBy('label'));
+
+    expect(objectRows()).toHaveLength(1);
+    expect(screen.getByTestId('inventory-shown').textContent).toBe('Показано 1 из 2');
+  });
+});
+
+describe('перечень прокручивается внутри панели', () => {
+  test('таблица объектов лежит в контейнере с ограниченной высотой и прокруткой', () => {
+    renderPanel();
+    const scroll = screen.getByTestId('inventory-scroll');
+
+    expect(scroll.querySelector('table')).not.toBeNull();
+    expect(scroll.style.maxHeight).not.toBe('');
+    expect(scroll.style.overflowY).toBe('auto');
+  });
+});
+
+describe('смена документа', () => {
+  /** Другой план: тот же справочник, другой `id` — как другой открытый файл. */
+  const other: PlanDocument = { ...plan, id: 'plan_other' };
+
+  test('открыли другой план — фильтр и поиск сброшены, перечень виден целиком', () => {
+    const { rerender } = renderPanel();
+
+    fireEvent.click(first(chips()));
+    fireEvent.change(screen.getByLabelText('Поиск по перечню'), { target: { value: 'скамья' } });
+    fireEvent.click(sortBy('label'));
+    expect(objectRows()).toHaveLength(1);
+
+    rerender(
+      <InventoryPanel inventory={buildInventory(other)} document={other} onFocus={vi.fn()} />,
+    );
+
+    expect(objectRows()).toHaveLength(2);
+    expect(screen.getByLabelText<HTMLInputElement>('Поиск по перечню').value).toBe('');
+    expect(first(chips()).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.queryByTestId('inventory-shown')).toBeNull();
+    expect(
+      (sortBy('label').closest('th') as HTMLElement).getAttribute('aria-sort'),
+    ).toBe('none');
+  });
+
+  test('правка того же плана фильтр сохраняет: это не другой файл', () => {
+    const { rerender } = renderPanel();
+
+    fireEvent.change(screen.getByLabelText('Поиск по перечню'), { target: { value: 'скамья' } });
+    // Новый объект документа с тем же `id` — так выглядит любая правка в 2D.
+    const edited: PlanDocument = { ...plan, name: `${plan.name} (правка)` };
+    rerender(
+      <InventoryPanel inventory={buildInventory(edited)} document={edited} onFocus={vi.fn()} />,
+    );
+
+    expect(screen.getByLabelText<HTMLInputElement>('Поиск по перечню').value).toBe('скамья');
+    expect(objectRows()).toHaveLength(1);
+  });
+
+  test('тип, которого в плане не осталось, перестаёт фильтровать перечень', () => {
+    const { rerender } = renderPanel();
+
+    fireEvent.click(first(chips()));
+    expect(objectRows()).toHaveLength(1);
+
+    // Скамью удалили: строки сводки для неё больше нет, снять фильтр нечем.
+    const without: PlanDocument = {
+      ...plan,
+      objects: plan.objects.filter((object) => object.typeId !== 'ot_bench'),
+    };
+    rerender(
+      <InventoryPanel inventory={buildInventory(without)} document={without} onFocus={vi.fn()} />,
+    );
+
+    expect(objectRows()).toHaveLength(1);
+    expect(cells(first(objectRows()))[1]).toBe('Рабочее место 1');
+    expect(chips().map((chip) => chip.getAttribute('aria-pressed'))).toEqual(['false']);
+  });
+});
+
+describe('выгрузка CSV', () => {
+  test('скачивается файл с BOM, шапкой и строками перечня; шаги видны на экране', async () => {
+    const download = stubDownload();
+    renderPanel();
+
+    expect(screen.getByTestId('inventory-csv-scope').textContent).toBe(
+      'выгрузится весь перечень: строк 2',
+    );
+
+    fireEvent.click(screen.getByTestId('inventory-csv'));
+    // Состояние загрузки — до того, как файл собран.
+    expect(screen.getByTestId('inventory-csv-loading')).not.toBeNull();
+    expect(screen.getByTestId<HTMLButtonElement>('inventory-csv').disabled).toBe(true);
+
+    await settle();
+
+    // Первые три байта — UTF-8 BOM: без него Excel читает файл как cp1251.
+    expect([...(await download.bytes()).slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    const text = await download.text();
+    expect(text.split('\r\n')).toHaveLength(3);
+    expect(text).toContain('ОПС-0001;Рабочее место 1;eq_work_1');
+    expect(download.name).toBe('Вложенные-зоны-инвентаризация.csv');
+
+    expect(screen.queryByTestId('inventory-csv-loading')).toBeNull();
+    expect(screen.getByTestId('inventory-csv-done').textContent).toContain('строк 2');
+    expect(screen.queryByTestId('inventory-csv-error')).toBeNull();
+  });
+
+  test('выгружается отфильтрованное, и об этом сказано до клика', async () => {
+    const download = stubDownload();
+    renderPanel();
+
+    fireEvent.change(screen.getByLabelText('Поиск по перечню'), { target: { value: 'скамья' } });
+    expect(screen.getByTestId('inventory-csv-scope').textContent).toBe(
+      'выгрузится отфильтрованное: строк 1 из 2',
+    );
+
+    fireEvent.click(screen.getByTestId('inventory-csv'));
+    await settle();
+
+    const text = await download.text();
+    expect(text.split('\r\n')).toHaveLength(2);
+    expect(text).toContain('Скамья 1');
+    expect(text).not.toContain('Рабочее место 1');
+    expect(screen.getByTestId('inventory-csv-done').textContent).toContain('(по фильтру)');
+  });
+
+  test('выгружается в том порядке, в котором отсортирована таблица', async () => {
+    const download = stubDownload();
+    renderPanel();
+
+    fireEvent.click(sortBy('label'));
+    fireEvent.click(sortBy('label'));
+    fireEvent.click(screen.getByTestId('inventory-csv'));
+    await settle();
+
+    const lines = (await download.text()).split('\r\n');
+    expect(lines[1]).toContain('Скамья 1');
+    expect(lines[2]).toContain('Рабочее место 1');
+  });
+
+  test('браузер не дал сохранить файл — видно ошибку, а не тихий успех', async () => {
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+      throw new Error('нет доступа к хранилищу');
+    });
+    renderPanel();
+
+    fireEvent.click(screen.getByTestId('inventory-csv'));
+    await settle();
+
+    expect(screen.getByTestId('inventory-csv-error').textContent).toBe(
+      'Перечень не выгружен: нет доступа к хранилищу',
+    );
+    expect(screen.queryByTestId('inventory-csv-done')).toBeNull();
+    expect(screen.getByTestId<HTMLButtonElement>('inventory-csv').disabled).toBe(false);
   });
 });
