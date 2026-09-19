@@ -16,9 +16,9 @@
  */
 
 import type { Id, Opening, Point, Polygon, Wall } from '../../contracts/model';
-import { nextFreeId } from './ids';
 import { TOLERANCE } from '../../contracts/model';
 import { pointSegmentDistance, segmentLength } from '../geometry';
+import { nextFreeId } from './ids';
 
 /** Which walls of the plan are outer, i.e. sit on the current boundary. */
 export function outerWallIds(walls: Wall[], boundary: Polygon): Set<Id> {

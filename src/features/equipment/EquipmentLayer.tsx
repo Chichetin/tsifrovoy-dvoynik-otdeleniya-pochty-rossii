@@ -18,6 +18,7 @@ import Konva from 'konva';
 import type { Equipment, Id, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
+import { takenIds } from '../../domain/commands';
 import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
@@ -308,10 +309,7 @@ export function EquipmentLayer({
         // Свободные номера считаются и по плану, и по удалённым в этой сессии
         // id (D-156): иначе первая же вставка после удаления ляжет на
         // retired-id и команда откажет ID_REUSED.
-        const taken = new Set<Id>([
-          ...plan.objects.map((object) => object.id),
-          ...(session.retired ?? []),
-        ]);
+        const taken = takenIds(plan, session.retired);
         const copies = pasteObjects(buffer.objects, taken, buffer.pastes + 1);
         // Одним пакетом: вставка группы — одна правка и одно «Отменить».
         if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;

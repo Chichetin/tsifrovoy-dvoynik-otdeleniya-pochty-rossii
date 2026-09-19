@@ -71,7 +71,6 @@ function failWith(issues: Issue[]): Result<never> {
   return { ok: false, issues };
 }
 
-/** Every id the document uses, mapped to the kind that owns it. */
 /** Every id the plan holds plus the ids retired this session: what a new id must avoid (D-198). */
 export function takenIds(plan: PlanDocument, retired: Iterable<Id> = []): Set<Id> {
   return new Set<Id>([...idOwners(plan).keys(), ...retired]);
@@ -82,6 +81,7 @@ export function freshId(prefix: string, plan: PlanDocument, retired: Iterable<Id
   return nextFreeId(prefix, takenIds(plan, retired));
 }
 
+/** Every id the document uses, mapped to the kind that owns it. */
 export function idOwners(plan: PlanDocument): Map<Id, RefKind> {
   const owners = new Map<Id, RefKind>();
   owners.set(plan.room.id, 'room');
