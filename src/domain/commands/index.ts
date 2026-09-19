@@ -608,11 +608,13 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
     }
 
     case 'plan.rename': {
-      const name = command.name.trim();
-      if (name === '') {
+      // Stored as typed: trimming here would eat the space a person just typed
+      // between two words (the card re-reads the plan after every keystroke).
+      // The file name normalises whitespace itself.
+      if (command.name.trim() === '') {
         return fail(COMMAND_ISSUE_CODES.NAME_EMPTY, 'У плана должно быть название.', []);
       }
-      return { ok: true, value: { ...plan, name } };
+      return { ok: true, value: { ...plan, name: command.name } };
     }
 
     case 'room.setCeiling': {

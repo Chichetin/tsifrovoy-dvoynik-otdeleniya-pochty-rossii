@@ -82,6 +82,17 @@ export function PropertiesPanel({
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
+  // Drafts and errors belong to the card they were typed into: a refused name
+  // for the plan must not show up in the name field of the zone clicked next.
+  const selectionKey =
+    session.selection === null ? '' : `${session.selection.kind}:${session.selection.id}`;
+  const [draftsFor, setDraftsFor] = useState(selectionKey);
+  if (draftsFor !== selectionKey) {
+    setDraftsFor(selectionKey);
+    setDraft({});
+    setErrors({});
+  }
+
   const selection = session.selection;
   const room = selection?.kind === 'room' ? plan.room : undefined;
   const zone = selection?.kind === 'zone' ? plan.zones.find((item) => item.id === selection.id) : undefined;

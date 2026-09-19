@@ -665,13 +665,25 @@ describe('applyCommand: стены, проёмы и справочник', () =>
 });
 
 describe('applyCommand: план и помещение', () => {
-  test('plan.rename обрезает пробелы и отказывает на пустом названии', () => {
+  test('plan.rename хранит название как набрано (пробел на конце — часть набора), пустое отклоняет', () => {
     const plan = minimalPlan();
-    const renamed = expectOk(applyCommand(plan, { type: 'plan.rename', name: '  ОПС-77  ' }));
-    expect(renamed.name).toBe('ОПС-77');
+    const renamed = expectOk(applyCommand(plan, { type: 'plan.rename', name: 'ОПС ' }));
+    expect(renamed.name).toBe('ОПС ');
     expect(codes(applyCommand(plan, { type: 'plan.rename', name: '   ' }))).toContain(
       COMMAND_ISSUE_CODES.NAME_EMPTY,
     );
+  });
+
+  test('после room.setCeiling новый контур получает наружные стены высотой в потолок', () => {
+    const plan = minimalPlan();
+    const raised = expectOk(applyCommand(plan, { type: 'room.setCeiling', ceilingHeight_m: 3.6 }));
+    const [a, b, c, d] = raised.room.boundary;
+    if (a === undefined || b === undefined || c === undefined || d === undefined) throw new Error('контур');
+    // Вершина вставлена в середину первого ребра: контур другой, стены перестроены.
+    const boundary = [a, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as [number, number], b, c, d];
+    const reshaped = expectOk(applyCommand(raised, { type: 'room.set', boundary }));
+    expect(reshaped.walls.length).toBeGreaterThan(0);
+    for (const wall of reshaped.walls) expect(wall.height_m).toBe(3.6);
   });
 
   test('room.setCeiling поднимает наружные стены и не трогает перегородки', () => {
