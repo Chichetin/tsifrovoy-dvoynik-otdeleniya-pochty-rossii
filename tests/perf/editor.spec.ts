@@ -63,6 +63,10 @@ for (const config of CASES) {
         ]).then(([item]) => item);
         const saved = await download.path();
         if (!saved) throw new Error('Браузер не сохранил файл');
+        // "Новый" confirms whenever the plan has content, not only when it is
+        // dirty (275d061): without a handler Playwright dismisses the dialog and
+        // the plan is never cleared, so the reopen below measures nothing.
+        page.once('dialog', (dialog) => void dialog.accept());
         await page.getByRole('button', { name: 'Новый' }).click();
         await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
         await page.getByTestId('plan-file-input').setInputFiles(saved);

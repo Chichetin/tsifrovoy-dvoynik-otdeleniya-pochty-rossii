@@ -16,8 +16,10 @@
 - `generate-benchmark.ts` — Q02.
 - `package-demo.ts` — E01.
 - `capture-presentation.ts` — четыре снимка синтетического плана из работающего
-  редактора в `build/presentation/` (нужен установленный Chrome). Адрес
-  задаётся `PRESENTATION_BASE_URL`, по умолчанию `http://127.0.0.1:5196`.
+  редактора в `build/presentation/`. Браузер — бандловый Chromium из
+  `npx playwright install chromium`, системный ставить не нужно; другой канал —
+  `PW_CHANNEL=chrome` (D-142, D-125). Адрес задаётся `PRESENTATION_BASE_URL`,
+  по умолчанию `http://127.0.0.1:5196`.
 - `make-presentation.py` — один PDF в `output/pdf/` из этих снимков и проверенных
   чисел. Нужны Python с `reportlab` и Pillow, шрифт Arial или DejaVu Sans с
   кириллицей. Путь к иному шрифту можно передать через `PRESENTATION_FONT_REGULAR`
