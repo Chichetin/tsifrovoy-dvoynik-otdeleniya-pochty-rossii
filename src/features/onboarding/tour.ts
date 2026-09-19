@@ -4,7 +4,7 @@
  * What the steps say, whether this browser has already seen them, and where
  * the card goes next to a highlighted panel. The fact that the tour was seen
  * lives in localStorage only — it is a property of the browser, not of the
- * plan, and never reaches the plan file (D-191).
+ * plan, and never reaches the plan file (D-193).
  */
 
 /**
