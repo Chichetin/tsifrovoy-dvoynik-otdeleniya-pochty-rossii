@@ -52,3 +52,29 @@ test('после открытия другого плана не отправл�
     undefined,
   );
 });
+
+test('без типов оборудования объясняет причину и не отправляет пустой typeId', () => {
+  const onAsk = vi.fn();
+  const empty: PlanDocument = {
+    ...parsed.value,
+    catalog: { ...parsed.value.catalog, objectTypes: [], rules: [] },
+  };
+  render(
+    <AssistantPanel
+      document={empty}
+      revision={0}
+      response={null}
+      state={{ status: 'idle' }}
+      onPreview={vi.fn()}
+      onFocus={vi.fn()}
+      onAsk={onAsk}
+    />,
+  );
+
+  expect(screen.getByRole('option', { name: 'Нет типов в справочнике' })).toBeDefined();
+  expect(screen.getByText('Для поиска места сначала добавьте тип оборудования в справочник.')).toBeDefined();
+  const ask = screen.getByRole('button', { name: 'Спросить' }) as HTMLButtonElement;
+  expect(ask.disabled).toBe(true);
+  fireEvent.click(ask);
+  expect(onAsk).not.toHaveBeenCalled();
+});

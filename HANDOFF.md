@@ -164,6 +164,7 @@ JSON руками: `tests/demo.test.ts:85` требует побайтового
 
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
+| 2026-09-19 | Максим / Codex | При пустом справочнике сценарий «Найти место» не отправляет пустой `typeId`: выбор и кнопка отключены, панель предлагает добавить тип оборудования (D-193) | `worktree-assistant-empty-catalog`, MR после push | `AssistantPanel.test.tsx`; unit/typecheck/lint/build |
 | 2026-09-19 | Максим / Codex | Форма ассистента после открытия плана с другим справочником не отправляет `typeId`/`zoneId` прежнего документа: тип берётся из нового справочника, пропавшая зона сбрасывается на всё помещение (D-192) | `worktree-assistant-form-sync`, MR после push | `AssistantPanel.test.tsx`; unit/typecheck/lint/build |
 | 2026-09-19 | Максим / Codex | Q02 больше не ждёт общий 10-минутный лимит, если браузер не доставил `pointerdown` или карточка выбора не открылась: проба сама очищает listener/observer и падает через 10 с с причиной | `worktree-perf-probe-timeout`, MR после push | typecheck/lint/build; `PERF_SERVER=preview PW_CHANNEL=chrome` Q02 100/10 — 1 passed, 5 повторов |
 | 2026-09-19 | Максим / Codex | Ответ ассистента применяется только к последнему запросу; «Новый»/«Открыть» инвалидируют ответы старого документа, даже когда оба плана имеют revision 0 (D-191) | `worktree-assistant-latest-request`, MR после push | регрессия `assistant-request-race.test.tsx` 1/1; unit 849 passed + 1 skipped; typecheck/lint/build зелёные |
