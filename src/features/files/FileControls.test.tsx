@@ -32,7 +32,7 @@ function encode(plan: PlanDocument): Result<string> {
 function read(text: string): Result<OpenedPlan> {
   const result = parsePlanDocument(JSON.parse(text) as unknown);
   if (!result.ok) return result;
-  return { ok: true, value: { plan: result.value, format: 'ours', assumptions: [] } };
+  return { ok: true, value: { plan: result.value, format: 'ours', assumptions: [], dropped: [] } };
 }
 
 type Fake = DraftStorage & { entries: Map<string, string> };

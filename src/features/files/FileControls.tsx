@@ -129,6 +129,7 @@ export function FileControls({
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [dropped, setDropped] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
     given === undefined ? browserStorage() : given,
   );
@@ -192,6 +193,7 @@ export function FileControls({
     setAnswered(true);
     onReplace(opened.plan, origin);
     setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
+    setDropped(opened.dropped);
     setNotice(
       opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
     );
@@ -229,6 +231,8 @@ export function FileControls({
     const opened = read(text);
     if (!opened.ok) {
       // The open document stays untouched: a rejected file never replaces it.
+      // Документ не сменился: допущения прежнего файла уже неверны для сообщения
+      // об отказе, а список полей вне формата относится к оставшемуся плану.
       setAssumptions([]);
       setState({ status: 'error', message: `План не открыт. ${describe(opened.issues)}` });
       return;
@@ -326,6 +330,7 @@ export function FileControls({
           setAnswered(true);
           setDraftAt(null);
           setAssumptions([]);
+          setDropped([]);
           setNotice(null);
           setState({ status: 'idle' });
         }}
@@ -416,6 +421,18 @@ export function FileControls({
           {notice}
         </span>
       ) : null}
+
+      {dropped.length === 0 ? null : (
+        <details className="files__status" data-testid="dropped-fields">
+          <summary>Поля вне формата ({dropped.length}) — при сохранении не запишутся</summary>
+          <ul>
+            {dropped.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="panel__note">Своё поле лучше положить в «extensions»: этот блок файл переносит целиком.</p>
+        </details>
+      )}
 
       {assumptions.length === 0 ? null : (
         <details className="files__status" data-testid="organizer-assumptions">

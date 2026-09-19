@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { CONTRACT_ISSUE_CODES } from '../contracts/model';
 import { encodePlan } from './codec';
-import { detectPlanFormat, readPlanFile } from './format';
+import { detectPlanFormat, droppedFields, readPlanFile } from './format';
 
 function fixtureText(name: string): string {
   return readFileSync(join(process.cwd(), 'src', 'contracts', 'fixtures', name), 'utf8');
@@ -84,6 +84,35 @@ describe('readPlanFile', () => {
     expect(result.value.format).toBe('ours');
     expect(result.value.assumptions).toEqual([]);
     expect(result.value.plan.zones.length).toBeGreaterThan(0);
+  });
+
+  test('поля вне формата названы при открытии, а не потеряны молча при сохранении', () => {
+    const payload = JSON.parse(fixtureText('nested.json')) as Record<string, unknown>;
+    payload.futureField = { a: 1 };
+    (payload.objects as Record<string, unknown>[])[0]!.futureAttr = 5;
+    (payload.zones as Record<string, unknown>[])[0]!.colorOverride = '#fff';
+    // Атрибуты и extensions схема хранит целиком — они не «вне формата».
+    ((payload.objects as Record<string, unknown>[])[0]!.attributes as Record<string, unknown>).custom = 'x';
+    (payload.extensions as Record<string, unknown>).team = { note: 'ok' };
+    const result = readPlanFile(JSON.stringify(payload));
+    if (!result.ok) throw new Error(result.issues.map((issue) => issue.code).join('; '));
+    const first = (payload.objects as { id: string }[])[0]!.id;
+    const firstZone = (payload.zones as { id: string }[])[0]!.id;
+    expect([...result.value.dropped].sort()).toEqual(
+      ['futureField', `zones[${firstZone}].colorOverride`, `objects[${first}].futureAttr`].sort(),
+    );
+    // Сохранение и правда их не пишет.
+    const encoded = encodePlan(result.value.plan);
+    if (!encoded.ok) throw new Error('не закодировалось');
+    expect(encoded.value).not.toContain('futureField');
+    expect(encoded.value).toContain('custom');
+    expect(encoded.value).toContain('"team"');
+    // Чистый файл — пустой список.
+    const clean = readPlanFile(fixtureText('nested.json'));
+    expect(clean.ok && clean.value.dropped).toEqual([]);
+    expect(droppedFields({ a: 1, b: [{ id: 'x', c: 2 }] }, { a: 1, b: [{ id: 'x' }] })).toEqual(['b[x].c']);
+    // Ключи из цепочки прототипов — тоже «вне формата», а не «есть у любого объекта».
+    expect(droppedFields({ toString: 1, constructor: 2 }, {})).toEqual(['toString', 'constructor']);
   });
 
   test('пример организаторов открывается импортёром, с допущениями для подписи', () => {
