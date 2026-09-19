@@ -70,7 +70,7 @@ function down(point: Point): WorldPointer {
   return { phase: 'down', point, shift: false, alt: false, button: 0 };
 }
 
-function setup(tool: Tool, plan: PlanDocument) {
+function setup(tool: Tool, plan: PlanDocument, retired: ReadonlySet<string> = new Set()) {
   const commands: Command[] = [];
   const onCommand = (command: Command): Result<PlanDocument> => {
     commands.push(command);
@@ -82,6 +82,7 @@ function setup(tool: Tool, plan: PlanDocument) {
     selection: null,
     preview: null,
     focus: null,
+    retired,
   };
   const hook = renderHook(() => usePlanToolController({ document: plan, session, onCommand }));
   const click = (point: Point): void => {
@@ -114,6 +115,17 @@ describe('рисование контура', () => {
     expect(command.zone.layerId).toBe('l_base');
     // Жест закончен: черновика больше нет, повторный клик не шлёт вторую команду.
     expect(hook.result.current.draft).toBeNull();
+  });
+
+  it('удалённый в этой сессии id зоне не выдаётся: после «удалить z_1» новая — z_2', () => {
+    const { commands, click } = setup({ kind: 'zone.draw' }, planWith([]), new Set(['z_1']));
+    click([1, 1]);
+    click([3, 1]);
+    click([3, 3]);
+    click([1.1, 1.1]);
+    const command = commands[0];
+    if (command?.type !== 'zone.put') throw new Error('ожидалась zone.put');
+    expect(command.zone.id).toBe('z_2');
   });
 
   it('зона, нарисованная внутри другой, становится вложенной', () => {

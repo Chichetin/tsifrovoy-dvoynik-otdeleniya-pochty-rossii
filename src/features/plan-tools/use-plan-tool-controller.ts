@@ -65,7 +65,8 @@ export const usePlanToolController: UsePlanToolController = ({
           setNotice(null);
           return true;
         }
-        const taken = new Set<Id>(plan.zones.map((zone) => zone.id));
+        // Plus ids retired by a delete this session: the store would refuse them (D-019).
+        const taken = new Set<Id>([...plan.zones.map((zone) => zone.id), ...(session.retired ?? [])]);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
         const layer =
@@ -93,13 +94,13 @@ export const usePlanToolController: UsePlanToolController = ({
         committing.current = false;
       }
     },
-    [kind, onCommand, plan.catalog.zoneTypes, plan.layers, plan.zones],
+    [kind, onCommand, plan.catalog.zoneTypes, plan.layers, plan.zones, session.retired],
   );
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
   const drawWall = useCallback(
     (from: Point, to: Point): boolean => {
-      const taken = new Set<Id>(plan.walls.map((entry) => entry.id));
+      const taken = new Set<Id>([...plan.walls.map((entry) => entry.id), ...(session.retired ?? [])]);
       const wall = createWall(from, to, plan.room, taken);
       if (wall === null) {
         setNotice(WALL_TOO_SHORT_NOTICE);
@@ -109,7 +110,7 @@ export const usePlanToolController: UsePlanToolController = ({
       setNotice(null);
       return true;
     },
-    [onCommand, plan.room, plan.walls],
+    [onCommand, plan.room, plan.walls, session.retired],
   );
 
   /** Проём на стене под курсором; мимо стены — объяснение, а не тишина. */

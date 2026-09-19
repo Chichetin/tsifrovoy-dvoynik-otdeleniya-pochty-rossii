@@ -100,6 +100,9 @@ export function createPlanStore(
         revision: state.revision + 1,
         selection: keepSelection(document, state.selection),
         dirty: isDirty(document),
+        // A fresh copy: subscribers compare by reference, and a delete is
+        // exactly the moment the set of retired ids changes.
+        retired: new Set(retired),
       }));
     };
 
@@ -108,6 +111,7 @@ export function createPlanStore(
       revision: 0,
       selection: null,
       dirty: origin !== 'file',
+      retired: new Set<Id>(),
 
       dispatch(command: Command): Result<PlanDocument> {
         const current = get().document;
@@ -163,6 +167,7 @@ export function createPlanStore(
           revision: state.revision + 1,
           selection: null,
           dirty: origin !== 'file',
+          retired: new Set<Id>(),
         }));
         return { ok: true, value: plan };
       },
