@@ -7,7 +7,7 @@
  * страница просит и получает свои собственные ресурсы.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test('страница загружается без неудачных запросов и с иконкой', async ({ page }) => {
   const failed: string[] = [];

@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, expect } from '@playwright/test';
 import { resolveChannel } from '../playwright.config';
+import { skipOnboarding } from '../tests/e2e/fixtures';
 
 const baseURL = process.env.PRESENTATION_BASE_URL ?? 'http://127.0.0.1:5196';
 const dir = join(process.cwd(), 'build', 'presentation');
@@ -15,7 +16,9 @@ const browser = await chromium.launch({
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
 try {
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+  const context = await browser.newContext({ viewport: { width: 1600, height: 1000 }, deviceScaleFactor: 1 });
+  await skipOnboarding(context);
+  const page = await context.newPage();
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(baseURL);

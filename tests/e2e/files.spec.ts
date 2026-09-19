@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
 const EXAMPLE = join(process.cwd(), 'example_plan.json');

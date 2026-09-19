@@ -14,7 +14,7 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from './fixtures';
 
 /** Демо-план сдачи: помещение 15 × 10 м, 53 объекта, 8 зон. */
 const BEFORE = join(process.cwd(), 'demo', 'before.json');

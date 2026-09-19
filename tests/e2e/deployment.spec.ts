@@ -22,7 +22,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /** Пусто — адрес деплоя не назвали, проверять нечего. */
 const DEPLOY_URL = (process.env.DEPLOY_URL ?? '').trim().replace(/\/+$/, '');

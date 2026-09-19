@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 
 /** Клик по холсту в пикселях от его левого верхнего угла. */
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {

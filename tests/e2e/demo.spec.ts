@@ -14,7 +14,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from './fixtures';
 import { DEMO_FILES, packageDemo, readZip } from '../../scripts/package-demo';
 
 /** Каталог с распакованным архивом; наполняется один раз на файл спеки. */
