@@ -2,13 +2,16 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium, expect } from '@playwright/test';
+import { resolveChannel } from '../playwright.config';
 
 const baseURL = process.env.PRESENTATION_BASE_URL ?? 'http://127.0.0.1:5196';
 const dir = join(process.cwd(), 'build', 'presentation');
 mkdirSync(dir, { recursive: true });
 
+// Same browser as the test suites (D-125): the bundled Chromium from the README
+// command by default, a system browser only with an explicit PW_CHANNEL=chrome.
 const browser = await chromium.launch({
-  channel: 'chrome',
+  channel: resolveChannel(process.env.PW_CHANNEL),
   args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'],
 });
 try {
