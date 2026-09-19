@@ -164,7 +164,46 @@ async function captionPixels(page: Page, box: { x: number; y: number; w: number;
   }, box);
 }
 
+/** Число очисток canvas по слоям сцены (по имени Konva-слоя) с момента вызова. */
+async function armLayerClearCounter(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const konva = (window as unknown as { Konva?: { stages: { getLayers(): { name(): string; getCanvas(): { _canvas: HTMLCanvasElement } }[] }[] } }).Konva;
+    if (konva === undefined) throw new Error('Konva не найден в window');
+    const counts: Record<string, number> = {};
+    (window as unknown as { __layerClears: Record<string, number> }).__layerClears = counts;
+    for (const stage of konva.stages) {
+      for (const layer of stage.getLayers()) {
+        const context = layer.getCanvas()._canvas.getContext('2d');
+        if (context === null) continue;
+        const original = context.clearRect.bind(context);
+        const name = layer.name() || 'unnamed';
+        counts[name] = 0;
+        context.clearRect = (...args: [number, number, number, number]) => {
+          counts[name] = (counts[name] ?? 0) + 1;
+          return original(...args);
+        };
+      }
+    }
+  });
+}
+
 test.describe('жесты над оборудованием', () => {
+  test('клик в перечне не перерисовывает слой оборудования (D-177)', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await expect(inventoryRows(page)).toHaveCount(53);
+    await armLayerClearCounter(page);
+    await selectRow(page, 0);
+    await expect(card(page).getByTestId('props-id')).toHaveText(/^eq_/);
+    await page.waitForTimeout(300);
+    const clears = await page.evaluate(
+      () => (window as unknown as { __layerClears: Record<string, number> }).__layerClears,
+    );
+    // Выделение и фокус перерисовываются, тысяча фигур — нет.
+    expect(clears.equipment).toBe(0);
+    expect(clears['equipment-selection']).toBeGreaterThan(0);
+  });
+
   test('после удаления объект ставится снова: удалённый id не переиспользуется, но и не мешает', async ({
     page,
   }) => {
