@@ -12,18 +12,40 @@
  * месте — иначе пользователь теряет то, что печатал, и не понимает почему.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type {
   AttributeDef,
   Attributes,
   Equipment,
   Issue,
+  Opening,
+  OpeningKind,
+  Wall,
   Zone,
 } from '../../contracts/model';
+import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
+import { polygonArea } from '../../domain/geometry';
 
 type Errors = Record<string, string>;
+
+/** Что карточка умеет править: по форме сущности понятно, какой командой. */
+type Editable = Zone | Equipment | Wall | Opening;
+
+/** Названия видов проёма: подписи для человека, значения — из контракта. */
+const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
+  { kind: 'entrance', label: 'Вход' },
+  { kind: 'door', label: 'Дверь' },
+  { kind: 'window', label: 'Окно' },
+];
+
+function commandFor(entity: Editable): Command {
+  if ('polygon' in entity) return { type: 'zone.put', zone: entity };
+  if ('wallId' in entity) return { type: 'opening.put', opening: entity };
+  if ('thickness_m' in entity) return { type: 'wall.put', wall: entity };
+  return { type: 'object.put', object: entity };
+}
 
 /** Раскладывает отказ команды по полям: `/attributes/seats` → `attributes.seats`. */
 function errorsByField(issues: Issue[], fallback: string): Errors {
@@ -60,27 +82,52 @@ export function PropertiesPanel({
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
+  // A click in the inventory or in the findings list asks for this card: the
+  // column may be scrolled far below it, so the card comes to the viewer.
+  const card = useRef<HTMLElement>(null);
+  const focusSequence = session.focus?.sequence ?? null;
+  useEffect(() => {
+    if (focusSequence === null) return;
+    card.current?.scrollIntoView({ block: 'nearest' });
+  }, [focusSequence]);
+
+  // Drafts and errors belong to the card they were typed into: a refused name
+  // for the plan must not show up in the name field of the zone clicked next.
+  const selectionKey =
+    session.selection === null ? '' : `${session.selection.kind}:${session.selection.id}`;
+  const [draftsFor, setDraftsFor] = useState(selectionKey);
+  if (draftsFor !== selectionKey) {
+    setDraftsFor(selectionKey);
+    setDraft({});
+    setErrors({});
+  }
+
   const selection = session.selection;
+  const room = selection?.kind === 'room' ? plan.room : undefined;
   const zone = selection?.kind === 'zone' ? plan.zones.find((item) => item.id === selection.id) : undefined;
   const object =
     selection?.kind === 'object' ? plan.objects.find((item) => item.id === selection.id) : undefined;
+  const wall = selection?.kind === 'wall' ? plan.walls.find((item) => item.id === selection.id) : undefined;
+  const opening =
+    selection?.kind === 'opening' ? plan.openings.find((item) => item.id === selection.id) : undefined;
 
   /**
    * Одна правка — одна команда. Принятая правка стирает свой черновик и свою
    * ошибку; отклонённая оставляет и то, и другое.
    */
-  const commit = (field: string, entity: Zone | Equipment | null, raw?: string): void => {
+  const commit = (field: string, entity: Editable | null, raw?: string): void =>
+    commitCommand(field, entity === null ? null : commandFor(entity), raw);
+
+  /** Та же дисциплина для правок, у которых нет сущности: план и помещение. */
+  const commitCommand = (field: string, command: Command | null, raw?: string): void => {
     if (raw !== undefined) setDraft((current) => ({ ...current, [field]: raw }));
 
-    if (entity === null) {
+    if (command === null) {
       setErrors((current) => ({ ...current, [field]: 'Нужно число.' }));
       return;
     }
 
-    const result =
-      'polygon' in entity
-        ? onCommand({ type: 'zone.put', zone: entity })
-        : onCommand({ type: 'object.put', object: entity });
+    const result = onCommand(command);
 
     if (result.ok) {
       setErrors((current) => without(current, field));
@@ -114,7 +161,7 @@ export function PropertiesPanel({
     name: string,
     label: string,
     value: number,
-    apply: (next: number) => Zone | Equipment,
+    apply: (next: number) => Editable,
     step = 0.1,
   ): React.JSX.Element =>
     field(
@@ -237,10 +284,62 @@ export function PropertiesPanel({
     </p>
   );
 
+  if (room !== undefined) {
+    // Название плана живёт здесь, а не в отдельной шапке: помещение — это и
+    // есть план для сотрудника, а имя файла берётся из названия (D-152).
+    const ceiling = parseNumber(shown('ceilingHeight_m', String(room.ceilingHeight_m)));
+    return (
+      <section ref={card} className="panel props" aria-label="Свойства">
+        <h2 className="panel__title">Свойства помещения</h2>
+        {identity(room.id, 'помещение')}
+
+        {field(
+          'name',
+          'Название плана',
+          <input
+            type="text"
+            aria-label="Название плана"
+            value={shown('name', plan.name)}
+            onChange={(event) =>
+              commitCommand('name', { type: 'plan.rename', name: event.target.value }, event.target.value)
+            }
+          />,
+          'так будет называться файл при сохранении',
+        )}
+
+        {field(
+          'ceilingHeight_m',
+          'Высота потолка, м',
+          <input
+            type="number"
+            step={0.1}
+            aria-label="Высота потолка, м"
+            value={shown('ceilingHeight_m', String(room.ceilingHeight_m))}
+            onChange={(event) => {
+              const parsed = parseNumber(event.target.value);
+              commitCommand(
+                'ceilingHeight_m',
+                parsed === null ? null : { type: 'room.setCeiling', ceilingHeight_m: parsed },
+                event.target.value,
+              );
+            }}
+          />,
+          ceiling === null ? undefined : 'наружные стены поднимаются вместе с потолком; перегородки — по своей карточке',
+        )}
+
+        {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии. */}
+        <p className="props__hint" data-testid="props-room-area">
+          Площадь по контуру {polygonArea(room.boundary).toFixed(2)} м², вершин {room.boundary.length}; контур тянется
+          за вершины на плане
+        </p>
+      </section>
+    );
+  }
+
   if (zone !== undefined) {
     const type = findZoneType(plan.catalog, zone.typeId);
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства зоны</h2>
         {identity(zone.id, 'зона')}
 
@@ -312,7 +411,7 @@ export function PropertiesPanel({
   if (object !== undefined) {
     const type = findObjectType(plan.catalog, object.typeId);
     return (
-      <section className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства объекта</h2>
         {identity(object.id, 'объект')}
 
@@ -401,10 +500,103 @@ export function PropertiesPanel({
     );
   }
 
+  if (wall !== undefined) {
+    const openings = plan.openings.filter((entry) => entry.wallId === wall.id);
+    const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+    return (
+      <section ref={card} className="panel props" aria-label="Свойства">
+        <h2 className="panel__title">Свойства перегородки</h2>
+        {identity(wall.id, 'перегородка')}
+
+        <div className="props__pair">
+          {numberField('thickness_m', 'Толщина, м', wall.thickness_m, (next) => ({
+            ...wall,
+            thickness_m: next,
+          }))}
+          {numberField('height_m', 'Высота, м', wall.height_m, (next) => ({
+            ...wall,
+            height_m: next,
+          }))}
+        </div>
+
+        {/* Концы стены тянутся на плане: править их числами здесь значило бы
+            держать две правды об одной геометрии. */}
+        <p className="props__hint">
+          Длина {length.toFixed(2)} м, от ({wall.from[0].toFixed(2)}; {wall.from[1].toFixed(2)}) до (
+          {wall.to[0].toFixed(2)}; {wall.to[1].toFixed(2)}); концы тянутся на плане
+        </p>
+        <p className="props__hint">
+          {openings.length === 0
+            ? 'Проёмов нет; инструмент «Проём» ставит их кликом по стене'
+            : `Проёмов на стене: ${openings.length}; удаление стены уносит их вместе с ней`}
+        </p>
+      </section>
+    );
+  }
+
+  if (opening !== undefined) {
+    const host = plan.walls.find((entry) => entry.id === opening.wallId);
+    const hostLength =
+      host === undefined ? null : Math.hypot(host.to[0] - host.from[0], host.to[1] - host.from[1]);
+    return (
+      <section ref={card} className="panel props" aria-label="Свойства">
+        <h2 className="panel__title">Свойства проёма</h2>
+        {identity(opening.id, 'проём')}
+
+        {field(
+          'kind',
+          'Вид',
+          <select
+            aria-label="Вид"
+            value={opening.kind}
+            onChange={(event) =>
+              commit('kind', { ...opening, kind: event.target.value as OpeningKind })
+            }
+          >
+            {OPENING_KINDS.map((entry) => (
+              <option key={entry.kind} value={entry.kind}>
+                {entry.label}
+              </option>
+            ))}
+          </select>,
+          'Вход участвует в правиле «терминал не далее 3 м от входа»',
+        )}
+
+        <div className="props__pair">
+          {numberField('offset_m', 'Отступ от начала, м', opening.offset_m, (next) => ({
+            ...opening,
+            offset_m: next,
+          }))}
+          {numberField('width_m', 'Ширина, м', opening.width_m, (next) => ({
+            ...opening,
+            width_m: next,
+          }))}
+        </div>
+
+        <div className="props__pair">
+          {numberField('sill_m', 'От пола, м', opening.sill_m, (next) => ({
+            ...opening,
+            sill_m: next,
+          }))}
+          {numberField('height_m', 'Высота, м', opening.height_m, (next) => ({
+            ...opening,
+            height_m: next,
+          }))}
+        </div>
+
+        <p className="props__hint" data-testid="props-wall">
+          {host === undefined
+            ? `Стена «${opening.wallId}» не найдена: проём требует пересчёта`
+            : `На перегородке «${host.id}» длиной ${hostLength?.toFixed(2) ?? '—'} м`}
+        </p>
+      </section>
+    );
+  }
+
   return (
-    <section className="panel props" aria-label="Свойства">
+    <section ref={card} className="panel props" aria-label="Свойства">
       <h2 className="panel__title">Свойства</h2>
-      <p className="panel__empty">Выберите зону или объект на плане</p>
+      <p className="panel__empty">Выберите помещение, зону, объект, перегородку или проём на плане</p>
     </section>
   );
 }

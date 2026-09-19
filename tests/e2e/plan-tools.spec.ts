@@ -26,7 +26,7 @@ type Rect = { x: number; y: number; width: number; height: number };
 
 type SavedPlan = {
   room: { boundary: Point[] };
-  walls: { id: string; from: Point; to: Point }[];
+  walls: { id: string; from: Point; to: Point; thickness_m: number }[];
   openings: { id: string; wallId: string; offset_m: number; width_m: number }[];
   zones: { id: string; name: string; parentId: string | null; polygon: Point[] }[];
 };
@@ -165,6 +165,42 @@ async function drawPlan(page: Page, size: Rect): Promise<void> {
 }
 
 test.describe('инструменты плана', () => {
+  test('нарисованная зона сразу выбрана, соседняя зона Т-стыком не портит её контур', async ({
+    page,
+  }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const left = ring(size, [
+      [0.2, 0.2],
+      [0.5, 0.2],
+      [0.5, 0.8],
+      [0.2, 0.8],
+    ]);
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    for (const point of left) await clickAt(page, point);
+    await clickAt(page, left[0] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+
+    // Вторая зона подряд, без «Выбора»: её первый угол — середина правого ребра
+    // первой. Ручек и «широких» рёбер выбранной зоны под инструментом нет,
+    // поэтому клик ставит вершину черновика, а не вставляет вершину в z_1.
+    const right = ring(size, [
+      [0.5, 0.5],
+      [0.8, 0.5],
+      [0.8, 0.8],
+      [0.5, 0.8],
+    ]);
+    for (const point of right) await clickAt(page, point);
+    await clickAt(page, right[0] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, px(size, 0.3, 0.3));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+  });
+
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -261,7 +297,7 @@ test.describe('инструменты плана', () => {
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -339,7 +375,7 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));
@@ -430,6 +466,15 @@ test.describe('инструменты плана', () => {
     await clickAt(page, middle);
     await expect(page.getByRole('button', { name: 'Удалить перегородку' })).toBeVisible();
 
+    // Подсказка инструмента обещает правку в карточке свойств — она открыта и
+    // толщина уходит в модель, а не только в поле ввода.
+    const props = page.getByLabel('Свойства');
+    await expect(props.getByText('Свойства перегородки')).toBeVisible();
+    await expect(props.getByTestId('props-id')).toHaveText(free.id);
+    await props.getByLabel('Толщина, м').fill('0.35');
+    const thicker = await savePlan(page);
+    expect(thicker.walls.find((entry) => entry.id === free.id)?.thickness_m).toBeCloseTo(0.35, 6);
+
     const end = toStage(free.from);
     await dragAt(page, end, { x: end.x + 60, y: end.y + 60 });
     const bentPlan = await savePlan(page);
@@ -501,6 +546,106 @@ test.describe('инструменты плана', () => {
     const undone = await savePlan(page);
     expect(undone.openings).toHaveLength(before.openings.length);
     expect(undone.walls).toHaveLength(5);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('свой контур помещения заменяет стены стартовой коробки, проём встаёт на новую стену', async ({ page }) => {
+    // Находка operator'а 18.09: после «Помещение» стены и вход коробки 12×9
+    // оставались на месте, проём на свой контур не ставился, а правило
+    // «терминал ≤ 3 м от входа» считалось от входа вне помещения.
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const size = await openEditor(page);
+
+    const before = await savePlan(page);
+    expect(before.walls).toHaveLength(4);
+    const oldIds = before.walls.map((w) => w.id);
+
+    // L-образный контур внутри стартовой коробки.
+    await drawRing(page, 'Помещение', [
+      px(size, 0.15, 0.15),
+      px(size, 0.7, 0.15),
+      px(size, 0.7, 0.5),
+      px(size, 0.45, 0.5),
+      px(size, 0.45, 0.85),
+      px(size, 0.15, 0.85),
+    ]);
+    await page.keyboard.press('Escape');
+
+    const drawn = await savePlan(page);
+    // Шесть рёбер — шесть стен, ни одной старой.
+    expect(drawn.walls).toHaveLength(6);
+    for (const w of drawn.walls) expect(oldIds).not.toContain(w.id);
+    // Каждая стена лежит на ребре нового контура: концы совпадают с вершинами.
+    const vertices = new Set(drawn.room.boundary.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`));
+    for (const w of drawn.walls) {
+      expect(vertices.has(`${w.from[0].toFixed(2)},${w.from[1].toFixed(2)}`)).toBe(true);
+      expect(vertices.has(`${w.to[0].toFixed(2)},${w.to[1].toFixed(2)}`)).toBe(true);
+    }
+    // Новый контур не делит с коробкой ни одной вершины — это другое помещение,
+    // и вход коробки в него не переезжает, а уходит вместе со своей стеной.
+    expect(drawn.openings).toHaveLength(0);
+
+    // Проём теперь ставится на свою стену: клик по середине верхнего ребра.
+    await page.getByRole('button', { name: 'Проём', exact: true }).click();
+    await clickAt(page, px(size, 0.42, 0.15));
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+    const withOpening = await savePlan(page);
+    expect(withOpening.openings).toHaveLength(1);
+    expect(drawn.walls.map((w) => w.id)).toContain(withOpening.openings[0]?.wallId);
+
+    // Одно «Отменить» на контур: старые стены и вход возвращаются целиком.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    const undone = await savePlan(page);
+    expect(undone.walls.map((w) => w.id).sort()).toEqual([...oldIds].sort());
+    expect(undone.openings).toHaveLength(1);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('вставка вершины в контур помещения не сдвигает вход на другую стену', async ({ page }) => {
+    // Ревью MR !64: перенос входа по номеру ребра ломался на этом жесте.
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    const size = await openEditor(page);
+
+    const before = await savePlan(page);
+    const entrance = before.openings[0];
+    if (entrance === undefined) throw new Error('в стартовом плане нет входа');
+    const hostBefore = before.walls.find((w) => w.id === entrance.wallId);
+    if (hostBefore === undefined) throw new Error('вход без стены');
+    const y = hostBefore.from[1];
+    expect(hostBefore.to[1]).toBe(y);
+    expect(before.room.boundary).toHaveLength(4);
+
+    // Выбрать помещение: клик по полу, подсказка контура появляется.
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(page.getByText(/Контур: тяните вершину/)).toBeVisible();
+
+    // Клик по нижнему ребру вставляет вершину. Где ребро на экране, редактор
+    // знает лучше теста: идём снизу вверх по оси, пока в файле не станет
+    // пять вершин, — это и есть попадание по ребру.
+    let boundaryAfter: Point[] = before.room.boundary;
+    for (const fy of [0.95, 0.93, 0.91, 0.89, 0.87, 0.85, 0.83]) {
+      await clickAt(page, px(size, 0.5, fy));
+      boundaryAfter = (await savePlan(page)).room.boundary;
+      if (boundaryAfter.length === 5) break;
+    }
+    expect(boundaryAfter).toHaveLength(5);
+
+    const after = await savePlan(page);
+    expect(after.walls).toHaveLength(5);
+    const moved = after.openings.find((o) => o.id === entrance.id);
+    expect(moved).toBeDefined();
+    const hostAfter = after.walls.find((w) => w.id === moved?.wallId);
+    expect(hostAfter).toBeDefined();
+    // Вход остался на северной стене, а не уехал на восточную.
+    expect(hostAfter?.from[1]).toBe(y);
+    expect(hostAfter?.to[1]).toBe(y);
 
     expect(errors).toEqual([]);
   });

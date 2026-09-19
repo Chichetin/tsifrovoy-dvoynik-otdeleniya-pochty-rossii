@@ -232,7 +232,7 @@ export const CSV_COLUMNS = [
  * locale, which is `;` — a comma-separated file lands in one column. The BOM
  * is what makes the same Excel read the bytes as UTF-8 instead of cp1251, so
  * «Инв. №» does not arrive as «Ð˜Ð½Ð²». Both are file-format decisions, not
- * preferences: without them the export opens as garbage (D-139).
+ * preferences: without them the export opens as garbage (D-157).
  */
 export const CSV_SEPARATOR = ';';
 export const CSV_BOM = '﻿';

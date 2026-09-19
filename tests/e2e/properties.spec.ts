@@ -57,7 +57,38 @@ async function selectPlacedObject(page: Page): Promise<void> {
 test.describe('карточка свойств', () => {
   test('без выбора карточка объясняет, чего ждёт', async ({ page }) => {
     await page.goto('/');
-    await expect(card(page).getByText('Выберите зону или объект на плане')).toBeVisible();
+    await expect(
+      card(page).getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
+    ).toBeVisible();
+  });
+
+  test('карточка помещения: название плана становится именем файла, потолок поднимает наружные стены', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    // Помещение выбирается кликом по полу — там, где нет зон, объектов и стен.
+    await clickCanvas(page, 300, 200);
+    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
+    await expect(card(page).getByTestId('props-room-area')).toContainText('108.00 м²');
+
+    await card(page).getByLabel('Название плана').fill('ОПС 115534 Тестовое');
+    await card(page).getByLabel('Высота потолка, м').fill('3.4');
+
+    const download = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Сохранить' }).click(),
+    ]).then(([event]) => event);
+    expect(download.suggestedFilename()).toBe('ОПС-115534-Тестовое.json');
+    const saved = JSON.parse(readFileSync((await download.path()) as string, 'utf8'));
+    expect(saved.name).toBe('ОПС 115534 Тестовое');
+    expect(saved.room.ceilingHeight_m).toBe(3.4);
+    // Четыре наружные стены стартовой коробки поднялись вместе с потолком.
+    expect(saved.walls.map((w: { height_m: number }) => w.height_m)).toEqual([3.4, 3.4, 3.4, 3.4]);
+
+    // Пустое название отклоняется у поля, план остаётся с прежним именем.
+    await card(page).getByLabel('Название плана').fill('   ');
+    await expect(card(page).getByRole('alert')).toContainText('название');
+    expect(JSON.parse(await savePlan(page)).name).toBe('ОПС 115534 Тестовое');
   });
 
   test('смена типа сохраняет идентификатор и положение', async ({ page }) => {

@@ -146,6 +146,9 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
     browserName,
     baseURL,
   }) => {
+    // Двадцать сборок сцены на программном рендерере — самый долгий тест набора:
+    // при двух воркерах он подходил к 30 с и падал по таймауту, а не по делу.
+    test.slow();
     await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
       const errors: string[] = [];
       page.on('pageerror', (error) => errors.push(error.message));
