@@ -42,7 +42,7 @@ describe('A05: клиент провайдера', () => {
     if (result.ok) return;
     expect(result.issues[0]?.code).toBe(LLM_ISSUE_CODES.LLM_EMPTY_CONTENT);
     expect(result.issues[0]?.message).toContain('LLM_MAX_OUTPUT_TOKENS');
-    expect(result.issues[0]?.message).toContain('20');
+    expect(result.issues[0]?.message).toContain('20 токенов');
   });
 
   test('пустая строка без причины — тоже отказ, но без совета про лимит', async () => {

@@ -14,7 +14,7 @@ import type { AdviceResponse } from '../src/contracts/advice';
 import { LIMITS, SCHEMA_VERSION, type Catalog, type PlanDocument } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
-import { readConfig, describeConfig } from './config';
+import { readConfig, describeConfig, publicModelName } from './config';
 
 const catalog: Catalog = {
   version: 'test-1',
@@ -127,7 +127,7 @@ describe('A05: маршрут ассистента', () => {
     const response = await app.inject({ method: 'GET', url: '/api/health' });
     const body = response.json() as { llm: { configured: boolean; provider?: string } };
     expect(body.llm.configured).toBe(true);
-    expect(body.llm.provider).toBeTruthy();
+    expect(body.llm.provider).toBe('stub');
     // Ни ключа, ни URI модели (в нём бывает id облачной папки) — только имя провайдера.
     expect(JSON.stringify(body)).not.toMatch(/key|secret|AQVN|gpt:\/\/|\//i);
   });
@@ -230,6 +230,7 @@ describe('A05: маршрут ассистента', () => {
     registerAdviceRoutes(app, {
       llm: honestModel,
       llmLabel: 'stub/stub',
+      llmProvider: 'stub',
       rateLimit: { max: 1, windowMs: 60_000 },
     });
 
@@ -257,6 +258,11 @@ describe('A05: маршрут ассистента', () => {
 });
 
 describe('A05: конфигурация', () => {
+  test('имя модели для публикации прячет id облачной папки', () => {
+    expect(publicModelName('gpt://b1gv1qukvdoctt94dgnu/deepseek-v4-flash')).toBe('gpt://<folder_ID>/deepseek-v4-flash');
+    expect(publicModelName('deepseek-chat')).toBe('deepseek-chat');
+  });
+
   test('без ключа, модели или адреса провайдера нет', () => {
     expect(readConfig({}).llm).toBeNull();
     expect(readConfig({ LLM_ENDPOINT: 'https://example.invalid/v1/chat/completions' }).llm).toBeNull();

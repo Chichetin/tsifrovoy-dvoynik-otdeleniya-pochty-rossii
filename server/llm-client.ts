@@ -130,8 +130,8 @@ export function createLlmClient(config: LlmConfig): LlmClient {
       return failure(
         LLM_ISSUE_CODES.LLM_EMPTY_CONTENT,
         outOfTokens
-          ? `Провайдер ${config.provider} исчерпал лимит ${config.maxOutputTokens} токенов до ответа (рассуждающая модель): поднимите LLM_MAX_OUTPUT_TOKENS.`
-          : `Провайдер ${config.provider} вернул пустой ответ.`,
+          ? `лимит ${config.maxOutputTokens} токенов ушёл на рассуждение, текста не осталось — поднимите LLM_MAX_OUTPUT_TOKENS.`
+          : 'пустой ответ.',
       );
     }
     return { ok: true, value: content };

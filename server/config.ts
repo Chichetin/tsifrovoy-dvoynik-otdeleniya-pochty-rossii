@@ -96,3 +96,12 @@ export function describeConfig(config: ServerConfig): Record<string, unknown> {
     rateLimit: config.rateLimit,
   };
 }
+
+/**
+ * The model name as it may leave the server: Yandex AI Studio URIs carry the
+ * cloud folder id (`gpt://<folder>/<model>`), which stays with the key. Used
+ * for the fallback-reason label; health names the provider only (D-200).
+ */
+export function publicModelName(model: string): string {
+  return model.replace(/^([a-z]+):\/\/[^/]+\//, '$1://<folder_ID>/');
+}

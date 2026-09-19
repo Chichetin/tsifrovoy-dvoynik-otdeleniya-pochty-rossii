@@ -14,6 +14,7 @@ import type {
   AdviceHttpRequest,
   AdviceRequest,
   AdviceResponse,
+  HealthResponse,
   Recommendation,
 } from '../src/contracts/advice';
 import type { Issue, PlanDocument } from '../src/contracts/model';
@@ -31,7 +32,7 @@ export type AdviceRouteOptions = {
    * What health may say publicly: the provider's name only. The model URI can
    * carry the cloud folder id, and that stays on the server with the key.
    */
-  llmProvider?: string | null;
+  llmProvider: string | null;
   rateLimit: { max: number; windowMs: number };
 };
 
@@ -134,12 +135,12 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
   // Health says whether a provider is configured — the reviewer can see on the
   // deployed address which mode the assistant will answer in, without a key
   // ever leaving the server: only the provider/model label travels.
-  app.get('/api/health', async () => ({
+  app.get('/api/health', async (): Promise<HealthResponse> => ({
     status: 'ok',
     llm:
-      options.llm === null
+      options.llm === null || options.llmProvider === null
         ? { configured: false }
-        : { configured: true, provider: options.llmProvider ?? 'настроен' },
+        : { configured: true, provider: options.llmProvider },
   }));
 
   app.post('/api/advice', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -209,10 +210,12 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
     });
     if (!answer.ok) {
       request.log.warn({ issues: answer.issues.map((entry) => entry.code) }, 'llm call failed');
+      // «Недоступна» — про сеть и статус; пустой ответ модели — другая история.
+      const empty = answer.issues[0]?.code === LLM_ISSUE_CODES.LLM_EMPTY_CONTENT;
       return fallbackResponse(
         revision,
         recommendations,
-        `Модель недоступна (${options.llmLabel ?? 'провайдер'}): ${answer.issues[0]?.message ?? 'нет ответа'}`,
+        `${empty ? 'Модель ответила без текста' : 'Модель недоступна'} (${options.llmLabel ?? 'провайдер'}): ${answer.issues[0]?.message ?? 'нет ответа'}`,
       );
     }
 
