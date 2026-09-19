@@ -9,7 +9,7 @@ import { describe, expect, test } from 'vitest';
 import type { Equipment, Layer, PlanDocument, Result, Zone } from '../../contracts/model';
 import { CONTRACT_ISSUE_CODES } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { COMMAND_ISSUE_CODES, applyCommand } from './index';
+import { COMMAND_ISSUE_CODES, applyCommand, freshId, nextFreeId, takenIds } from './index';
 
 function minimalPlan(): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', 'minimal.json');
@@ -790,5 +790,25 @@ describe('applyCommand: пакет команд (batch)', () => {
       }),
     );
     expect(result.objects).toEqual([]);
+  });
+});
+
+describe('выдача id (D-198)', () => {
+  test('свежий id не совпадает ни с сущностью плана, ни с удалённым в этой сессии', () => {
+    const plan = minimalPlan();
+    const first = plan.objects[0]!;
+    const withoutIt = expectOk(applyCommand(plan, { type: 'object.delete', id: first.id }));
+    // Без учёта удалённых первый свободный номер — это как раз удалённый.
+    expect(freshId('eq_', withoutIt)).toBe('eq_1');
+    // С учётом — следующий: удалённый id не воскресает (D-019).
+    expect(freshId('eq_', withoutIt, ['eq_1'])).toBe('eq_2');
+    // Пространство id общее: занятый номер другого рода тоже пропускается.
+    expect(takenIds(plan).has(plan.room.id)).toBe(true);
+    expect(takenIds(plan).has(plan.layers[0]!.id)).toBe(true);
+  });
+
+  test('nextFreeId занимает выданный номер, чтобы цикл выдал разные', () => {
+    const taken = new Set<string>(['w_2']);
+    expect([nextFreeId('w_', taken), nextFreeId('w_', taken), nextFreeId('w_', taken)]).toEqual(['w_1', 'w_3', 'w_4']);
   });
 });

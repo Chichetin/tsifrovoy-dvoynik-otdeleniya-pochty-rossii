@@ -28,7 +28,10 @@ import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
 import { normalizeAngle } from '../geometry';
 import { hasZoneCycle, reconcileZones } from '../relations';
+import { nextFreeId } from './ids';
 import { outerWallIds, rebuildOuterWalls } from './room-walls';
+
+export { nextFreeId } from './ids';
 
 /**
  * Thickness for outer walls of a plan that had none (team assumption, D-134).
@@ -66,6 +69,16 @@ function fail(code: string, message: string, refs: Ref[]): Result<never> {
 
 function failWith(issues: Issue[]): Result<never> {
   return { ok: false, issues };
+}
+
+/** Every id the plan holds plus the ids retired this session: what a new id must avoid (D-198). */
+export function takenIds(plan: PlanDocument, retired: Iterable<Id> = []): Set<Id> {
+  return new Set<Id>([...idOwners(plan).keys(), ...retired]);
+}
+
+/** A fresh `<prefix><n>` for an entity about to be put on the plan: not on it, not retired. */
+export function freshId(prefix: string, plan: PlanDocument, retired: Iterable<Id> = []): Id {
+  return nextFreeId(prefix, takenIds(plan, retired));
 }
 
 /** Every id the document uses, mapped to the kind that owns it. */

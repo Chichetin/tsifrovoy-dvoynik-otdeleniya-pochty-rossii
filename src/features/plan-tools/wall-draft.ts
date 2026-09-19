@@ -12,6 +12,7 @@
  */
 
 import type { Id, Opening, OpeningKind, Point, Room, Wall } from '../../contracts/model';
+import { nextFreeId } from '../../domain/commands';
 import { pointSegmentDistance, segmentLength, wallLength } from '../../domain/geometry';
 import { moveOpeningTo, snapPoint } from './vertex-edit';
 
@@ -36,13 +37,6 @@ export const MIN_WALL_LENGTH_M = 0.2;
 /** Дальше этого от стены клик проёмом в неё не попал. */
 export const OPENING_HIT_RADIUS_M = 0.6;
 
-function nextId(prefix: string, taken: Set<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `${prefix}${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
-
 /**
  * Перегородка по двум точкам. Концы притягиваются к сетке — тем же шагом, что
  * и вершины контуров, иначе стена, нарисованная вдоль зоны, не сойдётся с ней
@@ -62,7 +56,7 @@ export function createWall(
   if (segmentLength(start, end) < MIN_WALL_LENGTH_M) return null;
 
   return {
-    id: nextId('w_', taken),
+    id: nextFreeId('w_', taken),
     from: start,
     to: end,
     thickness_m: WALL_DEFAULTS.partitionThickness_m,
@@ -111,7 +105,7 @@ export function createOpening(
   if (wallLength(wall) < defaults.width_m) return null;
 
   const opening: Opening = {
-    id: nextId('op_', taken),
+    id: nextFreeId('op_', taken),
     wallId: wall.id,
     offset_m: 0,
     width_m: defaults.width_m,
