@@ -3,8 +3,8 @@
  * dispatches commands, and everything derived (inventory, metrics, 3D) reads
  * this one document, so a plan change cannot disagree with the inventory.
  *
- * History, the export baseline and retired ids live in the closure: the public
- * surface stays exactly the PlanStore of contracts-v1.md.
+ * History, export status and retired ids live in the closure. The baseline is
+ * state because both dirty tracking and the assistant compare against it.
  */
 
 import { createStore, type StoreApi } from 'zustand';
@@ -80,13 +80,13 @@ export function createPlanStore(
 ): PlanStoreApi {
   let past: PlanDocument[] = [];
   let future: PlanDocument[] = [];
-  let baseline: PlanDocument | null = origin === 'file' ? initial : null;
+  let hasExportedBaseline = origin === 'file';
   /** Ids of deleted entities: a deleted id is never reused (contracts-v1). */
   const retired = new Set<Id>();
 
   return createStore<PlanStoreState>()((set, get) => {
-    const isDirty = (document: PlanDocument): boolean =>
-      baseline === null || !sameContent(document, baseline);
+    const isDirty = (document: PlanDocument, baseline: PlanDocument): boolean =>
+      !hasExportedBaseline || !sameContent(document, baseline);
 
     /** Selection cannot outlive the entity it points at. */
     const keepSelection = (document: PlanDocument, selection: Ref | null): Ref | null => {
@@ -99,7 +99,7 @@ export function createPlanStore(
         document,
         revision: state.revision + 1,
         selection: keepSelection(document, state.selection),
-        dirty: isDirty(document),
+        dirty: isDirty(document, state.baseline),
         // Subscribers compare by reference: a fresh copy only when a delete
         // actually retired something, so a move or an undo keeps the old set.
         retired: state.retired.size === retired.size ? state.retired : new Set(retired),
@@ -108,6 +108,7 @@ export function createPlanStore(
 
     return {
       document: initial,
+      baseline: initial,
       revision: 0,
       selection: null,
       dirty: origin !== 'file',
@@ -160,10 +161,11 @@ export function createPlanStore(
         retired.clear();
         // Only a document read from a file is a saved state. A new plan and a
         // restored draft are unsaved by definition.
-        baseline = origin === 'file' ? plan : null;
+        hasExportedBaseline = origin === 'file';
 
         set((state) => ({
           document: plan,
+          baseline: plan,
           revision: state.revision + 1,
           selection: null,
           dirty: origin !== 'file',
@@ -202,8 +204,8 @@ export function createPlanStore(
         // matches what the editor holds now.
         if (revision !== get().revision) return;
 
-        baseline = get().document;
-        set({ dirty: false });
+        hasExportedBaseline = true;
+        set((state) => ({ baseline: state.document, dirty: false }));
       },
     };
   });

@@ -39,14 +39,20 @@ describe('открытие документа', () => {
   });
 
   test('новый и восстановленный черновик считаются несохранёнными', () => {
-    store.getState().replaceDocument(minimalPlan(), 'new');
+    const fresh = minimalPlan();
+    store.getState().replaceDocument(fresh, 'new');
     expect(store.getState().dirty).toBe(true);
+    expect(store.getState().baseline).toBe(fresh);
 
-    store.getState().replaceDocument(minimalPlan(), 'draft');
+    const draft = minimalPlan();
+    store.getState().replaceDocument(draft, 'draft');
     expect(store.getState().dirty).toBe(true);
+    expect(store.getState().baseline).toBe(draft);
 
-    store.getState().replaceDocument(minimalPlan(), 'file');
+    const file = minimalPlan();
+    store.getState().replaceDocument(file, 'file');
     expect(store.getState().dirty).toBe(false);
+    expect(store.getState().baseline).toBe(file);
   });
 
   test('импорт сохраняет заявленные связи до первой команды', () => {
@@ -206,6 +212,7 @@ describe('ошибка команды', () => {
 
 describe('dirty и подготовка экспорта', () => {
   test('markExported актуальной revision снимает dirty, устаревшая игнорируется', () => {
+    const initialBaseline = store.getState().baseline;
     const before = store.getState().document.objects[0]!;
     store.getState().dispatch({ type: 'object.put', object: { ...before, position: [3, 3] } });
     expect(store.getState().dirty).toBe(true);
@@ -213,9 +220,11 @@ describe('dirty и подготовка экспорта', () => {
     const stale = store.getState().revision - 1;
     store.getState().markExported(stale);
     expect(store.getState().dirty).toBe(true);
+    expect(store.getState().baseline).toBe(initialBaseline);
 
     store.getState().markExported(store.getState().revision);
     expect(store.getState().dirty).toBe(false);
+    expect(store.getState().baseline).toBe(store.getState().document);
   });
 
   test('подготовка экспорта не меняет revision, но снимает dirty', () => {

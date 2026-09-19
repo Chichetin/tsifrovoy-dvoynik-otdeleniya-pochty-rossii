@@ -94,6 +94,8 @@ export type DocumentOrigin = 'file' | 'new' | 'draft';
  */
 export type PlanStore = {
   readonly document: PlanDocument;
+  /** Snapshot used for dirty comparison and the assistant's «before». */
+  readonly baseline: PlanDocument;
   readonly revision: number;
   readonly selection: Ref | null;
   readonly dirty: boolean;

@@ -14,6 +14,10 @@
 
 ## 1. Снимок «было» ведут две переменные (Strong)
 
+**Статус 19.09:** исправлено в ветке `worktree-export-baseline-maxim` (D-175):
+`baseline` — read-only поле store, `compareBase` и заглушка панели удалены; устаревший
+`markExported` закреплён тестом.
+
 **Где:** `src/app/App.tsx:67,147,159,197` (`compareBase`) и `src/state/plan-store.ts:83,159,200`
 (`baseline` в замыкании); `src/features/assistant/AssistantPanel.tsx` шлёт в поле `before`
 текущий план как заглушку, а `App.tsx:124` подменяет её на `compareBase`.
