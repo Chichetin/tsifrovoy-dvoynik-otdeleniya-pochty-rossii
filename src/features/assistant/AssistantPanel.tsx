@@ -110,10 +110,12 @@ export function AssistantPanel({
   const currentZoneId = zoneId === '' || plan.zones.some((zone) => zone.id === zoneId)
     ? zoneId
     : '';
+  const placeUnavailable = scenario === 'place' && currentTypeId === '';
 
   const stale = response !== null && response.revision !== revision;
 
   function ask(): void {
+    if (placeUnavailable) return;
     setAskedQuery(query.trim() === '' ? null : query.trim());
     if (scenario === 'place') {
       onAsk(
@@ -156,7 +158,12 @@ export function AssistantPanel({
         {scenario === 'place' ? (
           <label className="assistant__field">
             Объект
-            <select value={currentTypeId} onChange={(event) => setTypeId(event.target.value)}>
+            <select
+              value={currentTypeId}
+              disabled={placeUnavailable}
+              onChange={(event) => setTypeId(event.target.value)}
+            >
+              {placeUnavailable ? <option value="">Нет типов в справочнике</option> : null}
               {plan.catalog.objectTypes.map((type) => (
                 <option key={type.id} value={type.id}>
                   {type.label}
@@ -194,10 +201,16 @@ export function AssistantPanel({
           type="button"
           className="files__button is-primary"
           onClick={ask}
-          disabled={state.status === 'loading'}
+          disabled={state.status === 'loading' || placeUnavailable}
+          title={placeUnavailable ? 'Сначала добавьте тип оборудования в справочник' : undefined}
         >
           {state.status === 'loading' ? 'Считаем…' : 'Спросить'}
         </button>
+        {placeUnavailable ? (
+          <p className="panel__empty" role="status">
+            Для поиска места сначала добавьте тип оборудования в справочник.
+          </p>
+        ) : null}
       </div>
 
       {state.status === 'error' ? (
