@@ -10,6 +10,8 @@
 
 import { describe, expect, test } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type {
   Catalog,
   Issue,
@@ -22,6 +24,9 @@ import type {
   Zone,
 } from '../../contracts/model';
 import { SCHEMA_VERSION, TOLERANCE } from '../../contracts/model';
+import { parseCatalog, parsePlanDocument } from '../../contracts/schema';
+import { validateCatalog } from '../catalog';
+import { checkEquipment } from './equipment';
 import { contains, footprint, polygonSegmentDistance } from '../geometry';
 import { validatePlan } from '../validation';
 import {
@@ -783,5 +788,112 @@ describe('A-fit: место ищется в зоне, где объект уме
 
     expect(recommendation.assumptions.join(' ')).toContain('нет правила');
     expect(recommendation.refs).toContainEqual({ kind: 'zone', id: 'z_queue' });
+  });
+});
+
+function readRepoJson(...path: string[]): unknown {
+  return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
+}
+
+function demoBefore(): PlanDocument {
+  const parsed = parsePlanDocument(readRepoJson('demo', 'before.json'));
+  if (!parsed.ok) throw new Error('demo/before.json не разобрался');
+  return parsed.value;
+}
+
+describe('A-fit: минимум — не запрет, расстановка плана тоже данные', () => {
+  test('зона, где тип уже стоит в плане, уместна, даже если правило её не называет', () => {
+    const document = {
+      ...hallWithQueue(),
+      objects: [object('eq_desk_q', 'ot_desk', [6, 3], [1.4, 0.8], { height_m: 0.75, zoneId: 'z_queue' })],
+    };
+
+    const fit = zoneFit(document, 'ot_desk', null);
+    expect(fit.mode).toBe('narrowed');
+    expect(fit.zoneIds).toEqual(['z_client', 'z_queue']);
+    expect(fit.placedZoneTypeIds).toEqual(['zt_queue']);
+    expect(advice(document, 'ot_desk', null, [5, 4]).assumptions.join(' ')).toContain('по текущей расстановке');
+  });
+
+  test('объект не на полу (камера) по зонам не сужается', () => {
+    const document = hallWithQueue([countRule('rule_camera_service', 'zt_service', 'ot_camera', 1, null)]);
+
+    expect(zoneFit(document, 'ot_camera', null).mode).toBe('off-floor');
+    expect(values(document, 'ot_camera', null).length).toBeGreaterThan(0);
+    expect(advice(document, 'ot_camera', null).assumptions.join(' ')).toContain('не занимает пол');
+  });
+
+  test('демо: зоны, где тип уже стоит, не отсекаются; рабочее место не в очереди', () => {
+    const demo = demoBefore();
+    const typed = new Set(
+      demo.catalog.rules.flatMap((rule) => (rule.kind === 'count' && rule.min !== null ? [rule.objectTypeId] : [])),
+    );
+    expect(typed.size).toBeGreaterThan(0);
+
+    for (const typeId of typed) {
+      const fit = zoneFit(demo, typeId, null);
+      if (fit.zoneIds === null) continue;
+      const standing = demo.objects
+        .filter((entry) => entry.typeId === typeId && entry.zoneId !== null)
+        .map((entry) => entry.zoneId);
+      for (const zoneId of standing) expect(fit.zoneIds, `${typeId} в ${zoneId}`).toContain(zoneId);
+    }
+
+    // Рабочие места в демо стоят в z_client и z_back — обе зоны уместны,
+    // а зона очереди — нет: там рабочих мест нет и правило её не называет.
+    const workplace = zoneFit(demo, 'ot_workplace', null);
+    expect(workplace.zoneIds).toEqual(expect.arrayContaining(['z_client', 'z_back']));
+    expect(workplace.zoneIds).not.toContain('z_queue');
+    const candidates = values(demo, 'ot_workplace', null);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).not.toBe('z_queue');
+
+    // Точка указана в самой очереди: без фильтра ближайшие места были бы там.
+    const queue = demo.zones.find((entry) => entry.id === 'z_queue');
+    if (queue === undefined) throw new Error('в демо нет z_queue');
+    const xs = queue.polygon.map((point) => point[0]);
+    const ys = queue.polygon.map((point) => point[1]);
+    const inQueue: Point = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+    const pinned = values(demo, 'ot_workplace', null, inQueue);
+    expect(pinned.length).toBeGreaterThan(0);
+    for (const candidate of pinned) expect(candidate.object.zoneId).not.toBe('z_queue');
+
+    // Камера на демо не сужается до служебной зоны.
+    expect(zoneFit(demo, 'ot_camera', null).mode).toBe('off-floor');
+  });
+
+  test('правило с min 0 в настоящем справочнике: допустимо, не предупреждает, задаёт уместную зону', () => {
+    const parsed = parseCatalog({
+      version: '1.0.0',
+      objectTypes: readRepoJson('data', 'catalog', 'object-types.json'),
+      zoneTypes: readRepoJson('data', 'catalog', 'zone-types.json'),
+      layerTypes: readRepoJson('data', 'catalog', 'layer-types.json'),
+      rules: readRepoJson('data', 'catalog', 'rules.json'),
+    });
+    if (!parsed.ok) throw new Error('data/catalog не разобрался');
+    const home: Rule = countRule('rule_parcel_rack_storage', 'zt_storage', 'ot_parcel_rack', 0, null);
+    const real = parsed.value;
+    const extended: Catalog = { ...real, rules: [...real.rules, home] };
+    expect(validateCatalog(extended)).toEqual([]);
+
+    const zones = [
+      zone('z_client', 'zt_client', [[0, 0], [6, 0], [6, 8], [0, 8]]),
+      zone('z_storage', 'zt_storage', [[6, 0], [10, 0], [10, 8], [6, 8]]),
+    ];
+    const without = plan({ zones, catalog: real });
+    const withRule = plan({ zones, catalog: extended });
+
+    // Пустая зона хранения при минимуме 0 — не нарушение и не совет.
+    expect(validatePlan(withRule)).toEqual(validatePlan(without));
+    expect(checkEquipment(withRule, { scenario: 'equipment', zoneId: null })).toEqual(
+      checkEquipment(without, { scenario: 'equipment', zoneId: null }),
+    );
+
+    expect(zoneFit(without, 'ot_parcel_rack', null).mode).toBe('no-rule');
+    const fit = zoneFit(withRule, 'ot_parcel_rack', null);
+    expect(fit.zoneIds).toEqual(['z_storage']);
+    const candidates = values(withRule, 'ot_parcel_rack', null, [2, 4]);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_storage');
   });
 });

@@ -106,14 +106,30 @@ test.describe('ассистент в браузере', () => {
       await expect(zone).toContainText(/зона «.+» \(z_\w+\)/);
       await expect(zone).not.toContainText('z_queue');
     }
-    await expect(candidates.first().getByTestId('candidate-zone')).toContainText('«Клиентский зал» (z_client)');
+    // Уместны зоны, где рабочие места уже стоят в демо: клиентский зал и служебная.
+    await expect(candidates.first().getByTestId('candidate-zone')).toContainText(
+      /«(Клиентский зал|Служебная зона)» \(z_(client|back)\)/,
+    );
 
     // Зона варианта — среди ссылок рекомендации, правило уместности — в допущениях.
-    await expect(panel(page).locator('.advice__refs')).toContainText('z_client');
+    await expect(panel(page).locator('.advice__refs')).toContainText(/z_(client|back)/);
     await expect(panel(page).locator('.advice__refs')).not.toContainText('z_queue');
     await panel(page).locator('.advice__more summary').click();
     await expect(panel(page).locator('.advice__more')).toContainText('rule_workplace_min');
+    await expect(panel(page).locator('.advice__more')).toContainText('по текущей расстановке');
     await expect(panel(page).locator('.advice__more')).toContainText('не норматив Почты');
+
+    // Скамья ожидания: по всему помещению — только там, где скамьи уже стоят
+    // или требует правило (ожидание, очередь, комната персонала), не у окон.
+    await panel(page).getByLabel('Объект').selectOption('ot_bench');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+    await expect(panel(page).locator('.advice__sentence')).toContainText('Скамья');
+    const benches = panel(page).locator('.advice__candidates li');
+    await expect(benches.first()).toBeVisible();
+    const benchCount = await benches.count();
+    for (let index = 0; index < benchCount; index += 1) {
+      await expect(benches.nth(index).getByTestId('candidate-zone')).toContainText(/\(z_(waiting|queue|staff)\)/);
+    }
   });
 
   test('план изменили после ответа — панель говорит, что числа устарели', async ({ page }) => {

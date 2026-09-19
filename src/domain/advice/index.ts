@@ -71,26 +71,41 @@ function zoneFitNotes(
   typeLabel: string,
   found: number,
 ): { assumptions: string[]; limitations: string[] } {
+  const none = { assumptions: [], limitations: [] };
   const rules = fit.ruleIds.join(', ');
+  const placed =
+    fit.placedZoneTypeIds.length === 0
+      ? 'в плане таких объектов пока нет'
+      : `в плане такие объекты уже стоят в зонах ${zoneTypeLabels(plan, fit.placedZoneTypeIds)}`;
   const basis =
-    `Уместность зоны выведена из правил комплектования справочника (${rules}): ` +
-    `это правило команды, не норматив Почты России.`;
+    `Уместные зоны — по правилам команды (${rules}) и по текущей расстановке: ${placed}. ` +
+    `Это правило команды, не норматив Почты России.`;
   const types = zoneTypeLabels(plan, fit.zoneTypeIds);
 
   if (fit.mode === 'no-rule') {
     return request.zoneId === null
       ? {
           assumptions: [
-            `Для «${typeLabel}» в справочнике нет правила комплектования по зонам — место искали по всему помещению, в любой зоне.`,
+            `Для «${typeLabel}» в справочнике нет правила комплектования с минимумом по зонам — место искали по всему помещению, в любой зоне.`,
           ],
           limitations: [],
         }
-      : { assumptions: [], limitations: [] };
+      : none;
+  }
+  if (fit.mode === 'off-floor') {
+    return request.zoneId === null
+      ? {
+          assumptions: [
+            `«${typeLabel}» не занимает пол (крепится на стену, потолок или ставится на стол) — по зонам поиск не сужали.`,
+          ],
+          limitations: [],
+        }
+      : none;
   }
   if (fit.mode === 'no-zones') {
     return {
       assumptions: [
-        `В плане нет зон — уместность зоны не проверялась. По правилам (${rules}) «${typeLabel}» ожидается в зонах: ${types}.`,
+        `В плане нет зон — уместность зоны не проверялась. По правилам команды (${rules}) «${typeLabel}» ожидается в зонах ${types}.`,
       ],
       limitations: [],
     };
@@ -99,7 +114,7 @@ function zoneFitNotes(
     const chosen = plan.zones.find((zone) => zone.id === request.zoneId);
     return {
       assumptions: [
-        `Зона «${chosen?.name ?? request.zoneId}» (${request.zoneId}) выбрана явно, хотя «${typeLabel}» ожидается в зонах: ${types}. Варианты показаны по вашему выбору. ${basis}`,
+        `Зона «${chosen?.name ?? request.zoneId}» (${request.zoneId}) выбрана явно, хотя уместными для «${typeLabel}» считаются зоны ${types}. Варианты показаны по вашему выбору. ${basis}`,
       ],
       limitations: [],
     };
@@ -108,11 +123,12 @@ function zoneFitNotes(
     return {
       assumptions: [basis],
       limitations: [
-        `В плане нет зоны типа ${types}: по правилам (${rules}) «${typeLabel}» ставится только туда. Разметьте такую зону или выберите зону явно.`,
+        `В плане нет зоны типа ${types}, где «${typeLabel}» уместен по правилам команды (${rules}) и по текущей расстановке. Разметьте такую зону или выберите зону явно.`,
       ],
     };
   }
 
+  if (request.zoneId !== null && found > 0) return none;
   const zones = plan.zones
     .filter((zone) => fit.zoneIds?.includes(zone.id))
     .map((zone) => `«${zone.name}» (${zone.id})`)
@@ -121,7 +137,6 @@ function zoneFitNotes(
     request.zoneId === null
       ? `Искали только в зонах, где «${typeLabel}» уместен: ${zones}.`
       : `Во вложенных зонах другого назначения места не предлагаются: «${typeLabel}» уместен в зонах ${zones}.`;
-  if (request.zoneId !== null && found > 0) return { assumptions: [], limitations: [] };
   return {
     assumptions: [`${scope} ${basis}`],
     limitations:
