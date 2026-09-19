@@ -157,6 +157,15 @@ export function App(): React.JSX.Element {
     [compareBase, document, revision],
   );
 
+  // A recommendation belongs to the plan it was computed for: after «Открыть»
+  // or «Новый» its ids point at objects that no longer exist, and «план
+  // изменился» is too mild a warning for that — the answer goes away entirely.
+  const forgetAdvice = useCallback(() => {
+    setAdvice(null);
+    setAdviceState({ status: 'idle' });
+    setPreview(null);
+  }, []);
+
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {
       // 'file' — план пришёл из файла и считается сохранённым состоянием;
@@ -181,8 +190,9 @@ export function App(): React.JSX.Element {
       // Открыт другой документ: вид считается заново, даже если файл несёт ту
       // же личность, что и прежний.
       setDocumentEpoch((epoch) => epoch + 1);
+      forgetAdvice();
     },
-    [store],
+    [store, forgetAdvice],
   );
 
   const startNewPlan = useCallback(() => {
@@ -192,7 +202,8 @@ export function App(): React.JSX.Element {
     setTool({ kind: 'select' });
     setLastError(null);
     setDocumentEpoch((epoch) => epoch + 1);
-  }, []);
+    forgetAdvice();
+  }, [forgetAdvice]);
 
   return (
     <div className="shell">

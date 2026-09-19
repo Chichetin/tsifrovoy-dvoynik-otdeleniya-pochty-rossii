@@ -97,6 +97,12 @@ test.describe('ассистент в браузере', () => {
     await clickCanvas(page, 300, 260);
 
     await expect(panel(page).getByText('числа устарели')).toBeVisible();
+
+    // Другой документ — другой план: ответ про прежние id не показывается вовсе.
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
+    await expect(panel(page).locator('.advice__sentence')).toHaveCount(0);
+    await expect(panel(page).getByText('Ответа пока нет')).toBeVisible();
   });
 
   test('сценарий комплектования называет правило и его источник', async ({ page }) => {
