@@ -97,8 +97,15 @@ export type AdviceHttpRequest = {
   query?: string;
 };
 
-/** GET /api/health */
-export type HealthResponse = { status: 'ok' };
+/**
+ * GET /api/health. `llm` says which mode the assistant will answer in on this
+ * address: `configured: true` with the provider's name from LLM_PROVIDER — never
+ * a key, an endpoint or a model URI (D-200).
+ */
+export type HealthResponse = {
+  status: 'ok';
+  llm: { configured: false } | { configured: true; provider: string };
+};
 
 /**
  * 400 malformed structure, 413 body over LIMITS.maxRequestBytes, 422 geometry

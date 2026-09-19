@@ -14,7 +14,7 @@ import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { LIMITS } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
-import { describeConfig, readConfig } from './config';
+import { describeConfig, readConfig, publicModelName } from './config';
 import { createLlmClient } from './llm-client';
 
 export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
@@ -27,7 +27,10 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
 
   registerAdviceRoutes(app, {
     llm: config.llm === null ? null : createLlmClient(config.llm),
-    llmLabel: config.llm === null ? null : `${config.llm.provider}/${config.llm.model}`,
+    // Label for the fallback reason: the folder id of a cloud model URI is
+    // not for the browser (D-200).
+    llmLabel: config.llm === null ? null : `${config.llm.provider}/${publicModelName(config.llm.model)}`,
+    llmProvider: config.llm === null ? null : config.llm.provider,
     rateLimit: config.rateLimit,
   });
 

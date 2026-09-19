@@ -27,7 +27,7 @@ docker compose up --build -d
 
 ```bash
 docker compose ps                        # STATUS должен стать "Up ... (healthy)"
-curl http://127.0.0.1:8080/api/health    # {"status":"ok"}
+curl http://127.0.0.1:8080/api/health    # {"status":"ok","llm":{"configured":false}} — с ключом: {"configured":true,"provider":"…"}
 ```
 
 Редактор открывается в браузере по адресу <http://127.0.0.1:8080> (на удалённой машине —
@@ -180,6 +180,6 @@ docker run -d --name ops-digital-twin -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 
 | Проверка | Команда | Результат 17.09.2026 |
 |---|---|---|
 | Образ собирается и контейнер поднимается | `docker compose up --build -d` | `Up ... (healthy)` |
-| Health | `curl http://127.0.0.1:8080/api/health` | `{"status":"ok"}` |
+| Health | `curl http://127.0.0.1:8080/api/health` | `{"status":"ok","llm":{"configured":…}}` — `configured: true` и подпись провайдера, если ключ на сервере задан; ключ не выдаётся |
 | Сервис целиком | `DEPLOY_URL=http://127.0.0.1:8080 npx playwright test tests/e2e/deployment.spec.ts` | `5 passed` |
 | Без адреса деплоя тесты не трогают чужой порт | `npx playwright test tests/e2e/deployment.spec.ts` | `5 skipped` |

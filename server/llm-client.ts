@@ -30,6 +30,12 @@ export const LLM_ISSUE_CODES = {
   LLM_HTTP_ERROR: 'LLM_HTTP_ERROR',
   /** The provider's body is not the OpenAI-compatible shape. */
   LLM_BODY_UNEXPECTED: 'LLM_BODY_UNEXPECTED',
+  /**
+   * The answer has no text: a reasoning model spent `max_tokens` on
+   * `reasoning_content` (finish_reason `length`), or the provider returned an
+   * empty message. Raise LLM_MAX_OUTPUT_TOKENS rather than blame the JSON.
+   */
+  LLM_EMPTY_CONTENT: 'LLM_EMPTY_CONTENT',
 } as const;
 
 export type LlmRequest = { system: string; user: string };
@@ -38,7 +44,12 @@ export type LlmClient = (request: LlmRequest) => Promise<Result<string>>;
 
 const completionSchema = z.object({
   choices: z
-    .array(z.object({ message: z.object({ content: z.string() }) }))
+    .array(
+      z.object({
+        message: z.object({ content: z.string().nullable() }),
+        finish_reason: z.string().nullable().optional(),
+      }),
+    )
     .min(1),
 });
 
@@ -112,6 +123,17 @@ export function createLlmClient(config: LlmConfig): LlmClient {
       );
     }
 
-    return { ok: true, value: parsed.data.choices[0]?.message.content ?? '' };
+    const choice = parsed.data.choices[0];
+    const content = choice?.message.content ?? '';
+    if (content.trim() === '') {
+      const outOfTokens = choice?.finish_reason === 'length';
+      return failure(
+        LLM_ISSUE_CODES.LLM_EMPTY_CONTENT,
+        outOfTokens
+          ? `лимит ${config.maxOutputTokens} токенов ушёл на рассуждение, текста не осталось — поднимите LLM_MAX_OUTPUT_TOKENS.`
+          : 'пустой ответ.',
+      );
+    }
+    return { ok: true, value: content };
   };
 }

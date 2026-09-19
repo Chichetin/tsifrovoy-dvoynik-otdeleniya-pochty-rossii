@@ -239,7 +239,7 @@ Chrome или Edge можно явно — `PW_CHANNEL=chrome npm run test:e2e`
 git clone https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii.git ops-digital-twin
 cd ops-digital-twin
 docker compose up --build -d          # порт занят: PORT=8081 docker compose up --build -d
-curl http://127.0.0.1:8080/api/health # {"status":"ok"}
+curl http://127.0.0.1:8080/api/health # {"status":"ok","llm":{"configured":false}}; с ключом — configured:true
 ```
 
 Редактор и API ассистента — на одном адресе <http://127.0.0.1:8080>. Ключ провайдера LLM
