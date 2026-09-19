@@ -62,6 +62,13 @@
 4. ~~Решить судьбу MR !79~~ — сделано 19.09: закрыт как дубль влитого !81 (D-147), разбор
    в самом MR и в «Блокерах». Ветка на сервере сохранена.
 
+**Холст на 1000 объектах после D-186:** зоны `PlanGeometryLayer` (прозрачность 0.75, заливка и
+обводка) и конусы и подписи `InformationLayer` рисуются тем же буферным холстом Konva, что символы
+оборудования до D-186. В CPU-профиле (dev, 1000 объектов / 50 зон, 3 перерисовки) после
+исправления оборудования на этот путь осталось 117 мс `drawImage`+`restore` (≈ 40 мс на кадр)
+против 5,1 с до него — правка тем же флагом `perfectDrawEnabled: false` у владельцев слоёв
+(поток 2 и слои), с тем же unit-тестом на `_useBufferCanvas()`.
+
 Первый `jury` на `e006411` — **2,20 / 3**, «не готово к сдаче». Из его топ-5 за день закрыто без человека:
 README с таблицей для проверяющего и единым разделом ограничений, ZIP в `output/demo/` в git
 (D-149); типы зон из панели «Справочник» (D-150); правила команды на примере организаторов в
@@ -117,6 +124,7 @@ Chrome (`1fc4d2d`), вписывание плана и переход холст
 
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
+| 2026-09-19 | Claude Code (поток 5) | Q02-select: символы оборудования без буферного холста Konva — шаг zoom на 1000 объектах 1487 → 93 мс, открытие 6,5 → 4,1 с, выбор 97 мс (production-сборка, Linux без GPU-ускорения холста); `PERF_SERVER=preview` в perf-конфиге, пороги выбора и zoom в спеке; `afterEach(cleanup)` в smoke — профилактика, флейк не воспроизведён (20/20 и 40/40) (D-186) | ветка `worktree-5-perf-select`, MR после push | `PERF_SERVER=preview npx playwright test -c playwright.perf.config.ts`: до — 1/3 (zoom 453 и 1487 мс > 300), после — 3/3; `EquipmentLayer.test.tsx` 3/3, без флага 3 failed; мутации 5/5 убиты; полный набор — в отчёте MR |
 | 2026-09-19 | Claude Code (поток 1) | S01-followup по ревью MR !64: пропажа проёма при правке контура называется в момент жеста — `droppedOpeningNotice` в `src/features/plan-tools/notice.ts`, оба исполнителя жеста (D-182) | [MR !114](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/114), `f61f12f` | unit 791 passed; e2e `plan-tools`+`round-trip` 11 passed; typecheck/lint/build |
 | 2026-09-19 | Claude Code (поток 2) | U04-keys: правка выбранного с клавиатуры — стрелки 0,5 м, Shift+стрелка 0,05 м, Ctrl+C/Ctrl+V со смещением и свежим id мимо `retired`; вставка не требует выделения (D-180, D-181) | [MR !113](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/113), `f8e8a06` | unit 789 passed; полный e2e 98 passed + 5 skipped; typecheck/lint/build |
 | 2026-09-19 | Claude Code (интеграция) | MR !112 тиммейта слит после ревью diff: ассистент предлагает место у стены, а не посреди зала (D-178) | [MR !112](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/112), `839e4f9` | unit 762 passed; e2e `assistant`+`round-trip` 8 passed; typecheck/lint |
