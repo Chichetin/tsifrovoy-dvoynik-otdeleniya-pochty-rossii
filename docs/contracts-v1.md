@@ -207,8 +207,9 @@ Store-интерфейс: `dispatch(command): Result<PlanDocument>`, `replaceDoc
 `document`, `revision:number`, `selection`, `dirty` доступны только для чтения.
 Удачный dispatch/replace/undo/redo увеличивает revision. Сохранение не меняет revision.
 `markExported(revision:number): void` отмечает только актуальную revision после
-успешной подготовки файла; устаревшая revision игнорируется. Store хранит baseline
-снимка, принятого через replaceDocument или markExported; dirty — сравнение содержимого
+успешной подготовки файла; устаревшая revision игнорируется. Store публикует только для
+чтения `baseline: PlanDocument` — единый снимок для `dirty` и сценария сравнения
+ассистента. Он принимается через replaceDocument или markExported; dirty — сравнение содержимого
 документа с baseline, поэтому undo к нему сбрасывает dirty. Это отметка подготовленного
 экспорта, не подтверждение записи на диск. Новое несохранённое помещение и восстановление
 черновика получают dirty=true; ошибка скачивания не меняет baseline. Черновик его
