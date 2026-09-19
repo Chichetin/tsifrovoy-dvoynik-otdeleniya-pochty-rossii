@@ -15,6 +15,7 @@ import { useState } from 'react';
 import type { Equipment, Layer, LayerType, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
+import { editableContentLayer } from '../../domain/content-layer';
 import { legendOf } from './legend';
 
 /** Пустое поле — это «значения нет», а не ноль. */
@@ -83,8 +84,7 @@ export function LayersPanel({
    * информационный слой ничего не содержит, и складывать в него зоны нельзя.
    */
   const moveTargetFor = (layer: Layer): Layer | undefined => {
-    const free = ordered.filter((entry) => entry.id !== layer.id && !entry.locked);
-    return free.find((entry) => entry.typeId === null) ?? free[0];
+    return editableContentLayer(ordered, layer.id);
   };
 
   const contentOf = (layer: Layer): { zones: Zone[]; objects: Equipment[] } => ({

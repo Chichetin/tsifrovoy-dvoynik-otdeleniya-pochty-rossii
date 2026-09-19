@@ -37,6 +37,9 @@
 
 ## 2. Ассистент выбирает слой по другому правилу, чем редактор (Strong, дёшево)
 
+**Статус 19.09:** исправлено в ветке `worktree-editable-layer-maxim` (D-174): четыре
+потребителя вызывают `editableContentLayer`, отказ и общий предикат закрыты unit-тестами.
+
 **Где:** `src/domain/advice/placement.ts:391` — `plan.layers.find((entry) => !entry.locked)`.
 Три места интерфейса требуют ещё и `typeId === null`:
 `src/features/plan-tools/use-plan-tool-controller.ts:72`,
