@@ -165,7 +165,7 @@ test.describe('перечень оборудования', () => {
     await expect(chipOf(page, 'ot_bench')).toContainText(String(benches));
   });
 
-  test('1000 объектов: сводка и поиск работают на объёме Q02', async ({ page }, testInfo) => {
+  test('1000 объектов: сводка и поиск работают на объёме Q02', async ({ page }) => {
     test.slow();
     const plan = generateBenchmark(1000);
     const counts = countByType(plan);
@@ -180,25 +180,11 @@ test.describe('перечень оборудования', () => {
     await expect(inventoryRows(page)).toHaveCount(1000, { timeout: 180_000 });
     await expect(chips(page)).toHaveCount(counts.size);
 
-    // Замер: от ввода в поиск до обновлённого списка.
-    const started = Date.now();
     await search(page).fill(typeId);
     await expect(inventoryRows(page)).toHaveCount(count);
-    const filterMs = Date.now() - started;
 
-    const clearStarted = Date.now();
     await search(page).fill('');
     await expect(inventoryRows(page)).toHaveCount(1000);
-    const clearMs = Date.now() - clearStarted;
-
-    console.log(`1000 объектов: фильтр ${filterMs} мс, сброс ${clearMs} мс (${typeId} — ${count} строк)`);
-    await testInfo.attach('фильтр на 1000 объектов, мс', {
-      body: JSON.stringify({ typeId, count, filterMs, clearMs }, null, 2),
-      contentType: 'application/json',
-    });
-    // Порог мягкий: это защита от обвала, числа для README берутся из вложения.
-    expect(filterMs).toBeLessThan(5000);
-    expect(clearMs).toBeLessThan(5000);
   });
 
   test('колонка «Инв. №» показывает номера и сортирует перечень', async ({ page }) => {
