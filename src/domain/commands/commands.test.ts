@@ -744,3 +744,51 @@ describe('applyCommand: план и помещение', () => {
     }
   });
 });
+
+describe('applyCommand: пакет команд (batch)', () => {
+  test('шаги применяются по порядку, результат — один документ', () => {
+    const plan = minimalPlan();
+    const moved = expectOk(
+      applyCommand(plan, {
+        type: 'batch',
+        commands: [
+          { type: 'object.put', object: objectAt('eq_a', [2, 2]) },
+          { type: 'object.put', object: objectAt('eq_b', [4, 2]) },
+          { type: 'object.delete', id: 'eq_work_1' },
+        ],
+      }),
+    );
+    expect(moved.objects.map((object) => object.id).sort()).toEqual(['eq_a', 'eq_b']);
+  });
+
+  test('всё или ничего: отказ шага — отказ пакета с его кодом, исходный план не тронут', () => {
+    const plan = minimalPlan();
+    const result = applyCommand(plan, {
+      type: 'batch',
+      commands: [
+        { type: 'object.put', object: objectAt('eq_a', [2, 2]) },
+        { type: 'object.delete', id: 'eq_missing' },
+      ],
+    });
+    expect(result.ok).toBe(false);
+    expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.BROKEN_REF);
+    expect(plan.objects.map((object) => object.id)).toEqual(['eq_work_1']);
+  });
+
+  test('пустой пакет отклоняется: пустой шаг истории не нужен', () => {
+    expect(codes(applyCommand(minimalPlan(), { type: 'batch', commands: [] }))).toContain(
+      COMMAND_ISSUE_CODES.BATCH_EMPTY,
+    );
+  });
+
+  test('вложенный пакет — тоже пакет', () => {
+    const plan = minimalPlan();
+    const result = expectOk(
+      applyCommand(plan, {
+        type: 'batch',
+        commands: [{ type: 'batch', commands: [{ type: 'object.delete', id: 'eq_work_1' }] }],
+      }),
+    );
+    expect(result.objects).toEqual([]);
+  });
+});
