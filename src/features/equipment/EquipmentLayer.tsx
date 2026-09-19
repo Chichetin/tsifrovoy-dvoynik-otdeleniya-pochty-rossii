@@ -12,7 +12,7 @@
  * file only converts the pointer to world metres and draws the result.
  */
 
-import { Fragment, useEffect, useState } from 'react';
+import { Fragment, memo, useEffect, useState } from 'react';
 import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Equipment, Point } from '../../contracts/model';
@@ -60,8 +60,18 @@ type EquipmentSymbolProps = {
   strokeWidth: number;
 };
 
-/** The catalog symbol as a Konva shape centred on its group's origin; no behaviour. */
-function EquipmentSymbol({ symbol, width, height, ...paint }: EquipmentSymbolProps): React.JSX.Element {
+/**
+ * The catalog symbol as a Konva shape centred on its group's origin; no behaviour.
+ * Memoised on its primitive props: react-konva repaints a whole layer as soon as
+ * one node gets a "new" prop, and a `points` array built on every render is
+ * always new. With the memo a click elsewhere leaves a thousand shapes untouched.
+ */
+const EquipmentSymbol = memo(function EquipmentSymbol({
+  symbol,
+  width,
+  height,
+  ...paint
+}: EquipmentSymbolProps): React.JSX.Element {
   if (symbol === 'circle') {
     return <Circle radius={Math.max(width, height) / 2} {...paint} />;
   }
@@ -75,7 +85,7 @@ function EquipmentSymbol({ symbol, width, height, ...paint }: EquipmentSymbolPro
     );
   }
   return <Rect width={width} height={height} offsetX={width / 2} offsetY={height / 2} {...paint} />;
-}
+});
 
 export function EquipmentLayer({
   document: plan,
@@ -187,7 +197,6 @@ export function EquipmentLayer({
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
     const [x, y] = modelToScreen(current.position, viewport);
-    const selected = selection?.kind === 'object' && selection.id === object.id;
     const movedTo = (node: Konva.Node): Point =>
       snapPosition(screenToModel([node.x(), node.y()], viewport));
 
@@ -223,8 +232,10 @@ export function EquipmentLayer({
           height={current.size_m[1] * viewport.scale}
           fill={type?.color ?? FALLBACK_COLOR}
           opacity={ghost ? 0.45 : 0.9}
-          stroke={selected ? SELECTED_STROKE : '#343A40'}
-          strokeWidth={selected ? 2.5 : 1}
+          // Selection is drawn on its own layer below: a shape that depends on
+          // `selection` would make every click repaint all thousand of them.
+          stroke="#343A40"
+          strokeWidth={1}
         />
       </Group>
     );
@@ -340,73 +351,83 @@ export function EquipmentLayer({
   // proposing something that is not in the document yet.
   const previewObject = preview?.object ?? null;
 
+  // Two Konva layers: the objects, which change only with the document, the
+  // viewport and a gesture; and the selection — outline and handles — which
+  // changes on every click. Konva repaints a whole layer canvas when any node
+  // in it changes, so keeping the selection apart means a click on a plan of
+  // 1000 objects repaints one outline, not a thousand shapes (Q02, D-177).
   return (
-    <Layer>
-      {plan.objects
-        .filter((object) => visibleLayers.has(object.layerId))
-        .map((object) => render(object, false))}
+    <>
+      <Layer name="equipment">
+        {plan.objects
+          .filter((object) => visibleLayers.has(object.layerId))
+          .map((object) => render(object, false))}
 
-      {previewObject === null ? null : render(previewObject, true)}
+        {previewObject === null ? null : render(previewObject, true)}
 
-      {/* Captions sit above every shape and never catch the pointer: the plan
-          is read by a manager who should not have to click to learn what a
-          rectangle is. Objects too small on screen stay uncaptioned. */}
-      {plan.objects
-        .filter((object) => visibleLayers.has(object.layerId))
-        .map((object) => {
-          const label = objectLabel(shown(object), viewport);
-          if (label === null) return null;
-          // Konva counts padding inside the box: without it the second line is cut.
-          const height = label.lines * LABEL_LINE_PX + 2;
-          return (
-            <Label
-              key={`label-${object.id}`}
-              name={`label-${object.id}`}
-              x={label.x - label.width / 2}
-              y={label.y - height / 2}
-              listening={false}
-            >
-              {/* A pale tag under the text: dark letters on a red rack are unreadable. */}
-              <Tag fill="#FFFFFF" opacity={0.72} cornerRadius={2} />
-              <Text
-                width={label.width}
-                height={height}
-                text={label.text}
-                fontSize={label.fontSize}
-                lineHeight={LABEL_LINE_PX / label.fontSize}
-                fontFamily="system-ui, sans-serif"
-                fill="#212529"
-                align="center"
-                verticalAlign="middle"
-                wrap={label.lines === 2 ? 'word' : 'none'}
-                ellipsis
-                padding={1}
-              />
-            </Label>
-          );
-        })}
+        {/* Captions sit above every shape and never catch the pointer: the plan
+            is read by a manager who should not have to click to learn what a
+            rectangle is. Objects too small on screen stay uncaptioned. */}
+        {plan.objects
+          .filter((object) => visibleLayers.has(object.layerId))
+          .map((object) => {
+            const label = objectLabel(shown(object), viewport);
+            if (label === null) return null;
+            // Konva counts padding inside the box: without it the second line is cut.
+            const height = label.lines * LABEL_LINE_PX + 2;
+            return (
+              <Label
+                key={`label-${object.id}`}
+                name={`label-${object.id}`}
+                x={label.x - label.width / 2}
+                y={label.y - height / 2}
+                listening={false}
+              >
+                {/* A pale tag under the text: dark letters on a red rack are unreadable. */}
+                <Tag fill="#FFFFFF" opacity={0.72} cornerRadius={2} />
+                <Text
+                  width={label.width}
+                  height={height}
+                  text={label.text}
+                  fontSize={label.fontSize}
+                  lineHeight={LABEL_LINE_PX / label.fontSize}
+                  fontFamily="system-ui, sans-serif"
+                  fill="#212529"
+                  align="center"
+                  verticalAlign="middle"
+                  wrap={label.lines === 2 ? 'word' : 'none'}
+                  ellipsis
+                  padding={1}
+                />
+              </Label>
+            );
+          })}
 
-      {selectedObject === null || !selectedVisible ? null : (
-        <Line
-          key={`outline-${selectedObject.id}`}
-          points={footprint(shown(selectedObject)).flatMap((point) =>
-            modelToScreen(point, viewport),
-          )}
-          closed
-          stroke={SELECTED_STROKE}
-          strokeWidth={1}
-          dash={[4, 3]}
-          listening={false}
-        />
-      )}
+      </Layer>
 
-      {/* A locked layer shows the selection but offers nothing to pull. */}
-      {!picking || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
-        ? null
-        : [
-            ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),
-            renderRotationHandle(selectedObject),
-          ]}
-    </Layer>
+      <Layer name="equipment-selection">
+        {selectedObject === null || !selectedVisible ? null : (
+          <Line
+            key={`outline-${selectedObject.id}`}
+            points={footprint(shown(selectedObject)).flatMap((point) =>
+              modelToScreen(point, viewport),
+            )}
+            closed
+            stroke={SELECTED_STROKE}
+            strokeWidth={2}
+            dash={[4, 3]}
+            listening={false}
+          />
+        )}
+
+        {/* A locked layer shows the selection but offers nothing to pull. */}
+        {!picking || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
+          ? null
+          : [
+              ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),
+              renderRotationHandle(selectedObject),
+            ]}
+      </Layer>
+    </>
   );
 }

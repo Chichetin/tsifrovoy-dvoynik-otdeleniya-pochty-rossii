@@ -13,7 +13,7 @@
  * after that the view belongs to the user until they ask for «Вписать».
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
 import type { Point, Polygon } from '../../contracts/model';
@@ -247,7 +247,37 @@ export function EditorCanvas({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onPointer, onSelect]);
 
-  const grid = size.width > 0 ? gridLines(session.viewport, size) : null;
+  const grid = useMemo(
+    () => (size.width > 0 ? gridLines(session.viewport, size) : null),
+    [session.viewport, size],
+  );
+  // Grid and axes depend on the viewport and the canvas size only. Built on
+  // every render, their `points` arrays would be "new" props for react-konva
+  // and repaint the grid layer on every click in a panel (D-177).
+  const gridLayer = useMemo(
+    () =>
+      grid === null ? null : (
+        <>
+          {grid.vertical.map((x) => (
+            <Line key={`v${x}`} points={[x, 0, x, size.height]} stroke={GRID_COLOR} strokeWidth={1} />
+          ))}
+          {grid.horizontal.map((y) => (
+            <Line key={`h${y}`} points={[0, y, size.width, y]} stroke={GRID_COLOR} strokeWidth={1} />
+          ))}
+          <Line
+            points={[session.viewport.origin[0], 0, session.viewport.origin[0], size.height]}
+            stroke={AXIS_COLOR}
+            strokeWidth={1.5}
+          />
+          <Line
+            points={[0, session.viewport.origin[1], size.width, session.viewport.origin[1]]}
+            stroke={AXIS_COLOR}
+            strokeWidth={1.5}
+          />
+        </>
+      ),
+    [grid, session.viewport, size.width, size.height],
+  );
   // Видимый кусок мира числами: на нём держится браузерная проверка «объект
   // действительно в кадре», которую по картинке не сделать.
   const visible = size.width > 0 ? boundingBox(visibleExtent(session.viewport, size)) : null;
@@ -280,37 +310,17 @@ export function EditorCanvas({
           }
           style={{ background: BACKGROUND }}
         >
-          <Layer listening={false}>
-            {grid?.vertical.map((x) => (
-              <Line
-                key={`v${x}`}
-                points={[x, 0, x, size.height]}
-                stroke={GRID_COLOR}
-                strokeWidth={1}
-              />
-            ))}
-            {grid?.horizontal.map((y) => (
-              <Line
-                key={`h${y}`}
-                points={[0, y, size.width, y]}
-                stroke={GRID_COLOR}
-                strokeWidth={1}
-              />
-            ))}
-            <Line
-              points={[session.viewport.origin[0], 0, session.viewport.origin[0], size.height]}
-              stroke={AXIS_COLOR}
-              strokeWidth={1.5}
-            />
-            <Line
-              points={[0, session.viewport.origin[1], size.width, session.viewport.origin[1]]}
-              stroke={AXIS_COLOR}
-              strokeWidth={1.5}
-            />
+          <Layer listening={false} name="grid">
+            {gridLayer}
           </Layer>
           {children}
-          {ring === null || focusExtent === null ? null : (
-            <Layer listening={false}>
+          {/* The focus layer is always mounted, empty most of the time: adding
+              or removing a Konva layer makes the stage repaint every layer,
+              which on a plan of 1000 objects turned each click in a panel
+              into seconds of drawing (Q02, D-177). */}
+          <Layer listening={false} name="focus-ring">
+            {ring === null || focusExtent === null ? null : (
+              <>
               <Line
                 points={screenPoints(focusExtent, session.viewport)}
                 closed
@@ -327,8 +337,9 @@ export function EditorCanvas({
                 strokeWidth={2}
                 opacity={0.8}
               />
-            </Layer>
-          )}
+              </>
+            )}
+          </Layer>
         </Stage>
       ) : null}
       {/* Подпись и кнопка держатся вместе в одном углу: каждый угол, занятый
