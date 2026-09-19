@@ -165,6 +165,23 @@ async function captionPixels(page: Page, box: { x: number; y: number; w: number;
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('после удаления объект ставится снова: удалённый id не переиспользуется, но и не мешает', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await placeFromLibrary(page, RACK, 420, 330);
+    await expect(inventoryRows(page)).toHaveCount(1);
+    await selectRow(page, 0);
+    await page.keyboard.press('Delete');
+    await expect(inventoryRows(page)).toHaveCount(0);
+
+    await placeFromLibrary(page, RACK, 300, 260);
+    await expect(inventoryRows(page)).toHaveCount(1);
+    await expect(page.locator('.shell__error')).toHaveCount(0);
+    await selectRow(page, 0);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+  });
+
   test('объект подписан на холсте своим названием, без клика', async ({ page }) => {
     await page.goto('/');
     const centre: Screen = { x: 420, y: 330 };
