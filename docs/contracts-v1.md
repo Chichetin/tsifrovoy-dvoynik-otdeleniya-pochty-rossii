@@ -172,6 +172,8 @@ type Command =
   | { type: 'opening.put'; opening: Opening }
   | { type: 'opening.delete'; id: Id }
   | { type: 'catalog.replace'; catalog: Catalog }
+  | { type: 'plan.rename'; name: string }
+  | { type: 'room.setCeiling'; ceilingHeight_m: number }
   | { type: 'relations.reconcile' };
 // applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument>
 // decodePlan(text: string): Result<PlanDocument>

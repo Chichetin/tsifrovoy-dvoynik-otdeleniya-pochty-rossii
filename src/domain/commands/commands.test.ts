@@ -663,3 +663,36 @@ describe('applyCommand: стены, проёмы и справочник', () =>
     expect(updated.objects[0]!.attributes.shift).toBe('день');
   });
 });
+
+describe('applyCommand: план и помещение', () => {
+  test('plan.rename обрезает пробелы и отказывает на пустом названии', () => {
+    const plan = minimalPlan();
+    const renamed = expectOk(applyCommand(plan, { type: 'plan.rename', name: '  ОПС-77  ' }));
+    expect(renamed.name).toBe('ОПС-77');
+    expect(codes(applyCommand(plan, { type: 'plan.rename', name: '   ' }))).toContain(
+      COMMAND_ISSUE_CODES.NAME_EMPTY,
+    );
+  });
+
+  test('room.setCeiling поднимает наружные стены и не трогает перегородки', () => {
+    const plan = minimalPlan();
+    const [a, b, c, d] = plan.room.boundary;
+    if (a === undefined || b === undefined || c === undefined || d === undefined) throw new Error('контур');
+    const mid = (p: number[], q: number[]): [number, number] => [((p[0] ?? 0) + (q[0] ?? 0)) / 2, ((p[1] ?? 0) + (q[1] ?? 0)) / 2];
+    const withWalls = expectOk(
+      applyCommand(
+        expectOk(applyCommand(plan, { type: 'wall.put', wall: { id: 'w_outer', from: a, to: b, thickness_m: 0.2, height_m: 2.5 } })),
+        { type: 'wall.put', wall: { id: 'w_inner', from: mid(a, d), to: mid(b, c), thickness_m: 0.1, height_m: 2.2 } },
+      ),
+    );
+    const raised = expectOk(applyCommand(withWalls, { type: 'room.setCeiling', ceilingHeight_m: 3.4 }));
+    expect(raised.room.ceilingHeight_m).toBe(3.4);
+    expect(raised.walls.find((w) => w.id === 'w_outer')?.height_m).toBe(3.4);
+    expect(raised.walls.find((w) => w.id === 'w_inner')?.height_m).toBe(2.2);
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(codes(applyCommand(plan, { type: 'room.setCeiling', ceilingHeight_m: bad }))).toContain(
+        COMMAND_ISSUE_CODES.CEILING_INVALID,
+      );
+    }
+  });
+});

@@ -27,7 +27,7 @@ import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
 import { hasZoneCycle, reconcileZones } from '../relations';
-import { rebuildOuterWalls } from './room-walls';
+import { outerWallIds, rebuildOuterWalls } from './room-walls';
 
 /**
  * Thickness for outer walls of a plan that had none (team assumption, D-134).
@@ -48,6 +48,10 @@ export const COMMAND_ISSUE_CODES = {
   ATTRIBUTE_TYPE: 'ATTRIBUTE_TYPE',
   /** A deleted id is never reused. */
   ID_REUSED: 'ID_REUSED',
+  /** plan.rename with a blank name: the file would be called nothing. */
+  NAME_EMPTY: 'NAME_EMPTY',
+  /** room.setCeiling needs a finite height above zero. */
+  CEILING_INVALID: 'CEILING_INVALID',
 } as const;
 
 export type CommandIssueCode =
@@ -600,6 +604,33 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       return {
         ok: true,
         value: { ...plan, openings: plan.openings.filter((opening) => opening.id !== command.id) },
+      };
+    }
+
+    case 'plan.rename': {
+      const name = command.name.trim();
+      if (name === '') {
+        return fail(COMMAND_ISSUE_CODES.NAME_EMPTY, 'У плана должно быть название.', []);
+      }
+      return { ok: true, value: { ...plan, name } };
+    }
+
+    case 'room.setCeiling': {
+      const height = command.ceilingHeight_m;
+      const ref: Ref = { kind: 'room', id: plan.room.id };
+      if (!Number.isFinite(height) || height <= 0) {
+        return fail(COMMAND_ISSUE_CODES.CEILING_INVALID, 'Высота потолка — число больше нуля, в метрах.', [ref]);
+      }
+      // Outer walls are the outline made solid (D-134): they rise with the
+      // ceiling. Partitions keep the height their own card gave them.
+      const outer = outerWallIds(plan.walls, plan.room.boundary);
+      return {
+        ok: true,
+        value: {
+          ...plan,
+          room: { ...plan.room, ceilingHeight_m: height },
+          walls: plan.walls.map((wall) => (outer.has(wall.id) ? { ...wall, height_m: height } : wall)),
+        },
       };
     }
 
