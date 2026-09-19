@@ -84,6 +84,10 @@ export function App(): React.JSX.Element {
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
+  // A response belongs to the latest request, not merely to a plan revision.
+  // A new plan starts at revision 0 too, so comparing revisions cannot reject
+  // a late answer from the document that was open before «Новый».
+  const adviceRequestSequence = useRef(0);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -162,6 +166,7 @@ export function App(): React.JSX.Element {
 
   const askAssistant = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
+      const sequence = ++adviceRequestSequence.current;
       setAdviceState({ status: 'loading' });
       // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
       // если план успели поправить, пока сервер считал.
@@ -171,6 +176,10 @@ export function App(): React.JSX.Element {
         request.scenario === 'compare' ? { ...request, before: baseline } : request;
       const asked = { plan: document, revision, request: grounded, ...(query === undefined ? {} : { query }) };
       void requestAdvice(asked).then((result) => {
+        // The document may have been replaced, or another request may have
+        // started while this one was in flight. In either case this answer no
+        // longer owns the panel.
+        if (sequence !== adviceRequestSequence.current) return;
         if (!result.ok) {
           setAdvice(null);
           setAdviceState({
@@ -190,6 +199,9 @@ export function App(): React.JSX.Element {
   // or «Новый» its ids point at objects that no longer exist, and «план
   // изменился» is too mild a warning for that — the answer goes away entirely.
   const forgetAdvice = useCallback(() => {
+    // Invalidates an in-flight answer before clearing the visible one. Without
+    // this, «Новый» briefly clears the panel and the old answer repopulates it.
+    adviceRequestSequence.current += 1;
     setAdvice(null);
     setAdviceState({ status: 'idle' });
     setPreview(null);
