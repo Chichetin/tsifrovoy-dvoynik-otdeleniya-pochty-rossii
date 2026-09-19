@@ -345,10 +345,6 @@ export function FileControls({
         Открыть
       </button>
 
-      <button type="button" className="files__button is-primary" onClick={save}>
-        Сохранить
-      </button>
-
       <button
         type="button"
         className="files__button"
@@ -357,6 +353,10 @@ export function FileControls({
         onClick={exportImage}
       >
         Картинка
+      </button>
+
+      <button type="button" className="files__button is-primary" onClick={save}>
+        Сохранить
       </button>
 
       <input

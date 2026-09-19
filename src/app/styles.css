@@ -1,15 +1,65 @@
 /* U01: the shell's layout and the shared look of the panels. Feature modules
-   keep their own local styles; nothing here reaches into their internals. */
+   keep their own local styles; nothing here reaches into their internals.
+
+   UI-1А (D-196): one set of tokens for the whole app. Semantic names first;
+   the old short names (--ink, --muted, --line, --surface, --ground, --accent,
+   --error, --warning) stay as aliases because module blocks below use them. */
 
 :root {
-  --ink: #212529;
-  --muted: #868e96;
-  --line: #dee2e6;
-  --surface: #ffffff;
-  --ground: #f1f3f5;
-  --accent: #1971c2;
-  --error: #c92a2a;
-  --warning: #e8590c;
+  /* Colour: a cool, paper-and-ink engineering palette with one postal blue.
+     Text pairs are AA on surface and ground: muted 6.2:1 / 5.5:1. */
+  --color-ink: #1c2833;
+  --color-muted: #56626e;
+  --color-line: #d3d9e0;
+  --color-line-strong: #a7b1bc;
+  --color-surface: #ffffff;
+  --color-ground: #eef1f4;
+  --color-hover: #e4e9ee;
+  --color-accent: #0b5cad;
+  --color-accent-strong: #084a8c;
+  --color-accent-soft: #e5eef8;
+  --color-danger: #b3261e;
+  --color-danger-soft: #fcebea;
+  --color-warning: #9a4a00;
+  --color-warning-soft: #fdf1e3;
+  --color-success: #1e6f3a;
+  --color-success-soft: #e6f3ea;
+  --color-focus: #0b5cad;
+
+  /* Spacing, radii by hierarchy, type scale (nothing below 12 px). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --radius-s: 3px;
+  --radius-m: 5px;
+  --radius-l: 8px;
+  --text-xs: 12px;
+  --text-s: 13px;
+  --text-m: 14px;
+  --text-l: 16px;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Liberation Sans", sans-serif;
+  --font-code: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace;
+  --motion-fast: 120ms;
+
+  /* Shell geometry: the header never changes height with its content. */
+  --bar-row: 48px;
+  --strip-row: 28px;
+  --control-h: 30px;
+  --side-left: 260px;
+  --side-right: 340px;
+
+  /* Aliases kept for module blocks. */
+  --ink: var(--color-ink);
+  --text: var(--color-ink);
+  --muted: var(--color-muted);
+  --line: var(--color-line);
+  --surface: var(--color-surface);
+  --ground: var(--color-ground);
+  --accent: var(--color-accent);
+  --error: var(--color-danger);
+  --warning: var(--color-warning);
   color-scheme: light;
 }
 
@@ -19,9 +69,60 @@
 
 body {
   margin: 0;
-  background: var(--ground);
-  color: var(--ink);
-  font: 14px/1.45 system-ui, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font: var(--text-m) / 1.45 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Base controls. `:where` keeps specificity at zero, so every module class
+   still wins; only unstyled controls take these values. */
+:where(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(button) {
+  cursor: pointer;
+}
+
+:where(button:disabled) {
+  cursor: not-allowed;
+}
+
+:where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
+  padding: 3px 6px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-s);
+  background: var(--color-surface);
+}
+
+:where(input[type='checkbox'], input[type='radio']) {
+  accent-color: var(--color-accent);
+}
+
+/* One focus ring for everything a keyboard can reach, and only for the
+   keyboard: a mouse click does not leave a frame behind. */
+:where(button, a, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+:where(button, a, input, select, textarea, summary) {
+  transition:
+    color var(--motion-fast) ease-out,
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out,
+    opacity var(--motion-fast) ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
 
 .shell {
@@ -30,52 +131,137 @@ body {
   height: 100vh;
 }
 
+/* Header: row one holds the controls and never wraps; row two is the status
+   strip and always takes its height, empty or not. Tool hints are a plaque
+   over the canvas (see .toolbar__hints), so no message moves the plan. */
 .shell__bar {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-rows: var(--bar-row) minmax(var(--strip-row), auto);
   align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 8px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
+  column-gap: var(--space-4);
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-line);
+  white-space: nowrap;
 }
 
 .shell__title {
+  grid-row: 1;
+  grid-column: 1;
   margin: 0;
-  font-size: 15px;
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--color-line);
+  font-size: var(--text-m);
   font-weight: 600;
+  line-height: 20px;
+}
+
+.shell__bar > .shell__view {
+  grid-row: 1;
+  grid-column: 4;
+}
+
+.shell__bar > .shell__history {
+  grid-row: 1;
+  grid-column: 5;
 }
 
 .shell__history {
   display: flex;
-  gap: 4px;
+  gap: 2px;
 }
 
+/* Quiet buttons: history actions sit beside the work, not on top of it. */
+.shell__quiet {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: var(--control-h);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-s);
+}
+
+.shell__quiet:hover {
+  background: var(--color-hover);
+}
+
+.shell__quiet:active {
+  background: var(--color-line);
+}
+
+.shell__icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* A refused edit is a plaque at the top right of the canvas, next to where
+   the hand is, and it does not push the plan down. */
 .shell__error {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-3);
+  z-index: 1;
+  display: flex;
+  gap: var(--space-2);
+  max-width: min(560px, 60%);
   margin: 0;
-  padding: 8px 16px;
-  background: #fff5f5;
-  color: var(--error);
-  border-bottom: 1px solid var(--line);
+  padding: 6px 10px;
+  /* A plaque over the canvas must not steal the next click on the plan. */
+  pointer-events: none;
+  border: 1px solid var(--color-danger);
+  border-left-width: 3px;
+  border-radius: var(--radius-m);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: var(--text-s);
+  line-height: 1.4;
+}
+
+.shell__error::before {
+  content: '!' / '';
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .shell__body {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) 340px;
+  grid-template-columns: var(--side-left) minmax(0, 1fr) var(--side-right);
   flex: 1;
   min-height: 0;
 }
 
 .shell__side {
   overflow-y: auto;
-  padding: 12px;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-line);
 }
 
 .shell__side--wide {
   border-right: none;
-  border-left: 1px solid var(--line);
+  border-left: 1px solid var(--color-line);
 }
 
 .shell__canvas {
@@ -127,117 +313,414 @@ body {
   color: var(--accent);
 }
 
+/* Plan tools: a segmented switch — one tool is on, and it shows. */
 .toolbar {
+  grid-row: 1;
+  grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 4px;
 }
 
 .toolbar__button,
 .files__button {
-  padding: 5px 10px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--surface);
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: var(--control-h);
+  padding: 0 10px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  color: var(--color-ink);
   font: inherit;
+  font-size: var(--text-s);
+  line-height: 1.2;
   cursor: pointer;
 }
 
 .toolbar__button:hover,
 .files__button:hover {
-  border-color: var(--accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
 }
 
-.toolbar__button.is-active {
-  border-color: var(--accent);
-  background: #e7f5ff;
-  color: var(--accent);
+.toolbar__button:active,
+.files__button:active {
+  background: #d5e3f3;
 }
 
-.files__button.is-primary {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+.toolbar__button:disabled,
+.files__button:disabled {
+  border-color: var(--color-line);
+  background: var(--color-ground);
+  color: var(--color-muted);
+  cursor: not-allowed;
 }
 
-.toolbar__note,
-.files__status {
-  color: var(--muted);
-  font-size: 12px;
+.toolbar__button[aria-pressed] {
+  position: relative;
+  border-radius: 0;
+  background: var(--color-surface);
 }
 
+.toolbar__button[aria-pressed] + .toolbar__button[aria-pressed] {
+  margin-left: -1px;
+}
+
+.toolbar__button[aria-pressed]:first-child {
+  border-radius: var(--radius-m) 0 0 var(--radius-m);
+}
+
+.toolbar__button[aria-pressed]:not(:has(+ .toolbar__button[aria-pressed])) {
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+}
+
+.toolbar__button[aria-pressed]:hover {
+  z-index: 1;
+}
+
+.toolbar__button.is-active,
+.shell__view .files__button[aria-pressed='true'] {
+  z-index: 2;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+/* «Удалить …» belongs to the selection, not to the tool set: it stands apart
+   and speaks in the danger colour. */
+.toolbar__button:not([aria-pressed]) {
+  margin-left: var(--space-2);
+  color: var(--color-danger);
+}
+
+.toolbar__button:not([aria-pressed]):hover {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+/* Hints and refusals of the plan tools: a plaque over the top left of the
+   canvas, under the header. It is positioned against the header, so its
+   appearance changes nothing in the layout, and it lets clicks through. */
+.toolbar__hints {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: calc(var(--side-left) + var(--space-3));
+  z-index: 1;
+  display: grid;
+  gap: 2px;
+  max-width: min(440px, calc((100vw - var(--side-left) - var(--side-right)) * 0.4));
+  padding: 6px 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-m);
+  background: rgb(255 255 255 / 94%);
+  white-space: normal;
+  pointer-events: none;
+}
+
+.toolbar__note {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.toolbar__note.is-notice {
+  color: var(--color-danger);
+}
+
+.toolbar__note.is-notice::before {
+  content: '!' / '';
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: -2px;
+}
+
+/* View switch: same segmented look as the tools, smaller set. */
+.shell__view {
+  display: flex;
+}
+
+.shell__view .files__button {
+  position: relative;
+  min-width: 40px;
+  border-radius: 0;
+}
+
+.shell__view .files__button:first-child {
+  border-radius: var(--radius-m) 0 0 var(--radius-m);
+}
+
+.shell__view .files__button:last-child {
+  margin-left: -1px;
+  border-radius: 0 var(--radius-m) var(--radius-m) 0;
+}
+
+/* File group: secondary buttons, «Сохранить» filled and last. */
 .files {
+  grid-row: 1;
+  grid-column: 6;
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
 }
 
-/* Сообщения файловой группы живут отдельной строкой шапки и занимают её
-   всегда, даже пустые: подпись черновика, появившаяся через секунду после
-   правки, иначе переносила бы кнопки на новую строку и двигала холст под
-   курсором. */
-.files__messages {
-  flex-basis: 100%;
-  min-height: 20px;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.files__button.is-primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.files__button.is-primary:hover {
+  border-color: var(--color-accent-strong);
+  background: var(--color-accent-strong);
+}
+
+.files__button.is-primary:active {
+  background: #063a6e;
+}
+
+.files__status {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .files__status.is-dirty {
-  color: var(--warning);
+  color: var(--color-warning);
+}
+
+/* Save state: the first cell of the status strip, fixed width, text and a
+   mark — never colour alone. Positioned against the header, not the group. */
+.files > .files__status {
+  position: absolute;
+  top: var(--bar-row);
+  left: var(--space-4);
+  width: 190px;
+  height: var(--strip-row);
+  overflow: hidden;
+  color: var(--color-ink);
+  line-height: var(--strip-row);
+  text-overflow: ellipsis;
+}
+
+.files > .files__status::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border: 1.5px solid var(--color-muted);
+  border-radius: 50%;
+  vertical-align: 0;
+}
+
+.files > .files__status.is-dirty {
+  color: var(--color-warning);
+}
+
+.files > .files__status.is-dirty::before {
+  border-color: var(--color-warning);
+  background: var(--color-warning);
+}
+
+/* Status strip: the second header row. It holds its height even when empty;
+   single-line messages shrink with an ellipsis instead of wrapping, and only
+   a file error may take a second line — it has to be read in full. */
+.files__messages {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  min-height: var(--strip-row);
+  padding-left: calc(190px + var(--space-3));
+  border-top: 1px solid var(--color-line);
+}
+
+.files__messages > .files__status {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files__messages > [data-testid='draft-restore'] {
+  flex: none;
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-ink);
+}
+
+.files__messages .files__button {
+  min-height: 22px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
+}
+
+.files__messages > details {
+  position: relative;
+  flex: none;
+  overflow: visible;
+}
+
+.files__messages > details > summary {
+  cursor: pointer;
+}
+
+.files__messages > details > ul {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 10;
+  width: min(520px, 60vw);
+  max-height: 50vh;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
+  overflow-y: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  box-shadow: 0 4px 16px rgb(28 40 51 / 16%);
+  color: var(--color-ink);
+  white-space: normal;
 }
 
 .files__error {
+  display: flex;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 240px;
   margin: 0;
-  color: var(--error);
-  font-size: 12px;
+  padding: 3px 0;
+  color: var(--color-danger);
+  font-size: var(--text-xs);
+  white-space: normal;
+}
+
+.files__error::before {
+  content: '!' / '';
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Below 1600 px the header tightens so it still fits one row with the
+   longest «Удалить перегородку»; below 1400 px the history keeps only its
+   icons, the names stay for screen readers and in the tooltip. */
+@media (max-width: 1599px) {
+  .shell__bar {
+    column-gap: var(--space-3);
+    padding: 0 var(--space-3);
+  }
+
+  .shell__title {
+    padding-right: 0;
+    border-right: none;
+    font-size: var(--text-s);
+  }
+
+  .files > .files__status {
+    left: var(--space-3);
+  }
+
+  .shell__view .files__button {
+    min-width: 36px;
+  }
+
+  .toolbar__button:not([aria-pressed]) {
+    margin-left: var(--space-1);
+  }
+
+  .toolbar__button,
+  .shell__bar .files__button {
+    padding: 0 var(--space-2);
+  }
+
+  .files {
+    gap: var(--space-1);
+  }
+}
+
+@media (max-width: 1399px) {
+  .shell__quiet .shell__label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 .panel {
-  margin-bottom: 20px;
+  margin-bottom: var(--space-5);
 }
 
+/* Panel headings: sentence case, bold, ink — the panel's name, not a label. */
 .panel__title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 8px;
-  font-size: 13px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+  color: var(--color-ink);
+  font-size: var(--text-m);
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .panel__count {
   padding: 0 6px;
   border-radius: 9px;
-  background: var(--ground);
-  color: var(--ink);
-  font-size: 12px;
+  background: var(--color-ground);
+  color: var(--color-ink);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
 }
 
 .panel__count.is-error {
-  background: #ffe3e3;
-  color: var(--error);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 
 .panel__empty,
 .panel__note {
-  margin: 4px 0;
-  color: var(--muted);
-  font-size: 12px;
+  margin: var(--space-1) 0;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
 }
 
 .panel__search {
   width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-2);
   padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: 5px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-s);
   font: inherit;
 }
 
@@ -934,18 +1417,8 @@ span.inventory__num {
   padding: 1px 0;
 }
 
-/* D01: 3D-вид — оверлей над холстом 2D, тот же документ, без своего состояния. */
-.shell__view {
-  display: flex;
-  gap: 4px;
-}
-
-.shell__view .files__button[aria-pressed='true'] {
-  background: var(--accent, #0055a5);
-  color: #fff;
-  border-color: var(--accent, #0055a5);
-}
-
+/* D01: 3D-вид — оверлей над холстом 2D, тот же документ, без своего состояния.
+   Переключатель 2D/3D — в блоке шапки выше (UI-1А). */
 .view3d {
   position: absolute;
   inset: 0;
