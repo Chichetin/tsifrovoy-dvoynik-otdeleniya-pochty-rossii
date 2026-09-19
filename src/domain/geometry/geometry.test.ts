@@ -20,6 +20,7 @@ import {
   objectInterval,
   objectsShareSpace,
   polygonArea,
+  polygonSegmentDistance,
   rotateOffset,
   screenToModel,
   viewSector,
@@ -295,5 +296,34 @@ describe('сектор обзора', () => {
     expect(viewSector([0, 0], 0, 0, 3)).toHaveLength(26);
     expect(polygonArea(viewSector([0, 0], 0, 0, 3))).toBeCloseTo(0, CLOSE);
     expect(polygonArea(viewSector([0, 0], 0, 540, 3, 720))).toBeCloseTo(Math.PI * 9, 3);
+  });
+});
+
+describe('расстояние до отрезка', () => {
+  const square: Polygon = [
+    [0, 0],
+    [2, 0],
+    [2, 2],
+    [0, 2],
+  ];
+
+  test('отрезок в стороне — расстояние до ближайшего ребра', () => {
+    expect(polygonSegmentDistance(square, [5, 0], [5, 2])).toBeCloseTo(3, CLOSE);
+    expect(polygonSegmentDistance(square, [0, 5], [2, 5])).toBeCloseTo(3, CLOSE);
+  });
+
+  test('ближайшая точка может лежать внутри отрезка, а не в его конце', () => {
+    // Отрезок наклонён: перпендикуляр из угла (2,2) падает в его середину (4,4).
+    expect(polygonSegmentDistance(square, [2, 6], [6, 2])).toBeCloseTo(2 * Math.SQRT2, CLOSE);
+  });
+
+  test('касание, пересечение и отрезок внутри — ноль', () => {
+    expect(polygonSegmentDistance(square, [2, 0], [2, 2])).toBeCloseTo(0, CLOSE);
+    expect(polygonSegmentDistance(square, [-1, 1], [3, 1])).toBeCloseTo(0, CLOSE);
+    expect(polygonSegmentDistance(square, [0.5, 0.5], [1.5, 1.5])).toBeCloseTo(0, CLOSE);
+  });
+
+  test('вырожденный отрезок — это точка', () => {
+    expect(polygonSegmentDistance(square, [5, 1], [5, 1])).toBeCloseTo(3, CLOSE);
   });
 });

@@ -21,8 +21,8 @@ import type {
   Rule,
   Zone,
 } from '../../contracts/model';
-import { SCHEMA_VERSION } from '../../contracts/model';
-import { contains, footprint } from '../geometry';
+import { SCHEMA_VERSION, TOLERANCE } from '../../contracts/model';
+import { contains, footprint, polygonSegmentDistance } from '../geometry';
 import { validatePlan } from '../validation';
 import {
   PLACEMENT_ISSUE_CODES,
@@ -165,7 +165,7 @@ function values(document: PlanDocument, typeId: string, zoneId: string | null, a
 }
 
 describe('A01: поиск места', () => {
-  test('бюджет поиска ограничивает и клетки вне досягаемости входа', () => {
+  test('бюджет поиска ограничивает, а места остаются в досягаемости входа', () => {
     const document = plan({
       room: { id: 'room_main', boundary: [[0, 0], [1e6, 0], [1e6, 1e6], [0, 1e6]], ceilingHeight_m: 3 },
       walls: [{ id: 'wall', from: [0, 0], to: [10, 0], thickness_m: 0.2, height_m: 3 }],
@@ -180,12 +180,21 @@ describe('A01: поиск места', () => {
     const script = `
       import { findPlacements } from './src/domain/advice/placement.ts';
       const document = ${JSON.stringify(document)};
-      for (const openings of [document.openings, []]) {
-        const result = findPlacements({ ...document, openings }, {
-          scenario: 'place', typeId: 'ot_queue_terminal', zoneId: null,
-        });
-        if (!result.ok || result.value.length !== 0) process.exit(1);
+      const ask = (openings) => findPlacements({ ...document, openings }, {
+        scenario: 'place', typeId: 'ot_queue_terminal', zoneId: null,
+      });
+
+      // Вход — проём шириной 1 м от начала стены (0,0)–(10,0), центр (0,5; 0).
+      const reachable = ask(document.openings);
+      if (!reachable.ok || reachable.value.length === 0) process.exit(1);
+      for (const candidate of reachable.value) {
+        const [x, y] = candidate.object.position;
+        if (Math.hypot(x - 0.5, y) > 3 + 1e-6) process.exit(2);
       }
+
+      // Без входа правило «не далее 3 м от входа» неисполнимо: мест нет.
+      const unreachable = ask([]);
+      if (!unreachable.ok || unreachable.value.length !== 0) process.exit(3);
     `;
     const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
       timeout: 4000,
@@ -540,5 +549,60 @@ describe('A01: поиск места', () => {
     const result = place(document, 'ot_desk', null);
 
     expect(result.ok).toBe(false);
+  });
+});
+
+describe('A01: место у стены', () => {
+  /** Помещение 10×8 со стенами по контуру и проёмом-входом в нижней стене. */
+  function walled(overrides: Partial<PlanDocument> = {}): PlanDocument {
+    return plan({
+      walls: [
+        { id: 'w_south', from: [0, 0], to: [10, 0], thickness_m: 0.2, height_m: 3 },
+        { id: 'w_east', from: [10, 0], to: [10, 8], thickness_m: 0.2, height_m: 3 },
+        { id: 'w_north', from: [10, 8], to: [0, 8], thickness_m: 0.2, height_m: 3 },
+        { id: 'w_west', from: [0, 8], to: [0, 0], thickness_m: 0.2, height_m: 3 },
+      ],
+      openings: [
+        { id: 'op_entrance', wallId: 'w_south', offset_m: 4.5, width_m: 1, kind: 'entrance', sill_m: 0, height_m: 2 },
+      ],
+      ...overrides,
+    });
+  }
+
+  /** Зазор от отпечатка объекта до ближайшего ребра контура помещения. */
+  function gapToOutline(document: PlanDocument, object: Equipment): number {
+    const outline = document.room.boundary;
+    const shape = footprint(object);
+    let nearest = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < outline.length; i += 1) {
+      const from = outline[i]!;
+      const to = outline[(i + 1) % outline.length]!;
+      nearest = Math.min(nearest, polygonSegmentDistance(shape, from, to));
+    }
+    return nearest;
+  }
+
+  test('без указанной точки первый вариант стоит у стены, а не в середине зала', () => {
+    const document = walled();
+    const [best] = values(document, 'ot_desk', null);
+    expect(best).toBeDefined();
+    // Стена толщиной 0,2 м стоит по контуру, поэтому вплотную к ней — 0,1 м.
+    expect(gapToOutline(document, best!.object)).toBeLessThanOrEqual(0.1 + TOLERANCE.coordinate_m);
+  });
+
+  test('указанная точка важнее стены: у центра зала вариант встаёт рядом с ней', () => {
+    const document = walled();
+    const [best] = values(document, 'ot_desk', null, [5, 4]);
+    expect(best).toBeDefined();
+    expect(Math.hypot(best!.object.position[0] - 5, best!.object.position[1] - 4)).toBeLessThan(1);
+  });
+
+  test('в зоне место у стены помещения предпочитается середине зоны', () => {
+    const document = walled({
+      zones: [zone('z_hall', 'zt_client', [[0.2, 0.2], [6, 0.2], [6, 6], [0.2, 6]])],
+    });
+    const [best] = values(document, 'ot_desk', 'z_hall');
+    expect(best).toBeDefined();
+    expect(gapToOutline(document, best!.object)).toBeLessThanOrEqual(0.3 + TOLERANCE.coordinate_m);
   });
 });
