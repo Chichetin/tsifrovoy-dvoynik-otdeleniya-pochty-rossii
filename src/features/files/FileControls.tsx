@@ -129,6 +129,7 @@ export function FileControls({
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [dropped, setDropped] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
     given === undefined ? browserStorage() : given,
   );
@@ -192,6 +193,7 @@ export function FileControls({
     setAnswered(true);
     onReplace(opened.plan, origin);
     setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
+    setDropped(opened.dropped);
     setNotice(
       opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
     );
@@ -416,6 +418,18 @@ export function FileControls({
           {notice}
         </span>
       ) : null}
+
+      {dropped.length === 0 ? null : (
+        <details className="files__status" data-testid="dropped-fields">
+          <summary>Поля вне формата ({dropped.length}) — при сохранении не запишутся</summary>
+          <ul>
+            {dropped.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="panel__note">Своё поле лучше положить в «extensions»: этот блок файл переносит целиком.</p>
+        </details>
+      )}
 
       {assumptions.length === 0 ? null : (
         <details className="files__status" data-testid="organizer-assumptions">
