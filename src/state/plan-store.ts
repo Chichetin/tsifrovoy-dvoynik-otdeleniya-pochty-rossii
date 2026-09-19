@@ -100,9 +100,9 @@ export function createPlanStore(
         revision: state.revision + 1,
         selection: keepSelection(document, state.selection),
         dirty: isDirty(document),
-        // A fresh copy: subscribers compare by reference, and a delete is
-        // exactly the moment the set of retired ids changes.
-        retired: new Set(retired),
+        // Subscribers compare by reference: a fresh copy only when a delete
+        // actually retired something, so a move or an undo keeps the old set.
+        retired: state.retired.size === retired.size ? state.retired : new Set(retired),
       }));
     };
 

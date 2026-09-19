@@ -167,6 +167,13 @@ test.describe('слои в браузере', () => {
     await expect(
       layerItem(page, 'Основной').getByRole('button', { name: 'Удалить слой Основной' }),
     ).toBeDisabled();
+
+    // Удалённый слой камер добавляется снова: его прежний id ушёл в отставку,
+    // новый получает следующий номер, а не отказ.
+    await panel(page).getByLabel('Тип нового слоя').selectOption({ label: 'Камеры и зоны обзора' });
+    await panel(page).getByRole('button', { name: 'Добавить слой' }).click();
+    await expect(layerItem(page, 'Камеры и зоны обзора')).toHaveCount(1);
+    await expect(page.locator('.shell__error')).toHaveCount(0);
   });
 
   test('информационные слои: числа синтетические, план не меняется', async ({ page }) => {

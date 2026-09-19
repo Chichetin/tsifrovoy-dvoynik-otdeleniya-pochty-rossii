@@ -48,8 +48,17 @@ export function LayersPanel({
   const add = (): void => {
     const type = plan.catalog.layerTypes.find((entry) => entry.id === newTypeId) ?? null;
     const suffix = Date.now().toString(36);
+    // A layer removed this session retired its id (D-019): adding the same
+    // type again takes the next free number instead of a refused put.
+    const taken = new Set<string>([...plan.layers.map((layer) => layer.id), ...(session.retired ?? [])]);
+    const freeId = (base: string): string => {
+      if (!taken.has(base)) return base;
+      for (let index = 2; ; index += 1) {
+        if (!taken.has(`${base}_${index}`)) return `${base}_${index}`;
+      }
+    };
     put({
-      id: type === null ? `l_${suffix}` : `l_${type.id}`,
+      id: type === null ? freeId(`l_${suffix}`) : freeId(`l_${type.id}`),
       name: type === null ? `Слой ${plan.layers.length + 1}` : type.label,
       visible: true,
       locked: false,

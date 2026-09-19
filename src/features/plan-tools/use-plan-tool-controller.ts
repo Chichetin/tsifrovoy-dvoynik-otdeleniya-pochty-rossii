@@ -121,7 +121,8 @@ export const usePlanToolController: UsePlanToolController = ({
         setNotice(NO_WALL_UNDER_POINTER_NOTICE);
         return;
       }
-      const taken = new Set<Id>(plan.openings.map((entry) => entry.id));
+      // Openings are retired by opening.delete and by wall.delete alike.
+      const taken = new Set<Id>([...plan.openings.map((entry) => entry.id), ...(session.retired ?? [])]);
       // Вид проёма правится карточкой свойств; ставим обычную дверь.
       const opening = createOpening(hit.wall, point, 'door', taken);
       if (opening === null) {
@@ -131,7 +132,7 @@ export const usePlanToolController: UsePlanToolController = ({
       onCommand({ type: 'opening.put', opening });
       setNotice(null);
     },
-    [onCommand, plan.openings, plan.walls],
+    [onCommand, plan.openings, plan.walls, session.retired],
   );
 
   const handlePointer = useCallback(
