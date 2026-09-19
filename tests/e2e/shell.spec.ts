@@ -108,6 +108,23 @@ for (const size of [
   });
 }
 
+test('плашка «Правка отклонена» — вне шапки и не перехватывает клики по холсту', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
+
+  // Помещение выбирается кликом по полу; пустое название план не принимает (D-146).
+  await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 200 } });
+  await page.getByLabel('Название плана').fill('   ');
+  const plaque = page.locator('.shell__error');
+  await expect(plaque).toHaveAttribute('role', 'alert');
+  await expect(plaque).toContainText('Правка отклонена');
+
+  const bar = await page.locator('.shell__bar').boundingBox();
+  const box = await plaque.boundingBox();
+  expect(box!.y, 'плашка ниже шапки, а не в ней').toBeGreaterThanOrEqual(bar!.y + bar!.height);
+  await expect(plaque, 'плашка не перехватывает клики по плану под ней').toHaveCSS('pointer-events', 'none');
+});
+
 test('фокус с клавиатуры виден кольцом, мышью — нет', async ({ page }) => {
   await page.goto('/');
   const choose = page.getByRole('button', { name: 'Выбор', exact: true });

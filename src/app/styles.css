@@ -218,6 +218,8 @@ body {
   max-width: min(560px, 60%);
   margin: 0;
   padding: 6px 10px;
+  /* A plaque over the canvas must not steal the next click on the plan. */
+  pointer-events: none;
   border: 1px solid var(--color-danger);
   border-left-width: 3px;
   border-radius: var(--radius-m);
@@ -474,7 +476,6 @@ body {
 }
 
 .files__button.is-primary {
-  order: 1;
   border-color: var(--color-accent);
   background: var(--color-accent);
   color: #ffffff;
@@ -1002,9 +1003,7 @@ body {
 }
 
 .advice__limitations li::before {
-  content: '! ' / '';
-  color: var(--warning);
-  font-weight: 700;
+  content: '⚠ ';
 }
 
 /* U05: панель слоёв */
