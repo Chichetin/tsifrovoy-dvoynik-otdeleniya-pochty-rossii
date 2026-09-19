@@ -1,19 +1,17 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import nested from '../contracts/fixtures/nested.json';
 import type { PlanDocument } from '../contracts/model';
 import { parsePlanDocument } from '../contracts/schema';
 import { EMPTY_INDEX, ROOM_NAME, planIndex } from './plan-index';
 
-function loadPlan(name: string): PlanDocument {
-  const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
-  const parsed = parsePlanDocument(JSON.parse(readFileSync(path, 'utf8')) as unknown);
-  if (!parsed.ok) throw new Error(`Фикстура ${name} не разобралась`);
+function loadPlan(): PlanDocument {
+  const parsed = parsePlanDocument(nested as unknown);
+  if (!parsed.ok) throw new Error('Фикстура nested.json не разобралась');
   return parsed.value;
 }
 
 describe('индекс «id → название» (D-202)', () => {
-  const plan = loadPlan('nested.json');
+  const plan = loadPlan();
   const index = planIndex(plan);
 
   test('объект, зона, слой, помещение и типы справочника называются из самого плана', () => {

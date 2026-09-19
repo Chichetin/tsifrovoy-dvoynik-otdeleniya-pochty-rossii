@@ -12,12 +12,12 @@
  * editor, because automatic rearrangement is explicitly out of scope.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
 import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { renderExplanation } from '../../domain/advice';
-import { planIndex } from '../../domain/plan-index';
+import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
 type Scenario = AdviceRequest['scenario'];
@@ -63,13 +63,16 @@ function ownFacts(recommendation: Recommendation): Fact[] {
 }
 
 /** Names from the plan's own catalog, so a count has an identifiable subject. */
-function equipmentSubject(plan: PlanDocument, recommendation: Recommendation): string | null {
+function equipmentSubject(
+  plan: PlanDocument,
+  index: PlanIndex,
+  recommendation: Recommendation,
+): string | null {
   if (recommendation.scenario !== 'equipment') return null;
   const rule = plan.catalog.rules.find(
     (entry) => entry.kind === 'count' && recommendation.ruleIds.includes(entry.id),
   );
   if (rule?.kind !== 'count') return null;
-  const index = planIndex(plan);
   const type = index.objectTypeLabel(rule.objectTypeId);
   const zoneId = recommendation.refs.find((ref) => ref.kind === 'zone')?.id;
   const zone = zoneId === undefined ? null : index.zoneName(zoneId);
@@ -78,10 +81,10 @@ function equipmentSubject(plan: PlanDocument, recommendation: Recommendation): s
 }
 
 /** Где окажется вариант: имя и id зоны из плана, чтобы его можно было найти. */
-function candidateZone(plan: PlanDocument, candidate: Candidate): string {
+function candidateZone(index: PlanIndex, candidate: Candidate): string {
   const zoneId = candidate.object.zoneId;
   if (zoneId === null) return 'вне зон';
-  const name = planIndex(plan).zoneName(zoneId);
+  const name = index.zoneName(zoneId);
   return name === null ? `зона ${zoneId}` : `зона «${name}» (${zoneId})`;
 }
 
@@ -115,6 +118,8 @@ export function AssistantPanel({
     : '';
   const placeUnavailable = scenario === 'place' && currentTypeId === '';
 
+  // One index per document: names for every recommendation and candidate (D-202).
+  const names = useMemo(() => planIndex(plan), [plan]);
   const stale = response !== null && response.revision !== revision;
 
   function ask(): void {
@@ -256,7 +261,7 @@ export function AssistantPanel({
             );
             const sentence =
               explanation === undefined ? null : renderExplanation(recommendation, explanation);
-            const subject = equipmentSubject(plan, recommendation);
+            const subject = equipmentSubject(plan, names, recommendation);
 
             return (
               <article key={recommendation.id} className="advice">
@@ -290,7 +295,7 @@ export function AssistantPanel({
                           {candidate.object.rotation_deg}°
                         </span>
                         <span className="advice__zone" data-testid="candidate-zone">
-                          {candidateZone(plan, candidate)}
+                          {candidateZone(names, candidate)}
                         </span>
                         <span className="advice__forecast">
                           {candidate.facts

@@ -24,9 +24,9 @@
  */
 
 import { useDeferredValue, useMemo, useState } from 'react';
-import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import type { Id, PlanDocument } from '../../contracts/model';
 import type { InventoryPanelProps, RequestState } from '../../contracts/ui';
+import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import {
   absentTypes,
   display,

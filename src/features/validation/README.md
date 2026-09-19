@@ -14,8 +14,9 @@
 Следующие файлы создаются при реализации соответствующих пакетов:
 
 - `ValidationPanel.tsx` — V02.
-- имена находок — `planIndex(plan).nameOf(ref)` из `src/domain/plan-index` (D-202); своего `naming.ts` больше нет.
 - `IssueOverlay.tsx` — V02.
+
+Имена находок панель берёт из `planIndex(plan).nameOf(ref)` (`src/domain/plan-index`, D-202); своего `naming.ts` у модуля больше нет.
 
 **Проверки:** `ValidationPanel.test.tsx` (Vitest): название и `id` в находке, неизвестный `id`, порядок «ошибки раньше предупреждений»; spec в `tests/e2e/`; после подключения — общий Q01.
 
