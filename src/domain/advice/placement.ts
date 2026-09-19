@@ -36,11 +36,14 @@ import {
   intervalsOverlap,
   objectInterval,
   openingCentre,
+  locatePoint,
+  polygonSegmentDistance,
   wallObstacles,
   type BoundingBox,
   type HeightInterval,
 } from '../geometry';
 import { measurePlan } from '../metrics';
+import { editableContentLayer } from '../content-layer';
 import { resolveZone } from '../relations';
 import { validatePlan } from '../validation';
 
@@ -50,6 +53,8 @@ export const PLACEMENT_ISSUE_CODES = {
   UNKNOWN_OBJECT_TYPE: 'UNKNOWN_OBJECT_TYPE',
   /** The requested zone is not in the plan. */
   TARGET_ZONE_MISSING: 'TARGET_ZONE_MISSING',
+  /** There is no ordinary unlocked layer that may own a new object. */
+  TARGET_LAYER_MISSING: 'TARGET_LAYER_MISSING',
 } as const;
 
 /**
@@ -108,7 +113,48 @@ type Probe = { position: Point; rotation_deg: number; distance_m: number };
 
 type Blocker = { polygon: Polygon; box: BoundingBox };
 
-type VerifiedProbe = Probe & { object: Equipment; warnings: number };
+type VerifiedProbe = Probe & { object: Equipment; warnings: number; wallGap_m: number };
+
+/**
+ * Отрезки, которые для ранжирования считаются стеной.
+ *
+ * Стена — это сплошная её часть на высоте объекта: проём не стена, иначе
+ * лучшим местом для стола оказался бы вход. Контур помещения берётся только
+ * тогда, когда стен в плане нет вовсе, — у нарисованного с нуля плана стены
+ * появляются вместе с контуром, а у собранного руками фрагмента могут и не
+ * появиться, и тогда контур остаётся единственной границей зала.
+ */
+function wallEdgesFor(plan: PlanDocument, type: ObjectType): [Point, Point][] {
+  const interval = intervalOf(type);
+  const edges: [Point, Point][] = [];
+  const collect = (polygon: Polygon): void => {
+    for (let i = 0; i < polygon.length; i += 1) {
+      edges.push([polygon[i]!, polygon[(i + 1) % polygon.length]!]);
+    }
+  };
+
+  for (const wall of plan.walls) {
+    for (const solid of wallObstacles(wall, plan.openings, interval)) collect(solid);
+  }
+  if (edges.length === 0) collect(plan.room.boundary);
+  return edges;
+}
+
+/** Зазор от отпечатка до ближайшей стены; без стен — бесконечность. */
+function wallGap(shape: Polygon, edges: [Point, Point][]): number {
+  let nearest = Number.POSITIVE_INFINITY;
+  for (const [from, to] of edges) {
+    nearest = Math.min(nearest, polygonSegmentDistance(shape, from, to));
+    if (nearest <= TOLERANCE.coordinate_m) return 0;
+  }
+  return nearest;
+}
+
+/** Числа с сетки 0,1 м: разница меньше допуска — это одно и то же место. */
+function compareLengths(a: number, b: number): number {
+  return Math.abs(a - b) <= TOLERANCE.coordinate_m ? 0 : a - b;
+}
+
 
 function issue(code: string, message: string, refs: Ref[]): Issue {
   return { code, severity: 'error', message, refs };
@@ -286,12 +332,57 @@ function footprintKey(shape: Polygon): string {
     .join(';');
 }
 
+/**
+ * Клетки вдоль стен: объект ставится вплотную к стене и едет по ней с тем же
+ * шагом сетки, обеими сторонами (короткой и длинной).
+ *
+ * Зачем отдельный обход: кольцевой перебор от центра упирается в предел
+ * `maxVerified` задолго до стен, и ранжировать у стены становится нечего —
+ * список мест до неё просто не доходит. Порядок перебора ничего не разрешает
+ * сам по себе: каждая клетка всё равно проходит `fits` и полную проверку.
+ */
+function* wallHugCells(
+  plan: PlanDocument,
+  type: ObjectType,
+  edges: [Point, Point][],
+  step: number,
+): Generator<Point> {
+  const halfDepths = [type.defaultSize_m[1] / 2, type.defaultSize_m[0] / 2];
+  for (const [from, to] of edges) {
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    if (length <= TOLERANCE.coordinate_m) continue;
+    const ux = (to[0] - from[0]) / length;
+    const uy = (to[1] - from[1]) / length;
+    const midX = from[0] + ux * (length / 2);
+    const midY = from[1] + uy * (length / 2);
+
+    for (const sign of [1, -1]) {
+      const nx = -uy * sign;
+      const ny = ux * sign;
+      // Внутрь помещения смотрит только одна сторона ребра; наружные грани
+      // стены и её торцы отсеиваются здесь, а не в геометрии.
+      const probe: Point = [midX + nx * step, midY + ny * step];
+      if (locatePoint(probe, plan.room.boundary) !== 'inside') continue;
+
+      for (const depth of halfDepths) {
+        for (let along = 0; along <= length + TOLERANCE.coordinate_m; along += step) {
+          yield [
+            round6(from[0] + ux * along + nx * depth),
+            round6(from[1] + uy * along + ny * depth),
+          ];
+        }
+      }
+    }
+  }
+}
+
 function sweep(
   plan: PlanDocument,
   type: ObjectType,
   target: Polygon | null,
   anchor: Point,
   layerId: Id,
+  wallEdges: [Point, Point][] | null,
 ): Probe[] {
   const blockers = blockersFor(plan, type);
   const reaches = reachesFor(plan, type);
@@ -303,7 +394,16 @@ function sweep(
   let probes = 0;
   let cells = 0;
 
-  for (const position of cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m)) {
+  const rings = cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m);
+  const order =
+    wallEdges === null
+      ? rings
+      : (function* both() {
+          yield* wallHugCells(plan, type, wallEdges, PLACEMENT_SEARCH.step_m);
+          yield* rings;
+        })();
+
+  for (const position of order) {
     // Rejected cells still cost time. In particular an unreachable entrance
     // must not make the search walk an arbitrarily large grid without a limit.
     if (cells >= PLACEMENT_SEARCH.maxProbes) return found;
@@ -453,14 +553,14 @@ export const findPlacements: FindPlacements = (plan, request) => {
   const before = measurePlan(plan);
   if (!before.ok) return before;
 
-  const layer = plan.layers.find((entry) => !entry.locked) ?? plan.layers[0];
+  const layer = editableContentLayer(plan.layers);
   if (layer === undefined) {
     return {
       ok: false,
       issues: [
         issue(
-          PLACEMENT_ISSUE_CODES.TARGET_ZONE_MISSING,
-          'В плане нет ни одного слоя: новый объект некуда положить.',
+          PLACEMENT_ISSUE_CODES.TARGET_LAYER_MISSING,
+          'В плане нет незапертого обычного слоя: новый объект некуда положить.',
           [],
         ),
       ],
@@ -469,7 +569,15 @@ export const findPlacements: FindPlacements = (plan, request) => {
 
   const target = zone === null ? null : zone.polygon;
   const anchor = request.anchor ?? outlineCentre(target ?? plan.room.boundary);
-  const probes = sweep(plan, type, target, anchor, layer.id);
+  const wallEdges = wallEdgesFor(plan, type);
+  const probes = sweep(
+    plan,
+    type,
+    target,
+    anchor,
+    layer.id,
+    request.anchor === undefined ? wallEdges : null,
+  );
 
   const baseline = new Set(validatePlan(plan).map(issueKey));
   const taken = usedIds(plan);
@@ -483,15 +591,24 @@ export const findPlacements: FindPlacements = (plan, request) => {
       taken.delete(id);
       continue;
     }
-    verified.push({ ...probe, object, warnings });
+    verified.push({ ...probe, object, warnings, wallGap_m: wallGap(footprint(object), wallEdges) });
   }
 
-  // Ranking: no new problems first, then closeness to what the user pointed at,
-  // then a stable geometric order. This is a readable heuristic, not optimality.
+  // Ranking: no new problems first, then — по обстановке — близость к стене или
+  // к указанной точке, потом устойчивый геометрический порядок. Это читаемая
+  // эвристика, а не оптимум.
+  //
+  // Точку указал человек — она и решает: он попросил место "вот здесь", и
+  // отодвигать вариант к стене против его пальца нельзя. Точки нет — ассистент
+  // сам подставил центр зоны, и тогда "ближе к центру" не довод: мебель в
+  // отделении стоит по стенам, а середина зала нужна людям для прохода.
+  const pinned = request.anchor !== undefined;
   verified.sort(
     (a, b) =>
       a.warnings - b.warnings ||
-      a.distance_m - b.distance_m ||
+      (pinned
+        ? compareLengths(a.distance_m, b.distance_m) || compareLengths(a.wallGap_m, b.wallGap_m)
+        : compareLengths(a.wallGap_m, b.wallGap_m) || compareLengths(a.distance_m, b.distance_m)) ||
       a.position[0] - b.position[0] ||
       a.position[1] - b.position[1] ||
       a.rotation_deg - b.rotation_deg,

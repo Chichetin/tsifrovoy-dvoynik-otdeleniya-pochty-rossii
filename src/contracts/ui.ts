@@ -153,6 +153,10 @@ export type RequestState =
   | { status: 'error'; message: string }
   | { status: 'done' };
 
+export type AssistantPanelRequest =
+  | Exclude<AdviceRequest, { scenario: 'compare' }>
+  | { scenario: 'compare' };
+
 export type AssistantPanelProps = {
   document: PlanDocument;
   revision: number;
@@ -164,7 +168,7 @@ export type AssistantPanelProps = {
    * The panel owns the scenario and its parameters, so it is the panel that
    * starts the request; the app owns the transport and the resulting state.
    */
-  onAsk: (request: AdviceRequest, query?: string) => void;
+  onAsk: (request: AssistantPanelRequest, query?: string) => void;
 };
 
 export type View3DProps = {

@@ -13,13 +13,14 @@
  * after that the view belongs to the user until they ask for «Вписать».
  */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
 import type { Point, Polygon } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
 import { focusViewport, planExtent, refExtent } from './focus';
+import { isFitHotkey } from './hotkeys';
 import {
   type CanvasSize,
   fitToExtent,
@@ -44,13 +45,6 @@ const RING_GAP_PX = 14;
 
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
-
-/** Hotkeys belong to the plan, not to a text field the user is typing in. */
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
-}
 
 /** Мировой контур в плоский список экранных координат для Konva. */
 function screenPoints(extent: Polygon, viewport: { origin: Point; scale: number }): number[] {
@@ -153,8 +147,7 @@ export function EditorCanvas({
   // клавиша даёт «а», и hotkey не должен от этого пропадать.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.code !== 'KeyF' || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (isTypingTarget(event.target)) return;
+      if (!isFitHotkey(event)) return;
       event.preventDefault();
       fitPlan();
     };
@@ -254,7 +247,37 @@ export function EditorCanvas({
     return () => window.removeEventListener('keydown', onKey, true);
   }, [onPointer, onSelect]);
 
-  const grid = size.width > 0 ? gridLines(session.viewport, size) : null;
+  const grid = useMemo(
+    () => (size.width > 0 ? gridLines(session.viewport, size) : null),
+    [session.viewport, size],
+  );
+  // Grid and axes depend on the viewport and the canvas size only. Built on
+  // every render, their `points` arrays would be "new" props for react-konva
+  // and repaint the grid layer on every click in a panel (D-177).
+  const gridLayer = useMemo(
+    () =>
+      grid === null ? null : (
+        <>
+          {grid.vertical.map((x) => (
+            <Line key={`v${x}`} points={[x, 0, x, size.height]} stroke={GRID_COLOR} strokeWidth={1} />
+          ))}
+          {grid.horizontal.map((y) => (
+            <Line key={`h${y}`} points={[0, y, size.width, y]} stroke={GRID_COLOR} strokeWidth={1} />
+          ))}
+          <Line
+            points={[session.viewport.origin[0], 0, session.viewport.origin[0], size.height]}
+            stroke={AXIS_COLOR}
+            strokeWidth={1.5}
+          />
+          <Line
+            points={[0, session.viewport.origin[1], size.width, session.viewport.origin[1]]}
+            stroke={AXIS_COLOR}
+            strokeWidth={1.5}
+          />
+        </>
+      ),
+    [grid, session.viewport, size.width, size.height],
+  );
   // Видимый кусок мира числами: на нём держится браузерная проверка «объект
   // действительно в кадре», которую по картинке не сделать.
   const visible = size.width > 0 ? boundingBox(visibleExtent(session.viewport, size)) : null;
@@ -287,37 +310,17 @@ export function EditorCanvas({
           }
           style={{ background: BACKGROUND }}
         >
-          <Layer listening={false}>
-            {grid?.vertical.map((x) => (
-              <Line
-                key={`v${x}`}
-                points={[x, 0, x, size.height]}
-                stroke={GRID_COLOR}
-                strokeWidth={1}
-              />
-            ))}
-            {grid?.horizontal.map((y) => (
-              <Line
-                key={`h${y}`}
-                points={[0, y, size.width, y]}
-                stroke={GRID_COLOR}
-                strokeWidth={1}
-              />
-            ))}
-            <Line
-              points={[session.viewport.origin[0], 0, session.viewport.origin[0], size.height]}
-              stroke={AXIS_COLOR}
-              strokeWidth={1.5}
-            />
-            <Line
-              points={[0, session.viewport.origin[1], size.width, session.viewport.origin[1]]}
-              stroke={AXIS_COLOR}
-              strokeWidth={1.5}
-            />
+          <Layer listening={false} name="grid">
+            {gridLayer}
           </Layer>
           {children}
-          {ring === null || focusExtent === null ? null : (
-            <Layer listening={false}>
+          {/* The focus layer is always mounted, empty most of the time: adding
+              or removing a Konva layer makes the stage repaint every layer,
+              which on a plan of 1000 objects turned each click in a panel
+              into seconds of drawing (Q02, D-177). */}
+          <Layer listening={false} name="focus-ring">
+            {ring === null || focusExtent === null ? null : (
+              <>
               <Line
                 points={screenPoints(focusExtent, session.viewport)}
                 closed
@@ -334,25 +337,28 @@ export function EditorCanvas({
                 strokeWidth={2}
                 opacity={0.8}
               />
-            </Layer>
-          )}
+              </>
+            )}
+          </Layer>
         </Stage>
       ) : null}
+      {/* Подпись и кнопка держатся вместе в одном углу: каждый угол, занятый
+          накладкой, — это угол помещения, куда не поставить объект. */}
       {grid === null ? null : (
-        <button
-          type="button"
-          className="editor-canvas__fit"
-          data-testid="canvas-fit"
-          title="Показать план целиком (клавиша F)"
-          onClick={fitPlan}
-        >
-          Вписать
-        </button>
-      )}
-      {grid === null ? null : (
-        <p className="editor-canvas__scale" data-testid="canvas-scale">
-          Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
-        </p>
+        <div className="editor-canvas__hud">
+          <p className="editor-canvas__scale" data-testid="canvas-scale">
+            Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
+          </p>
+          <button
+            type="button"
+            className="editor-canvas__fit"
+            data-testid="canvas-fit"
+            title="Показать план целиком (клавиша F)"
+            onClick={fitPlan}
+          >
+            Вписать
+          </button>
+        </div>
       )}
     </div>
   );

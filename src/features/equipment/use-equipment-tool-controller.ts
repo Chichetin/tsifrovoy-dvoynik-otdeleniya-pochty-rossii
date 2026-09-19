@@ -10,6 +10,7 @@ import { useCallback } from 'react';
 import type { Id } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { defaultAttributes, findObjectType } from '../../domain/catalog';
+import { editableContentLayer } from '../../domain/content-layer';
 import { nextObjectId } from './selection-edit';
 import { snapPosition } from './transform';
 
@@ -27,8 +28,12 @@ export const useEquipmentToolController: UsePlanToolController = ({
       const type = findObjectType(plan.catalog, tool.typeId);
       // Только обычный слой: информационный слой — представление поверх плана
       // и ничего не содержит (D-063).
+      // No unlocked content layer: still address the first content layer, so
+      // the store refuses with «слой заперт» and the person learns why nothing
+      // was placed. A silent no-op is not an outcome (D-174 keeps content off
+      // informational layers; it does not ask for silence).
       const layer =
-        plan.layers.find((entry) => !entry.locked && entry.typeId === null) ?? plan.layers[0];
+        editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
       if (type === null || layer === undefined) return;
 
       // Ids of everything on the plan plus ids a delete retired this session:

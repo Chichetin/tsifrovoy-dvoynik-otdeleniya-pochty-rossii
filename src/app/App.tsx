@@ -12,7 +12,7 @@ import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { PlanDocument, Ref, Result, Viewport } from '../contracts/model';
-import type { EditorSession, RequestState, Tool } from '../contracts/ui';
+import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
 import { validatePlan } from '../domain/validation';
@@ -47,6 +47,7 @@ const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
 export function App(): React.JSX.Element {
   const [store, setStore] = useState(() => createPlanStore(createEmptyPlan(), 'new'));
   const document = useStore(store, (state) => state.document);
+  const baseline = useStore(store, (state) => state.baseline);
   const revision = useStore(store, (state) => state.revision);
   const selection = useStore(store, (state) => state.selection);
   const dirty = useStore(store, (state) => state.dirty);
@@ -60,12 +61,6 @@ export function App(): React.JSX.Element {
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
-  // The "before" of the compare scenario: the plan as opened, as reset by "New"
-  // or as last saved; a restored draft is its own "before". The store keeps the
-  // same snapshot for the dirty flag, but in a closure — tracking it here is
-  // cheaper than widening the store contract for one reader. Updated in the
-  // same three places as the store's baseline (D-131).
-  const [compareBase, setCompareBase] = useState<PlanDocument>(() => store.getState().document);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -102,7 +97,12 @@ export function App(): React.JSX.Element {
   // A drawing tool that just created something hands it over selected: the
   // card shows what was drawn, not what was picked a minute ago (operator
   // finding 9). The room is not created, only reshaped, so `room.set` stays
-  // out. Moves and edits go through `dispatch` untouched.
+  // out.
+  //
+  // A `put` from a tool also arrives when an existing entity is dragged or
+  // resized, and it selects that entity too: the person has just handled it,
+  // so the card follows their hand. Deletions and commands from panels go
+  // through plain `dispatch` and leave the selection alone.
   const dispatchAndSelect = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatch(command);
@@ -133,14 +133,14 @@ export function App(): React.JSX.Element {
   const metrics = useMemo(() => measurePlan(document), [document]);
 
   const askAssistant = useCallback(
-    (request: AdviceRequest, query?: string) => {
+    (request: AssistantPanelRequest, query?: string) => {
       setAdviceState({ status: 'loading' });
       // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
       // если план успели поправить, пока сервер считал.
       // The panel knows no document history and sends the current plan as
       // "before"; only the app knows the real one.
       const grounded: AdviceRequest =
-        request.scenario === 'compare' ? { ...request, before: compareBase } : request;
+        request.scenario === 'compare' ? { ...request, before: baseline } : request;
       const asked = { plan: document, revision, request: grounded, ...(query === undefined ? {} : { query }) };
       void requestAdvice(asked).then((result) => {
         if (!result.ok) {
@@ -155,7 +155,7 @@ export function App(): React.JSX.Element {
         setAdviceState({ status: 'done' });
       });
     },
-    [compareBase, document, revision],
+    [baseline, document, revision],
   );
 
   // A recommendation belongs to the plan it was computed for: after «Открыть»
@@ -178,7 +178,6 @@ export function App(): React.JSX.Element {
         plan.catalog.version === ORGANIZER_CATALOG_VERSION ? withTeamCatalog(plan, catalog) : null;
       const document = merged?.ok ? merged.value : plan;
       store.getState().replaceDocument(document, origin);
-      setCompareBase(document);
       // A refused merge is not a silent success: the plan opens as it came,
       // and the user is told the team rules and layers did not apply.
       setLastError(
@@ -199,7 +198,6 @@ export function App(): React.JSX.Element {
   const startNewPlan = useCallback(() => {
     const fresh = createPlanStore(createEmptyPlan(), 'new');
     setStore(fresh);
-    setCompareBase(fresh.getState().document);
     setTool({ kind: 'select' });
     setLastError(null);
     setDocumentEpoch((epoch) => epoch + 1);
@@ -237,8 +235,6 @@ export function App(): React.JSX.Element {
           onNew={startNewPlan}
           onExported={() => {
             store.getState().markExported(revision);
-            // The saved plan becomes the new "before".
-            setCompareBase(document);
           }}
         />
       </header>
@@ -251,13 +247,13 @@ export function App(): React.JSX.Element {
 
       <div className="shell__body">
         <aside className="shell__side">
-          <LibraryPanel catalog={document.catalog} onTool={setTool} />
           <LayersPanel
             document={document}
             session={session}
             onCommand={dispatch}
             onSelect={select}
           />
+          <LibraryPanel catalog={document.catalog} onTool={setTool} />
         </aside>
 
         <main className="shell__canvas">

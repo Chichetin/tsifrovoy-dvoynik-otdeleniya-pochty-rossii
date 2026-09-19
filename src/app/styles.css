@@ -89,10 +89,18 @@ body {
   inset: 0;
 }
 
-.editor-canvas__scale {
+/* Накладки холста собраны в один угол: свободный угол плана дороже
+   симметрии, кликом в занятый угол объект не поставишь. */
+.editor-canvas__hud {
   position: absolute;
   right: 12px;
   bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-canvas__scale {
   margin: 0;
   padding: 2px 8px;
   border-radius: 4px;
@@ -104,9 +112,6 @@ body {
 /* Вписывание — действие вида, а не документа, поэтому кнопка живёт на холсте
    рядом с масштабом, а не в панели инструментов плана. */
 .editor-canvas__fit {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
   padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
@@ -532,6 +537,9 @@ body {
 }
 
 .layers__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -552,6 +560,44 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 2px;
+  margin-top: 2px;
+}
+
+.layers__visible {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.layers__visible:hover {
+  background: var(--line);
+}
+
+.layers__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border: 1px solid var(--muted);
+  border-radius: 3px;
+  background: #fff;
+  font-size: 11px;
+  line-height: 1;
+}
+
+.layers__visible[aria-pressed='true'] .layers__check {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
 }
 
 /* The name takes a row of its own: five buttons beside it left «Тепловая н». */
@@ -562,6 +608,7 @@ body {
   border: 1px solid transparent;
   border-radius: 4px;
   font: inherit;
+  font-weight: 600;
   background: transparent;
 }
 
@@ -634,6 +681,39 @@ body {
   width: 34px;
   padding-left: 4px !important;
   color: var(--muted);
+}
+
+.layers__legend {
+  margin-top: 6px;
+  padding: 5px 6px;
+  border-radius: 4px;
+  background: var(--ground);
+}
+
+.layers__scale {
+  height: 10px;
+  border-radius: 3px;
+}
+
+.layers__scale-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+}
+
+.layers__legend-text {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.layers__swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 2px;
+  vertical-align: -1px;
 }
 
 /* U06: карточка свойств */

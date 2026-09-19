@@ -124,6 +124,45 @@ test.describe('холст показывает то, о чём спрашива�
     expect(errors).toEqual([]);
   });
 
+  test('Shift+F не сбрасывает масштаб, а нижний левый угол холста свободен', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await openBefore(page);
+    const box = await canvas(page).boundingBox();
+    expect(box).not.toBeNull();
+    const { x, y, width, height } = box as { x: number; y: number; width: number; height: number };
+
+    // Ревью MR !59: модификатор не проверялся, и заглавная «F» в любом месте
+    // страницы молча возвращала масштаб к вписанному плану.
+    await page.mouse.move(x + 200, y + 200);
+    for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, -240);
+    await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
+    const zoomed = await scale(page);
+
+    await page.keyboard.press('Shift+KeyF');
+    expect(await scale(page)).toBe(zoomed);
+    expect(holdsWholeRoom(await visibleBox(page))).toBe(false);
+
+    // Голая F по-прежнему вписывает: правило сузилось, а не пропало.
+    await page.keyboard.press('KeyF');
+    await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(true);
+
+    // Накладки собраны в правый нижний угол, левый принадлежит плану: раньше
+    // кнопка «Вписать» перехватывала здесь клики, и объект было не поставить.
+    const corner = await page.evaluate(
+      ([cx, cy]) => document.elementFromPoint(cx as number, cy as number)?.closest('[data-testid]')?.getAttribute('data-testid') ?? null,
+      [x + 20, y + height - 20],
+    );
+    expect(corner).toBe('editor-canvas');
+
+    const fit = await page.getByTestId('canvas-fit').boundingBox();
+    expect(fit).not.toBeNull();
+    expect((fit as { x: number }).x).toBeGreaterThan(x + width / 2);
+
+    expect(errors).toEqual([]);
+  });
+
   test('находка проверки и строка перечня приводят к объекту за стеной', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));

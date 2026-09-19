@@ -76,13 +76,18 @@ function objectSymbol(object: Equipment, plan: PlanDocument): string {
 
 /** Полный SVG-документ плана. */
 export function renderPlanSvg(plan: PlanDocument): string {
+  const visibleLayers = new Set(
+    plan.layers.filter((layer) => layer.visible).map((layer) => layer.id),
+  );
+  const visibleZones = plan.zones.filter((zone) => visibleLayers.has(zone.layerId));
+  const visibleObjects = plan.objects.filter((object) => visibleLayers.has(object.layerId));
   // Everything drawn takes part in the extent: a wall outside the outline
   // must not be cut off.
   const shapes: Polygon[] = [
     plan.room.boundary,
-    ...plan.zones.map((z) => z.polygon),
+    ...visibleZones.map((z) => z.polygon),
     ...plan.walls.map(wallPolygon),
-    ...plan.objects.map(footprint),
+    ...visibleObjects.map(footprint),
   ];
   const box = boundingBox(shapes.flat());
   const minX = box.minX - MARGIN_M;
@@ -90,7 +95,7 @@ export function renderPlanSvg(plan: PlanDocument): string {
   const width = box.maxX - box.minX + MARGIN_M * 2;
   const height = box.maxY - box.minY + MARGIN_M * 2;
 
-  const zones = plan.zones
+  const zones = visibleZones
     .slice()
     .sort((a, b) => (a.parentId === null ? 0 : 1) - (b.parentId === null ? 0 : 1))
     .map((zone) => {
@@ -122,8 +127,8 @@ export function renderPlanSvg(plan: PlanDocument): string {
     })
     .join('\n');
 
-  const objects = plan.objects.map((object) => objectSymbol(object, plan)).join('\n');
-  const objectLabels = plan.objects
+  const objects = visibleObjects.map((object) => objectSymbol(object, plan)).join('\n');
+  const objectLabels = visibleObjects
     .filter((object) => object.size_m[0] * object.size_m[1] >= MIN_LABELLED_AREA_M2)
     .map((object) => label([object.position[0], object.position[1] - object.size_m[1] / 2 - 0.15], object.label, 0.16))
     .join('\n');

@@ -33,11 +33,14 @@ export {
 export { fallbackExplanation, renderExplanation } from './templates';
 
 /** How the search was run, said plainly — the user is owed the method. */
-function searchNote(): string {
+function searchNote(pinned: boolean): string {
+  const order = pinned
+    ? 'кольцами от указанной точки'
+    : 'вдоль стен, затем кольцами от середины';
   return (
     `Перебор: сетка ${PLACEMENT_SEARCH.step_m} м, углы ` +
     `${PLACEMENT_SEARCH.angles_deg.join(' и ')}°, не более ` +
-    `${PLACEMENT_SEARCH.maxProbes} проверок, кольцами от указанной точки.`
+    `${PLACEMENT_SEARCH.maxProbes} проверок, ${order}.`
   );
 }
 
@@ -105,7 +108,10 @@ function placementAdvice(
         ruleIds: rulesForObjectType(plan.catalog, request.typeId).map((rule) => rule.id),
         assumptions: [
           `Размеры и высота взяты из справочника: ${type?.label ?? request.typeId}, ${type?.provenance ?? 'источник не указан'}.`,
-          searchNote(),
+          searchNote(request.anchor !== undefined),
+          request.anchor === undefined
+            ? 'Допущение команды, не норматив Почты России: при прочих равных место у стены лучше места посреди зала — середина нужна людям для прохода.'
+            : 'Точку указали вручную: варианты ранжируются по близости к ней, а не к стене.',
           ...ruleNotes(plan, request.typeId),
         ],
         reasonCodes: [reasonCode],
