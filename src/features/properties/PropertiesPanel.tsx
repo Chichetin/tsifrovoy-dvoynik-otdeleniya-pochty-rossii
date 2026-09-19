@@ -26,6 +26,7 @@ import type {
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
+import { polygonArea } from '../../domain/geometry';
 
 type Errors = Record<string, string>;
 
@@ -81,7 +82,19 @@ export function PropertiesPanel({
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
 
+  // Drafts and errors belong to the card they were typed into: a refused name
+  // for the plan must not show up in the name field of the zone clicked next.
+  const selectionKey =
+    session.selection === null ? '' : `${session.selection.kind}:${session.selection.id}`;
+  const [draftsFor, setDraftsFor] = useState(selectionKey);
+  if (draftsFor !== selectionKey) {
+    setDraftsFor(selectionKey);
+    setDraft({});
+    setErrors({});
+  }
+
   const selection = session.selection;
+  const room = selection?.kind === 'room' ? plan.room : undefined;
   const zone = selection?.kind === 'zone' ? plan.zones.find((item) => item.id === selection.id) : undefined;
   const object =
     selection?.kind === 'object' ? plan.objects.find((item) => item.id === selection.id) : undefined;
@@ -93,15 +106,19 @@ export function PropertiesPanel({
    * Одна правка — одна команда. Принятая правка стирает свой черновик и свою
    * ошибку; отклонённая оставляет и то, и другое.
    */
-  const commit = (field: string, entity: Editable | null, raw?: string): void => {
+  const commit = (field: string, entity: Editable | null, raw?: string): void =>
+    commitCommand(field, entity === null ? null : commandFor(entity), raw);
+
+  /** Та же дисциплина для правок, у которых нет сущности: план и помещение. */
+  const commitCommand = (field: string, command: Command | null, raw?: string): void => {
     if (raw !== undefined) setDraft((current) => ({ ...current, [field]: raw }));
 
-    if (entity === null) {
+    if (command === null) {
       setErrors((current) => ({ ...current, [field]: 'Нужно число.' }));
       return;
     }
 
-    const result = onCommand(commandFor(entity));
+    const result = onCommand(command);
 
     if (result.ok) {
       setErrors((current) => without(current, field));
@@ -257,6 +274,58 @@ export function PropertiesPanel({
       <span className="props__hint">{kind}; не меняется — по нему связаны инвентаризация и рекомендации</span>
     </p>
   );
+
+  if (room !== undefined) {
+    // Название плана живёт здесь, а не в отдельной шапке: помещение — это и
+    // есть план для сотрудника, а имя файла берётся из названия (D-152).
+    const ceiling = parseNumber(shown('ceilingHeight_m', String(room.ceilingHeight_m)));
+    return (
+      <section className="panel props" aria-label="Свойства">
+        <h2 className="panel__title">Свойства помещения</h2>
+        {identity(room.id, 'помещение')}
+
+        {field(
+          'name',
+          'Название плана',
+          <input
+            type="text"
+            aria-label="Название плана"
+            value={shown('name', plan.name)}
+            onChange={(event) =>
+              commitCommand('name', { type: 'plan.rename', name: event.target.value }, event.target.value)
+            }
+          />,
+          'так будет называться файл при сохранении',
+        )}
+
+        {field(
+          'ceilingHeight_m',
+          'Высота потолка, м',
+          <input
+            type="number"
+            step={0.1}
+            aria-label="Высота потолка, м"
+            value={shown('ceilingHeight_m', String(room.ceilingHeight_m))}
+            onChange={(event) => {
+              const parsed = parseNumber(event.target.value);
+              commitCommand(
+                'ceilingHeight_m',
+                parsed === null ? null : { type: 'room.setCeiling', ceilingHeight_m: parsed },
+                event.target.value,
+              );
+            }}
+          />,
+          ceiling === null ? undefined : 'наружные стены поднимаются вместе с потолком; перегородки — по своей карточке',
+        )}
+
+        {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии. */}
+        <p className="props__hint" data-testid="props-room-area">
+          Площадь по контуру {polygonArea(room.boundary).toFixed(2)} м², вершин {room.boundary.length}; контур тянется
+          за вершины на плане
+        </p>
+      </section>
+    );
+  }
 
   if (zone !== undefined) {
     const type = findZoneType(plan.catalog, zone.typeId);
@@ -518,7 +587,7 @@ export function PropertiesPanel({
   return (
     <section className="panel props" aria-label="Свойства">
       <h2 className="panel__title">Свойства</h2>
-      <p className="panel__empty">Выберите зону, объект, перегородку или проём на плане</p>
+      <p className="panel__empty">Выберите помещение, зону, объект, перегородку или проём на плане</p>
     </section>
   );
 }

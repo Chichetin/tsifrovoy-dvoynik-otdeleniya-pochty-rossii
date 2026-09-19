@@ -41,6 +41,10 @@ export type Command =
   | { type: 'opening.put'; opening: Opening }
   | { type: 'opening.delete'; id: Id }
   | { type: 'catalog.replace'; catalog: Catalog }
+  /** Plan name: shown in the header and used for the file name; must not be blank. */
+  | { type: 'plan.rename'; name: string }
+  /** Ceiling height; outer walls follow it, partitions keep their own height. */
+  | { type: 'room.setCeiling'; ceilingHeight_m: number }
   | { type: 'relations.reconcile' };
 
 export type CommandType = Command['type'];
