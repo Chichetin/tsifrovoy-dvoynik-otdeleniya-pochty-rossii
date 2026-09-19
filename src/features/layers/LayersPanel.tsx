@@ -48,8 +48,17 @@ export function LayersPanel({
   const add = (): void => {
     const type = plan.catalog.layerTypes.find((entry) => entry.id === newTypeId) ?? null;
     const suffix = Date.now().toString(36);
+    // A layer removed this session retired its id (D-019): adding the same
+    // type again takes the next free number instead of a refused put.
+    const taken = new Set<string>([...plan.layers.map((layer) => layer.id), ...(session.retired ?? [])]);
+    const freeId = (base: string): string => {
+      if (!taken.has(base)) return base;
+      for (let index = 2; ; index += 1) {
+        if (!taken.has(`${base}_${index}`)) return `${base}_${index}`;
+      }
+    };
     put({
-      id: type === null ? `l_${suffix}` : `l_${type.id}`,
+      id: type === null ? freeId(`l_${suffix}`) : freeId(`l_${type.id}`),
       name: type === null ? `Слой ${plan.layers.length + 1}` : type.label,
       visible: true,
       locked: false,
@@ -232,6 +241,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Показывать слой ${layer.name}`}
+                  title={layer.visible ? 'Слой показан — скрыть' : 'Слой скрыт — показать'}
                   aria-pressed={layer.visible}
                   onClick={() => put({ ...layer, visible: !layer.visible })}
                 >
@@ -241,6 +251,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Запереть слой ${layer.name}`}
+                  title={layer.locked ? 'Слой заперт, правки запрещены — отпереть' : 'Слой открыт для правок — запереть'}
                   aria-pressed={layer.locked}
                   onClick={() => put({ ...layer, locked: !layer.locked })}
                 >
@@ -250,6 +261,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Поднять слой ${layer.name}`}
+                  title="Поднять слой"
                   onClick={() => move(layer, -1)}
                 >
                   ↑
@@ -258,6 +270,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Опустить слой ${layer.name}`}
+                  title="Опустить слой"
                   onClick={() => move(layer, 1)}
                 >
                   ↓

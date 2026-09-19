@@ -181,6 +181,15 @@ describe('ошибка команды', () => {
     expect(result.issues.map((issue) => issue.code)).toContain(COMMAND_ISSUE_CODES.ID_REUSED);
   });
 
+  test('удалённые id видны снаружи, чтобы инструменты их не выдавали', () => {
+    expect(store.getState().retired.size).toBe(0);
+    store.getState().dispatch({ type: 'object.delete', id: 'eq_work_1' });
+    expect(store.getState().retired.has('eq_work_1')).toBe(true);
+    // Новый документ — новая история: набор пуст.
+    store.getState().replaceDocument(minimalPlan(), 'file');
+    expect(store.getState().retired.size).toBe(0);
+  });
+
   test('после undo удаления та же сущность снова редактируема', () => {
     store.getState().dispatch({ type: 'object.delete', id: 'eq_work_1' });
     store.getState().undo();

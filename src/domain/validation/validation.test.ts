@@ -211,7 +211,7 @@ describe('правила комплектования', () => {
   });
 });
 
-describe('одна проблема — одна находка (operator №19, D-138)', () => {
+describe('одна проблема — одна находка (operator №19, D-157)', () => {
   const placementCodes = new Set<string>([
     VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE,
     'ZONE_UNASSIGNED',

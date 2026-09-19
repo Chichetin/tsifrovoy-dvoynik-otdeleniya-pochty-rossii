@@ -109,7 +109,7 @@ export function validatePlan(plan: PlanDocument): Issue[] {
 }
 
 /**
- * One problem, one line (D-138). An object that claims a zone and does not
+ * One problem, one line (D-157). An object that claims a zone and does not
  * fit in it is already reported by OBJECT_OUTSIDE_ZONE, which names the zone;
  * "fits in no zone at all" about the same object would be the same footprint
  * said twice. The relation warning stays for objects without a claimed zone.

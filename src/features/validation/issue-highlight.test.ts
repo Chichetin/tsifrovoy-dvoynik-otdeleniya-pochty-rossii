@@ -63,7 +63,7 @@ describe('подсветка находок', () => {
   });
 });
 
-describe('маркеры находок видны без клика (operator №10, D-138)', () => {
+describe('маркеры находок видны без клика (operator №10, D-157)', () => {
   test('без фокуса у каждой затронутой сущности свой маркер с числом находок', () => {
     const markers = issueMarkers(issues, null);
     expect(markers.map((marker) => [marker.ref.id, marker.count])).toEqual([

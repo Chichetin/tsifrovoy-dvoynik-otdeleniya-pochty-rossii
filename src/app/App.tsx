@@ -22,6 +22,7 @@ import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
+import { CatalogPanel } from '../features/catalog-editor/CatalogPanel';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
 import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
@@ -36,8 +37,9 @@ import { ValidationPanel } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
+import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
-import { createEmptyPlan } from './default-plan';
+import { catalog, createEmptyPlan } from './default-plan';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
@@ -64,11 +66,21 @@ export function App(): React.JSX.Element {
   // cheaper than widening the store contract for one reader. Updated in the
   // same three places as the store's baseline (D-131).
   const [compareBase, setCompareBase] = useState<PlanDocument>(() => store.getState().document);
+  /**
+   * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
+   * вписал, по `id` и имени, а два файла могут нести одну личность:
+   * `demo/before.json` и `demo/after.json` именно такие — второй это тот же
+   * план после рекомендации. Жюри открывает их подряд, поэтому «документ
+   * заменили» решается по самому действию, а не по содержимому файла: смена
+   * этого числа пересоздаёт холст, и вид считается заново.
+   */
+  const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
+  const retired = useStore(store, (state) => state.retired);
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, preview, focus }),
-    [tool, viewport, selection, preview, focus],
+    () => ({ tool, viewport, selection, preview, focus, retired }),
+    [tool, viewport, selection, preview, focus, retired],
   );
 
   const select = useCallback(
@@ -87,6 +99,23 @@ export function App(): React.JSX.Element {
     [store],
   );
 
+  // A drawing tool that just created something hands it over selected: the
+  // card shows what was drawn, not what was picked a minute ago (operator
+  // finding 9). The room is not created, only reshaped, so `room.set` stays
+  // out. Moves and edits go through `dispatch` untouched.
+  const dispatchAndSelect = useCallback(
+    (command: Command): Result<PlanDocument> => {
+      const result = dispatch(command);
+      if (!result.ok) return result;
+      if (command.type === 'zone.put') select({ kind: 'zone', id: command.zone.id });
+      if (command.type === 'object.put') select({ kind: 'object', id: command.object.id });
+      if (command.type === 'wall.put') select({ kind: 'wall', id: command.wall.id });
+      if (command.type === 'opening.put') select({ kind: 'opening', id: command.opening.id });
+      return result;
+    },
+    [dispatch, select],
+  );
+
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -96,8 +125,8 @@ export function App(): React.JSX.Element {
     [select],
   );
 
-  const planTool = usePlanToolController({ document, session, onCommand: dispatch });
-  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatch });
+  const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
+  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatchAndSelect });
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
@@ -129,15 +158,42 @@ export function App(): React.JSX.Element {
     [compareBase, document, revision],
   );
 
+  // A recommendation belongs to the plan it was computed for: after «Открыть»
+  // or «Новый» its ids point at objects that no longer exist, and «план
+  // изменился» is too mild a warning for that — the answer goes away entirely.
+  const forgetAdvice = useCallback(() => {
+    setAdvice(null);
+    setAdviceState({ status: 'idle' });
+    setPreview(null);
+  }, []);
+
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {
       // 'file' — план пришёл из файла и считается сохранённым состоянием;
       // 'draft' — восстановленный черновик, он никуда ещё не выгружен.
-      store.getState().replaceDocument(plan, origin);
-      setCompareBase(plan);
-      setLastError(null);
+      // Пример организаторов приходит без наших правил и слоёв: сомкнуть с
+      // командным справочником здесь, где он есть, — иначе на примере видны
+      // только геометрические ошибки, а «терминал не далее 3 м» молчит.
+      const merged =
+        plan.catalog.version === ORGANIZER_CATALOG_VERSION ? withTeamCatalog(plan, catalog) : null;
+      const document = merged?.ok ? merged.value : plan;
+      store.getState().replaceDocument(document, origin);
+      setCompareBase(document);
+      // A refused merge is not a silent success: the plan opens as it came,
+      // and the user is told the team rules and layers did not apply.
+      setLastError(
+        merged === null || merged.ok
+          ? null
+          : `Справочник команды к примеру не применён (план открыт без правил комплектования и информационных слоёв): ${merged.issues
+              .map((issue) => issue.message)
+              .join('; ')}`,
+      );
+      // Открыт другой документ: вид считается заново, даже если файл несёт ту
+      // же личность, что и прежний.
+      setDocumentEpoch((epoch) => epoch + 1);
+      forgetAdvice();
     },
-    [store],
+    [store, forgetAdvice],
   );
 
   const startNewPlan = useCallback(() => {
@@ -146,7 +202,9 @@ export function App(): React.JSX.Element {
     setCompareBase(fresh.getState().document);
     setTool({ kind: 'select' });
     setLastError(null);
-  }, []);
+    setDocumentEpoch((epoch) => epoch + 1);
+    forgetAdvice();
+  }, [forgetAdvice]);
 
   return (
     <div className="shell">
@@ -204,6 +262,7 @@ export function App(): React.JSX.Element {
 
         <main className="shell__canvas">
           <EditorCanvas
+            key={documentEpoch}
             document={document}
             session={session}
             onPointer={(event) => {
@@ -249,6 +308,7 @@ export function App(): React.JSX.Element {
           <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
           <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
           <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
+          <CatalogPanel document={document} onCommand={dispatch} />
         </aside>
       </div>
     </div>

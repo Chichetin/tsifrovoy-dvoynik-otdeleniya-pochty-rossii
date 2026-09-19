@@ -172,6 +172,8 @@ type Command =
   | { type: 'opening.put'; opening: Opening }
   | { type: 'opening.delete'; id: Id }
   | { type: 'catalog.replace'; catalog: Catalog }
+  | { type: 'plan.rename'; name: string }
+  | { type: 'room.setCeiling'; ceilingHeight_m: number }
   | { type: 'relations.reconcile' };
 // applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument>
 // decodePlan(text: string): Result<PlanDocument>
@@ -180,7 +182,8 @@ type Command =
 ```
 
 Команда put создаёт или заменяет сущность целиком, ID генерируется до команды;
-удалённый ID не переиспользуется. Изменение типа через object.put сохраняет ID,
+удалённый ID не переиспользуется — `PlanStore.retired` и `EditorSession.retired`
+отдают такие id инструментам, чтобы они не выдавали их новым сущностям (D-156). Изменение типа через object.put сохраняет ID,
 позицию и размер; атрибуты проверяются по новому типу, не удаляются молча.
 Неизвестные атрибуты сохраняются и предупреждаются; обязательные получают defaults
 или команда отклоняется. Удаление зоны переподчиняет детей её родителю и пересчитывает

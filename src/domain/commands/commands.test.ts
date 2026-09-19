@@ -663,3 +663,48 @@ describe('applyCommand: стены, проёмы и справочник', () =>
     expect(updated.objects[0]!.attributes.shift).toBe('день');
   });
 });
+
+describe('applyCommand: план и помещение', () => {
+  test('plan.rename хранит название как набрано (пробел на конце — часть набора), пустое отклоняет', () => {
+    const plan = minimalPlan();
+    const renamed = expectOk(applyCommand(plan, { type: 'plan.rename', name: 'ОПС ' }));
+    expect(renamed.name).toBe('ОПС ');
+    expect(codes(applyCommand(plan, { type: 'plan.rename', name: '   ' }))).toContain(
+      COMMAND_ISSUE_CODES.NAME_EMPTY,
+    );
+  });
+
+  test('после room.setCeiling новый контур получает наружные стены высотой в потолок', () => {
+    const plan = minimalPlan();
+    const raised = expectOk(applyCommand(plan, { type: 'room.setCeiling', ceilingHeight_m: 3.6 }));
+    const [a, b, c, d] = raised.room.boundary;
+    if (a === undefined || b === undefined || c === undefined || d === undefined) throw new Error('контур');
+    // Вершина вставлена в середину первого ребра: контур другой, стены перестроены.
+    const boundary = [a, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2] as [number, number], b, c, d];
+    const reshaped = expectOk(applyCommand(raised, { type: 'room.set', boundary }));
+    expect(reshaped.walls.length).toBeGreaterThan(0);
+    for (const wall of reshaped.walls) expect(wall.height_m).toBe(3.6);
+  });
+
+  test('room.setCeiling поднимает наружные стены и не трогает перегородки', () => {
+    const plan = minimalPlan();
+    const [a, b, c, d] = plan.room.boundary;
+    if (a === undefined || b === undefined || c === undefined || d === undefined) throw new Error('контур');
+    const mid = (p: number[], q: number[]): [number, number] => [((p[0] ?? 0) + (q[0] ?? 0)) / 2, ((p[1] ?? 0) + (q[1] ?? 0)) / 2];
+    const withWalls = expectOk(
+      applyCommand(
+        expectOk(applyCommand(plan, { type: 'wall.put', wall: { id: 'w_outer', from: a, to: b, thickness_m: 0.2, height_m: 2.5 } })),
+        { type: 'wall.put', wall: { id: 'w_inner', from: mid(a, d), to: mid(b, c), thickness_m: 0.1, height_m: 2.2 } },
+      ),
+    );
+    const raised = expectOk(applyCommand(withWalls, { type: 'room.setCeiling', ceilingHeight_m: 3.4 }));
+    expect(raised.room.ceilingHeight_m).toBe(3.4);
+    expect(raised.walls.find((w) => w.id === 'w_outer')?.height_m).toBe(3.4);
+    expect(raised.walls.find((w) => w.id === 'w_inner')?.height_m).toBe(2.2);
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(codes(applyCommand(plan, { type: 'room.setCeiling', ceilingHeight_m: bad }))).toContain(
+        COMMAND_ISSUE_CODES.CEILING_INVALID,
+      );
+    }
+  });
+});

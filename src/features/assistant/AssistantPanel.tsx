@@ -87,10 +87,15 @@ export function AssistantPanel({
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
   const [zoneId, setZoneId] = useState<string>('');
   const [query, setQuery] = useState('');
+  // Вопрос, с которым ушёл последний запрос: без модели он никуда не попадает —
+  // расчёт идёт по сценарию, — и человек должен это увидеть, а не гадать,
+  // почему ответ не про его слова.
+  const [askedQuery, setAskedQuery] = useState<string | null>(null);
 
   const stale = response !== null && response.revision !== revision;
 
   function ask(): void {
+    setAskedQuery(query.trim() === '' ? null : query.trim());
     if (scenario === 'place') {
       onAsk(
         { scenario: 'place', typeId, zoneId: zoneId === '' ? null : zoneId },
@@ -199,6 +204,12 @@ export function AssistantPanel({
             {response.mode === 'llm'
               ? 'Объяснение модели проверено расчётом'
               : `Без LLM: ${response.fallbackReason ?? 'показан расчёт'}`}
+            {response.mode !== 'llm' && askedQuery !== null ? (
+              <span data-testid="assistant-query-ignored">
+                {' '}
+                Вопрос «{askedQuery}» без модели не учитывается — показан расчёт по выбранному сценарию.
+              </span>
+            ) : null}
           </p>
 
           {response.recommendations.length === 0 ? (
