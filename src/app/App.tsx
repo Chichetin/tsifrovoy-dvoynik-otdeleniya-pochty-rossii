@@ -7,7 +7,7 @@
  * recomputed from the document, never stored beside it.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
@@ -19,6 +19,7 @@ import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
@@ -58,6 +59,19 @@ export function App(): React.JSX.Element {
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
   const [lastError, setLastError] = useState<string | null>(null);
   const focusSequence = useRef(0);
+
+  // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
+  // store, поэтому слушатель один, здесь, а не в каждом слое холста.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const action = historyHotkey(event);
+      if (action === null) return;
+      event.preventDefault();
+      store.getState()[action]();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [store]);
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
@@ -218,10 +232,10 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         <div className="shell__history">
-          <button type="button" className="files__button" onClick={() => store.getState().undo()}>
+          <button type="button" className="files__button" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
             Отменить
           </button>
-          <button type="button" className="files__button" onClick={() => store.getState().redo()}>
+          <button type="button" className="files__button" title="Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)" onClick={() => store.getState().redo()}>
             Вернуть
           </button>
         </div>
