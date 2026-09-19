@@ -18,6 +18,7 @@
 import type { Id, Opening, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import { pointSegmentDistance, segmentLength } from '../geometry';
+import { nextFreeId } from './ids';
 
 /** Which walls of the plan are outer, i.e. sit on the current boundary. */
 export function outerWallIds(walls: Wall[], boundary: Polygon): Set<Id> {
@@ -56,8 +57,7 @@ export function rebuildOuterWalls(
   newBoundary.forEach((from, index) => {
     const to = newBoundary[(index + 1) % newBoundary.length];
     if (to === undefined) return;
-    const id = nextId('w_', taken);
-    taken.add(id);
+    const id = nextFreeId('w_', taken);
     idByEdge.set(index, id);
     rebuilt.push({
       id,
@@ -219,9 +219,3 @@ function carryOpening(
   return { ...opening, wallId: targetId, offset_m: Math.round(offset * 100) / 100 };
 }
 
-function nextId(prefix: string, taken: Set<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `${prefix}${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}

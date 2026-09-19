@@ -17,8 +17,9 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import type { Id, Point, Polygon } from '../../contracts/model';
+import type { Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
+import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
@@ -33,13 +34,6 @@ import { createOpening, createWall, nearestWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
-
-function nextId(prefix: string, taken: Set<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `${prefix}${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
 
 export const usePlanToolController: UsePlanToolController = ({
   document: plan,
@@ -75,7 +69,8 @@ export const usePlanToolController: UsePlanToolController = ({
           return true;
         }
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
-        const taken = new Set<Id>([...plan.zones.map((zone) => zone.id), ...(session.retired ?? [])]);
+        // One id space for the whole plan plus what a delete retired this session (D-198).
+        const taken = takenIds(plan, session.retired);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
         // Every content layer locked: address the first one anyway, so the
@@ -84,7 +79,7 @@ export const usePlanToolController: UsePlanToolController = ({
           editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
-        const id = nextId('z_', taken);
+        const id = nextFreeId('z_', taken);
         onCommand({
           type: 'zone.put',
           zone: {
@@ -105,21 +100,13 @@ export const usePlanToolController: UsePlanToolController = ({
         committing.current = false;
       }
     },
-    [
-      kind,
-      onCommand,
-      plan.catalog.zoneTypes,
-      plan.layers,
-      plan.openings,
-      plan.zones,
-      session.retired,
-    ],
+    [kind, onCommand, plan, session.retired],
   );
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
   const drawWall = useCallback(
     (from: Point, to: Point): boolean => {
-      const taken = new Set<Id>([...plan.walls.map((entry) => entry.id), ...(session.retired ?? [])]);
+      const taken = takenIds(plan, session.retired);
       const wall = createWall(from, to, plan.room, taken);
       if (wall === null) {
         setNotice(WALL_TOO_SHORT_NOTICE);
@@ -129,7 +116,7 @@ export const usePlanToolController: UsePlanToolController = ({
       setNotice(null);
       return true;
     },
-    [onCommand, plan.room, plan.walls, session.retired],
+    [onCommand, plan, session.retired],
   );
 
   /** Проём на стене под курсором; мимо стены — объяснение, а не тишина. */
@@ -140,8 +127,7 @@ export const usePlanToolController: UsePlanToolController = ({
         setNotice(NO_WALL_UNDER_POINTER_NOTICE);
         return;
       }
-      // Openings are retired by opening.delete and by wall.delete alike.
-      const taken = new Set<Id>([...plan.openings.map((entry) => entry.id), ...(session.retired ?? [])]);
+      const taken = takenIds(plan, session.retired);
       // Вид проёма правится карточкой свойств; ставим обычную дверь.
       const opening = createOpening(hit.wall, point, 'door', taken);
       if (opening === null) {
@@ -151,7 +137,7 @@ export const usePlanToolController: UsePlanToolController = ({
       onCommand({ type: 'opening.put', opening });
       setNotice(null);
     },
-    [onCommand, plan.openings, plan.walls, session.retired],
+    [onCommand, plan, session.retired],
   );
 
   const handlePointer = useCallback(
