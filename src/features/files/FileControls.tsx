@@ -231,6 +231,8 @@ export function FileControls({
     const opened = read(text);
     if (!opened.ok) {
       // The open document stays untouched: a rejected file never replaces it.
+      // Документ не сменился: допущения прежнего файла уже неверны для сообщения
+      // об отказе, а список полей вне формата относится к оставшемуся плану.
       setAssumptions([]);
       setState({ status: 'error', message: `План не открыт. ${describe(opened.issues)}` });
       return;
@@ -328,6 +330,7 @@ export function FileControls({
           setAnswered(true);
           setDraftAt(null);
           setAssumptions([]);
+          setDropped([]);
           setNotice(null);
           setState({ status: 'idle' });
         }}

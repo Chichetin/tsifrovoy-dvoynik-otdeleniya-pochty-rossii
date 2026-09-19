@@ -205,7 +205,10 @@ test.describe('файлы плана', () => {
     await details.locator('summary').click();
     await expect(details).toContainText('futureField');
     await expect(details).toContainText('futureAttr');
-    // Обычный файл — без предупреждения.
+    // «Новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Новый' }).click();
+    await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
   });

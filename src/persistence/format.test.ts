@@ -111,6 +111,8 @@ describe('readPlanFile', () => {
     const clean = readPlanFile(fixtureText('nested.json'));
     expect(clean.ok && clean.value.dropped).toEqual([]);
     expect(droppedFields({ a: 1, b: [{ id: 'x', c: 2 }] }, { a: 1, b: [{ id: 'x' }] })).toEqual(['b[x].c']);
+    // Ключи из цепочки прототипов — тоже «вне формата», а не «есть у любого объекта».
+    expect(droppedFields({ toString: 1, constructor: 2 }, {})).toEqual(['toString', 'constructor']);
   });
 
   test('пример организаторов открывается импортёром, с допущениями для подписи', () => {

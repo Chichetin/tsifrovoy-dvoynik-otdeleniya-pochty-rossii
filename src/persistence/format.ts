@@ -58,7 +58,7 @@ export function droppedFields(payload: unknown, parsed: unknown, path = ''): str
   const dropped: string[] = [];
   for (const key of Object.keys(payload)) {
     const here = path === '' ? key : `${path}.${key}`;
-    if (!(key in parsed)) dropped.push(here);
+    if (!Object.hasOwn(parsed, key)) dropped.push(here);
     else dropped.push(...droppedFields(payload[key], parsed[key], here));
   }
   return dropped;
