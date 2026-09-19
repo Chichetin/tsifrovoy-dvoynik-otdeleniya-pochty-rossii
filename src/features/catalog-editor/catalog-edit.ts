@@ -12,7 +12,16 @@
  * явно и предсказуемо.
  */
 
-import type { AttributeDef, Catalog, CountRule, Id, LayerType, ObjectType, Point } from '../../contracts/model';
+import type {
+  AttributeDef,
+  Catalog,
+  CountRule,
+  Id,
+  LayerType,
+  ObjectType,
+  Point,
+  ZoneType,
+} from '../../contracts/model';
 
 /** Новый тип оборудования — все размеры условные, и это записано в источнике. */
 export type NewObjectType = {
@@ -91,6 +100,26 @@ export function addObjectType(catalog: Catalog, input: NewObjectType): { catalog
     provenance: TEAM_ASSUMPTION_PROVENANCE,
   };
   return { catalog: { ...catalog, objectTypes: [...catalog.objectTypes, type] }, id };
+}
+
+/** Новый тип зоны: подпись и цвет пола; атрибуты добавляются отдельно. */
+export type NewZoneType = {
+  label: string;
+  color: string;
+};
+
+export function addZoneType(catalog: Catalog, input: NewZoneType): { catalog: Catalog; id: Id } {
+  const id = slugId('zt_', input.label, catalog.zoneTypes.map((t) => t.id));
+  const type: ZoneType = { id, label: input.label.trim(), color: input.color, attributes: [] };
+  return { catalog: { ...catalog, zoneTypes: [...catalog.zoneTypes, type] }, id };
+}
+
+export function removeZoneType(catalog: Catalog, id: Id): Catalog {
+  return {
+    ...catalog,
+    zoneTypes: catalog.zoneTypes.filter((t) => t.id !== id),
+    rules: catalog.rules.filter((rule) => rule.kind !== 'count' || rule.zoneTypeId !== id),
+  };
 }
 
 export function removeObjectType(catalog: Catalog, id: Id): Catalog {
