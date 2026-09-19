@@ -13,7 +13,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { inflateRawSync } from 'node:zlib';
 import { afterAll, describe, expect, test } from 'vitest';
-import { buildDemo, REQUESTS } from '../demo/build';
+import {
+  REQUESTS,
+  rebuildFromFile,
+  renderModeSection,
+  withModeSection,
+  type DemoRecommendationFile,
+} from '../demo/build';
 import {
   DEFAULT_OUTPUT,
   DEMO_FILES,
@@ -53,9 +59,7 @@ function open(name: string): PlanDocument {
 
 const before = open('before.json');
 const after = open('after.json');
-const recommendationFile = JSON.parse(demoFile('recommendation.json')) as ReturnType<
-  typeof buildDemo
->['recommendation'];
+const recommendationFile = JSON.parse(demoFile('recommendation.json')) as DemoRecommendationFile;
 
 const tempDirs: string[] = [];
 function temp(): string {
@@ -80,10 +84,17 @@ const SLOW_CALCULATION = { timeout: 10_000 };
 
 describe('комплект демо-проекта', () => {
   test('файлы на диске — это то, что считает код, а не устаревшая копия', SLOW_CALCULATION, () => {
-    const build = buildDemo();
+    // Everything is recalculated; only what the code cannot reproduce is taken
+    // from the file — the fallback reason, or the model's choice, which must
+    // still pass the same check the route applies (D-188). A byte-equal rebuild
+    // therefore pins every id, number and effect row in both modes.
+    const build = rebuildFromFile(recommendationFile);
     expect(demoFile('before.json')).toBe(build.beforeText);
     expect(demoFile('after.json')).toBe(build.afterText);
     expect(demoFile('recommendation.json')).toBe(build.recommendationText);
+    // The mode paragraph of effect.md is generated from the same file.
+    const effect = demoFile('effect.md');
+    expect(effect).toBe(withModeSection(effect, renderModeSection(recommendationFile)));
   });
 
   test('оба плана открываются с зонами, оборудованием, id и атрибутами', () => {
@@ -148,8 +159,17 @@ describe('комплект демо-проекта', () => {
       expect(computed, `рекомендация ${stored.id} не воспроизвелась`).toBeDefined();
       expect(stored).toEqual(computed);
     }
-    expect(recommendationFile.mode).toBe('fallback');
-    expect(recommendationFile.fallbackReason.length).toBeGreaterThan(0);
+    // Exactly one of the two is filled: a file cannot be both, or neither.
+    if (recommendationFile.mode === 'llm') {
+      expect(recommendationFile.fallbackReason).toBeNull();
+      expect(recommendationFile.llm?.provider.length).toBeGreaterThan(0);
+      expect(recommendationFile.llm?.model.length).toBeGreaterThan(0);
+      expect(recommendationFile.llm?.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    } else {
+      expect(recommendationFile.mode).toBe('fallback');
+      expect(recommendationFile.llm).toBeNull();
+      expect(recommendationFile.fallbackReason?.length).toBeGreaterThan(0);
+    }
   });
 
   test('объяснения проходят проверку кодом и ссылаются на существующие id', () => {

@@ -8,19 +8,34 @@
  * function the assistant panel calls — and `after.json` is that recommendation
  * applied, again through commands.
  *
- * Nothing here is random and nothing depends on the clock: running the script
- * twice produces byte-identical files, which is what `tests/demo.test.ts`
- * checks. Without that, "the numbers in effect.md come from the calculation"
- * would be a claim instead of a test.
+ * The explanation has two honest sources (D-188). With a provider configured
+ * in the environment — the same `LLM_*` variables the server reads — the
+ * builder asks the model through the very `/api/advice` route the app uses, and
+ * the model's choice is kept only if it passed `verifyExplanation`: then the
+ * file says `mode: 'llm'` with provider, model and date. Without a provider, on
+ * an HTTP error or on an answer the check refused, the file says
+ * `mode: 'fallback'` and why. Either way every number comes from the code.
  *
- * Run: npx tsx demo/build.ts
+ * Without a provider nothing here is random and nothing depends on the clock:
+ * running the script twice produces byte-identical files, which is what
+ * `tests/demo.test.ts` checks. An llm build differs only in the model's choice
+ * and the date, and the test rebuilds everything else from the file.
+ *
+ * Run: npx tsx demo/build.ts                       (без модели)
+ *      npx tsx --env-file=.env demo/build.ts       (с провайдером из .env)
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import Fastify from 'fastify';
+import { registerAdviceRoutes } from '../server/advice-route';
+import { readLlmConfig, type Env } from '../server/config';
+import { createLlmClient } from '../server/llm-client';
 import type {
+  AdviceMode,
   AdviceRequest,
+  AdviceResponse,
   Explanation,
   Recommendation,
 } from '../src/contracts/advice';
@@ -33,12 +48,13 @@ import type {
   ObjectType,
   PlanDocument,
 } from '../src/contracts/model';
-import { SCHEMA_VERSION } from '../src/contracts/model';
+import { LIMITS, SCHEMA_VERSION } from '../src/contracts/model';
 import { parseCatalog } from '../src/contracts/schema';
 import {
   calculateAdvice,
   defaultExplanation,
   renderExplanation,
+  verifyExplanation,
 } from '../src/domain/advice';
 import { findObjectType } from '../src/domain/catalog';
 import { openingCentre } from '../src/domain/geometry';
@@ -265,17 +281,32 @@ export type DemoBuild = {
   recommendationText: string;
 };
 
+/** Who explained the recommendation when the model did. */
+export type DemoLlmInfo = {
+  provider: string;
+  /** `LLM_MODEL` with the Yandex folder id masked, see `publicModelName`. */
+  model: string;
+  /** Build date, Moscow time, YYYY-MM-DD. */
+  date: string;
+};
+
 /** What `demo/recommendation.json` holds, on top of the assistant's own shape. */
 export type DemoRecommendationFile = {
   note: string;
-  mode: 'fallback';
-  fallbackReason: string;
+  mode: AdviceMode;
+  /** Why the model was not used; null exactly when `mode` is 'llm'. */
+  fallbackReason: string | null;
+  /** Provider, model and date; null exactly when `mode` is 'fallback'. */
+  llm: DemoLlmInfo | null;
   generatedBy: string;
   planId: Id;
   requests: AdviceRequest[];
   recommendations: Recommendation[];
   explanations: Explanation[];
-  /** Rendered Russian sentence per recommendation id; no model wrote these. */
+  /**
+   * Rendered Russian sentence per recommendation id. Templates write the words
+   * in both modes; in 'llm' the model chose the reason, candidate and facts.
+   */
   texts: Record<Id, string>;
   /** How each recommendation was applied to get `after.json`. */
   applied: {
@@ -294,14 +325,24 @@ export type DemoRecommendationFile = {
   }[];
 };
 
-function explanationsOf(recommendations: Recommendation[]): {
+/**
+ * The explanation of every recommendation: the model's verified choice when
+ * `chosen` is given, the calculation's own default otherwise.
+ */
+function explanationsOf(
+  recommendations: Recommendation[],
+  chosen: Explanation[] | null,
+): {
   explanations: Explanation[];
   texts: Record<Id, string>;
 } {
   const explanations: Explanation[] = [];
   const texts: Record<Id, string> = {};
   for (const recommendation of recommendations) {
-    const explanation = defaultExplanation(recommendation);
+    const explanation =
+      chosen === null
+        ? defaultExplanation(recommendation)
+        : (chosen.find((entry) => entry.recommendationId === recommendation.id) ?? null);
     if (explanation === null) {
       throw new Error(`Рекомендация «${recommendation.id}» без объяснения расчёта`);
     }
@@ -358,8 +399,19 @@ function severityCount(plan: PlanDocument, severity: Issue['severity']): number 
   return validatePlan(plan).filter((issue) => issue.severity === severity).length;
 }
 
-/** The whole submission set, computed. */
-export function buildDemo(): DemoBuild {
+/** Everything the code calculates; the explanation is added on top. */
+export type DemoCalculation = {
+  before: PlanDocument;
+  after: PlanDocument;
+  /** The four requests sent to the assistant, with the plan each is about. */
+  asked: { plan: PlanDocument; request: AdviceRequest }[];
+  recommendations: Recommendation[];
+  applied: DemoRecommendationFile['applied'];
+  effect: DemoRecommendationFile['effect'];
+};
+
+/** The submission set without explanations: plans, recommendations, effect. */
+export function calculateDemo(): DemoCalculation {
   const catalog = loadCatalog();
   const before = buildBefore(catalog);
 
@@ -405,7 +457,6 @@ export function buildDemo(): DemoBuild {
   const compare = one(advise(after, { scenario: 'compare', before }), 'adv_compare');
 
   const recommendations = [missingBench, excessDisplay, benchPlace, terminalPlace, compare];
-  const { explanations, texts } = explanationsOf(recommendations);
 
   const areaBefore = measured(before);
   const areaAfter = measured(after);
@@ -474,20 +525,16 @@ export function buildDemo(): DemoBuild {
     },
   ];
 
-  const recommendation: DemoRecommendationFile = {
-    note:
-      'Рекомендация получена расчётом ассистента (src/domain/advice) без обращения к LLM. ' +
-      'Числа посчитал код, тексты собраны из шаблонов справочника объяснений.',
-    mode: 'fallback',
-    fallbackReason:
-      'Ключ провайдера LLM команде на момент сборки комплекта не выдан, поэтому ' +
-      'использован обязательный режим без модели (D-016): показан расчёт с шаблонным объяснением.',
-    generatedBy: 'npx tsx demo/build.ts',
-    planId: PLAN_ID,
-    requests: [REQUESTS.equipment, REQUESTS.bench, REQUESTS.terminal],
+  return {
+    before,
+    after,
+    asked: [
+      { plan: before, request: REQUESTS.equipment },
+      { plan: before, request: REQUESTS.bench },
+      { plan: before, request: REQUESTS.terminal },
+      { plan: after, request: { scenario: 'compare', before } },
+    ],
     recommendations,
-    explanations,
-    texts,
     applied: [
       {
         recommendationId: benchPlace.id,
@@ -521,6 +568,57 @@ export function buildDemo(): DemoBuild {
     ],
     effect,
   };
+}
+
+/** How the recommendation got its explanation. */
+export type DemoExplanationOutcome =
+  | { mode: 'fallback'; reason: string }
+  | { mode: 'llm'; llm: DemoLlmInfo; explanations: Explanation[] };
+
+/**
+ * The reason written when no provider is configured. It states what the
+ * builder saw, not a story about keys: the committed set is built this way.
+ */
+export const NO_PROVIDER_REASON =
+  'При сборке комплекта провайдер LLM в окружении не был настроен (нужны LLM_ENDPOINT, ' +
+  'LLM_MODEL и LLM_API_KEY, см. .env.example), поэтому использован обязательный режим ' +
+  'без модели (D-016): показан расчёт с шаблонным объяснением.';
+
+const NOTE_FALLBACK =
+  'Рекомендация получена расчётом ассистента (src/domain/advice) без обращения к LLM. ' +
+  'Числа посчитал код, тексты собраны из шаблонов справочника объяснений.';
+
+const NOTE_LLM =
+  'Рекомендация получена расчётом ассистента (src/domain/advice); объяснение — код причины, ' +
+  'вариант размещения и факты — выбрала модель через маршрут /api/advice, и выбор прошёл ' +
+  'проверку кодом (verifyExplanation). Числа посчитал код, модель их не меняла; тексты ' +
+  'собраны из шаблонов справочника объяснений по выбору модели.';
+
+/** Adds the explanation to the calculation and encodes the three files. */
+export function assembleDemo(
+  calculation: DemoCalculation,
+  outcome: DemoExplanationOutcome,
+): DemoBuild {
+  const { before, after, recommendations } = calculation;
+  const { explanations, texts } = explanationsOf(
+    recommendations,
+    outcome.mode === 'llm' ? outcome.explanations : null,
+  );
+
+  const recommendation: DemoRecommendationFile = {
+    note: outcome.mode === 'llm' ? NOTE_LLM : NOTE_FALLBACK,
+    mode: outcome.mode,
+    fallbackReason: outcome.mode === 'fallback' ? outcome.reason : null,
+    llm: outcome.mode === 'llm' ? outcome.llm : null,
+    generatedBy: 'npx tsx demo/build.ts',
+    planId: PLAN_ID,
+    requests: [REQUESTS.equipment, REQUESTS.bench, REQUESTS.terminal],
+    recommendations,
+    explanations,
+    texts,
+    applied: calculation.applied,
+    effect: calculation.effect,
+  };
 
   const beforeEncoded = encodePlan(before);
   if (!beforeEncoded.ok) fail('before.json не записывается', beforeEncoded.issues);
@@ -535,6 +633,193 @@ export function buildDemo(): DemoBuild {
     afterText: afterEncoded.value,
     recommendationText: `${JSON.stringify(recommendation, null, 2)}\n`,
   };
+}
+
+/** The whole submission set without a model: the committed, deterministic build. */
+export function buildDemo(): DemoBuild {
+  return assembleDemo(calculateDemo(), { mode: 'fallback', reason: NO_PROVIDER_REASON });
+}
+
+/**
+ * Rebuilds a stored `recommendation.json` from the calculation, keeping only
+ * what the calculation cannot reproduce: the fallback reason, or the model's
+ * verified choice with provider, model and date. Byte equality with the file
+ * then proves every number and id in it is the code's.
+ */
+export function rebuildFromFile(file: DemoRecommendationFile): DemoBuild {
+  const outcome: DemoExplanationOutcome =
+    file.mode === 'llm' && file.llm !== null
+      ? { mode: 'llm', llm: file.llm, explanations: file.explanations }
+      : { mode: 'fallback', reason: file.fallbackReason ?? '' };
+  return assembleDemo(calculateDemo(), outcome);
+}
+
+/**
+ * The model name as it may be published. Yandex AI Studio names carry the
+ * cloud folder id (`gpt://<folder>/<model>`); the team keeps that id out of the
+ * repository, so the set shows the model and hides the folder.
+ */
+export function publicModelName(model: string): string {
+  return model.replace(/^gpt:\/\/[^/]+\//, 'gpt://<folder_ID>/');
+}
+
+/** YYYY-MM-DD in Moscow time: the team counts dates by МСК. */
+function moscowDate(now: Date): string {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Moscow' }).format(now);
+}
+
+type ModelAnswer = { ok: true; explanations: Explanation[] } | { ok: false; reason: string };
+
+/**
+ * Turns the route's answers into the set's explanations, or the reason why
+ * not. All or nothing: a set half explained by the model would need a mode per
+ * line. The route already verified each answer against its own calculation;
+ * here the choice is verified again against the builder's recommendations —
+ * the ones written to the file — so a divergence between the two calculations
+ * cannot slip a foreign fact into the set.
+ */
+export function collectModelExplanations(
+  recommendations: Recommendation[],
+  answers: { scenario: AdviceRequest['scenario']; response: AdviceResponse }[],
+  label: string,
+): ModelAnswer {
+  const explained: Explanation[] = [];
+  for (const { scenario, response } of answers) {
+    if (response.mode !== 'llm') {
+      return {
+        ok: false,
+        reason: `Сценарий «${scenario}», ${label}: ${response.fallbackReason ?? 'модель не дала объяснения'}`,
+      };
+    }
+    explained.push(
+      ...response.explanations.filter((explanation) =>
+        recommendations.some((entry) => entry.id === explanation.recommendationId),
+      ),
+    );
+  }
+
+  const missing = recommendations.filter(
+    (entry) => !explained.some((explanation) => explanation.recommendationId === entry.id),
+  );
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      reason: `Модель не объяснила рекомендации ${missing.map((entry) => entry.id).join(', ')} (${label}): показан расчёт.`,
+    };
+  }
+  const verified = verifyExplanation({ explanations: explained }, recommendations);
+  if (!verified.ok) {
+    return {
+      ok: false,
+      reason: `Ответ модели не прошёл проверку комплекта (${verified.issues.map((entry) => entry.code).join(', ')}), ${label}: показан расчёт.`,
+    };
+  }
+  const unrendered = recommendations.find((recommendation) => {
+    const explanation = verified.value.find((entry) => entry.recommendationId === recommendation.id);
+    return explanation === undefined || renderExplanation(recommendation, explanation) === null;
+  });
+  if (unrendered !== undefined) {
+    return {
+      ok: false,
+      reason: `Объяснение модели для «${unrendered.id}» не собирается в текст (${label}): показан расчёт.`,
+    };
+  }
+  return { ok: true, explanations: verified.value };
+}
+
+/** Asks the model through the route the app uses, one call per request. */
+async function askModel(calculation: DemoCalculation, env: Env): Promise<ModelAnswer> {
+  const config = readLlmConfig(env);
+  if (config === null) return { ok: false, reason: NO_PROVIDER_REASON };
+
+  const label = `${config.provider}/${publicModelName(config.model)}`;
+  const app = Fastify({ logger: false, bodyLimit: LIMITS.maxRequestBytes });
+  registerAdviceRoutes(app, {
+    llm: createLlmClient(config),
+    llmLabel: label,
+    // Four calls per build; the server's limit protects a public demo, not this.
+    rateLimit: { max: calculation.asked.length, windowMs: 60_000 },
+  });
+
+  const answers: { scenario: AdviceRequest['scenario']; response: AdviceResponse }[] = [];
+  try {
+    for (const [index, { plan, request }] of calculation.asked.entries()) {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/advice',
+        payload: { plan, revision: index, request },
+      });
+      if (response.statusCode !== 200) {
+        return {
+          ok: false,
+          reason: `Маршрут /api/advice ответил статусом ${response.statusCode} на сценарий «${request.scenario}» (${label}): показан расчёт.`,
+        };
+      }
+      answers.push({ scenario: request.scenario, response: response.json<AdviceResponse>() });
+    }
+  } finally {
+    await app.close();
+  }
+  return collectModelExplanations(calculation.recommendations, answers, label);
+}
+
+/**
+ * The submission set with the provider from `env` — the same `LLM_*`
+ * variables the server reads. Never throws on the model's account: any failure
+ * becomes `mode: 'fallback'` with the reason.
+ */
+export async function buildDemoFromEnv(env: Env, now: Date = new Date()): Promise<DemoBuild> {
+  const calculation = calculateDemo();
+  const config = readLlmConfig(env);
+  const answer = await askModel(calculation, env);
+  if (!answer.ok || config === null) {
+    return assembleDemo(calculation, {
+      mode: 'fallback',
+      reason: answer.ok ? NO_PROVIDER_REASON : answer.reason,
+    });
+  }
+  return assembleDemo(calculation, {
+    mode: 'llm',
+    llm: {
+      provider: config.provider,
+      model: publicModelName(config.model),
+      date: moscowDate(now),
+    },
+    explanations: answer.explanations,
+  });
+}
+
+const MODE_START = '<!-- demo-build:mode -->';
+const MODE_END = '<!-- /demo-build:mode -->';
+
+/** The effect.md paragraph about the mode, written from the file, not by hand. */
+export function renderModeSection(file: DemoRecommendationFile): string {
+  if (file.mode === 'llm' && file.llm !== null) {
+    return [
+      `Объяснение выбрала **модель** (режим \`llm\`): провайдер \`${file.llm.provider}\`,`,
+      `модель \`${file.llm.model}\`, сборка комплекта ${file.llm.date}. Модель получила уже`,
+      'посчитанные рекомендации и выбрала для каждой код причины, вариант размещения и',
+      'факты; выбор прошёл проверку кодом (`verifyExplanation`: `id` существуют, коды',
+      'причин и факты взяты из расчёта). Числа посчитал код, модель их не меняла. Полные',
+      'структуры — в `recommendation.json`.',
+    ].join('\n');
+  }
+  return [
+    'Ассистент работал **без LLM** (режим `fallback`). Причина, записанная сборщиком:',
+    `${file.fallbackReason ?? 'не указана'}`,
+    'Это штатный режим, а не отказ: структура рекомендации и все числа от режима не',
+    'меняются. Полные структуры — в `recommendation.json`.',
+  ].join('\n');
+}
+
+/** Replaces the generated paragraph between the markers of effect.md. */
+export function withModeSection(markdown: string, section: string): string {
+  const start = markdown.indexOf(MODE_START);
+  const end = markdown.indexOf(MODE_END);
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`В effect.md нет меток ${MODE_START} … ${MODE_END}`);
+  }
+  return `${markdown.slice(0, start + MODE_START.length)}\n${section}\n${markdown.slice(end)}`;
 }
 
 function report(build: DemoBuild): string {
@@ -560,11 +845,28 @@ function report(build: DemoBuild): string {
 }
 
 if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const build = buildDemo();
+  const build = await buildDemoFromEnv(process.env);
   const demoDir = join(repoRoot(), 'demo');
+  const effectFile = join(demoDir, 'effect.md');
+  const effect = withModeSection(
+    readFileSync(effectFile, 'utf8'),
+    renderModeSection(build.recommendation),
+  );
   writeFileSync(join(demoDir, 'before.json'), build.beforeText, 'utf8');
   writeFileSync(join(demoDir, 'after.json'), build.afterText, 'utf8');
   writeFileSync(join(demoDir, 'recommendation.json'), build.recommendationText, 'utf8');
+  writeFileSync(effectFile, effect, 'utf8');
   process.stdout.write(`${report(build)}\n`);
-  process.stdout.write('Записаны demo/before.json, demo/after.json, demo/recommendation.json\n');
+  process.stdout.write(
+    'Записаны demo/before.json, demo/after.json, demo/recommendation.json, demo/effect.md\n',
+  );
+  const file = build.recommendation;
+  if (file.mode === 'llm') {
+    process.stdout.write(`Режим: llm — ${file.llm?.provider} / ${file.llm?.model}, ${file.llm?.date}\n`);
+  } else {
+    process.stdout.write(`Режим: fallback — ${file.fallbackReason}\n`);
+    // A configured provider that still gave fallback is worth a red exit code:
+    // the files are honest, but the person asked for the model.
+    if (readLlmConfig(process.env) !== null) process.exitCode = 1;
+  }
 }

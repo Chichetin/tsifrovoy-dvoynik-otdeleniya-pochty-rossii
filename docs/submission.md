@@ -9,7 +9,7 @@
 |---|---|---|---|
 | Код | [GitLab](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii) и [README](../README.md) | Репозиторий есть; commit сдачи ещё не зафиксирован | Открыть ссылку без локальных файлов, сверить `origin/main` с commit сдачи |
 | Редактор | Публичный адрес в README | **Не указан:** площадка не выбрана | Открыть URL с другой сети, пройти сценарий и API health |
-| Демо | [`output/demo/ops-digital-twin-demo.zip`](../output/demo/ops-digital-twin-demo.zip) по E01, в git; `tests/demo.test.ts` сверяет его со свежей сборкой | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 270 Б, пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
+| Демо | [`output/demo/ops-digital-twin-demo.zip`](../output/demo/ops-digital-twin-demo.zip) по E01, в git; `tests/demo.test.ts` сверяет его со свежей сборкой | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 643 Б (после D-188), пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
 | Презентация | Один [PDF](../output/pdf/posttech-digital-twin-2026-09-18.pdf) ≤ 20 МБ | Черновик создан: 6 страниц, 301 567 Б; [факты для слайдов](presentation-facts.md). К форме сдачи ещё не прикреплён | PDF распечатан в PNG и осмотрен постранично, текст извлечён `pypdf`; перед сдачей участник проверяет содержание и прикрепляет один файл |
 
 Приёмка на релизной версии: зафиксировать SHA из `origin/main`, выполнить
@@ -28,6 +28,34 @@ E01 не подменяют проверку публичного адреса. 
 машине ищет отдельный `chromium_headless_shell`, которого нет; для прогона
 использован предусмотренный проектом QA-конфиг. Это не замена проверке
 публичного сервиса и не свидетельство вызова внешней модели.
+
+### Пересобрать ZIP с рекомендацией модели (`"mode": "llm"`)
+
+В репозитории комплект собран без ключа и честно помечен `"mode": "fallback"` с
+причиной. Человек с `.env` (переменные `LLM_*` — те же, что у сервера, см.
+`.env.example`) пересобирает его одной командой из корня репозитория:
+
+```bash
+npx tsx --env-file=.env demo/build.ts && npm run package:demo
+```
+
+Сборщик спрашивает модель через тот же маршрут `/api/advice`, что и приложение
+(D-188), и последней строкой печатает режим: `Режим: llm — <провайдер> / <модель>,
+<дата>`. Если провайдер настроен, а модель не ответила или её ответ не прошёл
+проверку, печатается `Режим: fallback — <причина>` и команда завершается с кодом 1
+(`&&` тогда не соберёт ZIP) — файлы при этом честные, но без модели. Убедиться, что
+в самом архиве режим модели:
+
+```bash
+unzip -p output/demo/ops-digital-twin-demo.zip recommendation.json | grep -m1 '"mode"'
+#   "mode": "llm",
+npm test -- tests/demo.test.ts     # числа, id и эффект по-прежнему совпадают с расчётом
+```
+
+Проверить абзац о режиме: `unzip -p output/demo/ops-digital-twin-demo.zip effect.md |
+grep -A2 'demo-build:mode'` — провайдер, модель (каталог Yandex скрыт как
+`gpt://<folder_ID>/…`) и дата сборки. Такой ZIP прикладывается к сдаче; коммитить ли
+его в `main`, решает человек — ключ в файлы не попадает, только имя провайдера и модели.
 
 ZIP и PDF прикладываются как отдельные файлы по правилам площадки хакатона.
 В репозиторий не включать `.env`, токены, реальные планы БТИ и персональные
