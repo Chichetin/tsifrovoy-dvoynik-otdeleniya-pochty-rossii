@@ -525,8 +525,14 @@ function sweep(
           yield* wallHugCells(
             type,
             [
-              { edges: wallEdges, inside: plan.room.boundary },
+              // Граница зоны идёт первой: зона отступает от стены, место
+              // вплотную к стене в неё уже не помещается, и если сначала
+              // пройти вдоль стен, то 24 подтверждаемых места закончатся на
+              // этом отступе — до края зоны очередь не дойдёт. Когда зона
+              // доходит до стены, обе границы совпадают и порядок ничего не
+              // меняет.
               ...(target === null ? [] : [{ edges: outlineEdges(target), inside: target }]),
+              { edges: wallEdges, inside: plan.room.boundary },
             ],
             PLACEMENT_SEARCH.step_m,
           );
