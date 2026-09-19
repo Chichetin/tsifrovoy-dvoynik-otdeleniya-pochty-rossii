@@ -190,6 +190,22 @@ describe('buildScene: объекты', () => {
     expect(edge[1]).toBeLessThan(0);
   });
 
+  test('вложенная зона лежит на ступень выше родителя; цикл родителей — плоско, а не бесконечно', () => {
+    const [outer] = only(buildScene(plan).prisms, 'zone', 'z_client');
+    const [inner] = only(buildScene(plan).prisms, 'zone', 'z_queue');
+    expect(outer!.base_m).toBe(0);
+    expect(inner!.base_m).toBeCloseTo(outer!.height_m);
+    // Глубину считает domain/relations: цикл даёт null → зона остаётся на полу.
+    const cyclic: PlanDocument = {
+      ...plan,
+      zones: [
+        { ...client, parentId: 'z_queue' },
+        { ...queue, parentId: 'z_client' },
+      ],
+    };
+    for (const prism of only(buildScene(cyclic).prisms, 'zone')) expect(prism.base_m).toBe(0);
+  });
+
   test('объект поднят на base_m: камера висит под потолком, а не стоит на полу', () => {
     const [prism] = only(buildScene(plan).prisms, 'object', 'eq_cam');
     expect(prism!.base_m).toBe(2.5);

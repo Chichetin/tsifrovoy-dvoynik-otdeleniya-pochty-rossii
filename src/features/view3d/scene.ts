@@ -27,6 +27,7 @@ import {
   wallSpanPolygon,
   type BoundingBox,
 } from '../../domain/geometry';
+import { zoneDepth } from '../../domain/relations';
 
 export type PrismKind = 'floor' | 'zone' | 'wall' | 'opening' | 'object';
 
@@ -123,24 +124,13 @@ function zonePrism(zone: Zone, zones: Zone[], catalog: Catalog): ScenePrism {
     ref: { kind: 'zone', id: zone.id },
     label: zone.name,
     polygon: zone.polygon,
-    base_m: zoneDepth(zone, zones) * ZONE_SLAB_M,
+    // A nested zone's slab sits one step above its parent's; a broken or
+    // cyclic chain (domain returns null) lies flat rather than guessing.
+    base_m: (zoneDepth(zone.id, zones) ?? 0) * ZONE_SLAB_M,
     height_m: ZONE_SLAB_M,
     color: type?.color ?? SCENE_COLORS.zone,
     opacity: 1,
   };
-}
-
-/** Number of ancestors; a broken or cyclic chain stops at the number of zones. */
-function zoneDepth(zone: Zone, zones: Zone[]): number {
-  let depth = 0;
-  let parentId = zone.parentId;
-  while (parentId !== null && depth < zones.length) {
-    const parent = zones.find((candidate) => candidate.id === parentId);
-    if (!parent) break;
-    depth += 1;
-    parentId = parent.parentId;
-  }
-  return depth;
 }
 
 /**
