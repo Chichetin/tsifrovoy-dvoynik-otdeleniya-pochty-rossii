@@ -62,7 +62,7 @@ export function App(): React.JSX.Element {
   const [lastError, setLastError] = useState<string | null>(null);
   const focusSequence = useRef(0);
   // First-run tour: whether it was seen is a fact about this browser, kept in
-  // localStorage and never in the plan (D-193).
+  // localStorage and never in the plan (D-194).
   const [tourOpen, setTourOpen] = useState(() => shouldShowTour(browserStorage()));
   const closeTour = useCallback((outcome: TourOutcome) => {
     rememberTour(browserStorage(), outcome);

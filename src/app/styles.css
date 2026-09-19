@@ -927,7 +927,7 @@ body {
   cursor: not-allowed;
 }
 
-/* UX №2: first-run tour (D-193). Anchors carry data-tour without a box of
+/* UX №2: first-run tour (D-194). Anchors carry data-tour without a box of
    their own, so wrapping a module does not move the header. */
 .shell__anchor {
   display: contents;

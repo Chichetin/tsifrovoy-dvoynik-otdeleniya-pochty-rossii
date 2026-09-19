@@ -5,7 +5,7 @@
  * its panels; it imports no other module. Whether to open it is the app's call
  * (`shouldShowTour`), and how it ended goes back through `onClose`.
  *
- * While open the tour is modal (D-193): the shade takes the mouse, and the
+ * While open the tour is modal (D-194): the shade takes the mouse, and the
  * keyboard belongs to the card — Escape skips, Tab walks its buttons, Enter and
  * Space press them, and no key reaches the editor's window listeners, so F,
  * Delete or Ctrl+Z cannot change the plan behind the card.

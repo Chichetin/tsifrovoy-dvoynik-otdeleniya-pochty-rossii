@@ -23,7 +23,7 @@
   `tests/e2e-channel.test.ts`.
 - `test` и `expect` спека берёт из `./fixtures`, а не из `@playwright/test`: фикстура
   заранее отмечает мини-обучение пройденным, иначе его модальное окно закрывает
-  приложение (D-193). Свой контекст (`browser.newContext()`) — `skipOnboarding(context)`.
+  приложение (D-194). Свой контекст (`browser.newContext()`) — `skipOnboarding(context)`.
   Голый `@playwright/test` берёт только `onboarding.spec.ts`.
 - Адрес в spec не пишется руками: страница открывается `page.goto('/')` поверх
   `baseURL`, а ручной запуск браузера берёт `baseURL` из фикстуры (`view3d.spec.ts`).
