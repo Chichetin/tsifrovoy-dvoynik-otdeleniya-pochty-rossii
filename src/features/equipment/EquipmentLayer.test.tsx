@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 /**
- * Q02 (D-182): selecting one object among a thousand must not cost seconds.
+ * Q02 (D-187): zooming on a thousand objects must not cost seconds.
  *
- * Every click redraws the equipment layer. A Konva shape that is translucent
- * and has both fill and stroke is, by default, painted through a stage-sized
- * buffer canvas: one clear and one full-canvas `drawImage` per object. On 1000
- * objects that was 0.9 s per click on a production build (software canvas,
- * Linux) — the whole of the measured delay. The test pins the cause, not a
- * timing: every equipment symbol, in every variant the layer draws, is painted
- * straight onto the layer canvas.
+ * After D-177 a click no longer redraws the equipment layer, but zoom, pan,
+ * drag and open still do. A Konva shape that is translucent and has both
+ * fill and stroke is, by default, painted through a stage-sized buffer
+ * canvas: one clear and one full-canvas `drawImage` per object, on every one
+ * of those redraws. The test pins the cause, not a timing: every equipment
+ * symbol, in every variant the layer draws, is painted straight onto the
+ * layer canvas.
  */
 
 import { cleanup, render } from '@testing-library/react';

@@ -1,5 +1,5 @@
 {
- "note": "Q02, D-186. before = ea8f9c6 без perfectDrawEnabled:false; after = ea8f9c6 + D-186. PERF_SERVER=preview (production-сборка). Поле commit в каждом наборе — HEAD рабочей копии (ea8f9c6), изменения D-186 в ней ещё не были закоммичены.",
+ "note": "Q02, D-187. before = ea8f9c6 без perfectDrawEnabled:false; after = ea8f9c6 + D-187. PERF_SERVER=preview (production-сборка). Поле commit в каждом наборе — HEAD рабочей копии (ea8f9c6), изменения D-187 в ней ещё не были закоммичены.",
  "runs": {
   "before": [
    {

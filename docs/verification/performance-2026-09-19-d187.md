@@ -1,9 +1,9 @@
-# Q02 — фигуры оборудования без буферного холста (D-186), 19.09.2026
+# Q02 — фигуры оборудования без буферного холста (D-187), 19.09.2026
 
 Замер на production-сборке, до и после одного изменения — `perfectDrawEnabled: false` у
 символа оборудования (`src/features/equipment/EquipmentLayer.tsx`). Код — `origin/main`
 **`ea8f9c6`**; «после» — он же плюс изменение этого MR. Сырые значения —
-[JSON](performance-2026-09-19-d186-raw.json).
+[JSON](performance-2026-09-19-d187-raw.json).
 
 **Среда.** Linux 7.2.3 (Arch), Intel Core i5-1135G7, 8 логических ядер, 16,4 ГБ RAM,
 бандловый Chromium Playwright 153.0.8010.12 в headless-режиме, **без аппаратного ускорения

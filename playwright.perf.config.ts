@@ -4,7 +4,7 @@ import { resolveChannel } from './playwright.config';
 const port = Number(process.env.DEV_PORT ?? '5187');
 // PERF_SERVER=preview measures the production build — what the deployed
 // service ships — and turns on the time budgets of the spec. The default stays
-// the dev server, where validation is timed by importing its module (D-186).
+// the dev server, where validation is timed by importing its module (D-187).
 const preview = process.env.PERF_SERVER === 'preview';
 const vite = 'node node_modules/vite/bin/vite.js';
 export default defineConfig({
