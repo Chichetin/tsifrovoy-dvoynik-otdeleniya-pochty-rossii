@@ -12,6 +12,7 @@ import {
   footprintArea,
   intersects,
   intervalsOverlap,
+  isSimplePolygon,
   locatePoint,
   modelToScreen,
   normalizeAngle,
@@ -118,6 +119,29 @@ describe('принадлежность и вогнутые зоны', () => {
     expect(contains(lShape, square(1.5, 1.5, 3))).toBe(false);
     expect(contains(lShape, square(4, 4, 1))).toBe(false);
   });
+
+  test('прямоугольник в вырезе не принадлежит зоне, даже когда все углы на границе', () => {
+    const outline: Polygon = [[0, 0], [4, 0], [4, 4], [3, 4], [3, 1], [1, 1], [1, 4], [0, 4]];
+    const cutout: Polygon = [[1, 1], [3, 1], [3, 4], [1, 4]];
+    expect(contains(outline, cutout)).toBe(false);
+    expect(intersects(outline, cutout)).toBe(false);
+    expect(contains(outline, outline)).toBe(true);
+  });
+});
+
+describe('простой контур', () => {
+  test.each<Polygon>([
+    [[0, 0], [4, 0], [4, 4], [2, 2], [0, 4], [2, 2]],
+    [[0, 0], [4, 0], [4, 4], [2, 0], [0, 4]],
+    [[0, 0], [4, 0], [2, 0], [4, 4], [0, 4]],
+    [[0, 0], [4, 0], [4, 0], [4, 4], [0, 4]],
+  ])('самокасание, возврат по ребру и нулевое ребро не допускаются: %j', (...polygon) => {
+    expect(isSimplePolygon(polygon)).toBe(false);
+  });
+
+  test('промежуточная вершина на прямой стороне допустима', () => {
+    expect(isSimplePolygon([[0, 0], [2, 0], [4, 0], [4, 4], [0, 4]])).toBe(true);
+  });
 });
 
 describe('пересечения', () => {
@@ -175,6 +199,20 @@ describe('стена с дверью и окном', () => {
   const door: Opening = { id: 'op_door', wallId: 'w_north', offset_m: 4, width_m: 1.2, kind: 'entrance', sill_m: 0, height_m: 2.1 };
   const window: Opening = { id: 'op_window', wallId: 'w_north', offset_m: 7, width_m: 1.5, kind: 'window', sill_m: 1, height_m: 1.2 };
   const openings = [door, window];
+
+  test('объект над низкой перегородкой не сталкивается с ней', () => {
+    const lowWall = { ...wall, height_m: 1 };
+    const above = equipment({ position: [2, 8], base_m: 1, height_m: 0.2 });
+    expect(objectHitsWall(above, lowWall, [])).toBe(false);
+    expect(objectHitsWall({ ...above, base_m: 0.9 }, lowWall, [])).toBe(true);
+  });
+
+  test('проёму достаточно освободить общую высоту стены и объекта', () => {
+    const lowWall = { ...wall, height_m: 1 };
+    const gap = { ...door, height_m: 1 };
+    const tall = equipment({ position: [4.6, 8], height_m: 2 });
+    expect(objectHitsWall(tall, lowWall, [gap])).toBe(false);
+  });
 
   test('стена целиком — прямоугольник своей толщины', () => {
     expect(polygonArea(wallPolygon(wall))).toBeCloseTo(2, CLOSE);
