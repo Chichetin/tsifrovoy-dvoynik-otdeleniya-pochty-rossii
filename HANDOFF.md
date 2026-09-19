@@ -16,7 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| Максим / Codex | `worktree-export-baseline-maxim`, MR после push | Один baseline для dirty и сравнения ассистента; stale-сохранение не меняет «до» | `src/contracts/commands.ts`, `src/state/plan-store.ts`, `src/app/App.tsx`, assistant | `npm test`: 755 passed + 1 skipped; Chrome compare 2/2; typecheck/lint/build | готово к MR |
+| Максим / Codex | `worktree-export-baseline-maxim`, [MR !105](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/105) | Один baseline для dirty и сравнения ассистента; stale-сохранение не меняет «до» | `src/contracts/commands.ts`, `src/state/plan-store.ts`, `src/app/App.tsx`, assistant | `npm test`: 755 passed + 1 skipped; Chrome compare 2/2; typecheck/lint/build | готово к слиянию |
 
 ## Блокеры и вопросы
 

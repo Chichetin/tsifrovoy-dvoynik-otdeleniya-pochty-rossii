@@ -14,7 +14,7 @@
 
 ## 1. Снимок «было» ведут две переменные (Strong)
 
-**Статус 19.09:** исправлено в ветке `worktree-export-baseline-maxim` (D-175):
+**Статус 19.09:** исправлено в [MR !105](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/105) (D-175):
 `baseline` — read-only поле store, `compareBase` и заглушка панели удалены; устаревший
 `markExported` закреплён тестом.
 
