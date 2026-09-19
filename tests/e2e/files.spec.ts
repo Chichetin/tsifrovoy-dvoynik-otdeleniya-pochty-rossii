@@ -377,4 +377,33 @@ test.describe('файлы плана', () => {
     // Картинка — не сохранение: правки по-прежнему несохранённые.
     await expect(page.getByText('есть несохранённые правки')).toBeVisible();
   });
+
+  test('«Картинка» не возвращает содержимое скрытого слоя', async ({ page }) => {
+    const source = JSON.parse(
+      readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'),
+    ) as {
+      room: { id: string };
+      layers: { visible: boolean }[];
+      zones: { id: string }[];
+      objects: { id: string }[];
+    };
+    for (const layer of source.layers) layer.visible = false;
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'hidden-layers.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(source)),
+    });
+
+    const event = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByTestId('export-svg').click(),
+    ]).then(([download]) => download);
+    const path = await event.path();
+    const svg = readFileSync(path as string, 'utf8');
+
+    expect(svg).toContain(`data-id="${source.room.id}"`);
+    for (const zone of source.zones) expect(svg).not.toContain(`data-id="${zone.id}"`);
+    for (const object of source.objects) expect(svg).not.toContain(`data-id="${object.id}"`);
+  });
 });

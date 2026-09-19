@@ -16,7 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
-| — | — | Других активных задач на доске нет: все перечисленные ранее MR (!50, !52, !59, !60, !65, !66, !67) слиты, строки перенесены в «Завершено» 19.09 | — | `scripts/gitlab-mr.sh show <n>` → `merged` | — |
+| Максим / Codex | `worktree-svg-visible-maxim`, [MR !102](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/102) | SVG выгружает текущую видимую схему, без сущностей скрытых слоёв | `src/persistence/plan-svg.ts`, unit- и e2e-тесты | `npm test`: 727 passed + 1 skipped; `files.spec.ts`: 12/12 Chrome; `npm run build` | готово к слиянию |
 
 ## Блокеры и вопросы
 
