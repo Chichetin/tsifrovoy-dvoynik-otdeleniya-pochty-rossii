@@ -552,6 +552,7 @@ body {
 
 .layers__row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   margin-top: 2px;
@@ -594,15 +595,15 @@ body {
   color: #fff;
 }
 
+/* The name takes a row of its own: five buttons beside it left «Тепловая н». */
 .layers__name {
-  box-sizing: border-box;
-  width: 100%;
+  flex: 1 1 100%;
   min-width: 0;
   padding: 3px 5px;
-  font-weight: 600;
   border: 1px solid transparent;
   border-radius: 4px;
   font: inherit;
+  font-weight: 600;
   background: transparent;
 }
 
@@ -868,4 +869,55 @@ body {
 
 .view3d__id {
   font-size: 12px;
+}
+
+/* Справочник: формы нового типа, атрибута и правила */
+
+.catalog__form {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.catalog__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.catalog__row .assistant__field {
+  flex: 1 1 90px;
+}
+
+.catalog__check {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  align-self: end;
+}
+
+.catalog__types {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+}
+
+.catalog__types li {
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+}
+
+.catalog__types li.is-selected {
+  background: #e7f5ff;
+}
+
+.catalog__remove {
+  margin-left: 8px;
+  color: var(--muted);
+}
+
+.catalog__remove:disabled {
+  color: var(--line);
+  cursor: not-allowed;
 }

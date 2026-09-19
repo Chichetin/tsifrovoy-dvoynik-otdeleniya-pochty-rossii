@@ -1,0 +1,146 @@
+{
+  "revision": 0,
+  "recommendations": [
+    {
+      "id": "adv_rule_info_display_max_z_client_excess",
+      "scenario": "equipment",
+      "refs": [
+        {
+          "kind": "zone",
+          "id": "z_client"
+        },
+        {
+          "kind": "object",
+          "id": "eq_7"
+        },
+        {
+          "kind": "object",
+          "id": "eq_8"
+        }
+      ],
+      "candidates": [],
+      "facts": [
+        {
+          "id": "adv_rule_info_display_max_z_client_excess.count",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ]
+        },
+        {
+          "id": "adv_rule_info_display_max_z_client_excess.bound",
+          "metric": "equipment.max",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_client"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [
+        "rule_info_display_max"
+      ],
+      "assumptions": [
+        "Правило команды: одно центральное информационное табло на клиентскую зону, второе избыточно.",
+        "Источник правила: допущение команды, не норматив Почты России (rule_info_display_max).",
+        "Считались объекты зоны вместе с вложенными."
+      ],
+      "reasonCodes": [
+        "equipment.excess"
+      ],
+      "limitations": [
+        "Правило комплектования принято командой и не является нормативом Почты России."
+      ],
+      "changes": []
+    },
+    {
+      "id": "adv_rule_bench_min_z_waiting_missing",
+      "scenario": "equipment",
+      "refs": [
+        {
+          "kind": "zone",
+          "id": "z_waiting"
+        },
+        {
+          "kind": "object",
+          "id": "eq_6"
+        }
+      ],
+      "candidates": [],
+      "facts": [
+        {
+          "id": "adv_rule_bench_min_z_waiting_missing.count",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 1,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        },
+        {
+          "id": "adv_rule_bench_min_z_waiting_missing.bound",
+          "metric": "equipment.min",
+          "phase": "current",
+          "value": 2,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        }
+      ],
+      "ruleIds": [
+        "rule_bench_min"
+      ],
+      "assumptions": [
+        "Правило команды: в зоне ожидания не меньше двух мест ожидания.",
+        "Источник правила: допущение команды, не норматив Почты России (rule_bench_min).",
+        "Считались объекты самой зоны, без вложенных."
+      ],
+      "reasonCodes": [
+        "equipment.missing"
+      ],
+      "limitations": [
+        "Правило комплектования принято командой и не является нормативом Почты России."
+      ],
+      "changes": []
+    }
+  ],
+  "explanations": [
+    {
+      "recommendationId": "adv_rule_info_display_max_z_client_excess",
+      "candidateId": null,
+      "reasonCode": "equipment.excess",
+      "factIds": [
+        "adv_rule_info_display_max_z_client_excess.count",
+        "adv_rule_info_display_max_z_client_excess.bound"
+      ]
+    },
+    {
+      "recommendationId": "adv_rule_bench_min_z_waiting_missing",
+      "candidateId": null,
+      "reasonCode": "equipment.missing",
+      "factIds": [
+        "adv_rule_bench_min_z_waiting_missing.count",
+        "adv_rule_bench_min_z_waiting_missing.bound"
+      ]
+    }
+  ],
+  "mode": "llm"
+}

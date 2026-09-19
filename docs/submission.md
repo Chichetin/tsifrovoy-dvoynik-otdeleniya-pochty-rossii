@@ -9,16 +9,17 @@
 |---|---|---|---|
 | Код | [GitLab](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii) и [README](../README.md) | Репозиторий есть; commit сдачи ещё не зафиксирован | Открыть ссылку без локальных файлов, сверить `origin/main` с commit сдачи |
 | Редактор | Публичный адрес в README | **Не указан:** площадка не выбрана | Открыть URL с другой сети, пройти сценарий и API health |
-| Демо | `build/demo/ops-digital-twin-demo.zip` по E01 | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 171 Б, пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
+| Демо | [`output/demo/ops-digital-twin-demo.zip`](../output/demo/ops-digital-twin-demo.zip) по E01, в git; `tests/demo.test.ts` сверяет его со свежей сборкой | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 270 Б, пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
 | Презентация | Один [PDF](../output/pdf/posttech-digital-twin-2026-09-18.pdf) ≤ 20 МБ | Черновик создан: 6 страниц, 301 567 Б; [факты для слайдов](presentation-facts.md). К форме сдачи ещё не прикреплён | PDF распечатан в PNG и осмотрен постранично, текст извлечён `pypdf`; перед сдачей участник проверяет содержание и прикрепляет один файл |
 
 Приёмка на релизной версии: зафиксировать SHA из `origin/main`, выполнить
 `npm ci`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run build`,
 браузерные сценарии и упаковку E01; затем пройти
 [протокол жюри](verification/jury.md). Локальные успешные прогоны Q01/Q02 и
-E01 не подменяют проверку публичного адреса. Для внешней LLM отдельно нужен
-настоящий ключ у сервера и `mode: llm` в API-ответе; до этого демонстрировать
-можно только честно обозначенный режим «Без LLM».
+E01 не подменяют проверку публичного адреса. Для внешней LLM нужен настоящий ключ у
+сервера и `mode: llm` в API-ответе — локально это подтверждено 19.09
+([запись](verification/llm-live-2026-09-19.md)); тот же `.env` нужно положить на
+публичный сервер, иначе там будет честно обозначенный режим «Без LLM».
 
 На промежуточном кандидате с продуктовым кодом `a2810d0` локально прошли
 475 unit-тестов (+1 пропущен), typecheck, lint и сборка. Полный браузерный

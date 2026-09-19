@@ -27,7 +27,7 @@ import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
 import { hasZoneCycle, reconcileZones } from '../relations';
-import { rebuildOuterWalls } from './room-walls';
+import { outerWallIds, rebuildOuterWalls } from './room-walls';
 
 /**
  * Thickness for outer walls of a plan that had none (team assumption, D-134).
@@ -48,6 +48,10 @@ export const COMMAND_ISSUE_CODES = {
   ATTRIBUTE_TYPE: 'ATTRIBUTE_TYPE',
   /** A deleted id is never reused. */
   ID_REUSED: 'ID_REUSED',
+  /** plan.rename with a blank name: the file would be called nothing. */
+  NAME_EMPTY: 'NAME_EMPTY',
+  /** room.setCeiling needs a finite height above zero. */
+  CEILING_INVALID: 'CEILING_INVALID',
 } as const;
 
 export type CommandIssueCode =
@@ -238,6 +242,24 @@ function requireEntity(plan: PlanDocument, id: Id, kind: RefKind): Result<null> 
       `Сущность «${id}» (${kind}) не найдена в плане.`,
       [{ kind, id }],
     );
+  }
+  return { ok: true, value: null };
+}
+
+/** A rule bound to a specific entrance must not silently become a dangling reference. */
+function checkEntrancesRetained(
+  plan: PlanDocument,
+  openings: PlanDocument['openings'],
+): Result<null> {
+  const retained = new Set(openings.map((opening) => opening.id));
+  for (const rule of plan.catalog.rules) {
+    if (rule.kind === 'distance-to-entrance' && rule.entranceId !== null && !retained.has(rule.entranceId)) {
+      return fail(
+        CONTRACT_ISSUE_CODES.BROKEN_REF,
+        `Вход «${rule.entranceId}» используется правилом «${rule.id}»: сначала измените или удалите правило.`,
+        [{ kind: 'opening', id: rule.entranceId }],
+      );
+    }
   }
   return { ok: true, value: null };
 }
@@ -515,7 +537,9 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       const rebuilt = rebuildOuterWalls(plan.walls, plan.openings, plan.room.boundary, command.boundary, {
         thickness_m: OUTER_WALL_THICKNESS_M,
         height_m: plan.room.ceilingHeight_m,
-      });
+      }, [...idOwners(plan)].filter(([, kind]) => kind !== 'wall').map(([id]) => id));
+      const entrances = checkEntrancesRetained(plan, rebuilt.openings);
+      if (!entrances.ok) return entrances;
       return withRelations({
         ...plan,
         room: { ...plan.room, boundary: command.boundary },
@@ -559,13 +583,16 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
     case 'wall.delete': {
       const present = requireEntity(plan, command.id, 'wall');
       if (!present.ok) return present;
+      const openings = plan.openings.filter((opening) => opening.wallId !== command.id);
+      const entrances = checkEntrancesRetained(plan, openings);
+      if (!entrances.ok) return entrances;
       // Openings live on the wall: they disappear within the same undo step.
       return {
         ok: true,
         value: {
           ...plan,
           walls: plan.walls.filter((wall) => wall.id !== command.id),
-          openings: plan.openings.filter((opening) => opening.wallId !== command.id),
+          openings,
         },
       };
     }
@@ -597,9 +624,41 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
     case 'opening.delete': {
       const present = requireEntity(plan, command.id, 'opening');
       if (!present.ok) return present;
+      const openings = plan.openings.filter((opening) => opening.id !== command.id);
+      const entrances = checkEntrancesRetained(plan, openings);
+      if (!entrances.ok) return entrances;
       return {
         ok: true,
-        value: { ...plan, openings: plan.openings.filter((opening) => opening.id !== command.id) },
+        value: { ...plan, openings },
+      };
+    }
+
+    case 'plan.rename': {
+      // Stored as typed: trimming here would eat the space a person just typed
+      // between two words (the card re-reads the plan after every keystroke).
+      // The file name normalises whitespace itself.
+      if (command.name.trim() === '') {
+        return fail(COMMAND_ISSUE_CODES.NAME_EMPTY, 'У плана должно быть название.', []);
+      }
+      return { ok: true, value: { ...plan, name: command.name } };
+    }
+
+    case 'room.setCeiling': {
+      const height = command.ceilingHeight_m;
+      const ref: Ref = { kind: 'room', id: plan.room.id };
+      if (!Number.isFinite(height) || height <= 0) {
+        return fail(COMMAND_ISSUE_CODES.CEILING_INVALID, 'Высота потолка — число больше нуля, в метрах.', [ref]);
+      }
+      // Outer walls are the outline made solid (D-134): they rise with the
+      // ceiling. Partitions keep the height their own card gave them.
+      const outer = outerWallIds(plan.walls, plan.room.boundary);
+      return {
+        ok: true,
+        value: {
+          ...plan,
+          room: { ...plan.room, ceilingHeight_m: height },
+          walls: plan.walls.map((wall) => (outer.has(wall.id) ? { ...wall, height_m: height } : wall)),
+        },
       };
     }
 

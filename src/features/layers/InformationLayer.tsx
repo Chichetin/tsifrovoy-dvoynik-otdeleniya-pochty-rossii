@@ -18,7 +18,7 @@ import { findLayerType } from '../../domain/catalog';
 import { modelToScreen, viewSector } from '../../domain/geometry';
 import { labelWidth, placeLabels, type Box } from './label-layout';
 import { formatValue, legendLine, legendOf } from './legend';
-import { paintRings, zonePaintRegions } from './zone-paint';
+import { heatRegions } from './heat-regions';
 
 const CAPTION_FILL = '#495057';
 const LABEL_BACKGROUND = '#FFFFFF';
@@ -128,14 +128,13 @@ export function InformationLayer({
       }
 
       if (representation.kind === 'zone-heat') {
-        // Deepest zone with a value paints each point; nested zones are holes.
-        for (const region of zonePaintRegions(plan.zones, (zone) => valueOf(zone) !== null)) {
-          const zone = region.zone;
-          const ratio = Math.min(Math.max((valueOf(zone) ?? 0) / representation.max, 0), 1);
-          const rings = paintRings(region).map(ring);
+        // Deepest zone with a value paints each point; nested zones are holes (D-138).
+        for (const region of heatRegions(plan.zones, representation.attribute)) {
+          const ratio = Math.min(Math.max(region.value / representation.max, 0), 1);
+          const rings = region.rings.map(ring);
           fills.push(
             <Shape
-              key={`${layerId}-${zone.id}`}
+              key={`${layerId}-${region.zoneId}`}
               name="info-fill"
               sceneFunc={(context, shape) => {
                 context.beginPath();
@@ -149,7 +148,6 @@ export function InformationLayer({
                 context.fillStrokeShape(shape);
               }}
               fill={mixColors(representation.colors[0], representation.colors[1], ratio)}
-              fillRule="evenodd"
               opacity={0.7}
               listening={false}
             />,

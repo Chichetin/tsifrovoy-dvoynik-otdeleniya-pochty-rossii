@@ -99,7 +99,7 @@ test.describe('развёрнутый сервис', () => {
     expect(response.headers()['content-type']).toContain('application/json');
   });
 
-  test('ассистент без ключа провайдера отвечает расчётом с пометкой «без LLM»', async ({
+  test('ассистент отвечает: с ключом — объяснение модели, без ключа — расчёт с пометкой «без LLM»', async ({
     page,
   }) => {
     await page.goto('/');
@@ -108,8 +108,11 @@ test.describe('развёрнутый сервис', () => {
     const panel = page.getByLabel('Ассистент');
     await panel.getByRole('button', { name: 'Спросить' }).click();
 
-    // Ответ пришёл с сервера контейнера: mode=fallback, потому что ключа нет.
-    await expect(panel.locator('.assistant__mode')).toContainText('Без LLM');
+    // Ответ пришёл с сервера: mode=llm, если на сервере задан ключ провайдера,
+    // иначе mode=fallback с пометкой. Оба — рабочие режимы, пустой экран — дефект.
+    await expect(panel.locator('.assistant__mode')).toContainText(
+      /Без LLM|Объяснение модели проверено расчётом/,
+    );
     await expect(panel.locator('.advice__sentence')).toContainText('Место найдено');
     await expect(panel.locator('.advice__candidates li').first()).toContainText('Свободно:');
   });

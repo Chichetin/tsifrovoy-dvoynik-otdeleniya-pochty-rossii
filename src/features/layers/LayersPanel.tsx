@@ -49,8 +49,17 @@ export function LayersPanel({
   const add = (): void => {
     const type = plan.catalog.layerTypes.find((entry) => entry.id === newTypeId) ?? null;
     const suffix = Date.now().toString(36);
+    // A layer removed this session retired its id (D-019): adding the same
+    // type again takes the next free number instead of a refused put.
+    const taken = new Set<string>([...plan.layers.map((layer) => layer.id), ...(session.retired ?? [])]);
+    const freeId = (base: string): string => {
+      if (!taken.has(base)) return base;
+      for (let index = 2; ; index += 1) {
+        if (!taken.has(`${base}_${index}`)) return `${base}_${index}`;
+      }
+    };
     put({
-      id: type === null ? `l_${suffix}` : `l_${type.id}`,
+      id: type === null ? freeId(`l_${suffix}`) : freeId(`l_${type.id}`),
       name: type === null ? `Слой ${plan.layers.length + 1}` : type.label,
       visible: true,
       locked: false,
@@ -249,23 +258,23 @@ export function LayersPanel({
 
           return (
             <li key={layer.id} className={selected ? 'layers__item is-selected' : 'layers__item'}>
-              <input
-                className="layers__name"
-                aria-label={`Имя слоя ${layer.name}`}
-                title={layer.name}
-                value={layer.name}
-                onFocus={() => onSelect({ kind: 'layer', id: layer.id })}
-                onChange={(event) => put({ ...layer, name: event.target.value })}
-              />
               <div className="layers__row">
+                <input
+                  className="layers__name"
+                  aria-label={`Имя слоя ${layer.name}`}
+                  title={layer.name}
+                  value={layer.name}
+                  onFocus={() => onSelect({ kind: 'layer', id: layer.id })}
+                  onChange={(event) => put({ ...layer, name: event.target.value })}
+                />
                 {/* A pressed button, not an input: other specs and the 3D view
                     address it by this role; it looks and reads like a checkbox. */}
                 <button
                   type="button"
                   className="layers__visible"
                   aria-label={`Показывать слой ${layer.name}`}
-                  aria-pressed={layer.visible}
                   title={layer.visible ? 'Слой показан — скрыть' : 'Слой скрыт — показать'}
+                  aria-pressed={layer.visible}
                   onClick={() => put({ ...layer, visible: !layer.visible })}
                 >
                   <span className="layers__check" aria-hidden="true">
@@ -277,8 +286,8 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Запереть слой ${layer.name}`}
+                  title={layer.locked ? 'Слой заперт, правки запрещены — отпереть' : 'Слой открыт для правок — запереть'}
                   aria-pressed={layer.locked}
-                  title={layer.locked ? 'Слой заперт от правок — отпереть' : 'Запереть от правок'}
                   onClick={() => put({ ...layer, locked: !layer.locked })}
                 >
                   {layer.locked ? '🔒' : '🔓'}
@@ -287,7 +296,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Поднять слой ${layer.name}`}
-                  title="Поднять"
+                  title="Поднять слой"
                   onClick={() => move(layer, -1)}
                 >
                   ↑
@@ -296,7 +305,7 @@ export function LayersPanel({
                   type="button"
                   className="layers__toggle"
                   aria-label={`Опустить слой ${layer.name}`}
-                  title="Опустить"
+                  title="Опустить слой"
                   onClick={() => move(layer, 1)}
                 >
                   ↓

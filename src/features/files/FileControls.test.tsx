@@ -109,6 +109,62 @@ afterEach(() => {
 });
 
 describe('FileControls: замена текущего плана', () => {
+  function delayedFile() {
+    let resolve!: (text: string) => void;
+    let reject!: (error: Error) => void;
+    const result = new Promise<string>((done, fail) => { resolve = done; reject = fail; });
+    const file = new File([], 'slow.json');
+    vi.spyOn(file, 'text').mockReturnValue(result);
+    fireEvent.change(screen.getByTestId('plan-file-input'), { target: { files: [file] } });
+    return {
+      finish: () => act(async () => { resolve(JSON.stringify(filled)); }),
+      fail: () => act(async () => { reject(new Error('Старый файл недоступен')); }),
+    };
+  }
+
+  test('закончившееся после «Новый» чтение не заменяет новый план', async () => {
+    const { onReplace } = renderControls({ storage: null });
+    const pending = delayedFile();
+    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+    await pending.finish();
+    expect(onReplace).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+  });
+
+  test('правки во время чтения сохраняются, открытие отменяется с объяснением', async () => {
+    const { onReplace, rerender } = renderControls({ storage: null });
+    const pending = delayedFile();
+    rerender({ document: { ...empty, name: 'Свежие правки' }, revision: 1 });
+    await pending.finish();
+    expect(onReplace).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert').textContent).toContain('изменён');
+    expect(screen.queryByTestId('files-loading')).toBeNull();
+  });
+
+  test.each(['finish', 'fail'] as const)('более раннее чтение (%s) не перезаписывает результат нового открытия', async (ending) => {
+    const { onReplace } = renderControls({ storage: null });
+    const pending = delayedFile();
+    const latest = { ...filled, name: 'Последний выбранный файл' };
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), {
+        target: { files: [new File([JSON.stringify(latest)], 'latest.json')] },
+      });
+    });
+    await pending[ending]();
+    expect(onReplace).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('files-notice').textContent).toContain(latest.name);
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  test('восстановление черновика отменяет ожидающее чтение файла', async () => {
+    const { onReplace } = renderControls({ storage: fakeStorage(draftOf(filled)) });
+    const pending = delayedFile();
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+    await pending.finish();
+    expect(onReplace).toHaveBeenCalledTimes(1);
+    expect(onReplace).toHaveBeenCalledWith(filled, 'draft');
+  });
+
   test('«Новый» на нетронутом пустом плане не спрашивает о несуществующих правках', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 0 });
@@ -309,5 +365,26 @@ describe('FileControls: восстановление поверх открыто
     expect(confirm).not.toHaveBeenCalled();
     expect(onReplace).toHaveBeenCalledTimes(1);
     expect((onReplace.mock.calls[0]?.[0] as PlanDocument).objects).toHaveLength(1);
+  });
+});
+
+describe('FileControls: картинка плана', () => {
+  test('«Картинка» на свежей странице показывает результат, а не молчит', () => {
+    // Ревью MR !73: до починки уведомление ставилось, но состояние оставалось
+    // idle, и строка результата не рендерилась — файл уходил в загрузки молча.
+    const url = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:svg');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const { onExported } = renderControls({ storage: null });
+
+    fireEvent.click(screen.getByTestId('export-svg'));
+
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(url).toHaveBeenCalledTimes(1);
+    expect(revoke).toHaveBeenCalledWith('blob:svg');
+    expect(screen.getByTestId('files-notice').textContent).toContain('Картинка');
+    expect(screen.getByTestId('files-notice').textContent).toContain('.svg');
+    // Картинка — не сохранение.
+    expect(onExported).not.toHaveBeenCalled();
   });
 });

@@ -25,7 +25,7 @@
  * lost to a closed tab because a question stayed on screen unanswered.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DocumentOrigin } from '../../contracts/commands';
 import type { Issue, PlanDocument, Result } from '../../contracts/model';
 import type { RequestState } from '../../contracts/ui';
@@ -39,6 +39,7 @@ import {
   type PlanDraft,
 } from '../../persistence/browser-draft';
 import type { OpenedPlan } from '../../persistence/format';
+import { planFileName, renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
 
 export type FileControlsProps = {
   document: PlanDocument;
@@ -89,8 +90,7 @@ function replacementWarning(action: 'Новый' | 'Открыть', dirty: bool
 }
 
 function fileName(plan: PlanDocument): string {
-  const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
-  return `${stem === '' ? 'plan' : stem}.json`;
+  return planFileName(plan, 'json');
 }
 
 /** Хранилище браузера, если оно вообще доступно: приватный режим бросает. */
@@ -120,6 +120,12 @@ export function FileControls({
   storage: given,
 }: FileControlsProps): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null);
+  const openSequence = useRef(0);
+  const currentDocument = useRef({ plan, revision });
+  useLayoutEffect(() => {
+    currentDocument.current = { plan, revision };
+  }, [plan, revision]);
+  useEffect(() => () => { openSequence.current += 1; }, []);
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
@@ -180,6 +186,7 @@ export function FileControls({
   }, [plan, answered, encode, start.opening]);
 
   const accept = (opened: OpenedPlan, origin: DocumentOrigin): void => {
+    openSequence.current += 1;
     // Документ заменён целиком — вопрос о черновике отвечен самим действием.
     setOffered(null);
     setAnswered(true);
@@ -192,12 +199,25 @@ export function FileControls({
   };
 
   const open = async (file: File): Promise<void> => {
+    const sequence = ++openSequence.current;
+    const stillCurrent = (): boolean => {
+      if (sequence !== openSequence.current) return false;
+      if (currentDocument.current.plan !== plan || currentDocument.current.revision !== revision) {
+        setState({
+          status: 'error',
+          message: 'План изменён во время чтения файла. Открытие отменено, ваши правки сохранены.',
+        });
+        return false;
+      }
+      return true;
+    };
     setState({ status: 'loading' });
     setNotice(null);
     let text: string;
     try {
       text = await file.text();
     } catch (error) {
+      if (!stillCurrent()) return;
       setState({
         status: 'error',
         message: `Файл не прочитался: ${error instanceof Error ? error.message : String(error)}`,
@@ -205,6 +225,7 @@ export function FileControls({
       return;
     }
 
+    if (!stillCurrent()) return;
     const opened = read(text);
     if (!opened.ok) {
       // The open document stays untouched: a rejected file never replaces it.
@@ -223,6 +244,7 @@ export function FileControls({
     const current = encode(plan);
     const touched = !current.ok || current.value !== start.opening;
     if ((hasContent(plan) || touched) && !window.confirm(RESTORE_WARNING)) return;
+    openSequence.current += 1;
     const opened = read(draft.text);
     setOffered(null);
     setAnswered(true);
@@ -267,6 +289,25 @@ export function FileControls({
     setState({ status: 'done' });
   };
 
+  /**
+   * Картинка плана для согласования — SVG из того же документа (D-061). Это
+   * не сохранение: план после выгрузки остаётся таким же «несохранённым»,
+   * каким был, и черновик не трогается.
+   */
+  const exportImage = (): void => {
+    const svg = renderPlanSvg(plan);
+    const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+    const link = window.document.createElement('a');
+    link.href = url;
+    link.download = svgFileName(plan);
+    link.click();
+    URL.revokeObjectURL(url);
+    // Own result state, like «Сохранить»: otherwise a stale «План не открыт…»
+    // would stay on screen next to a file that downloaded fine.
+    setNotice(`Картинка ${svgFileName(plan)} передана браузеру на скачивание.`);
+    setState({ status: 'done' });
+  };
+
 
   return (
     <>
@@ -277,6 +318,7 @@ export function FileControls({
         onClick={() => {
           if (needsReplacementWarning(plan, dirty, revision) &&
               !window.confirm(replacementWarning('Новый', dirty))) return;
+          openSequence.current += 1;
           onNew();
           if (storage !== null) clearDraft(storage);
           // Чистый лист — тоже ответ на предложение: черновика больше нет.
@@ -305,6 +347,16 @@ export function FileControls({
 
       <button type="button" className="files__button is-primary" onClick={save}>
         Сохранить
+      </button>
+
+      <button
+        type="button"
+        className="files__button"
+        title="Скачать план картинкой (SVG) для согласования и презентации"
+        data-testid="export-svg"
+        onClick={exportImage}
+      >
+        Картинка
       </button>
 
       <input

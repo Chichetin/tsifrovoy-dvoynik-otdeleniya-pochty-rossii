@@ -93,8 +93,8 @@ describe('LayersPanel', () => {
     renderPanel(demo());
     const heat = within(item('Тепловая нагрузка зон'));
     expect(heat.getByRole('button', { name: 'Запереть слой Тепловая нагрузка зон' }).getAttribute('title')).toBeTruthy();
-    expect(heat.getByRole('button', { name: 'Поднять слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Поднять');
-    expect(heat.getByRole('button', { name: 'Опустить слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Опустить');
+    expect(heat.getByRole('button', { name: 'Поднять слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Поднять слой');
+    expect(heat.getByRole('button', { name: 'Опустить слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Опустить слой');
   });
 
   test('у включённого теплового слоя легенда: шкала, 0 … max, порог, «синтетические»', () => {

@@ -15,6 +15,7 @@ import { inflateRawSync } from 'node:zlib';
 import { afterAll, describe, expect, test } from 'vitest';
 import { buildDemo, REQUESTS } from '../demo/build';
 import {
+  DEFAULT_OUTPUT,
   DEMO_FILES,
   collectDemoFiles,
   crc32,
@@ -374,7 +375,32 @@ describe('комплект демо-проекта', () => {
     packageDemo(second);
     expect(readFileSync(first).equals(readFileSync(second))).toBe(true);
   });
+
+  test('закоммиченный ZIP в output/ — это свежая сборка demo/, а не устаревшая копия', () => {
+    const fresh = join(temp(), 'fresh.zip');
+    packageDemo(fresh);
+    const committed = readFileSync(join(process.cwd(), DEFAULT_OUTPUT));
+    // Deflate output differs between zlib builds (Windows and Linux Node), so
+    // the archives are compared by names and CRC-32 of the unpacked files.
+    expect(
+      entryChecksums(committed),
+      `output/ отстал от demo/: выполните npm run package:demo и закоммитьте ${DEFAULT_OUTPUT}`,
+    ).toEqual(entryChecksums(readFileSync(fresh)));
+  });
 });
+
+/** Name → CRC-32 of the unpacked content, read from the central directory. */
+function entryChecksums(archive: Buffer): Map<string, number> {
+  const end = archive.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  const entries = new Map<string, number>();
+  let cursor = archive.readUInt32LE(end + 16);
+  for (let index = 0; index < archive.readUInt16LE(end + 10); index += 1) {
+    const nameLength = archive.readUInt16LE(cursor + 28);
+    entries.set(archive.toString('utf8', cursor + 46, cursor + 46 + nameLength), archive.readUInt32LE(cursor + 16));
+    cursor += 46 + nameLength + archive.readUInt16LE(cursor + 30) + archive.readUInt16LE(cursor + 32);
+  }
+  return entries;
+}
 
 function run(
   plan: PlanDocument,

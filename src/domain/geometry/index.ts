@@ -112,6 +112,8 @@ export function wallObstacles(
   openings: Opening[],
   interval: HeightInterval,
 ): Polygon[] {
+  const overlap = { base_m: Math.max(0, interval.base_m), top_m: Math.min(wall.height_m, interval.top_m) };
+  if (!intervalsOverlap({ base_m: 0, top_m: wall.height_m }, interval)) return [];
   const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
   if (length <= TOLERANCE.coordinate_m) return [];
 
@@ -119,8 +121,8 @@ export function wallObstacles(
     .filter((opening) => opening.wallId === wall.id)
     .filter(
       (opening) =>
-        opening.sill_m <= interval.base_m + TOLERANCE.coordinate_m &&
-        opening.sill_m + opening.height_m >= interval.top_m - TOLERANCE.coordinate_m,
+        opening.sill_m <= overlap.base_m + TOLERANCE.coordinate_m &&
+        opening.sill_m + opening.height_m >= overlap.top_m - TOLERANCE.coordinate_m,
     )
     .map((opening) => ({
       start: Math.max(0, opening.offset_m),
