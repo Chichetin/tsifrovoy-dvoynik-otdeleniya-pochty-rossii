@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import type {
   Catalog,
   Issue,
@@ -23,7 +24,13 @@ import type {
 import { SCHEMA_VERSION } from '../../contracts/model';
 import { contains, footprint } from '../geometry';
 import { validatePlan } from '../validation';
-import { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements } from './placement';
+import {
+  PLACEMENT_ISSUE_CODES,
+  PLACEMENT_SEARCH,
+  findPlacements,
+  separationFor,
+  spreadApart,
+} from './placement';
 
 const DESK: ObjectType = {
   id: 'ot_desk',
@@ -144,6 +151,13 @@ function errors(issues: Issue[]): Issue[] {
   return issues.filter((entry) => entry.severity === 'error');
 }
 
+/** Тип из справочника документа: разнос вариантов считается по нему. */
+function typeOf(document: PlanDocument, typeId: string): ObjectType {
+  const type = document.catalog.objectTypes.find((entry) => entry.id === typeId);
+  if (type === undefined) throw new Error(`в справочнике теста нет типа ${typeId}`);
+  return type;
+}
+
 function values(document: PlanDocument, typeId: string, zoneId: string | null, anchor?: Point) {
   const result = place(document, typeId, zoneId, anchor);
   if (!result.ok) throw new Error(`ожидался результат, получены проблемы: ${JSON.stringify(result.issues)}`);
@@ -151,6 +165,36 @@ function values(document: PlanDocument, typeId: string, zoneId: string | null, a
 }
 
 describe('A01: поиск места', () => {
+  test('бюджет поиска ограничивает и клетки вне досягаемости входа', () => {
+    const document = plan({
+      room: { id: 'room_main', boundary: [[0, 0], [1e6, 0], [1e6, 1e6], [0, 1e6]], ceilingHeight_m: 3 },
+      walls: [{ id: 'wall', from: [0, 0], to: [10, 0], thickness_m: 0.2, height_m: 3 }],
+      openings: [{ id: 'entrance', wallId: 'wall', offset_m: 0, width_m: 1, kind: 'entrance', sill_m: 0, height_m: 2 }],
+      catalog: catalog([{
+        id: 'reach', kind: 'distance-to-entrance', objectTypeId: 'ot_queue_terminal',
+        source: 'organizer-material', rationale: 'Тест ограничения расстояния',
+        entranceId: null, maxDistance_m: 3,
+      }]),
+    });
+    // A subprocess can be stopped even if a synchronous grid sweep never yields.
+    const script = `
+      import { findPlacements } from './src/domain/advice/placement.ts';
+      const document = ${JSON.stringify(document)};
+      for (const openings of [document.openings, []]) {
+        const result = findPlacements({ ...document, openings }, {
+          scenario: 'place', typeId: 'ot_queue_terminal', zoneId: null,
+        });
+        if (!result.ok || result.value.length !== 0) process.exit(1);
+      }
+    `;
+    const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
+      timeout: 4000,
+      encoding: 'utf8',
+    });
+    expect(child.error, child.stderr).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+  }, 8000);
+
   test('кандидаты лежат в помещении и не задевают существующие объекты', () => {
     const document = plan({
       objects: [object('eq_block', 'ot_block', [5, 4], [2, 2])],
@@ -400,6 +444,78 @@ describe('A01: поиск места', () => {
       ok: false,
       issues: [{ code: PLACEMENT_ISSUE_CODES.TARGET_ZONE_MISSING }],
     });
+  });
+
+  test('варианты стоят в разных местах, а не в одной точке с разницей в шаг сетки', () => {
+    const document = plan({});
+
+    const candidates = values(document, 'ot_desk', null);
+
+    expect(candidates.length).toBe(PLACEMENT_SEARCH.maxCandidates);
+    // Сетка поиска — 0,1 м, и раньше три лучших места по рангу были соседними
+    // клетками: человек видел «три варианта» в одной точке. Каждая пара
+    // вариантов обязана отличаться видимо.
+    const separation = separationFor(typeOf(document, 'ot_desk'));
+    for (const left of candidates) {
+      for (const right of candidates) {
+        if (left.id === right.id) continue;
+        const gap = Math.hypot(
+          left.object.position[0] - right.object.position[0],
+          left.object.position[1] - right.object.position[1],
+        );
+        expect(gap).toBeGreaterThanOrEqual(separation - 1e-6);
+      }
+    }
+  });
+
+  test('разнос считается по самому объекту: длинная сторона, но не меньше предела', () => {
+    const document = plan({});
+    const desk = typeOf(document, 'ot_desk');
+
+    // Стол 1,4 × 0,8 м: разнос по длинной стороне. Мелочь получает нижний предел.
+    expect(separationFor(desk)).toBe(1.4);
+    expect(separationFor({ ...desk, defaultSize_m: [0.2, 0.2] })).toBe(
+      PLACEMENT_SEARCH.minSeparation_m,
+    );
+  });
+
+  test('тесная зона честно даёт меньше вариантов, а не почти совпадающие', () => {
+    // Полоса 2,2 × 1,2 м: стол 2 × 1 встаёт, но второго такого места нет.
+    const document = plan({
+      zones: [
+        zone('z_strip', 'zt_client', [
+          [0, 0],
+          [2.2, 0],
+          [2.2, 1.2],
+          [0, 1.2],
+        ]),
+      ],
+    });
+
+    const candidates = values(document, 'ot_desk', 'z_strip');
+
+    expect(candidates.length).toBeGreaterThan(0);
+    expect(candidates.length).toBeLessThan(PLACEMENT_SEARCH.maxCandidates);
+  });
+
+  test('spreadApart берёт лучшее и отбрасывает близкое к уже выбранному', () => {
+    const ranked = [
+      { position: [0, 0] as Point, tag: 'первый' },
+      { position: [0.1, 0] as Point, tag: 'рядом' },
+      { position: [3, 0] as Point, tag: 'далеко' },
+      { position: [3.05, 0] as Point, tag: 'рядом с далёким' },
+      { position: [6, 0] as Point, tag: 'ещё дальше' },
+    ];
+
+    expect(spreadApart(ranked, 1, 3).map((entry) => entry.tag)).toEqual([
+      'первый',
+      'далеко',
+      'ещё дальше',
+    ]);
+    // Предел соблюдается, порядок ранга сохраняется.
+    expect(spreadApart(ranked, 1, 2).map((entry) => entry.tag)).toEqual(['первый', 'далеко']);
+    // Разнос больше всех расстояний — остаётся один вариант.
+    expect(spreadApart(ranked, 100, 3)).toHaveLength(1);
   });
 
   test('самопересекающийся контур не даёт выдуманных мест', () => {

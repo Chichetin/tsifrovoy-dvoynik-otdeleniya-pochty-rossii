@@ -13,13 +13,14 @@
  */
 
 import { Fragment, useEffect, useState } from 'react';
-import { Circle, Group, Layer, Line, Rect } from 'react-konva';
+import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Equipment, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
+import { LABEL_LINE_PX, objectLabel } from './object-label';
 import {
   RESIZE_HANDLES,
   grabOffset,
@@ -84,6 +85,11 @@ export function EquipmentLayer({
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
+  // A click while a drawing or placing tool is active belongs to that tool:
+  // the object under the pointer must not take the selection away from the one
+  // just placed, and the handles of the selected object must not swallow the
+  // next placement click (stacking racks from the library is the normal case).
+  const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
   const [gesture, setGesture] = useState<Gesture | null>(null);
   // Lazy initialiser: one guard per layer, kept across renders. It holds the
   // gesture in progress — the dragged node, where it started and where inside
@@ -196,7 +202,7 @@ export function EquipmentLayer({
         rotation={current.rotation_deg}
         draggable={!ghost && !lockedLayers.has(object.layerId)}
         listening={!ghost}
-        onPointerClick={() => onSelect({ kind: 'object', id: object.id })}
+        onPointerClick={picking ? () => onSelect({ kind: 'object', id: object.id }) : undefined}
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
           setGesture({ id: object.id, object: { ...object, position: movedTo(event.target) } });
@@ -342,6 +348,44 @@ export function EquipmentLayer({
 
       {previewObject === null ? null : render(previewObject, true)}
 
+      {/* Captions sit above every shape and never catch the pointer: the plan
+          is read by a manager who should not have to click to learn what a
+          rectangle is. Objects too small on screen stay uncaptioned. */}
+      {plan.objects
+        .filter((object) => visibleLayers.has(object.layerId))
+        .map((object) => {
+          const label = objectLabel(shown(object), viewport);
+          if (label === null) return null;
+          // Konva counts padding inside the box: without it the second line is cut.
+          const height = label.lines * LABEL_LINE_PX + 2;
+          return (
+            <Label
+              key={`label-${object.id}`}
+              name={`label-${object.id}`}
+              x={label.x - label.width / 2}
+              y={label.y - height / 2}
+              listening={false}
+            >
+              {/* A pale tag under the text: dark letters on a red rack are unreadable. */}
+              <Tag fill="#FFFFFF" opacity={0.72} cornerRadius={2} />
+              <Text
+                width={label.width}
+                height={height}
+                text={label.text}
+                fontSize={label.fontSize}
+                lineHeight={LABEL_LINE_PX / label.fontSize}
+                fontFamily="system-ui, sans-serif"
+                fill="#212529"
+                align="center"
+                verticalAlign="middle"
+                wrap={label.lines === 2 ? 'word' : 'none'}
+                ellipsis
+                padding={1}
+              />
+            </Label>
+          );
+        })}
+
       {selectedObject === null || !selectedVisible ? null : (
         <Line
           key={`outline-${selectedObject.id}`}
@@ -357,7 +401,7 @@ export function EquipmentLayer({
       )}
 
       {/* A locked layer shows the selection but offers nothing to pull. */}
-      {selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
+      {!picking || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
         ? null
         : [
             ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),

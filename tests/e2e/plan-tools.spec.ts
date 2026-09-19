@@ -165,6 +165,42 @@ async function drawPlan(page: Page, size: Rect): Promise<void> {
 }
 
 test.describe('инструменты плана', () => {
+  test('нарисованная зона сразу выбрана, соседняя зона Т-стыком не портит её контур', async ({
+    page,
+  }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const left = ring(size, [
+      [0.2, 0.2],
+      [0.5, 0.2],
+      [0.5, 0.8],
+      [0.2, 0.8],
+    ]);
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    for (const point of left) await clickAt(page, point);
+    await clickAt(page, left[0] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+
+    // Вторая зона подряд, без «Выбора»: её первый угол — середина правого ребра
+    // первой. Ручек и «широких» рёбер выбранной зоны под инструментом нет,
+    // поэтому клик ставит вершину черновика, а не вставляет вершину в z_1.
+    const right = ring(size, [
+      [0.5, 0.5],
+      [0.8, 0.5],
+      [0.8, 0.8],
+      [0.5, 0.8],
+    ]);
+    for (const point of right) await clickAt(page, point);
+    await clickAt(page, right[0] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, px(size, 0.3, 0.3));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+  });
+
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -261,7 +297,7 @@ test.describe('инструменты плана', () => {
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите зону, объект, перегородку или проём на плане')).toBeVisible();
+    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -339,7 +375,7 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите зону, объект, перегородку или проём на плане')).toBeVisible();
+    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));

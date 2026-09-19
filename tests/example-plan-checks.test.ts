@@ -15,11 +15,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { Catalog, Issue, ObjectType, PlanDocument } from '../src/contracts/model';
+import type { Catalog, Issue, PlanDocument } from '../src/contracts/model';
 import { parseCatalog } from '../src/contracts/schema';
 import { applyCommand } from '../src/domain/commands';
 import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
-import { importOrganizerExample } from '../src/persistence/organizer-import';
+import { importOrganizerExample, withTeamCatalog } from '../src/persistence/organizer-import';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -39,34 +39,13 @@ function teamCatalog(): Catalog {
 
 /**
  * The import brings the example's own types but no stocking rules (D-025):
- * the rules come from the team catalog by an explicit catalog.replace, which
- * is the same path the editor takes.
+ * the rules come from the team catalog through `withTeamCatalog` — the same
+ * path the editor takes when it opens the example.
  */
 function examplePlanWithTeamRules(): PlanDocument {
   const importResult = importOrganizerExample(readJson('example_plan.json'));
   if (!importResult.ok) throw new Error('пример не импортировался');
-  const imported = importResult.value;
-
-  const team = teamCatalog();
-  const teamObjectIds = new Set(team.objectTypes.map((type) => type.id));
-  const teamZoneIds = new Set(team.zoneTypes.map((type) => type.id));
-  const extraObjects: ObjectType[] = imported.catalog.objectTypes.filter(
-    (type) => !teamObjectIds.has(type.id),
-  );
-
-  const merged = applyCommand(imported, {
-    type: 'catalog.replace',
-    catalog: {
-      version: `${team.version}+organizer-example`,
-      objectTypes: [...team.objectTypes, ...extraObjects],
-      zoneTypes: [
-        ...team.zoneTypes,
-        ...imported.catalog.zoneTypes.filter((type) => !teamZoneIds.has(type.id)),
-      ],
-      layerTypes: team.layerTypes,
-      rules: team.rules,
-    },
-  });
+  const merged = withTeamCatalog(importResult.value, teamCatalog());
   if (!merged.ok) {
     throw new Error(`справочники не сомкнулись: ${merged.issues.map((i) => i.code).join(', ')}`);
   }
@@ -87,6 +66,32 @@ function idsOf(issues: Issue[], code: string): string[] {
 
 const plan = examplePlanWithTeamRules();
 const issues = validatePlan(plan);
+
+describe('слияние со справочником команды', () => {
+  test('типы примера остаются, наши правила и слои приходят, повторное слияние ничего не дублирует', () => {
+    const team = teamCatalog();
+    const importResult = importOrganizerExample(readJson('example_plan.json'));
+    if (!importResult.ok) throw new Error('пример не импортировался');
+    const exampleOnly = importResult.value.catalog.objectTypes
+      .map((type) => type.id)
+      .filter((id) => !team.objectTypes.some((type) => type.id === id));
+    expect(exampleOnly.length).toBeGreaterThan(0);
+
+    const ids = plan.catalog.objectTypes.map((type) => type.id);
+    for (const id of exampleOnly) expect(ids).toContain(id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(plan.catalog.rules.length).toBe(team.rules.length);
+    expect(plan.layers.filter((layer) => layer.typeId !== null).map((layer) => layer.typeId)).toEqual(
+      team.layerTypes.map((type) => type.id),
+    );
+    // Every object still resolves to a type after the merge.
+    for (const object of plan.objects) expect(ids).toContain(object.typeId);
+
+    const again = withTeamCatalog(plan, team);
+    expect(again.ok).toBe(true);
+    if (again.ok) expect(again.value.layers.length).toBe(plan.layers.length);
+  });
+});
 
 describe('известные ошибки примера находятся', () => {
   test('три пары пересекающихся объектов', () => {
@@ -153,6 +158,32 @@ describe('известные ошибки примера находятся', ()
       if (entry.code === VALIDATION_ISSUE_CODES.RULE_ENTRANCE_MISSING) continue;
       expect(entry.polygon?.length ?? 0).toBeGreaterThanOrEqual(3);
     }
+  });
+});
+
+describe('одна проблема — одна находка (operator №19, D-157)', () => {
+  test('стеллаж вне своей зоны не повторяется находкой «ни в одной зоне»', () => {
+    for (const id of ['eq_rack_1', 'eq_rack_2']) {
+      const about = issues.filter((entry) => entry.refs.some((ref) => ref.id === id));
+      expect(about.map((entry) => entry.code)).toContain(VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE);
+      expect(about.map((entry) => entry.code)).not.toContain('ZONE_UNASSIGNED');
+    }
+  });
+
+  test('пример как есть, без правил команды, — ровно 8 находок', () => {
+    // Три коллизии, три стены (два стеллажа и ПВЗ через наружную стену),
+    // два стеллажа вне своей зоны. До D-157 к ним добавлялись два повтора
+    // ZONE_UNASSIGNED о тех же стеллажах — 10 строк о 8 проблемах.
+    const imported = importOrganizerExample(readJson('example_plan.json'));
+    if (!imported.ok) throw new Error('пример не импортировался');
+    const codes = validatePlan(imported.value).map((entry) => entry.code).sort();
+    expect(codes).toEqual(
+      [
+        ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_COLLISION),
+        ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL),
+        ...Array<string>(2).fill(VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE),
+      ].sort(),
+    );
   });
 });
 

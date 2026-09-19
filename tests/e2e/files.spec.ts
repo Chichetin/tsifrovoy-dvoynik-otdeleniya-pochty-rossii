@@ -23,6 +23,29 @@ const DRAFT_KEY = 'ops-twin.draft.v1';
 /** Название отделения во втором файле: по нему узнаём черновик на экране. */
 const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
 
+/**
+ * Черновик в localStorage держит план с нужным числом объектов. Подпись времени
+ * у «черновик в браузере» появляется уже от стартового пустого плана, поэтому
+ * ждать её после «Открыть» недостаточно: под нагрузкой перезагрузка успевала
+ * раньше записи открытого файла, и предложение показывало прежний план.
+ */
+async function draftHolds(page: Page, objects: number): Promise<void> {
+  await page.waitForFunction(
+    ([key, count]) => {
+      // Мусор в хранилище (есть такой тест) — это «ещё не записан», а не сбой ожидания.
+      try {
+        const raw = window.localStorage.getItem(key as string);
+        if (raw === null) return false;
+        const draft = JSON.parse(raw) as { text: string };
+        return (JSON.parse(draft.text) as { objects: unknown[] }).objects.length === count;
+      } catch {
+        return false;
+      }
+    },
+    [DRAFT_KEY, objects] as const,
+  );
+}
+
 /** Строки перечня оборудования — первая таблица панели «Инвентаризация». */
 function inventoryRows(page: Page) {
   return page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
@@ -118,6 +141,11 @@ test.describe('файлы плана', () => {
 
     // Зоны нарисованы: площадь помещения и свободный пол посчитаны от плана.
     await expect(page.getByTestId('room-free')).toContainText('м²');
+
+    // Правила команды сомкнулись с примером: ловушка «терминал в ~7 м от входа
+    // при норме 3 м» видна в проверке, а не только в unit-тесте.
+    await expect(page.getByLabel('Проверка плана')).toContainText('от входа');
+    await expect(page.getByLabel('Проверка плана')).toContainText('не более 3 м');
     expect(errors).toEqual([]);
   });
 
@@ -189,6 +217,7 @@ test.describe('файлы плана', () => {
     await expect(inventoryRows(page)).toHaveCount(12);
     // Черновик пишется с задержкой и говорит, что он в браузере, а не на диске.
     await expect(page.getByTestId('draft-saved')).toContainText(/черновик в браузере: \d\d:\d\d/);
+    await draftHolds(page, 12);
 
     await page.reload();
     // После перезагрузки план пуст, но черновик предложен, а не применён сам.
@@ -205,7 +234,7 @@ test.describe('файлы плана', () => {
   test('черновик не затирается, пока на предложение не ответили', async ({ page }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
-    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+    await draftHolds(page, 12);
 
     await page.reload();
     await expect(page.getByTestId('draft-restore')).toBeVisible();
@@ -226,7 +255,7 @@ test.describe('файлы плана', () => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+    await draftHolds(page, 12);
 
     await page.reload();
     await expect(page.getByTestId('draft-restore')).toContainText('ОПС-1');
@@ -242,12 +271,7 @@ test.describe('файлы плана', () => {
     await expect(inventoryRows(page)).toHaveCount(4);
     // Ждём именно записи правки, а не подписи времени: подпись уже стоит от
     // черновика открытого файла, а дебаунс — 700 мс.
-    await page.waitForFunction((key) => {
-      const raw = window.localStorage.getItem(key as string);
-      if (raw === null) return false;
-      const draft = JSON.parse(raw) as { text: string };
-      return (JSON.parse(draft.text) as { objects: unknown[] }).objects.length === 4;
-    }, DRAFT_KEY);
+    await draftHolds(page, 4);
 
     await page.reload();
     const offer = page.getByTestId('draft-restore');
@@ -261,7 +285,7 @@ test.describe('файлы плана', () => {
   }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
-    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+    await draftHolds(page, 12);
 
     await page.reload();
     await page.getByTestId('draft-restore').getByRole('button', { name: 'Удалить' }).click();
@@ -275,7 +299,7 @@ test.describe('файлы плана', () => {
   test('начатая работа не заменяется черновиком без подтверждения', async ({ page }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
-    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+    await draftHolds(page, 12);
 
     await page.reload();
     const offer = page.getByTestId('draft-restore');
@@ -314,7 +338,7 @@ test.describe('файлы плана', () => {
     // Редактор работает дальше и перезаписывает мусор своим черновиком.
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.getByTestId('draft-saved')).toContainText(/\d\d:\d\d/);
+    await draftHolds(page, 12);
     expect(errors).toEqual([]);
   });
 

@@ -56,6 +56,12 @@ export type EditorSession = {
   selection: Ref | null;
   preview: Candidate | null;
   focus: FocusRequest | null;
+  /**
+   * Ids a delete has retired in this session (`PlanStore.retired`): tools that
+   * mint ids for what they draw or place skip them, or the store refuses the
+   * put. Optional so a harness without a store still types.
+   */
+  retired?: ReadonlySet<Id>;
 };
 
 export type CommandSink = (command: Command) => Result<PlanDocument>;

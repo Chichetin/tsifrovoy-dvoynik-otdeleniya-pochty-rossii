@@ -67,7 +67,42 @@ export const PLACEMENT_SEARCH = {
   maxVerified: 24,
   /** How many candidates the user is offered. */
   maxCandidates: 3,
+  /**
+   * Наименьшее расстояние между предлагаемыми вариантами, в метрах.
+   *
+   * Сетка поиска — 0,1 м, поэтому три лучших места по рангу всегда оказывались
+   * соседними клетками: человек видел «три варианта», которые на плане были
+   * одной точкой с разницей в шаг сетки и поворот. Варианты обязаны отличаться
+   * видимо, иначе выбирать не из чего. Предел берётся по самому объекту — его
+   * длинной стороне, но не меньше этого числа для мелочи вроде терминала.
+   */
+  minSeparation_m: 0.6,
 } as const;
+
+/**
+ * Варианты, разнесённые по плану: из отсортированного списка берутся лучшие,
+ * но каждый следующий — не ближе `separation_m` к уже выбранным.
+ *
+ * Если разнесённых мест меньше запрошенного числа, вернётся меньше: честнее
+ * показать два непохожих места, чем три почти совпадающих.
+ */
+export function spreadApart<T extends { position: Point }>(
+  ranked: T[],
+  separation_m: number,
+  limit: number,
+): T[] {
+  const chosen: T[] = [];
+  for (const entry of ranked) {
+    if (chosen.length >= limit) break;
+    const apart = chosen.every(
+      (taken) =>
+        Math.hypot(entry.position[0] - taken.position[0], entry.position[1] - taken.position[1]) >=
+        separation_m - TOLERANCE.coordinate_m,
+    );
+    if (apart) chosen.push(entry);
+  }
+  return chosen;
+}
 
 type Probe = { position: Point; rotation_deg: number; distance_m: number };
 
@@ -262,12 +297,22 @@ function sweep(
   const reaches = reachesFor(plan, type);
   const outline = target ?? plan.room.boundary;
   const box = boundingBox(outline);
+  const separation = separationFor(type);
   const found: Probe[] = [];
   const seen = new Set<string>();
   let probes = 0;
+  let cells = 0;
 
   for (const position of cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m)) {
+    // Rejected cells still cost time. In particular an unreachable entrance
+    // must not make the search walk an arbitrarily large grid without a limit.
+    if (cells >= PLACEMENT_SEARCH.maxProbes) return found;
+    cells += 1;
     if (!withinReach(position, reaches)) continue;
+    // Места собираются разнесёнными: обход идёт кольцами от указанной точки,
+    // поэтому соседние клетки подошли бы все подряд и бюджет ушёл бы на 24
+    // варианта одной точки вместо 24 разных мест.
+    if (!farEnough(position, found, separation)) continue;
     for (const rotation_deg of PLACEMENT_SEARCH.angles_deg) {
       if (probes >= PLACEMENT_SEARCH.maxProbes) return found;
       probes += 1;
@@ -280,9 +325,29 @@ function sweep(
 
       found.push({ position, rotation_deg, distance_m: round6(distance(position, anchor)) });
       if (found.length >= PLACEMENT_SEARCH.maxVerified) return found;
+      // Одно место — один вариант: другой поворот той же точки человеку
+      // выбора не даёт, а проверку и показ занимает.
+      break;
     }
   }
   return found;
+}
+
+/** Насколько разносить варианты для этого типа: длинная сторона, но не меньше предела. */
+export function separationFor(type: ObjectType): number {
+  return Math.max(
+    type.defaultSize_m[0],
+    type.defaultSize_m[1],
+    PLACEMENT_SEARCH.minSeparation_m,
+  );
+}
+
+function farEnough(position: Point, taken: { position: Point }[], separation_m: number): boolean {
+  return taken.every(
+    (entry) =>
+      Math.hypot(position[0] - entry.position[0], position[1] - entry.position[1]) >=
+      separation_m - TOLERANCE.coordinate_m,
+  );
 }
 
 function issueKey(entry: Issue): string {
@@ -436,8 +501,15 @@ export const findPlacements: FindPlacements = (plan, request) => {
   const targetRef: Ref = zone === null ? roomRef : { kind: 'zone', id: zone.id };
   const currentCount = plan.objects.filter((object) => object.typeId === type.id).length;
 
+  // Варианты разносятся по плану: см. PLACEMENT_SEARCH.minSeparation_m.
+  const separation = Math.max(
+    type.defaultSize_m[0],
+    type.defaultSize_m[1],
+    PLACEMENT_SEARCH.minSeparation_m,
+  );
+
   const candidates: Candidate[] = [];
-  for (const entry of verified.slice(0, PLACEMENT_SEARCH.maxCandidates)) {
+  for (const entry of spreadApart(verified, separation, PLACEMENT_SEARCH.maxCandidates)) {
     const after = measurePlan(withObject(plan, entry.object));
     if (!after.ok) continue;
     const id = entry.object.id;
