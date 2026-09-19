@@ -8,7 +8,16 @@ import { BENCHMARK_SEED, CASES, generateBenchmark } from '../../scripts/generate
 
 const REPEATS = 5;
 
-type Sample = { coldOpenMs: number; warmOpenMs: number; selectMs: number; validateMs: number; saveReopenMs: number; heapBytes: number | null };
+type Sample = {
+  coldOpenMs: number;
+  warmOpenMs: number;
+  selectMs: number;
+  filterMs: number;
+  clearFilterMs: number;
+  validateMs: number;
+  saveReopenMs: number;
+  heapBytes: number | null;
+};
 
 for (const config of CASES) {
   test(`${config.objects} объектов / ${config.zones} зон`, async ({ browser, baseURL }, testInfo) => {
@@ -46,6 +55,16 @@ for (const config of CASES) {
         await expect(page.getByTestId('props-id')).toHaveText('eq_0');
         const selectMs = performance.now() - selectStarted;
 
+        const search = page.getByLabel('Поиск по перечню');
+        const filterStarted = performance.now();
+        await search.fill('ot_window');
+        await expect(rows).toHaveCount(plan.objects.filter((object) => object.typeId === 'ot_window').length);
+        const filterMs = performance.now() - filterStarted;
+        const clearFilterStarted = performance.now();
+        await search.fill('');
+        await expect(rows).toHaveCount(config.objects);
+        const clearFilterMs = performance.now() - clearFilterStarted;
+
         const validateMs = await page.evaluate(async (document) => {
           const path = '/src/domain/validation/index.ts';
           const { validatePlan } = await import(/* @vite-ignore */ path);
@@ -63,6 +82,10 @@ for (const config of CASES) {
         ]).then(([item]) => item);
         const saved = await download.path();
         if (!saved) throw new Error('Браузер не сохранил файл');
+        // "Новый" confirms whenever the plan has content, not only when it is
+        // dirty (275d061): without a handler Playwright dismisses the dialog and
+        // the plan is never cleared, so the reopen below measures nothing.
+        page.once('dialog', (dialog) => void dialog.accept());
         await page.getByRole('button', { name: 'Новый' }).click();
         await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
         await page.getByTestId('plan-file-input').setInputFiles(saved);
@@ -72,7 +95,7 @@ for (const config of CASES) {
           const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
           return memory?.usedJSHeapSize ?? null;
         });
-        samples.push({ coldOpenMs, warmOpenMs, selectMs, validateMs, saveReopenMs, heapBytes });
+        samples.push({ coldOpenMs, warmOpenMs, selectMs, filterMs, clearFilterMs, validateMs, saveReopenMs, heapBytes });
       } finally {
         await context.close();
       }

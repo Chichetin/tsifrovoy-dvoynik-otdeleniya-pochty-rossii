@@ -35,11 +35,14 @@ async function markers(page: Page): Promise<MarkerView[]> {
   });
 }
 
-/** Число белых непрозрачных пикселей в последнем canvas: кайма контура и обводка маркеров. */
+/**
+ * Число белых непрозрачных пикселей в canvas слоя находок (предпоследний слой:
+ * последним всегда стоит слой кольца фокуса, D-177): кайма контура и обводка маркеров.
+ */
 async function whitePixels(page: Page): Promise<number> {
   return page.evaluate(() => {
     const layers = document.querySelectorAll<HTMLCanvasElement>('.editor-canvas canvas');
-    const canvas = layers[layers.length - 1];
+    const canvas = layers[layers.length - 2];
     const context = canvas?.getContext('2d');
     if (canvas === undefined || context === null || context === undefined) return -1;
     const { data } = context.getImageData(0, 0, canvas.width, canvas.height);

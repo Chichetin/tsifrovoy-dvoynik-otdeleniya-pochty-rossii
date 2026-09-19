@@ -195,6 +195,26 @@ describe('рисование контура', () => {
     expect(command.zone.parentId).toBe('z_hall');
   });
 
+  it('все обычные слои заперты: зона адресуется запертому слою, а не информационному — store откажет с объяснением', () => {
+    const document = planWith([]);
+    document.layers = document.layers.map((layer) =>
+      layer.typeId === null ? { ...layer, locked: true } : layer,
+    );
+    const { commands, click } = setup({ kind: 'zone.draw' }, document);
+
+    click([1, 1]);
+    click([3, 1]);
+    click([3, 3]);
+    click([1, 1]);
+
+    // Команда уходит: молчание — не исход. Слой — запертый обычный `l_base`,
+    // не информационный `l_heat` (D-174); отказ «слой заперт» даёт store.
+    expect(commands).toHaveLength(1);
+    const command = commands[0];
+    if (command?.type !== 'zone.put') throw new Error('ожидалась zone.put');
+    expect(command.zone.layerId).toBe('l_base');
+  });
+
   it('контур через границу зоны остаётся самостоятельной зоной', () => {
     const { commands, click } = setup({ kind: 'zone.draw' }, planWith([hall]));
 

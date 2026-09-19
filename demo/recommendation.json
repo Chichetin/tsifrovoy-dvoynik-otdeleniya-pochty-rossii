@@ -662,6 +662,7 @@
       "assumptions": [
         "Размеры и высота взяты из справочника: Скамья / кресла для ожидания, Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России..",
         "Перебор: сетка 0.1 м, углы 0 и 90°, не более 60000 проверок, кольцами от указанной точки.",
+        "Точку указали вручную: варианты ранжируются по близости к ней, а не к стене.",
         "Правило команды: в зоне ожидания не меньше двух мест ожидания. (допущение команды, не норматив Почты России, rule_bench_min)"
       ],
       "reasonCodes": [
@@ -861,14 +862,14 @@
           ]
         },
         {
-          "id": "adv_ot_queue_terminal_4",
+          "id": "adv_ot_queue_terminal_3",
           "object": {
-            "id": "adv_ot_queue_terminal_4",
+            "id": "adv_ot_queue_terminal_3",
             "typeId": "ot_queue_terminal",
             "label": "Терминал управления очередью",
             "position": [
-              7,
-              2.1
+              7.9,
+              1.2
             ],
             "size_m": [
               0.5,
@@ -883,7 +884,7 @@
           },
           "facts": [
             {
-              "id": "adv_ot_queue_terminal_4.placement.distance",
+              "id": "adv_ot_queue_terminal_3.placement.distance",
               "metric": "placement.distance",
               "phase": "current",
               "value": 0.9,
@@ -896,7 +897,7 @@
               ]
             },
             {
-              "id": "adv_ot_queue_terminal_4.area.free.current",
+              "id": "adv_ot_queue_terminal_3.area.free.current",
               "metric": "area.free",
               "phase": "current",
               "value": 114.49,
@@ -909,7 +910,7 @@
               ]
             },
             {
-              "id": "adv_ot_queue_terminal_4.area.free.after",
+              "id": "adv_ot_queue_terminal_3.area.free.after",
               "metric": "area.free",
               "phase": "after",
               "value": 114.24,
@@ -922,7 +923,7 @@
               ]
             },
             {
-              "id": "adv_ot_queue_terminal_4.equipment.count.current",
+              "id": "adv_ot_queue_terminal_3.equipment.count.current",
               "metric": "equipment.count",
               "phase": "current",
               "value": 1,
@@ -935,7 +936,7 @@
               ]
             },
             {
-              "id": "adv_ot_queue_terminal_4.equipment.count.after",
+              "id": "adv_ot_queue_terminal_3.equipment.count.after",
               "metric": "equipment.count",
               "phase": "after",
               "value": 2,
@@ -1108,7 +1109,7 @@
           ]
         },
         {
-          "id": "adv_ot_queue_terminal_4.placement.distance",
+          "id": "adv_ot_queue_terminal_3.placement.distance",
           "metric": "placement.distance",
           "phase": "current",
           "value": 0.9,
@@ -1121,7 +1122,7 @@
           ]
         },
         {
-          "id": "adv_ot_queue_terminal_4.area.free.current",
+          "id": "adv_ot_queue_terminal_3.area.free.current",
           "metric": "area.free",
           "phase": "current",
           "value": 114.49,
@@ -1134,7 +1135,7 @@
           ]
         },
         {
-          "id": "adv_ot_queue_terminal_4.area.free.after",
+          "id": "adv_ot_queue_terminal_3.area.free.after",
           "metric": "area.free",
           "phase": "after",
           "value": 114.24,
@@ -1147,7 +1148,7 @@
           ]
         },
         {
-          "id": "adv_ot_queue_terminal_4.equipment.count.current",
+          "id": "adv_ot_queue_terminal_3.equipment.count.current",
           "metric": "equipment.count",
           "phase": "current",
           "value": 1,
@@ -1160,7 +1161,7 @@
           ]
         },
         {
-          "id": "adv_ot_queue_terminal_4.equipment.count.after",
+          "id": "adv_ot_queue_terminal_3.equipment.count.after",
           "metric": "equipment.count",
           "phase": "after",
           "value": 2,
@@ -1179,6 +1180,7 @@
       "assumptions": [
         "Размеры и высота взяты из справочника: Терминал управления очередью, Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Перечень требует размещение у входа, радиус не более 3 м — правило rule_queue_terminal_entrance..",
         "Перебор: сетка 0.1 м, углы 0 и 90°, не более 60000 проверок, кольцами от указанной точки.",
+        "Точку указали вручную: варианты ранжируются по близости к ней, а не к стене.",
         "Перечень оборудования ОПС: терминал управления очередью размещается у входа, радиус не более 3 м. (материалы организаторов, rule_queue_terminal_entrance)"
       ],
       "reasonCodes": [
