@@ -446,6 +446,20 @@ describe('A01: поиск места', () => {
     });
   });
 
+  test('незапертый информационный слой не используется для нового объекта', () => {
+    const document = plan({
+      layers: [
+        { id: 'l_base', name: 'Основной', visible: true, locked: true, order: 0, typeId: null },
+        { id: 'l_heat', name: 'Нагрузка', visible: true, locked: false, order: 1, typeId: 'lt_heat' },
+      ],
+    });
+
+    expect(place(document, 'ot_desk', null)).toMatchObject({
+      ok: false,
+      issues: [{ code: PLACEMENT_ISSUE_CODES.TARGET_LAYER_MISSING }],
+    });
+  });
+
   test('варианты стоят в разных местах, а не в одной точке с разницей в шаг сетки', () => {
     const document = plan({});
 

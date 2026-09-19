@@ -110,10 +110,9 @@ export function AssistantPanel({
       );
       return;
     }
-    // Сравнение — с последним сохранённым или открытым состоянием плана. Панель
-    // его не знает и передаёт текущий план как заглушку; приложение подменяет
-    // `before` на настоящий снимок в `askAssistant`.
-    onAsk({ scenario: 'compare', before: plan }, query.trim() === '' ? undefined : query.trim());
+    // Снимком «до» владеет store: панель выбирает сценарий, но не подставляет
+    // фиктивный текущий документ вместо истории.
+    onAsk({ scenario: 'compare' }, query.trim() === '' ? undefined : query.trim());
   }
 
   return (

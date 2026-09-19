@@ -151,6 +151,22 @@ describe('рисование контура', () => {
     expect(command.zone.parentId).toBe('z_hall');
   });
 
+  it('не записывает зону в информационный или запертый слой', () => {
+    const document = planWith([]);
+    document.layers = document.layers.map((layer) =>
+      layer.typeId === null ? { ...layer, locked: true } : layer,
+    );
+    const { commands, hook, click } = setup({ kind: 'zone.draw' }, document);
+
+    click([1, 1]);
+    click([3, 1]);
+    click([3, 3]);
+    click([1, 1]);
+
+    expect(commands).toEqual([]);
+    expect(hook.result.current.draft).toHaveLength(3);
+  });
+
   it('контур через границу зоны остаётся самостоятельной зоной', () => {
     const { commands, click } = setup({ kind: 'zone.draw' }, planWith([hall]));
 

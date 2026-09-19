@@ -10,6 +10,7 @@ import { useCallback } from 'react';
 import type { Id } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { defaultAttributes, findObjectType } from '../../domain/catalog';
+import { editableContentLayer } from '../../domain/content-layer';
 import { snapPosition } from './transform';
 
 function nextId(prefix: string, taken: Set<Id>): Id {
@@ -33,8 +34,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
       const type = findObjectType(plan.catalog, tool.typeId);
       // Только обычный слой: информационный слой — представление поверх плана
       // и ничего не содержит (D-063).
-      const layer =
-        plan.layers.find((entry) => !entry.locked && entry.typeId === null) ?? plan.layers[0];
+      const layer = editableContentLayer(plan.layers);
       if (type === null || layer === undefined) return;
 
       // Ids of everything on the plan plus ids a delete retired this session:
