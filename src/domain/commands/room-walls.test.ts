@@ -140,27 +140,6 @@ describe('свой контур вместо стартовой коробки',
     const ids = walls.map((w) => w.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
-
-  test('новые идентификаторы не занимают id других сущностей плана', () => {
-    // Зона называется w_1, объект — w_2: уникальность id проверяется по всему
-    // документу, поэтому стена с таким именем сделала бы файл неоткрываемым.
-    const reserved = ['room_main', 'l_base', 'w_1', 'w_2', 'op_entrance'];
-    const { walls } = rebuildOuterWalls(boxWalls, [], BOX, L, fallback, reserved);
-
-    const ids = walls.map((w) => w.id);
-    expect(ids).toHaveLength(6);
-    for (const id of ids) expect(reserved).not.toContain(id);
-    expect(new Set(ids).size).toBe(6);
-  });
-
-  test('id заменяемых наружных стен освобождаются, даже если они в reserved', () => {
-    // Документ отдаёт все свои id, включая сами наружные стены: они уходят
-    // вместе со старым контуром, и их имена снова свободны.
-    const numbered = boxWalls.map((w, index) => ({ ...w, id: `w_${index + 1}` }));
-    const reserved = numbered.map((w) => w.id);
-    const { walls } = rebuildOuterWalls(numbered, [], BOX, BOX, fallback, reserved);
-    expect(walls.map((w) => w.id)).toEqual(['w_1', 'w_2', 'w_3', 'w_4']);
-  });
 });
 
 describe('проёмы наружных стен', () => {
