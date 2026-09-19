@@ -70,7 +70,10 @@ export const usePlanToolController: UsePlanToolController = ({
         const taken = new Set<Id>([...plan.zones.map((zone) => zone.id), ...(session.retired ?? [])]);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
-        const layer = editableContentLayer(plan.layers);
+        // Every content layer locked: address the first one anyway, so the
+        // store refuses with «слой заперт» instead of the click doing nothing.
+        const layer =
+          editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
         const id = nextId('z_', taken);
