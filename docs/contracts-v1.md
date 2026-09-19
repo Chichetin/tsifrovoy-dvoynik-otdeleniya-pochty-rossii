@@ -174,7 +174,8 @@ type Command =
   | { type: 'catalog.replace'; catalog: Catalog }
   | { type: 'plan.rename'; name: string }
   | { type: 'room.setCeiling'; ceilingHeight_m: number }
-  | { type: 'relations.reconcile' };
+  | { type: 'relations.reconcile' }
+  | { type: 'batch'; commands: Command[] };
 // applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument>
 // decodePlan(text: string): Result<PlanDocument>
 // encodePlan(plan: PlanDocument): Result<string>
@@ -202,9 +203,20 @@ type Command =
 следующей командой → связи восстановлены → undo возвращает каждый предыдущий снимок.
 Поэтому перемещение за границу и промежуточный неверный полигон не теряют жест.
 
+`batch` — несколько команд как одна правка: шаги применяются по порядку, отказ любого —
+отказ пакета с его кодом и нетронутый план; пустой пакет отклоняется (`BATCH_EMPTY`).
+Групповой перенос и групповое удаление — это `batch`, поэтому у них одно «Отменить».
+
 Store-интерфейс: `dispatch(command): Result<PlanDocument>`, `replaceDocument(plan)`
-после подтверждения dirty, `undo()`, `redo()`, `select(ref: Ref|null)`;
-`document`, `revision:number`, `selection`, `dirty` доступны только для чтения.
+после подтверждения dirty, `undo()`, `redo()`, `select(ref: Ref|null)`,
+`selectMany(ids: Id[])`; `document`, `revision:number`, `selection`, `selected`, `dirty`
+доступны только для чтения. `selected: ReadonlySet<Id>` — объекты, выбранные группой
+(рамка, Shift+клик); `selection` — главный из них: то, что показывают карточка и 3D.
+Инварианты: каждый id группы — объект документа; непустая группа содержит главного;
+`select(ref)` даёт группу из одного объекта (или пустую для зоны и `null`);
+`selectMany` отбрасывает чужие id, главным делает последний в переданном порядке;
+удаление главного передаёт роль последнему оставшемуся; `replaceDocument` очищает группу.
+Выбор не меняет `revision` и `dirty`.
 Удачный dispatch/replace/undo/redo увеличивает revision. Сохранение не меняет revision.
 `markExported(revision:number): void` отмечает только актуальную revision после
 успешной подготовки файла; устаревшая revision игнорируется. Store публикует только для

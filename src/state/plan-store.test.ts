@@ -363,3 +363,122 @@ describe('обязательный сценарий S01: промежуточн�
     expect(store.getState().dirty).toBe(false);
   });
 });
+
+describe('групповой выбор и пакет команд', () => {
+  const copyOf = (id: string, dx: number) => {
+    const source = store.getState().document.objects[0]!;
+    return { ...source, id, position: [source.position[0] + dx, source.position[1]] as [number, number] };
+  };
+  const ids = () => [...store.getState().selected].sort();
+
+  test('select — это группа из одного объекта; зона и «ничего» дают пустую группу', () => {
+    store.getState().select({ kind: 'object', id: 'eq_work_1' });
+    expect(ids()).toEqual(['eq_work_1']);
+
+    store.getState().select({ kind: 'zone', id: 'z_client' });
+    expect(ids()).toEqual([]);
+
+    store.getState().select(null);
+    expect(ids()).toEqual([]);
+  });
+
+  test('selectMany оставляет только объекты документа, главным становится последний', () => {
+    store.getState().dispatch({ type: 'object.put', object: copyOf('eq_a', 2) });
+    const revision = store.getState().revision;
+    const dirty = store.getState().dirty;
+
+    store.getState().selectMany(['eq_work_1', 'z_client', 'eq_nope', 'eq_a', 'eq_work_1']);
+
+    expect(ids()).toEqual(['eq_a', 'eq_work_1']);
+    expect(store.getState().selection).toEqual({ kind: 'object', id: 'eq_work_1' });
+    expect(store.getState().revision).toBe(revision);
+    expect(store.getState().dirty).toBe(dirty);
+  });
+
+  test('selectMany без живых объектов сбрасывает и главный выбор', () => {
+    store.getState().select({ kind: 'object', id: 'eq_work_1' });
+    store.getState().selectMany(['eq_nope']);
+    expect(store.getState().selection).toBeNull();
+    expect(ids()).toEqual([]);
+  });
+
+  test('группа не переживает удаление своих объектов, а нетронутая группа остаётся той же ссылкой', () => {
+    store.getState().dispatch({ type: 'object.put', object: copyOf('eq_a', 2) });
+    store.getState().selectMany(['eq_work_1', 'eq_a']);
+    const before = store.getState().selected;
+
+    store.getState().dispatch({ type: 'plan.rename', name: 'Другое' });
+    expect(store.getState().selected).toBe(before);
+
+    store.getState().dispatch({ type: 'object.delete', id: 'eq_a' });
+    expect(ids()).toEqual(['eq_work_1']);
+    expect(store.getState().selection).toEqual({ kind: 'object', id: 'eq_work_1' });
+  });
+
+  test('replaceDocument очищает группу', () => {
+    store.getState().select({ kind: 'object', id: 'eq_work_1' });
+    store.getState().replaceDocument(minimalPlan(), 'file');
+    expect(ids()).toEqual([]);
+  });
+
+  test('пакет — один шаг истории: групповой перенос отменяется одним undo', () => {
+    store.getState().dispatch({ type: 'object.put', object: copyOf('eq_a', 2) });
+    const beforeMove = store.getState().document;
+
+    const result = store.getState().dispatch({
+      type: 'batch',
+      commands: [
+        { type: 'object.put', object: copyOf('eq_work_1', 1) },
+        { type: 'object.put', object: { ...copyOf('eq_a', 3), id: 'eq_a' } },
+      ],
+    });
+    expect(result.ok).toBe(true);
+    expect(store.getState().document.objects.map((object) => object.position[0])).not.toEqual(
+      beforeMove.objects.map((object) => object.position[0]),
+    );
+
+    store.getState().undo();
+    expect(store.getState().document).toBe(beforeMove);
+  });
+
+  test('отказ шага пакета не оставляет следа: документ, revision и история прежние', () => {
+    const snapshot = store.getState().document;
+    const revision = store.getState().revision;
+
+    const result = store.getState().dispatch({
+      type: 'batch',
+      commands: [
+        { type: 'object.put', object: copyOf('eq_a', 2) },
+        { type: 'object.delete', id: 'eq_missing' },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(store.getState().document).toBe(snapshot);
+    expect(store.getState().revision).toBe(revision);
+    store.getState().undo();
+    expect(store.getState().document).toBe(snapshot);
+  });
+
+  test('групповое удаление выводит id из оборота: повторный put любого из них — ID_REUSED', () => {
+    store.getState().dispatch({ type: 'object.put', object: copyOf('eq_a', 2) });
+    const original = store.getState().document.objects[0]!;
+
+    store.getState().dispatch({
+      type: 'batch',
+      commands: [
+        { type: 'object.delete', id: 'eq_work_1' },
+        { type: 'object.delete', id: 'eq_a' },
+      ],
+    });
+    expect(store.getState().document.objects).toEqual([]);
+    expect([...store.getState().retired].sort()).toEqual(['eq_a', 'eq_work_1']);
+
+    const reuse = store.getState().dispatch({
+      type: 'batch',
+      commands: [{ type: 'object.put', object: { ...original, id: 'eq_a' } }],
+    });
+    expect(reuse.ok).toBe(false);
+    if (!reuse.ok) expect(reuse.issues.map((issue) => issue.code)).toContain(COMMAND_ISSUE_CODES.ID_REUSED);
+  });
+});

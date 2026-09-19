@@ -33,36 +33,50 @@ function sameContent(a: unknown, b: unknown): boolean {
   return keys.every((key) => key in right && sameContent(left[key], right[key]));
 }
 
-function commandTarget(command: Command): Id | null {
+/**
+ * Ids the command retires: the deleted entity, and for a wall also its
+ * openings, which go with it. A batch retires whatever its steps retire.
+ */
+function retiredBy(command: Command, plan: PlanDocument): Id[] {
   switch (command.type) {
     case 'zone.delete':
     case 'object.delete':
-    case 'wall.delete':
     case 'opening.delete':
     case 'layer.delete':
-      return command.id;
+      return [command.id];
+    case 'wall.delete':
+      return [
+        command.id,
+        ...plan.openings.filter((opening) => opening.wallId === command.id).map((opening) => opening.id),
+      ];
+    case 'batch':
+      return command.commands.flatMap((step) => retiredBy(step, plan));
     default:
-      return null;
+      return [];
   }
 }
 
-/** The id a put command claims, or null for every other command. */
-function putTarget(command: Command): Id | null {
+/** The ids put commands claim; a batch claims what its steps claim. */
+function putTargets(command: Command): Id[] {
   switch (command.type) {
     case 'zone.put':
-      return command.zone.id;
+      return [command.zone.id];
     case 'object.put':
-      return command.object.id;
+      return [command.object.id];
     case 'layer.put':
-      return command.layer.id;
+      return [command.layer.id];
     case 'wall.put':
-      return command.wall.id;
+      return [command.wall.id];
     case 'opening.put':
-      return command.opening.id;
+      return [command.opening.id];
+    case 'batch':
+      return command.commands.flatMap(putTargets);
     default:
-      return null;
+      return [];
   }
 }
+
+const NO_SELECTION: ReadonlySet<Id> = new Set<Id>();
 
 /**
  * Creates a store over an already parsed document.
@@ -94,16 +108,42 @@ export function createPlanStore(
       return idOwners(document).get(selection.id) === selection.kind ? selection : null;
     };
 
+    /**
+     * The group keeps only objects still in the document. Same reference when
+     * nothing dropped out: subscribers compare by reference (D-177).
+     */
+    const keepSelected = (document: PlanDocument, selected: ReadonlySet<Id>): ReadonlySet<Id> => {
+      if (selected.size === 0) return selected;
+      const owners = idOwners(document);
+      const kept = [...selected].filter((id) => owners.get(id) === 'object');
+      return kept.length === selected.size ? selected : new Set(kept);
+    };
+
+    /**
+     * A non-empty group always has a primary in it: when the primary is gone
+     * (deleted, undone) the last remaining member takes its place, so the card
+     * keeps showing the group rather than nothing.
+     */
+    const primaryOf = (selection: Ref | null, selected: ReadonlySet<Id>): Ref | null => {
+      if (selection !== null || selected.size === 0) return selection;
+      const last = [...selected].at(-1);
+      return last === undefined ? null : { kind: 'object', id: last };
+    };
+
     const commit = (document: PlanDocument): void => {
-      set((state) => ({
-        document,
-        revision: state.revision + 1,
-        selection: keepSelection(document, state.selection),
-        dirty: isDirty(document, state.baseline),
+      set((state) => {
+        const selected = keepSelected(document, state.selected);
+        return {
+          document,
+          revision: state.revision + 1,
+          selection: primaryOf(keepSelection(document, state.selection), selected),
+          selected,
+          dirty: isDirty(document, state.baseline),
         // Subscribers compare by reference: a fresh copy only when a delete
         // actually retired something, so a move or an undo keeps the old set.
-        retired: state.retired.size === retired.size ? state.retired : new Set(retired),
-      }));
+          retired: state.retired.size === retired.size ? state.retired : new Set(retired),
+        };
+      });
     };
 
     return {
@@ -111,6 +151,7 @@ export function createPlanStore(
       baseline: initial,
       revision: 0,
       selection: null,
+      selected: NO_SELECTION,
       dirty: origin !== 'file',
       retired: new Set<Id>(),
 
@@ -121,8 +162,8 @@ export function createPlanStore(
         // yet replacing an entity that is still in the document is an ordinary
         // edit — that is how moving and retyping work.
         const owners = idOwners(current);
-        const reusedId = putTarget(command);
-        if (reusedId !== null && retired.has(reusedId) && !owners.has(reusedId)) {
+        const reusedId = putTargets(command).find((id) => retired.has(id) && !owners.has(id));
+        if (reusedId !== undefined) {
           return {
             ok: false,
             issues: [
@@ -139,13 +180,7 @@ export function createPlanStore(
         const result = applyCommand(current, command);
         if (!result.ok) return result;
 
-        const removed = commandTarget(command);
-        if (removed !== null) retired.add(removed);
-        if (command.type === 'wall.delete') {
-          for (const opening of current.openings) {
-            if (opening.wallId === command.id) retired.add(opening.id);
-          }
-        }
+        for (const id of retiredBy(command, current)) retired.add(id);
 
         past = [...past, current];
         future = [];
@@ -168,6 +203,7 @@ export function createPlanStore(
           baseline: plan,
           revision: state.revision + 1,
           selection: null,
+          selected: NO_SELECTION,
           dirty: origin !== 'file',
           retired: new Set<Id>(),
         }));
@@ -196,7 +232,25 @@ export function createPlanStore(
         // Selection is not document content: it changes neither revision nor
         // dirty. A ref that points at nothing is dropped, so the invariant
         // "selection never outlives its entity" holds at every moment.
-        set({ selection: keepSelection(get().document, ref) });
+        const selection = keepSelection(get().document, ref);
+        // One pick is a group of one: the layer that draws the group and the
+        // keys that move it read one field, whichever way the pick was made.
+        set({
+          selection,
+          selected: selection?.kind === 'object' ? new Set([selection.id]) : NO_SELECTION,
+        });
+      },
+
+      selectMany(ids: readonly Id[]): void {
+        const owners = idOwners(get().document);
+        const kept = ids.filter((id) => owners.get(id) === 'object');
+        // The primary is the one picked last, in the caller's order: a
+        // Shift+click appends, and the card follows the click.
+        const last = kept.at(-1);
+        set({
+          selection: last === undefined ? null : { kind: 'object', id: last },
+          selected: kept.length === 0 ? NO_SELECTION : new Set(kept),
+        });
       },
 
       markExported(revision: number): void {

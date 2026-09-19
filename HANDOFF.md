@@ -16,6 +16,7 @@
 
 | Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
 |---|---|---|---|---|---|
+| Claude Code (поток 1, контракт) | `worktree-contracts-selection-set`, MR после push | Контрактный MR 1/3 группового выбора (D-184): `PlanStore.selected`/`selectMany`, `EditorSession.selected?`, `SelectManySink`, команда `batch`. **Потребители:** все прежние поля и методы без изменений, новые — необязательные; типизация всех модулей проходит без правок. MR 2/3 — рамка и групповые действия в `EquipmentLayer`, MR 3/3 — README и матрица | `src/contracts/{commands,ui}.ts`, `src/domain/commands/index.ts`, `src/state/plan-store.ts`, тесты, `docs/contracts-v1.md` | unit `commands.test` 44, `plan-store.test` 35; полный набор + e2e перед push | готово к MR |
 | Claude Code (поток 2) | `worktree-editor-undo-keys`, MR после push | U02-history: `Ctrl+Z`/`Ctrl+Y`/`Ctrl+Shift+Z` — отмена и повтор с клавиатуры, подсказки на кнопках шапки, абзац про клавиатуру в README (D-183) | `src/features/editor/hotkeys.ts`, `src/app/App.tsx`, `tests/e2e/history-keys.spec.ts`, `README.md` | unit `hotkeys.test.ts` 13 passed; e2e `history-keys` 3 passed; typecheck/lint/build | готово к MR |
 
 ## Блокеры и вопросы

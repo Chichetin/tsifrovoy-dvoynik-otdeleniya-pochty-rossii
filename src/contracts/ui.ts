@@ -54,6 +54,12 @@ export type EditorSession = {
   tool: Tool;
   viewport: Viewport;
   selection: Ref | null;
+  /**
+   * Objects picked as a group (`PlanStore.selected`): a marquee or Shift+click
+   * fills it, the primary `selection` is one of them. Optional so a harness
+   * without a store still types; absent means «only `selection`».
+   */
+  selected?: ReadonlySet<Id>;
   preview: Candidate | null;
   focus: FocusRequest | null;
   /**
@@ -66,6 +72,8 @@ export type EditorSession = {
 
 export type CommandSink = (command: Command) => Result<PlanDocument>;
 export type SelectSink = (ref: Ref | null) => void;
+/** A group of objects at once (`PlanStore.selectMany`). */
+export type SelectManySink = (ids: readonly Id[]) => void;
 export type FocusSink = (ref: Ref) => void;
 
 export type EditorCanvasProps = {
@@ -98,6 +106,8 @@ export type EquipmentLayerProps = {
   session: EditorSession;
   onCommand: CommandSink;
   onSelect: SelectSink;
+  /** Group selection; optional until the app wires it (marquee, Shift+click). */
+  onSelectMany?: SelectManySink;
   /** Drawn translucently; never turns into a command on its own. */
   preview: Candidate | null;
 };
