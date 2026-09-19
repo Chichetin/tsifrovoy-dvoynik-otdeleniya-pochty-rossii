@@ -17,6 +17,7 @@
 
 import type { Id, Opening, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
+import { pointSegmentDistance, segmentLength } from '../geometry';
 
 /** Which walls of the plan are outer, i.e. sit on the current boundary. */
 export function outerWallIds(walls: Wall[], boundary: Polygon): Set<Id> {
@@ -130,14 +131,10 @@ function collinear(a: Point, b: Point, c: Point): boolean {
 }
 
 function onSegment(point: Point, a: Point, b: Point): boolean {
-  const dx = b[0] - a[0];
-  const dy = b[1] - a[1];
-  const length = Math.hypot(dx, dy);
-  if (length <= TOLERANCE.coordinate_m) return false;
-  const cross = Math.abs((point[0] - a[0]) * dy - (point[1] - a[1]) * dx) / length;
-  if (cross > 1e-6) return false;
-  const along = ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / (length * length);
-  return along >= -1e-9 && along <= 1 + 1e-9;
+  if (segmentLength(a, b) <= TOLERANCE.coordinate_m) return false;
+  // The one projection primitive (D-199): within a coordinate tolerance of the
+  // clamped foot — beside the segment or past an end both count as "off".
+  return pointSegmentDistance(point, a, b) <= TOLERANCE.coordinate_m;
 }
 
 /**

@@ -38,6 +38,7 @@ import {
   type Zone,
   type ZoneType,
   SCHEMA_VERSION,
+  TOLERANCE,
 } from '../contracts/model';
 import { parsePlanDocument } from '../contracts/schema';
 import { applyCommand } from '../domain/commands';
@@ -399,7 +400,7 @@ function offsetAlongWall(wall: Wall, point: Point): number | null {
   // as a distance to that end, and a point beside the wall as a distance to it.
   const { t, distance } = projectOnSegment(point, wall.from, wall.to);
   // Millimetres are the file's precision; `t · length` alone leaves 5.3999999.
-  return distance > 1e-6 ? null : Math.round(t * length * 1000) / 1000;
+  return distance > TOLERANCE.coordinate_m ? null : Math.round(t * length * 1000) / 1000;
 }
 
 /**
@@ -479,7 +480,6 @@ function specToObjectType(spec: TypeSpec, fromExample: boolean): ObjectType {
       : 'Допущение команды: тип объявлен в equipment_types_catalog примера, но в плане не встречается.',
   };
 }
-
 
 /**
  * Translates the organizers' example into a plan document. The input is never

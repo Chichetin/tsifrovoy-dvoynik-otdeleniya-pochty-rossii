@@ -12,8 +12,8 @@
  */
 
 import type { Id, Opening, OpeningKind, Point, Room, Wall } from '../../contracts/model';
-import { pointSegmentDistance, segmentLength } from '../../domain/geometry';
-import { moveOpeningTo, snapPoint, wallLength } from './vertex-edit';
+import { pointSegmentDistance, segmentLength, wallLength } from '../../domain/geometry';
+import { moveOpeningTo, snapPoint } from './vertex-edit';
 
 /**
  * Значения, которых нет в жесте пользователя. Это допущения команды, а не

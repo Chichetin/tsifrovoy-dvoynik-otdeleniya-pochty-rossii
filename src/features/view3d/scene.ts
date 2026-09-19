@@ -183,7 +183,7 @@ function wallPrisms(wall: Wall, openings: Opening[]): ScenePrism[] {
 /**
  * Translucent pane in the wall plane: the opening stays visible as a thing with
  * an id. The rectangle is geometry's own `wallSpanPolygon` with a thinner
- * thickness, so the pane never drifts from the wall it belongs to (D-196).
+ * thickness, so the pane never drifts from the wall it belongs to (D-199).
  */
 function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
   const wall = walls.find((candidate) => candidate.id === opening.wallId);

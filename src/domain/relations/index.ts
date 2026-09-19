@@ -57,7 +57,7 @@ export function parentZoneFor(
     if (!isSimplePolygon(zone.polygon) || !contains(zone.polygon, ring)) continue;
     // Equal polygons contain each other: neither is the other's parent.
     if (contains(ring, zone.polygon)) continue;
-    const depth = zoneDepth(zone.id, zones as Zone[]) ?? 0;
+    const depth = zoneDepth(zone.id, zones) ?? 0;
     const area = polygonArea(zone.polygon);
     if (best === null || depth > best.depth || (depth === best.depth && area < best.area)) {
       best = { id: zone.id, depth, area };

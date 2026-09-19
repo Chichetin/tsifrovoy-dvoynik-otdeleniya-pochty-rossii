@@ -10,8 +10,6 @@
 
 import type { Id, Opening, Point, Polygon, Wall, Zone } from '../../contracts/model';
 import { isSimplePolygon, projectOnSegment, segmentLength, wallLength } from '../../domain/geometry';
-
-export { wallLength };
 import { parentZoneFor } from '../../domain/relations';
 
 const SNAP_M = 0.01;
@@ -104,7 +102,7 @@ export function moveOpeningTo(opening: Opening, wall: Wall, point: Point): Openi
   return { ...opening, offset_m: Math.round(offset / SNAP_M) * SNAP_M };
 }
 
-/** Nesting of a freshly drawn ring — the one rule from `domain/relations` (D-196). */
+/** Nesting of a freshly drawn ring — the one rule from `domain/relations` (D-199). */
 export function parentForRing(ring: Polygon, zones: Zone[]): Id | null {
   return parentZoneFor(ring, zones);
 }
