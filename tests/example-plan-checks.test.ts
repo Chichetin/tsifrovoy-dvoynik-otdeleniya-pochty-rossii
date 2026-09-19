@@ -161,6 +161,32 @@ describe('известные ошибки примера находятся', ()
   });
 });
 
+describe('одна проблема — одна находка (operator №19, D-157)', () => {
+  test('стеллаж вне своей зоны не повторяется находкой «ни в одной зоне»', () => {
+    for (const id of ['eq_rack_1', 'eq_rack_2']) {
+      const about = issues.filter((entry) => entry.refs.some((ref) => ref.id === id));
+      expect(about.map((entry) => entry.code)).toContain(VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE);
+      expect(about.map((entry) => entry.code)).not.toContain('ZONE_UNASSIGNED');
+    }
+  });
+
+  test('пример как есть, без правил команды, — ровно 8 находок', () => {
+    // Три коллизии, три стены (два стеллажа и ПВЗ через наружную стену),
+    // два стеллажа вне своей зоны. До D-157 к ним добавлялись два повтора
+    // ZONE_UNASSIGNED о тех же стеллажах — 10 строк о 8 проблемах.
+    const imported = importOrganizerExample(readJson('example_plan.json'));
+    if (!imported.ok) throw new Error('пример не импортировался');
+    const codes = validatePlan(imported.value).map((entry) => entry.code).sort();
+    expect(codes).toEqual(
+      [
+        ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_COLLISION),
+        ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL),
+        ...Array<string>(2).fill(VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE),
+      ].sort(),
+    );
+  });
+});
+
 describe('исправление снимает ровно свой код', () => {
   test('отодвинутый стеллаж перестаёт пересекать и стену, и кассу', () => {
     const rack = plan.objects.find((object) => object.id === 'eq_rack_1');
