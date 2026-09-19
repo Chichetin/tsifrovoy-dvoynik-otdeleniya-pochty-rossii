@@ -529,6 +529,42 @@ describe('applyCommand: цикл вложенности и пересчёт', ()
 });
 
 describe('applyCommand: стены, проёмы и справочник', () => {
+  test('перестроение наружных стен учитывает id всех сущностей документа', () => {
+    const plan = minimalPlan();
+    plan.layers.push({ ...secondLayer, id: 'w_1' });
+    plan.objects.push({ ...objectAt('w_2', [8, 4]), zoneId: null });
+    plan.zones.push({ ...plan.zones[0]!, id: 'w_3' });
+    plan.room.id = 'w_4';
+    plan.openings[0]!.id = 'w_5';
+    expect(parsePlanDocument(plan).ok).toBe(true);
+
+    const changed = expectOk(applyCommand(plan, { type: 'room.set', boundary: plan.room.boundary }));
+
+    expect(parsePlanDocument(changed).ok).toBe(true);
+    expect(changed.layers).toEqual(plan.layers);
+    expect(changed.openings[0]!.id).toBe('w_5');
+  });
+
+  test.each(['opening.delete', 'wall.delete', 'room.set'] as const)(
+    '%s не удаляет вход, указанный в правиле расстояния',
+    (type) => {
+      const plan = minimalPlan();
+      plan.catalog.rules.push({
+        id: 'r_entrance', kind: 'distance-to-entrance', source: 'team-assumption',
+        rationale: 'Расстояние до выбранного входа', objectTypeId: 'ot_workplace',
+        maxDistance_m: 3, entranceId: 'op_entrance',
+      });
+      expect(parsePlanDocument(plan).ok).toBe(true);
+      const before = structuredClone(plan);
+      const result = applyCommand(plan, type === 'room.set'
+        ? { type, boundary: [[0, 0], [1, 0], [1, 1], [0, 1]] }
+        : { type, id: type === 'wall.delete' ? 'w_north' : 'op_entrance' });
+
+      expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.BROKEN_REF);
+      expect(plan).toEqual(before);
+    },
+  );
+
   test('удаление стены удаляет её проёмы одной операцией', () => {
     const plan = expectOk(applyCommand(minimalPlan(), { type: 'wall.delete', id: 'w_north' }));
 

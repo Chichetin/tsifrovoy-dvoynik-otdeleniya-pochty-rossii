@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
+import { spawnSync } from 'node:child_process';
 import type {
   Catalog,
   Issue,
@@ -164,6 +165,36 @@ function values(document: PlanDocument, typeId: string, zoneId: string | null, a
 }
 
 describe('A01: поиск места', () => {
+  test('бюджет поиска ограничивает и клетки вне досягаемости входа', () => {
+    const document = plan({
+      room: { id: 'room_main', boundary: [[0, 0], [1e6, 0], [1e6, 1e6], [0, 1e6]], ceilingHeight_m: 3 },
+      walls: [{ id: 'wall', from: [0, 0], to: [10, 0], thickness_m: 0.2, height_m: 3 }],
+      openings: [{ id: 'entrance', wallId: 'wall', offset_m: 0, width_m: 1, kind: 'entrance', sill_m: 0, height_m: 2 }],
+      catalog: catalog([{
+        id: 'reach', kind: 'distance-to-entrance', objectTypeId: 'ot_queue_terminal',
+        source: 'organizer-material', rationale: 'Тест ограничения расстояния',
+        entranceId: null, maxDistance_m: 3,
+      }]),
+    });
+    // A subprocess can be stopped even if a synchronous grid sweep never yields.
+    const script = `
+      import { findPlacements } from './src/domain/advice/placement.ts';
+      const document = ${JSON.stringify(document)};
+      for (const openings of [document.openings, []]) {
+        const result = findPlacements({ ...document, openings }, {
+          scenario: 'place', typeId: 'ot_queue_terminal', zoneId: null,
+        });
+        if (!result.ok || result.value.length !== 0) process.exit(1);
+      }
+    `;
+    const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', script], {
+      timeout: 4000,
+      encoding: 'utf8',
+    });
+    expect(child.error, child.stderr).toBeUndefined();
+    expect(child.status, child.stderr).toBe(0);
+  }, 8000);
+
   test('кандидаты лежат в помещении и не задевают существующие объекты', () => {
     const document = plan({
       objects: [object('eq_block', 'ot_block', [5, 4], [2, 2])],

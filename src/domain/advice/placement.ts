@@ -301,8 +301,13 @@ function sweep(
   const found: Probe[] = [];
   const seen = new Set<string>();
   let probes = 0;
+  let cells = 0;
 
   for (const position of cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m)) {
+    // Rejected cells still cost time. In particular an unreachable entrance
+    // must not make the search walk an arbitrarily large grid without a limit.
+    if (cells >= PLACEMENT_SEARCH.maxProbes) return found;
+    cells += 1;
     if (!withinReach(position, reaches)) continue;
     // Места собираются разнесёнными: обход идёт кольцами от указанной точки,
     // поэтому соседние клетки подошли бы все подряд и бюджет ушёл бы на 24

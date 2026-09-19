@@ -41,13 +41,14 @@ export function rebuildOuterWalls(
   oldBoundary: Polygon,
   newBoundary: Polygon,
   fallback: { thickness_m: number; height_m: number },
+  reservedIds: Iterable<Id> = [],
 ): RebuiltWalls {
   const outer = walls.filter((wall) => edgeIndexOf(wall, oldBoundary) !== null);
   const partitions = walls.filter((wall) => edgeIndexOf(wall, oldBoundary) === null);
   const partitionIds = new Set(partitions.map((wall) => wall.id));
 
   const template = outer[0] ?? fallback;
-  const taken = new Set<Id>(partitionIds);
+  const taken = new Set<Id>([...partitionIds, ...reservedIds]);
   const rebuilt: Wall[] = [];
   const idByEdge = new Map<number, Id>();
 

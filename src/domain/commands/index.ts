@@ -246,6 +246,24 @@ function requireEntity(plan: PlanDocument, id: Id, kind: RefKind): Result<null> 
   return { ok: true, value: null };
 }
 
+/** A rule bound to a specific entrance must not silently become a dangling reference. */
+function checkEntrancesRetained(
+  plan: PlanDocument,
+  openings: PlanDocument['openings'],
+): Result<null> {
+  const retained = new Set(openings.map((opening) => opening.id));
+  for (const rule of plan.catalog.rules) {
+    if (rule.kind === 'distance-to-entrance' && rule.entranceId !== null && !retained.has(rule.entranceId)) {
+      return fail(
+        CONTRACT_ISSUE_CODES.BROKEN_REF,
+        `Вход «${rule.entranceId}» используется правилом «${rule.id}»: сначала измените или удалите правило.`,
+        [{ kind: 'opening', id: rule.entranceId }],
+      );
+    }
+  }
+  return { ok: true, value: null };
+}
+
 function putZone(plan: PlanDocument, zone: Zone): Result<PlanDocument> {
   const ref: Ref = { kind: 'zone', id: zone.id };
 
@@ -519,7 +537,9 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       const rebuilt = rebuildOuterWalls(plan.walls, plan.openings, plan.room.boundary, command.boundary, {
         thickness_m: OUTER_WALL_THICKNESS_M,
         height_m: plan.room.ceilingHeight_m,
-      });
+      }, [...idOwners(plan)].filter(([, kind]) => kind !== 'wall').map(([id]) => id));
+      const entrances = checkEntrancesRetained(plan, rebuilt.openings);
+      if (!entrances.ok) return entrances;
       return withRelations({
         ...plan,
         room: { ...plan.room, boundary: command.boundary },
@@ -563,13 +583,16 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
     case 'wall.delete': {
       const present = requireEntity(plan, command.id, 'wall');
       if (!present.ok) return present;
+      const openings = plan.openings.filter((opening) => opening.wallId !== command.id);
+      const entrances = checkEntrancesRetained(plan, openings);
+      if (!entrances.ok) return entrances;
       // Openings live on the wall: they disappear within the same undo step.
       return {
         ok: true,
         value: {
           ...plan,
           walls: plan.walls.filter((wall) => wall.id !== command.id),
-          openings: plan.openings.filter((opening) => opening.wallId !== command.id),
+          openings,
         },
       };
     }
@@ -601,9 +624,12 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
     case 'opening.delete': {
       const present = requireEntity(plan, command.id, 'opening');
       if (!present.ok) return present;
+      const openings = plan.openings.filter((opening) => opening.id !== command.id);
+      const entrances = checkEntrancesRetained(plan, openings);
+      if (!entrances.ok) return entrances;
       return {
         ok: true,
-        value: { ...plan, openings: plan.openings.filter((opening) => opening.id !== command.id) },
+        value: { ...plan, openings },
       };
     }
 
