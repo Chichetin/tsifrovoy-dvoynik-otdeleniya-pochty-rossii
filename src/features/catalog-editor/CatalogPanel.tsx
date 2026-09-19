@@ -393,7 +393,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
                         title={
                           readers.length === 0
                             ? 'Удалить атрибут'
-                            : 'Уже введённые значения слой продолжит рисовать; исчезнут поле в карточке и умолчание для новых объектов'
+                            : 'Уже введённые значения слой продолжит рисовать; исчезнут поле в карточке и умолчание для новых объектов и зон'
                         }
                         onClick={() => apply(removeAttribute(catalog, chosen.id, a.key))}
                       >
