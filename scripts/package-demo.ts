@@ -29,8 +29,13 @@ export const DEMO_FILES = [
   'effect.md',
 ] as const;
 
-/** Where the archive is written by default: a build artifact, not a source. */
-export const DEFAULT_OUTPUT = 'build/demo/ops-digital-twin-demo.zip';
+/**
+ * Where the archive is written by default. It is committed next to the PDF so
+ * the jury finds the submission set in one folder; the bytes are reproducible
+ * (fixed timestamps), and tests/demo.test.ts fails when the committed copy
+ * drifts from what demo/ would build.
+ */
+export const DEFAULT_OUTPUT = 'output/demo/ops-digital-twin-demo.zip';
 
 /** 2026-09-22 12:00 in DOS date/time: fixed, so the bytes are reproducible. */
 const DOS_TIME = 12 << 11;

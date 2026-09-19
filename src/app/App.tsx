@@ -37,8 +37,9 @@ import { ValidationPanel } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
+import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
-import { createEmptyPlan } from './default-plan';
+import { catalog, createEmptyPlan } from './default-plan';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
@@ -160,9 +161,23 @@ export function App(): React.JSX.Element {
     (plan: PlanDocument, origin: DocumentOrigin) => {
       // 'file' — план пришёл из файла и считается сохранённым состоянием;
       // 'draft' — восстановленный черновик, он никуда ещё не выгружен.
-      store.getState().replaceDocument(plan, origin);
-      setCompareBase(plan);
-      setLastError(null);
+      // Пример организаторов приходит без наших правил и слоёв: сомкнуть с
+      // командным справочником здесь, где он есть, — иначе на примере видны
+      // только геометрические ошибки, а «терминал не далее 3 м» молчит.
+      const merged =
+        plan.catalog.version === ORGANIZER_CATALOG_VERSION ? withTeamCatalog(plan, catalog) : null;
+      const document = merged?.ok ? merged.value : plan;
+      store.getState().replaceDocument(document, origin);
+      setCompareBase(document);
+      // A refused merge is not a silent success: the plan opens as it came,
+      // and the user is told the team rules and layers did not apply.
+      setLastError(
+        merged === null || merged.ok
+          ? null
+          : `Справочник команды к примеру не применён (план открыт без правил комплектования и информационных слоёв): ${merged.issues
+              .map((issue) => issue.message)
+              .join('; ')}`,
+      );
       // Открыт другой документ: вид считается заново, даже если файл несёт ту
       // же личность, что и прежний.
       setDocumentEpoch((epoch) => epoch + 1);
