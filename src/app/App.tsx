@@ -7,7 +7,7 @@
  * recomputed from the document, never stored beside it.
  */
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
@@ -19,6 +19,7 @@ import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { hotkeyAction, hotkeyCommand } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
@@ -110,6 +111,30 @@ export function App(): React.JSX.Element {
     },
     [dispatch, select],
   );
+
+  // Editor hotkeys (D-179): what a press means is decided in hotkeys.ts; here
+  // it only reaches the store. Arrows and Ctrl+D are ordinary commands — one
+  // press, one undo step; a refusal (locked layer) shows like any other.
+  // F is the canvas's own, it knows the canvas size.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const action = hotkeyAction(event);
+      if (action === null || action.kind === 'fit') return;
+      if (action.kind === 'undo' || action.kind === 'redo') {
+        event.preventDefault();
+        if (action.kind === 'undo') store.getState().undo();
+        else store.getState().redo();
+        return;
+      }
+      const state = store.getState();
+      const command = hotkeyCommand(action, state.document, state.selection, state.retired);
+      if (command === null) return;
+      event.preventDefault();
+      dispatchAndSelect(command);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [store, dispatchAndSelect]);
 
   const focusOn = useCallback(
     (ref: Ref) => {
@@ -213,10 +238,20 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         <div className="shell__history">
-          <button type="button" className="files__button" onClick={() => store.getState().undo()}>
+          <button
+            type="button"
+            className="files__button"
+            title="Отменить — Ctrl+Z (⌘Z)"
+            onClick={() => store.getState().undo()}
+          >
             Отменить
           </button>
-          <button type="button" className="files__button" onClick={() => store.getState().redo()}>
+          <button
+            type="button"
+            className="files__button"
+            title="Вернуть — Ctrl+Shift+Z или Ctrl+Y (⌘⇧Z)"
+            onClick={() => store.getState().redo()}
+          >
             Вернуть
           </button>
         </div>
