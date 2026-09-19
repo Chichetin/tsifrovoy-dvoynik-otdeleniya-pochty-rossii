@@ -247,14 +247,22 @@ export function toCsv(rows: readonly (readonly string[])[]): string {
   return rows.map((cells) => cells.map(csvCell).join(CSV_SEPARATOR)).join('\r\n');
 }
 
+/** A cell starting with one of these is read by Excel as a formula, not text. */
+const FORMULA_STARTERS = /^[=+\-@\t\r]/;
+
 function csvCell(value: string): string {
+  // Formula injection: a name like «=HYPERLINK(...)» or an inventory number
+  // «-12» in someone else's plan must open as text. A leading apostrophe is
+  // what spreadsheets themselves use to say «this is text» (OWASP guidance).
+  const text = FORMULA_STARTERS.test(value) ? `'${value}` : value;
   const risky =
-    value.includes(CSV_SEPARATOR) ||
-    value.includes('"') ||
-    value.includes('\n') ||
-    value.includes('\r') ||
-    value.trim() !== value;
-  return risky ? `"${value.replaceAll('"', '""')}"` : value;
+    text !== value ||
+    text.includes(CSV_SEPARATOR) ||
+    text.includes('"') ||
+    text.includes('\n') ||
+    text.includes('\r') ||
+    text.trim() !== text;
+  return risky ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
 /**
