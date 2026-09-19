@@ -30,7 +30,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Fastify from 'fastify';
 import { registerAdviceRoutes } from '../server/advice-route';
-import { readLlmConfig, type Env } from '../server/config';
+import { readLlmConfig, type Env, type LlmConfig } from '../server/config';
 import { createLlmClient } from '../server/llm-client';
 import type {
   AdviceMode,
@@ -284,7 +284,7 @@ export type DemoBuild = {
 /** Who explained the recommendation when the model did. */
 export type DemoLlmInfo = {
   provider: string;
-  /** `LLM_MODEL` with the Yandex folder id masked, see `publicModelName`. */
+  /** `LLM_MODEL` with the cloud folder id masked, see `publicModelName`. */
   model: string;
   /** Build date, Moscow time, YYYY-MM-DD. */
   date: string;
@@ -656,11 +656,12 @@ export function rebuildFromFile(file: DemoRecommendationFile): DemoBuild {
 
 /**
  * The model name as it may be published. Yandex AI Studio names carry the
- * cloud folder id (`gpt://<folder>/<model>`); the team keeps that id out of the
- * repository, so the set shows the model and hides the folder.
+ * cloud folder id (`gpt://<folder>/<model>`, likewise for its other schemes);
+ * the team keeps that id out of the repository, so the set shows the model and
+ * hides the folder of any `<scheme>://<folder>/` name.
  */
 export function publicModelName(model: string): string {
-  return model.replace(/^gpt:\/\/[^/]+\//, 'gpt://<folder_ID>/');
+  return model.replace(/^([a-z]+):\/\/[^/]+\//, '$1://<folder_ID>/');
 }
 
 /** YYYY-MM-DD in Moscow time: the team counts dates by МСК. */
@@ -676,10 +677,13 @@ type ModelAnswer = { ok: true; explanations: Explanation[] } | { ok: false; reas
  * line. The route already verified each answer against its own calculation;
  * here the choice is verified again against the builder's recommendations —
  * the ones written to the file — so a divergence between the two calculations
- * cannot slip a foreign fact into the set.
+ * cannot slip a foreign fact into the set. The model may only explain the
+ * variant that was applied: `after.json` and effect.md are built from the
+ * applied candidate, and a text about another spot would contradict them.
  */
 export function collectModelExplanations(
   recommendations: Recommendation[],
+  applied: DemoRecommendationFile['applied'],
   answers: { scenario: AdviceRequest['scenario']; response: AdviceResponse }[],
   label: string,
 ): ModelAnswer {
@@ -714,6 +718,22 @@ export function collectModelExplanations(
       reason: `Ответ модели не прошёл проверку комплекта (${verified.issues.map((entry) => entry.code).join(', ')}), ${label}: показан расчёт.`,
     };
   }
+  const otherVariant = applied.find((entry) => {
+    if (entry.candidateId === null) return false;
+    const explanation = verified.value.find(
+      (item) => item.recommendationId === entry.recommendationId,
+    );
+    return explanation?.candidateId !== entry.candidateId;
+  });
+  if (otherVariant !== undefined) {
+    const chosen = verified.value.find(
+      (item) => item.recommendationId === otherVariant.recommendationId,
+    );
+    return {
+      ok: false,
+      reason: `Модель выбрала другой вариант, чем применён в after.json: для «${otherVariant.recommendationId}» — ${chosen?.candidateId ?? 'без варианта'} вместо ${otherVariant.candidateId} (${label}): показан расчёт.`,
+    };
+  }
   const unrendered = recommendations.find((recommendation) => {
     const explanation = verified.value.find((entry) => entry.recommendationId === recommendation.id);
     return explanation === undefined || renderExplanation(recommendation, explanation) === null;
@@ -728,10 +748,7 @@ export function collectModelExplanations(
 }
 
 /** Asks the model through the route the app uses, one call per request. */
-async function askModel(calculation: DemoCalculation, env: Env): Promise<ModelAnswer> {
-  const config = readLlmConfig(env);
-  if (config === null) return { ok: false, reason: NO_PROVIDER_REASON };
-
+async function askModel(calculation: DemoCalculation, config: LlmConfig): Promise<ModelAnswer> {
   const label = `${config.provider}/${publicModelName(config.model)}`;
   const app = Fastify({ logger: false, bodyLimit: LIMITS.maxRequestBytes });
   registerAdviceRoutes(app, {
@@ -749,18 +766,19 @@ async function askModel(calculation: DemoCalculation, env: Env): Promise<ModelAn
         url: '/api/advice',
         payload: { plan, revision: index, request },
       });
-      if (response.statusCode !== 200) {
-        return {
-          ok: false,
-          reason: `Маршрут /api/advice ответил статусом ${response.statusCode} на сценарий «${request.scenario}» (${label}): показан расчёт.`,
-        };
-      }
+      // A non-200 body has no `mode`; collecting it reports the scenario as
+      // not explained by the model, which is the truth.
       answers.push({ scenario: request.scenario, response: response.json<AdviceResponse>() });
     }
   } finally {
     await app.close();
   }
-  return collectModelExplanations(calculation.recommendations, answers, label);
+  return collectModelExplanations(
+    calculation.recommendations,
+    calculation.applied,
+    answers,
+    label,
+  );
 }
 
 /**
@@ -771,13 +789,11 @@ async function askModel(calculation: DemoCalculation, env: Env): Promise<ModelAn
 export async function buildDemoFromEnv(env: Env, now: Date = new Date()): Promise<DemoBuild> {
   const calculation = calculateDemo();
   const config = readLlmConfig(env);
-  const answer = await askModel(calculation, env);
-  if (!answer.ok || config === null) {
-    return assembleDemo(calculation, {
-      mode: 'fallback',
-      reason: answer.ok ? NO_PROVIDER_REASON : answer.reason,
-    });
+  if (config === null) {
+    return assembleDemo(calculation, { mode: 'fallback', reason: NO_PROVIDER_REASON });
   }
+  const answer = await askModel(calculation, config);
+  if (!answer.ok) return assembleDemo(calculation, { mode: 'fallback', reason: answer.reason });
   return assembleDemo(calculation, {
     mode: 'llm',
     llm: {
@@ -792,24 +808,45 @@ export async function buildDemoFromEnv(env: Env, now: Date = new Date()): Promis
 const MODE_START = '<!-- demo-build:mode -->';
 const MODE_END = '<!-- /demo-build:mode -->';
 
+/** Markdown line width of the generated paragraph, as the rest of effect.md. */
+const EFFECT_WIDTH = 84;
+
+/** Greedy word wrap; a word longer than the width stays on its own line. */
+function wrap(text: string, width: number): string {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter((entry) => entry.length > 0)) {
+    if (line.length > 0 && line.length + 1 + word.length > width) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = line.length === 0 ? word : `${line} ${word}`;
+    }
+  }
+  if (line.length > 0) lines.push(line);
+  return lines.join('\n');
+}
+
 /** The effect.md paragraph about the mode, written from the file, not by hand. */
 export function renderModeSection(file: DemoRecommendationFile): string {
   if (file.mode === 'llm' && file.llm !== null) {
-    return [
-      `Объяснение выбрала **модель** (режим \`llm\`): провайдер \`${file.llm.provider}\`,`,
-      `модель \`${file.llm.model}\`, сборка комплекта ${file.llm.date}. Модель получила уже`,
-      'посчитанные рекомендации и выбрала для каждой код причины, вариант размещения и',
-      'факты; выбор прошёл проверку кодом (`verifyExplanation`: `id` существуют, коды',
-      'причин и факты взяты из расчёта). Числа посчитал код, модель их не меняла. Полные',
-      'структуры — в `recommendation.json`.',
-    ].join('\n');
+    return wrap(
+      `Объяснение выбрала **модель** (режим \`llm\`): провайдер \`${file.llm.provider}\`, ` +
+        `модель \`${file.llm.model}\`, сборка комплекта ${file.llm.date}. Модель получила уже ` +
+        'посчитанные рекомендации и выбрала для каждой код причины, вариант размещения и ' +
+        'факты; выбор прошёл проверку кодом (`verifyExplanation`: `id` существуют, коды ' +
+        'причин и факты взяты из расчёта; вариант — тот, что применён в `after.json`). ' +
+        'Числа посчитал код, модель их не меняла. Полные структуры — в `recommendation.json`.',
+      EFFECT_WIDTH,
+    );
   }
-  return [
-    'Ассистент работал **без LLM** (режим `fallback`). Причина, записанная сборщиком:',
-    `${file.fallbackReason ?? 'не указана'}`,
-    'Это штатный режим, а не отказ: структура рекомендации и все числа от режима не',
-    'меняются. Полные структуры — в `recommendation.json`.',
-  ].join('\n');
+  return wrap(
+    'Ассистент работал **без LLM** (режим `fallback`). Причина, записанная сборщиком: ' +
+      `${file.fallbackReason ?? 'не указана'} Это штатный режим, а не отказ: структура ` +
+      'рекомендации и все числа от режима не меняются. Полные структуры — в ' +
+      '`recommendation.json`.',
+    EFFECT_WIDTH,
+  );
 }
 
 /** Replaces the generated paragraph between the markers of effect.md. */

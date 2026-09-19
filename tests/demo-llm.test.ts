@@ -47,10 +47,10 @@ function promptOf(body: string): PromptRecommendation[] {
  * the calculation's default would be another, so an llm build is visibly the
  * model's choice and not the template copied.
  */
-function honestAnswer(prompt: PromptRecommendation[]): string {
+function honestAnswer(prompt: PromptRecommendation[], variant = 0): string {
   return JSON.stringify({
     explanations: prompt.map((recommendation) => {
-      const candidate = recommendation.candidates[0];
+      const candidate = recommendation.candidates[variant] ?? recommendation.candidates[0];
       const own = new Set(candidate?.factIds ?? []);
       const factIds = recommendation.facts
         .filter(
@@ -124,6 +124,13 @@ async function provider(
 }
 
 const NOW = new Date('2026-09-20T21:30:00Z');
+
+/** A fallback reason names the provider, never the folder id or the endpoint. */
+function expectNoLeak(file: DemoRecommendationFile): void {
+  expect(file.fallbackReason).not.toContain('folder123');
+  expect(file.fallbackReason).not.toContain('127.0.0.1');
+  expect(file.fallbackReason).not.toContain('test-key');
+}
 const SLOW = { timeout: 20_000 };
 
 /** The parts of the file the model is not allowed to touch. */
@@ -188,6 +195,7 @@ describe('E01-llm: режим рекомендации в демо-компле�
     expect(file.llm).toBeNull();
     expect(file.fallbackReason).toContain('не прошёл проверку');
     expect(file.fallbackReason).toContain('stub-provider');
+    expectNoLeak(file);
     expect(file.explanations).toEqual(buildDemo().recommendation.explanations);
     expect(calculated(file)).toEqual(calculated(buildDemo().recommendation));
   });
@@ -213,6 +221,7 @@ describe('E01-llm: режим рекомендации в демо-компле�
     expect(file.mode).toBe('fallback');
     expect(file.fallbackReason).toContain('Модель недоступна');
     expect(file.fallbackReason).toContain('500');
+    expectNoLeak(file);
   });
 
   test('один сценарий из четырёх без модели → весь комплект fallback', SLOW, async () => {
@@ -244,7 +253,9 @@ describe('E01-llm: режим рекомендации в демо-компле�
   test('абзац о режиме в effect.md следует фактическому режиму', SLOW, async () => {
     const fallback = renderModeSection(buildDemo().recommendation);
     expect(fallback).toContain('`fallback`');
-    expect(fallback).toContain(NO_PROVIDER_REASON);
+    // Wrapped like the rest of effect.md; the reason itself is intact.
+    expect(fallback.replace(/\s+/g, ' ')).toContain(NO_PROVIDER_REASON);
+    for (const line of fallback.split('\n')) expect(line.length).toBeLessThanOrEqual(84);
     expect(fallback).not.toMatch(/не выдан/);
 
     const fake = await provider((prompt) => ({ status: 200, content: honestAnswer(prompt) }));
@@ -277,10 +288,25 @@ describe('E01-llm: режим рекомендации в демо-компле�
     expect(file.mode).toBe('fallback');
     // Exactly one id is named: the one the model dropped.
     expect(file.fallbackReason).toMatch(/^Модель не объяснила рекомендации adv_rule_[a-z_]+ \(/);
+    expectNoLeak(file);
+  });
+
+  test('модель выбрала не тот вариант, что применён в after.json → fallback', SLOW, async () => {
+    // A valid choice by itself — the route accepts it — but after.json and
+    // effect.md stand on the first variant, so the set would contradict itself.
+    const fake = await provider((prompt) => ({ status: 200, content: honestAnswer(prompt, 1) }));
+    const file = (await buildDemoFromEnv(fake.env, NOW)).recommendation;
+
+    expect(fake.calls).toHaveLength(4);
+    expect(file.mode).toBe('fallback');
+    expect(file.fallbackReason).toContain('Модель выбрала другой вариант, чем применён в after.json');
+    expect(file.fallbackReason).toContain('adv_ot_bench_2 вместо adv_ot_bench_1');
+    expectNoLeak(file);
+    expect(file.explanations).toEqual(buildDemo().recommendation.explanations);
   });
 
   describe('сбор объяснений комплекта из ответов маршрута', () => {
-    const { recommendations, explanations } = buildDemo().recommendation;
+    const { recommendations, explanations, applied } = buildDemo().recommendation;
     const response = (list: Explanation[]): AdviceResponse => ({
       revision: 0,
       recommendations,
@@ -292,6 +318,7 @@ describe('E01-llm: режим рекомендации в демо-компле�
       const foreign: Explanation = { ...explanations[0]!, recommendationId: 'adv_other' };
       const result = collectModelExplanations(
         recommendations,
+        applied,
         [{ scenario: 'equipment', response: response([...explanations, foreign]) }],
         'stub/m',
       );
@@ -301,6 +328,7 @@ describe('E01-llm: режим рекомендации в демо-компле�
     test('ровно одна необъяснённая рекомендация → отказ с её id', () => {
       const result = collectModelExplanations(
         recommendations,
+        applied,
         [{ scenario: 'equipment', response: response(explanations.slice(1)) }],
         'stub/m',
       );
@@ -315,6 +343,7 @@ describe('E01-llm: режим рекомендации в демо-компле�
       const foreignFact = { ...first!, factIds: [...first!.factIds, 'f_from_other_calc'] };
       const result = collectModelExplanations(
         recommendations,
+        applied,
         [{ scenario: 'equipment', response: response([foreignFact, ...rest]) }],
         'stub/m',
       );
@@ -328,6 +357,7 @@ describe('E01-llm: режим рекомендации в демо-компле�
     test('ответ маршрута в режиме fallback → отказ с его причиной', () => {
       const result = collectModelExplanations(
         recommendations,
+        applied,
         [
           {
             scenario: 'place',
@@ -340,9 +370,12 @@ describe('E01-llm: режим рекомендации в демо-компле�
     });
   });
 
-  test('имя модели Yandex публикуется без каталога, прочие — как есть', () => {
+  test('имя модели со схемой публикуется без каталога, прочие — как есть', () => {
     expect(publicModelName('gpt://b1gabc/deepseek-v4-flash')).toBe(
       'gpt://<folder_ID>/deepseek-v4-flash',
+    );
+    expect(publicModelName('ds://b1gxyz/qwen3-235b/latest')).toBe(
+      'ds://<folder_ID>/qwen3-235b/latest',
     );
     expect(publicModelName('deepseek-chat')).toBe('deepseek-chat');
   });
