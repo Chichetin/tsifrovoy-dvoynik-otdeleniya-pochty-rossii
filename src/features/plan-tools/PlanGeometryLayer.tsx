@@ -341,6 +341,10 @@ export function PlanGeometryLayer({
             closed
             fill={findZoneType(plan.catalog, zone.typeId)?.color ?? ZONE_FALLBACK}
             opacity={0.75}
+            // D-190: полупрозрачная заливка с обводкой иначе рисуется через
+            // буферный холст размером со сцену — очистка и полная копия на
+            // каждую зону при любой перерисовке слоя.
+            perfectDrawEnabled={false}
             stroke={
               shown.invalid ? INVALID_STROKE : isSelected('zone', zone.id) ? SELECTED_STROKE : '#ADB5BD'
             }

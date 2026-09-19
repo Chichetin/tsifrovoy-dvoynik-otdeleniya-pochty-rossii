@@ -174,6 +174,10 @@ export function InformationLayer({
           opacity={0.22}
           stroke={representation.color}
           strokeWidth={1}
+          // D-190: полупрозрачная фигура с заливкой и обводкой иначе рисуется
+          // через буферный холст размером со сцену — очистка и полная копия на
+          // каждую камеру при любой перерисовке слоя.
+          perfectDrawEnabled={false}
           listening={false}
         />,
       );
@@ -217,6 +221,7 @@ export function InformationLayer({
             opacity={0.9}
             stroke={label.color}
             strokeWidth={1}
+            perfectDrawEnabled={false}
             listening={false}
           />
         );
