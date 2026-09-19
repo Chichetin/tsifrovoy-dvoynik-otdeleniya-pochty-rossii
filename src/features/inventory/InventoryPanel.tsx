@@ -24,6 +24,7 @@
  */
 
 import { useDeferredValue, useMemo, useState } from 'react';
+import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import type { Id, PlanDocument } from '../../contracts/model';
 import type { InventoryPanelProps, RequestState } from '../../contracts/ui';
 import {
@@ -32,7 +33,6 @@ import {
   filterObjectRows,
   inventoryCsv,
   type InventorySort,
-  namingOf,
   NO_INVENTORY_NUMBER,
   objectRows,
   type SortColumn,
@@ -210,7 +210,7 @@ export function InventoryPanel({
   // экране. Такой фильтр снимается сам, иначе перечень остаётся пустым.
   if (typeId !== null && (inventory.byType[typeId] ?? 0) === 0) setTypeId(null);
 
-  const naming = useMemo(() => namingOf(plan), [plan]);
+  const naming = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const types = useMemo(() => typeSummary(inventory, naming), [inventory, naming]);
   const zones = useMemo(() => zoneSummary(inventory, naming), [inventory, naming]);
   const rows = useMemo(() => objectRows(inventory, naming), [inventory, naming]);

@@ -61,6 +61,8 @@
 
 ## 3. «id → человеческое название» существует в трёх видах (Strong)
 
+**Статус 20.09:** исправлено в части общего модуля (D-202): `src/domain/plan-index.ts` — `planIndex(plan)` на `Map`, одно правило «нет сущности → null»; `refName` (`validation/naming.ts`) удалён, `namingOf`/`RAW_IDS` в `inventory/rows.ts` заменены индексом, `equipmentSubject`/`candidateZone` ассистента зовут индекс. Не сделано: `document?` в `InventoryPanelViewProps`/`ValidationPanelViewProps` остаётся (замена на индекс в пропсах — контрактный MR, D-124), прямые `plan.zones.find` в `PropertiesPanel`/`PlanGeometryLayer`/`MetricsPanel` — UI, следующий пакет.
+
 **Где:** `src/features/validation/naming.ts:13` (`refName`),
 `src/features/inventory/rows.ts:26` (`namingOf` + `display`),
 `src/features/assistant/AssistantPanel.tsx:64` (`equipmentSubject`),

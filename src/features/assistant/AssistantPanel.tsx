@@ -17,6 +17,7 @@ import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contr
 import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { renderExplanation } from '../../domain/advice';
+import { planIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
 type Scenario = AdviceRequest['scenario'];
@@ -68,19 +69,20 @@ function equipmentSubject(plan: PlanDocument, recommendation: Recommendation): s
     (entry) => entry.kind === 'count' && recommendation.ruleIds.includes(entry.id),
   );
   if (rule?.kind !== 'count') return null;
-  const type = plan.catalog.objectTypes.find((entry) => entry.id === rule.objectTypeId);
+  const index = planIndex(plan);
+  const type = index.objectTypeLabel(rule.objectTypeId);
   const zoneId = recommendation.refs.find((ref) => ref.kind === 'zone')?.id;
-  const zone = plan.zones.find((entry) => entry.id === zoneId);
-  if (type === undefined || zone === undefined) return null;
-  return `${type.label} · ${zone.name}`;
+  const zone = zoneId === undefined ? null : index.zoneName(zoneId);
+  if (type === null || zone === null) return null;
+  return `${type} · ${zone}`;
 }
 
 /** Где окажется вариант: имя и id зоны из плана, чтобы его можно было найти. */
 function candidateZone(plan: PlanDocument, candidate: Candidate): string {
   const zoneId = candidate.object.zoneId;
   if (zoneId === null) return 'вне зон';
-  const zone = plan.zones.find((entry) => entry.id === zoneId);
-  return zone === undefined ? `зона ${zoneId}` : `зона «${zone.name}» (${zoneId})`;
+  const name = planIndex(plan).zoneName(zoneId);
+  return name === null ? `зона ${zoneId}` : `зона «${name}» (${zoneId})`;
 }
 
 export function AssistantPanel({
