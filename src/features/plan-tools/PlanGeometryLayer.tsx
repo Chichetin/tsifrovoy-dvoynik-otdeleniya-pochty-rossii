@@ -19,9 +19,10 @@ import { useEffect, useState } from 'react';
 import { Circle, Layer, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
+import { TOLERANCE } from '../../contracts/model';
 import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import { findZoneType } from '../../domain/catalog';
-import { SNAP, modelToScreen, openingCentre, pointGuides, screenToModel, snapPoint, wallPolygon } from '../../domain/geometry';
+import { SNAP, modelToScreen, openingCentre, pointGuides, screenToModel, segmentLength, snapPoint, wallPolygon } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import {
@@ -156,9 +157,19 @@ export function PlanGeometryLayer({
   };
   const withoutVertex = (ref: Ref, polygon: Polygon, index: number): PlanDocument => {
     const rest = polygon.filter((_, at) => at !== index);
-    return ref.kind === 'room'
-      ? { ...plan, room: { ...plan.room, boundary: rest } }
-      : { ...plan, zones: plan.zones.map((zone) => (zone.id === ref.id ? { ...zone, polygon: rest } : zone)) };
+    if (ref.kind !== 'room') {
+      return { ...plan, zones: plan.zones.map((zone) => (zone.id === ref.id ? { ...zone, polygon: rest } : zone)) };
+    }
+    // The outer walls meeting at this vertex move with it (D-134): their
+    // faces at the old place are not something to snap back to.
+    const vertex = polygon[index];
+    const meets = (point: Point): boolean =>
+      vertex !== undefined && segmentLength(point, vertex) <= TOLERANCE.coordinate_m;
+    return {
+      ...plan,
+      room: { ...plan.room, boundary: rest },
+      walls: plan.walls.filter((wall) => !meets(wall.from) && !meets(wall.to)),
+    };
   };
   const withoutWall = (id: Id): PlanDocument => ({ ...plan, walls: plan.walls.filter((wall) => wall.id !== id) });
 
