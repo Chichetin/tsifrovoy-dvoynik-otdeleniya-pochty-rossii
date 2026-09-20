@@ -171,7 +171,7 @@ test('проверенный ответ модели показан её сло�
   expect(screen.getByTestId('assistant-answer').textContent).toContain(
     'Свободное место есть у стены',
   );
-  expect(screen.getByTestId('assistant-answer').textContent).toContain('Ответ модели на вопрос');
+  expect(screen.getByTestId('assistant-answer').textContent).toContain('Ответ модели');
   // Предложение расчёта подписано рядом со словами модели, чтобы не смешивались.
   expect(screen.getAllByTestId('assistant-calculation')[0]?.textContent).toContain('Расчёт:');
   // Вопрос учтён — плашка про неучтённый вопрос не показывается.

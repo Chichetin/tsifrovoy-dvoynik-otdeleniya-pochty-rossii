@@ -274,7 +274,7 @@ export function AssistantPanel({
               <article key={recommendation.id} className="advice">
                 {explanation?.text === undefined ? null : (
                   <p className="advice__sentence advice__answer" data-testid="assistant-answer">
-                    <strong>Ответ модели на вопрос</strong> (её слова, проверены расчётом):{' '}
+                    <strong>Ответ модели</strong> (её слова, проверены расчётом):{' '}
                     {explanation.text}
                   </p>
                 )}

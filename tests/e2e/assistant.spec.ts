@@ -302,7 +302,7 @@ test.describe('ассистент в браузере', () => {
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
 
     const answer = panel(page).getByTestId('assistant-answer');
-    await expect(answer).toContainText('Ответ модели на вопрос');
+    await expect(answer).toContainText('Ответ модели');
     await expect(answer).toContainText('Место под окно есть');
     await expect(answer).toContainText(/\d+,\d\d м²/);
     // Вопрос учтён — плашки про неучтённый вопрос быть не должно.
