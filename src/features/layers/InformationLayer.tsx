@@ -15,8 +15,8 @@ import { Layer, Line, Rect, Shape, Text } from 'react-konva';
 import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
-import { modelToScreen, viewSector } from '../../domain/geometry';
-import { labelWidth, placeLabels, type Box } from './label-layout';
+import { boundingBox, footprint, modelToScreen, viewSector } from '../../domain/geometry';
+import { captionBox, labelWidth, placeLabels, type Box } from './label-layout';
 import { formatValue, legendLine, legendOf } from './legend';
 import { heatRegions } from './heat-regions';
 
@@ -184,9 +184,23 @@ export function InformationLayer({
     }
   }
 
-  // Zone names of the geometry layer and the legend are fixed; labels move around them.
+  // Zone names of the geometry layer, object captions of the equipment layer
+  // and the legend are fixed; labels move around them (находка operator №9:
+  // «45 %» садилось на «Стеллаж посылок 2»).
+  const visibleLayers = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
   const obstacles: Box[] = [
     ...(legendRows.length === 0 ? [] : [legendBox]),
+    ...plan.objects.flatMap((object) => {
+      if (!visibleLayers.has(object.layerId)) return [];
+      const box = boundingBox(footprint(object));
+      const caption = captionBox(
+        screen(object.position),
+        (box.maxX - box.minX) * viewport.scale,
+        (box.maxY - box.minY) * viewport.scale,
+        object.label,
+      );
+      return caption === null ? [] : [caption];
+    }),
     ...plan.zones.map((zone) => {
       const [x, y] = screen(labelAnchor(zone.polygon));
       // The geometry layer wraps names into a 120 px column: long names take two lines.

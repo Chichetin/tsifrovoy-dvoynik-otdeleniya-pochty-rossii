@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import { boxesOverlap, labelWidth, placeLabels, type Box } from './label-layout';
+import { boxesOverlap, captionBox, labelWidth, placeLabels, type Box } from './label-layout';
 
 const box = (x: number, y: number, width = 40, height = 16): Box => ({ x, y, width, height });
 
@@ -66,5 +66,28 @@ describe('placeLabels', () => {
   test('ширина подписи растёт с длиной текста и размером шрифта', () => {
     expect(labelWidth('80 %', 11)).toBeGreaterThan(labelWidth('8', 11));
     expect(labelWidth('80 %', 13)).toBeGreaterThan(labelWidth('80 %', 11));
+  });
+});
+
+describe('подпись объекта как занятое место (находка operator №9)', () => {
+  test('крупный объект: коробка по центру, шире отпечатка, в две строки', () => {
+    const box = captionBox([100, 50], 60, 40, 'Стеллаж посылок 2');
+
+    expect(box).toEqual({ x: 100 - 39, y: 50 - 14, width: 78, height: 28 });
+  });
+
+  test('невысокий объект подписывается одной строкой', () => {
+    expect(captionBox([100, 50], 60, 20, 'Кресло')).toEqual({
+      x: 100 - 39,
+      y: 50 - 7.5,
+      width: 78,
+      height: 15,
+    });
+  });
+
+  test('мелкий объект и объект без названия подписи не получают', () => {
+    expect(captionBox([100, 50], 43, 40, 'Датчик')).toBeNull();
+    expect(captionBox([100, 50], 60, 12, 'Датчик')).toBeNull();
+    expect(captionBox([100, 50], 60, 40, '   ')).toBeNull();
   });
 });

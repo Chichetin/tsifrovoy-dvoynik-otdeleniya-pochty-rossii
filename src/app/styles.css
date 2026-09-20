@@ -1592,10 +1592,6 @@ span.inventory__num {
   color: var(--muted, #555);
 }
 
-.view3d__id {
-  font-size: 12px;
-}
-
 /* Справочник: формы нового типа, атрибута и правила */
 
 .catalog__form {

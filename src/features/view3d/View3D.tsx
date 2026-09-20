@@ -79,12 +79,15 @@ export function View3D({ document, selection }: View3DProps): React.JSX.Element 
               className={isSelected(prism, selection) ? 'view3d__item view3d__item--selected' : 'view3d__item'}
               data-kind={prism.ref.kind}
               data-id={prism.ref.id}
+              // Список смотрит руководитель: в строке стоит название, а
+              // технический id — в подсказке и в данных строки, откуда его
+              // читают тесты и переходы (находка operator №9, по духу D-219).
+              title={`${KIND_LABELS[prism.kind]} ${prism.label} — ${prism.ref.id}`}
               data-selected={isSelected(prism, selection) ? 'true' : undefined}
             >
               <span className="view3d__swatch" style={{ background: prism.color }} aria-hidden="true" />
               <span className="view3d__kind">{KIND_LABELS[prism.kind]}</span>{' '}
-              <span className="view3d__label">{prism.label}</span>{' '}
-              <code className="view3d__id">{prism.ref.id}</code>
+              <span className="view3d__label">{prism.label}</span>
               {prism.kind === 'object' ? (
                 <span className="view3d__dims">
                   {' '}

@@ -50,3 +50,30 @@ export function placeLabels(obstacles: Box[], requests: Box[], gap = 0): Box[] {
     return box;
   });
 }
+
+/**
+ * Подпись объекта, которую рисует слой оборудования: её место занято, и метка
+ * информационного слоя обязана его обойти (находка operator №9). Правило
+ * повторяет `objectLabel` из `src/features/equipment/object-label.ts` —
+ * соседний feature импортировать нельзя (границы модулей), поэтому четыре
+ * константы держатся равными руками. Мелкий объект подписи не получает: у
+ * него нет ни ширины, ни высоты под текст.
+ */
+const CAPTION_MIN_WIDTH_PX = 44;
+const CAPTION_FONT_PX = 11;
+const CAPTION_LINE_PX = 13;
+const CAPTION_OVERHANG = 1.3;
+
+export function captionBox(
+  centre: readonly [number, number],
+  widthPx: number,
+  heightPx: number,
+  text: string,
+): Box | null {
+  if (text.trim() === '') return null;
+  if (widthPx < CAPTION_MIN_WIDTH_PX || heightPx < CAPTION_FONT_PX + 2) return null;
+  const lines = heightPx >= CAPTION_LINE_PX * 2 + 4 ? 2 : 1;
+  const width = Math.round(widthPx * CAPTION_OVERHANG);
+  const height = lines * CAPTION_LINE_PX + 2;
+  return { x: centre[0] - width / 2, y: centre[1] - height / 2, width, height };
+}

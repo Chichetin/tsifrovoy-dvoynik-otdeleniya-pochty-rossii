@@ -48,3 +48,18 @@ describe('View3D: подпись под сценой', () => {
     expect(screen.getByTestId('view3d-primitives').children).toHaveLength(0);
   });
 });
+
+describe('View3D: строка списка примитивов (находка operator №9)', () => {
+  test('в строке видно название, технический id — в подсказке и в данных', () => {
+    render(<View3D document={plan} selection={null} />);
+
+    const zone = screen
+      .getByTestId('view3d-primitives')
+      .querySelector<HTMLElement>('[data-id="z_client"]');
+    if (zone === null) throw new Error('зоны нет в списке');
+
+    expect(zone.textContent).toContain('Клиентская зона');
+    expect(zone.textContent).not.toContain('z_client');
+    expect(zone.title).toContain('z_client');
+  });
+});

@@ -22,7 +22,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vite
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { EditorSession } from '../../contracts/ui';
+import { boundingBox, footprint, modelToScreen } from '../../domain/geometry';
 import { InformationLayer } from './InformationLayer';
+import { boxesOverlap, captionBox, type Box } from './label-layout';
 
 afterEach(cleanup);
 
@@ -52,11 +54,13 @@ function demoWithLayersOn(): PlanDocument {
   return { ...plan, layers: plan.layers.map((layer) => ({ ...layer, visible: true })) };
 }
 
-function drawnShapes(plan: PlanDocument): Konva.Shape[] {
+const VIEWPORT = { origin: [0, 0] as [number, number], scale: 48 };
+
+function drawnShapes(plan: PlanDocument, viewport = VIEWPORT): Konva.Shape[] {
   const stage = createRef<Konva.Stage>();
   const session: EditorSession = {
     tool: { kind: 'select' },
-    viewport: { origin: [0, 0], scale: 48 },
+    viewport,
     selection: null,
     preview: null,
     focus: null,
@@ -68,6 +72,22 @@ function drawnShapes(plan: PlanDocument): Konva.Shape[] {
   );
   if (stage.current === null) throw new Error('Stage не смонтировался');
   return stage.current.find((node: Konva.Node) => node instanceof Object && 'hasFill' in node) as Konva.Shape[];
+}
+
+/** Подписи объектов, которые рисует слой оборудования: их места заняты. */
+function captionBoxes(plan: PlanDocument, viewport = VIEWPORT): Box[] {
+  const visible = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+  return plan.objects.flatMap((object) => {
+    if (!visible.has(object.layerId)) return [];
+    const box = boundingBox(footprint(object));
+    const caption = captionBox(
+      modelToScreen(object.position, viewport),
+      (box.maxX - box.minX) * viewport.scale,
+      (box.maxY - box.minY) * viewport.scale,
+      object.label,
+    );
+    return caption === null ? [] : [caption];
+  });
 }
 
 describe('информационные слои рисуются без буферного холста', () => {
@@ -88,5 +108,20 @@ describe('информационные слои рисуются без буфе
       (shape) => shape.getAbsoluteOpacity() < 1 && shape.hasFill() && shape.hasStroke(),
     );
     expect(translucentFilled.length).toBeGreaterThan(0);
+  });
+});
+
+describe('подписи слоёв не садятся на подписи объектов (находка operator №9)', () => {
+  test('ни одна метка слоя не накрывает название объекта', () => {
+    const plan = demoWithLayersOn();
+    const labels = drawnShapes(plan)
+      .filter((shape) => shape.name() === 'info-label')
+      .map((shape) => ({ x: shape.x(), y: shape.y(), width: shape.width(), height: shape.height() }));
+    expect(labels.length).toBeGreaterThan(0);
+
+    const covered = labels.filter((label) =>
+      captionBoxes(plan).some((caption) => boxesOverlap(label, caption)),
+    );
+    expect(covered).toEqual([]);
   });
 });
