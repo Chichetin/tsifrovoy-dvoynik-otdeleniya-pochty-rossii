@@ -243,10 +243,10 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
     const snapped = await savePlan(page);
     // Ближе всего внутренняя грань наружной стены (угол контура плюс половина
-    // толщины), а не ось — вершина ложится на неё и хранится с точностью до сантиметра.
+    // толщины), а не ось — вершина ложится ровно на неё: грань 0,125 хранится как
+    // есть, а не как 0,13 (D-211).
     const half = (start.walls[0]?.thickness_m ?? 0) / 2;
-    const cm = (value: number): number => Math.round(value * 100) / 100;
-    expect(snapped.zones[0]?.polygon[0]).toEqual([cm(corner[0] + half), cm(corner[1] + half)]);
+    expect(snapped.zones[0]?.polygon[0]).toEqual([corner[0] + half, corner[1] + half]);
 
     await drawRing(page, 'Зона', box({ x: near.x, y: near.y - 200 }), { alt: true });
     await page.keyboard.press('Escape');
@@ -255,7 +255,7 @@ test.describe('инструменты плана', () => {
     if (vertex === undefined) throw new Error('вторая зона не нарисована');
     // Без привязки вершина легла туда, куда кликнули: ни на ось, ни на грань стены.
     expect(vertex[0]).not.toBe(corner[0]);
-    expect(vertex[0]).not.toBe(cm(corner[0] + half));
+    expect(vertex[0]).not.toBe(corner[0] + half);
   });
 
   test('ручка вершины притягивается к вершине соседней зоны; с Alt — нет (D-210)', async ({ page }) => {

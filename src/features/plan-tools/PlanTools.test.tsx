@@ -124,6 +124,13 @@ describe('панель инструментов плана', () => {
     expect(onTool).toHaveBeenCalledWith({ kind: 'zone.draw' });
   });
 
+  it('подсказки инструментов называют Alt, который отключает привязку', () => {
+    show(null);
+    for (const name of ['Выбор', 'Помещение', 'Зона', 'Перегородка']) {
+      expect(screen.getByRole('button', { name }).getAttribute('title')).toContain('Alt — без привязки');
+    }
+  });
+
   it('без выбора удалять нечего', () => {
     show(null);
     expect(screen.queryByRole('button', { name: /Удалить/ })).toBeNull();
@@ -153,6 +160,7 @@ describe('панель инструментов плана', () => {
   it('выбранный контур подсказывает, чем его править', () => {
     show({ kind: 'zone', id: 'z_hall' });
     expect(screen.getByText(/тяните вершину/)).toBeDefined();
+    expect(screen.getByText(/Alt — без привязки/)).toBeDefined();
   });
 
   it('отказ гаснет при смене выделения: он был про прошлую фигуру', () => {

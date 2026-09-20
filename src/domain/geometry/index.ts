@@ -4,13 +4,15 @@
  *
  * This module knows nothing about the catalog: whether an object is `physical`
  * or `occupiesFloor` is a catalog question, so the caller applies those flags.
- * Geometry only answers where things are and whether they overlap.
+ * Geometry only answers where things are and whether they overlap. The one
+ * exception is `objectGuides` (D-211): what to snap furniture to is decided
+ * here, and a sensor on the ceiling is not it.
  */
 
 import type { Equipment, Id, Opening, PlanDocument, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import { toWorld } from './coordinates';
-import { snapBox, type BoxSnap, type SnapGuides } from './snap';
+import { settle, snapBox, type BoxSnap, type SnapGuides } from './snap';
 import {
   boundingBox,
   boxesOverlap,
@@ -46,14 +48,14 @@ export {
   type PointPosition,
 } from './polygons';
 
-export { SNAP, snapAxis, snapBox, snapPoint } from './snap';
+export { SNAP, settle, settlePoint, snapAxis, snapBox, snapPoint } from './snap';
 export type { AxisSnap, BoxSnap, PointSnap, SnapGuides, SnapKind } from './snap';
 
 /**
  * Guides of a plan for moving an object (D-208): the room outline's vertices,
  * the zones' vertices, the walls' faces (the rectangle of their thickness, not
  * the centreline — «flush to the wall» must not put the object inside it) and
- * the boxes of every other object on a visible layer. `exclude` — the objects
+ * the boxes of every other floor-standing object on a visible layer. `exclude` — the objects
  * being moved: a thing must not snap to itself.
  */
 export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): SnapGuides {
@@ -71,8 +73,13 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
   for (const zone of plan.zones) for (const vertex of zone.polygon) if (!onWallAxis(vertex)) add(vertex);
   for (const wall of plan.walls) for (const vertex of wallPolygon(wall)) add(vertex);
   const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
+  // Furniture is aligned with furniture, not with a smoke sensor or a camera:
+  // only what the catalog says stands on the floor is a guide (D-211).
+  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
   for (const object of plan.objects) {
     if (exclude.has(object.id) || hidden.has(object.layerId)) continue;
+    const type = types.get(object.typeId);
+    if (type !== undefined && !(type.physical && type.occupiesFloor)) continue;
     const box = boundingBox(footprint(object));
     xs.add(box.minX);
     xs.add(box.maxX);
@@ -112,8 +119,8 @@ export function pointGuides(plan: PlanDocument): SnapGuides {
 
 /**
  * Where an object lands when its centre is dragged to `centre`: its box at
- * that centre is snapped and the centre moves with it. Unchanged when nothing
- * is within tolerance.
+ * that centre is snapped and the centre moves with it; the result is settled
+ * for storage (guide axes to the millimetre, the rest to the centimetre).
  */
 export function snapObjectCentre(
   object: Equipment,
@@ -124,7 +131,7 @@ export function snapObjectCentre(
 ): { centre: Point; snap: BoxSnap } {
   const box = boundingBox(footprint({ ...object, position: centre }));
   const snap = snapBox(box, guides, step, tolerance);
-  return { centre: [centre[0] + snap.dx, centre[1] + snap.dy], snap };
+  return { centre: [settle(centre[0] + snap.dx, snap.x), settle(centre[1] + snap.dy, snap.y)], snap };
 }
 
 /** Vertical span an object occupies, from the floor. */

@@ -27,9 +27,9 @@ export function roundPoint(point: Point): Point {
   return [Math.round(point[0] * CM_PER_M) / CM_PER_M, Math.round(point[1] * CM_PER_M) / CM_PER_M];
 }
 
+/** The point arrives settled by the layer (snapped or rounded) and is stored as given. */
 export function moveVertex(polygon: Polygon, index: number, point: Point): Polygon {
-  const snapped = roundPoint(point);
-  return polygon.map((vertex, at) => (at === index ? snapped : vertex));
+  return polygon.map((vertex, at) => (at === index ? point : vertex));
 }
 
 /** Inserts after edge `index`, i.e. between vertex `index` and the next one. */
@@ -90,8 +90,9 @@ export function canCommitRing(polygon: Polygon): boolean {
   return isSimplePolygon(polygon);
 }
 
+/** As `moveVertex`: the end is stored as the layer settled it. */
 export function moveWallEnd(wall: Wall, end: 'from' | 'to', point: Point): Wall {
-  return { ...wall, [end]: roundPoint(point) };
+  return { ...wall, [end]: point };
 }
 
 /**

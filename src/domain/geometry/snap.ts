@@ -59,6 +59,24 @@ export type BoxSnap = { dx: number; dy: number; x: AxisSnap | null; y: AxisSnap 
 export type PointSnap = { point: [number, number]; x: AxisSnap | null; y: AxisSnap | null };
 
 /**
+ * What gets stored after a snap (D-211). A coordinate that came from a guide is
+ * kept as the guide has it: a wall face at 14,875 rounded to the centimetre is
+ * 14,88 — five millimetres inside the wall, and the check that was meant to be
+ * satisfied fires instead. Everything else is stored to the centimetre, as a
+ * hand-placed value is.
+ */
+export function settle(value: number, snap: AxisSnap | null): number {
+  // A guide keeps its own digits (a face at x ± 0,0625 included); only the
+  // float noise of `centre + delta` is removed, far below any tolerance.
+  const units = snap?.kind === 'guide' ? 1e9 : 100;
+  return Math.round(value * units) / units;
+}
+
+export function settlePoint(snap: PointSnap): [number, number] {
+  return [settle(snap.point[0], snap.x), settle(snap.point[1], snap.y)];
+}
+
+/**
  * Where a clicked or dragged vertex lands: each coordinate goes to the nearest
  * guide within tolerance, else to the grid. A vertex is a single value per
  * axis, so unlike a box it may take the grid at full tolerance — that is what

@@ -10,6 +10,7 @@
 import type { Issue, Metrics, PlanDocument, Result } from '../../contracts/model';
 import type { FocusSink } from '../../contracts/ui';
 import { formatArea, formatNumber } from '../../domain/number-format';
+import { useResizableColumns } from './resizable-columns';
 
 export type MetricsPanelProps = {
   document: PlanDocument;
@@ -33,6 +34,7 @@ export function MetricsPanel({
   metrics,
   onFocus,
 }: MetricsPanelProps): React.JSX.Element {
+  const columns = useResizableColumns('metrics-zones', [46, 18, 18, 18]);
   if (!metrics.ok) {
     const issue = firstBroken(metrics.issues);
     return (
@@ -70,13 +72,25 @@ export function MetricsPanel({
       {named.length === 0 ? (
         <p className="panel__empty">Зоны ещё не размечены</p>
       ) : (
-        <table className="table metrics__table">
+        <table className="table metrics__table" style={{ tableLayout: 'fixed' }}>
           <caption className="metrics__caption">Площади зон, м²</caption>
+          <colgroup>
+            {columns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+          </colgroup>
           <thead>
             <tr>
-              <th scope="col">Зона</th>
-              <th scope="col" className="metrics__num">Всего</th>
-              <th scope="col" className="metrics__num">Занято</th>
+              <th scope="col" className="table__resizable-head">
+                Зона
+                {columns.separator(0, 'Изменить ширину между «Зона» и «Всего»')}
+              </th>
+              <th scope="col" className="metrics__num table__resizable-head">
+                Всего
+                {columns.separator(1, 'Изменить ширину между «Всего» и «Занято»')}
+              </th>
+              <th scope="col" className="metrics__num table__resizable-head">
+                Занято
+                {columns.separator(2, 'Изменить ширину между «Занято» и «Свободно»')}
+              </th>
               <th scope="col" className="metrics__num">Свободно</th>
             </tr>
           </thead>
