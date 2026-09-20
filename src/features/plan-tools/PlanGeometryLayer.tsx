@@ -18,10 +18,10 @@
 import { useEffect, useState } from 'react';
 import { Circle, Layer, Line, Text } from 'react-konva';
 import type Konva from 'konva';
-import type { Id, Opening, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
+import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import { findZoneType } from '../../domain/catalog';
-import { modelToScreen, openingCentre, screenToModel, wallPolygon } from '../../domain/geometry';
+import { SNAP, modelToScreen, openingCentre, pointGuides, screenToModel, snapPoint, wallPolygon } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import {
@@ -52,8 +52,8 @@ const HANDLE_FILL = '#FFFFFF';
 const ZONE_FALLBACK = '#E9ECEF';
 
 type Editing =
-  | { kind: 'ring'; ref: Ref; polygon: Polygon }
-  | { kind: 'wall'; wall: Wall }
+  | { kind: 'ring'; ref: Ref; polygon: Polygon; snapOff?: boolean }
+  | { kind: 'wall'; wall: Wall; snapOff?: boolean }
   | { kind: 'opening'; opening: Opening };
 
 /** Typing in a field must not delete the selected zone. */
@@ -141,6 +141,27 @@ export function PlanGeometryLayer({
 
   const nodeWorld = (node: Konva.Node): Point => screenToModel([node.x(), node.y()], viewport);
 
+  /**
+   * A dragged handle snaps to the plan's vertices and the grid (D-210) — to
+   * every vertex but its own: `without` is the plan minus the thing being
+   * dragged. Alt during the gesture keeps the handle under the pointer, and
+   * the drop reuses what the last move saw.
+   */
+  const altOf = (evt: unknown): boolean =>
+    typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
+  const handleWorld = (node: Konva.Node, snapOff: boolean, without: PlanDocument): Point => {
+    const raw = nodeWorld(node);
+    if (snapOff) return raw;
+    return snapPoint(raw, pointGuides(without), SNAP.grid_m, SNAP.tolerance_px / viewport.scale).point;
+  };
+  const withoutVertex = (ref: Ref, polygon: Polygon, index: number): PlanDocument => {
+    const rest = polygon.filter((_, at) => at !== index);
+    return ref.kind === 'room'
+      ? { ...plan, room: { ...plan.room, boundary: rest } }
+      : { ...plan, zones: plan.zones.map((zone) => (zone.id === ref.id ? { ...zone, polygon: rest } : zone)) };
+  };
+  const withoutWall = (id: Id): PlanDocument => ({ ...plan, walls: plan.walls.filter((wall) => wall.id !== id) });
+
   const commitRing = (ref: Ref, polygon: Polygon): boolean => {
     if (!canCommitRing(polygon)) {
       setNotice(SELF_INTERSECTION_NOTICE);
@@ -207,11 +228,14 @@ export function PlanGeometryLayer({
             setNotice(null);
             setEditing({ kind: 'ring', ref, polygon });
           }}
-          onDragMove={(event) =>
-            setEditing({ kind: 'ring', ref, polygon: moveVertex(polygon, index, nodeWorld(event.target)) })
-          }
+          onDragMove={(event) => {
+            const snapOff = altOf(event.evt);
+            const point = handleWorld(event.target, snapOff, withoutVertex(ref, polygon, index));
+            setEditing({ kind: 'ring', ref, polygon: moveVertex(polygon, index, point), snapOff });
+          }}
           onDragEnd={(event) => {
-            const moved = moveVertex(polygon, index, nodeWorld(event.target));
+            const snapOff = editing?.kind === 'ring' ? (editing.snapOff ?? false) : altOf(event.evt);
+            const moved = moveVertex(polygon, index, handleWorld(event.target, snapOff, withoutVertex(ref, polygon, index)));
             setEditing(null);
             // The node goes back to where the vertex was; a committed move
             // re-renders it at the new place, a refused one leaves it here.
@@ -247,11 +271,14 @@ export function PlanGeometryLayer({
           strokeWidth={1.5}
           draggable
           onDragStart={() => setNotice(null)}
-          onDragMove={(event) =>
-            setEditing({ kind: 'wall', wall: moveWallEnd(wall, end, nodeWorld(event.target)) })
-          }
+          onDragMove={(event) => {
+            const snapOff = altOf(event.evt);
+            const point = handleWorld(event.target, snapOff, withoutWall(wall.id));
+            setEditing({ kind: 'wall', wall: moveWallEnd(wall, end, point), snapOff });
+          }}
           onDragEnd={(event) => {
-            const moved = moveWallEnd(wall, end, nodeWorld(event.target));
+            const snapOff = editing?.kind === 'wall' ? (editing.snapOff ?? false) : altOf(event.evt);
+            const moved = moveWallEnd(wall, end, handleWorld(event.target, snapOff, withoutWall(wall.id)));
             setEditing(null);
             event.target.position({ x, y });
             const result = onCommand({ type: 'wall.put', wall: moved });
