@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { objectGuides, pointGuides, snapAxis, snapBox, snapObjectCentre, snapPoint } from './index';
+import { objectGuides, pointGuides, settle, settlePoint, snapAxis, snapBox, snapObjectCentre, snapPoint } from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -110,6 +110,26 @@ describe('направляющие плана и центр объекта', () 
     expect(counted).toBeGreaterThan(0);
   });
 
+  test('датчик на потолке и камера — не направляющие: мебель равняют по мебели (D-211)', () => {
+    const rack = plan.objects[0]!;
+    const type = plan.catalog.objectTypes.find((entry) => entry.id === rack.typeId)!;
+    const ceiling = { ...type, id: 'ot_sensor', label: 'Датчик', occupiesFloor: false };
+    const marker = { ...type, id: 'ot_marker', label: 'Разметка', physical: false };
+    const withSensors: PlanDocument = {
+      ...plan,
+      catalog: { ...plan.catalog, objectTypes: [...plan.catalog.objectTypes, ceiling, marker] },
+      objects: [
+        rack,
+        { ...rack, id: 'eq_sensor', typeId: 'ot_sensor', position: [8.3, 6.3], size_m: [0.12, 0.12] },
+        { ...rack, id: 'eq_marker', typeId: 'ot_marker', position: [8.7, 6.7], size_m: [0.4, 0.4] },
+      ],
+    };
+    const guides = objectGuides(withSensors, new Set());
+    expect(guides.xs).not.toContain(8.3 - 0.06);
+    expect(guides.xs).not.toContain(8.7 - 0.2);
+    expect(guides.xs).toContain(rack.position[0] - rack.size_m[0] / 2);
+  });
+
   test('скрытый слой не тянет', () => {
     const hiddenPlan: PlanDocument = {
       ...plan,
@@ -167,5 +187,23 @@ describe('вершина при рисовании (D-209)', () => {
       y: { value: 7.5, delta: expect.closeTo(0.06, 9), kind: 'grid' },
     });
     expect(snapPoint([9.7, 7.3], guides, 0.5, 0.1).point).toEqual([9.7, 7.3]);
+  });
+});
+
+describe('что попадает в файл после привязки (D-211)', () => {
+  test('координата от направляющей хранится до миллиметра, остальное — до сантиметра', () => {
+    const guide = { value: 14.875, delta: 0.01, kind: 'guide' as const };
+    expect(settle(14.875, guide)).toBe(14.875);
+    expect(settle(14.875, null)).toBe(14.88);
+    expect(settle(14.875, { value: 15, delta: 0.125, kind: 'grid' })).toBe(14.88);
+    expect(settlePoint({ point: [14.875, 3.004], x: guide, y: null })).toEqual([14.875, 3]);
+  });
+
+  test('стеллаж у грани стены 14,875 остаётся на грани, а не в стене', () => {
+    const plan = loadPlan('minimal.json');
+    const object = plan.objects[0]!;
+    const half = object.size_m[0] / 2;
+    const { centre } = snapObjectCentre({ ...object, rotation_deg: 0 }, [14.875 - half - 0.01, 2], { xs: [14.875], ys: [] }, 0.5, 0.1);
+    expect(centre[0] + half).toBe(14.875);
   });
 });
