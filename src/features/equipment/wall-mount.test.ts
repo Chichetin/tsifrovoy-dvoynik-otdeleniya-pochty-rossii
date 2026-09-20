@@ -10,7 +10,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { ObjectType, Point, Polygon, Wall } from '../../contracts/model';
-import { SUPPORT_SURFACE_M, isWallMounted, wallMountPlacement } from './wall-mount';
+import {
+  SUPPORT_SURFACE_M,
+  WALL_SNAP_REACH_M,
+  isWallMounted,
+  wallMountPlacement,
+} from './wall-mount';
 
 function catalogTypes(): ObjectType[] {
   return JSON.parse(
@@ -69,6 +74,16 @@ function place(point: Point, size_m: Point = CAMERA_SIZE, walls: Wall[] = WALLS)
   return wallMountPlacement(walls, BOUNDARY, size_m, point);
 }
 
+/** Прижат к стене. */
+function attached(position: Point, rotation_deg: number, wallId: string) {
+  return { position, rotation_deg, wallId, attached: true };
+}
+
+/** Остался под курсором, но развёрнут от стены. */
+function free(position: Point, rotation_deg: number, wallId: string) {
+  return { position, rotation_deg, wallId, attached: false };
+}
+
 describe('что считается настенным', () => {
   test('по справочнику: восемь типов крепятся к стене, настольная техника и мебель — нет', () => {
     const mounted = catalogTypes()
@@ -115,30 +130,22 @@ describe('что считается настенным', () => {
 
 describe('постановка у стены', () => {
   test('у каждой наружной стены объект смотрит внутрь помещения', () => {
-    expect(place([3, 0.4])).toEqual({ position: [3, 0.2], rotation_deg: 0, wallId: 'w_south' });
-    expect(place([14.6, 5])).toEqual({ position: [14.8, 5], rotation_deg: 270, wallId: 'w_east' });
-    expect(place([10, 9.6])).toEqual({ position: [10, 9.8], rotation_deg: 180, wallId: 'w_north' });
-    expect(place([0.4, 3])).toEqual({ position: [0.2, 3], rotation_deg: 90, wallId: 'w_west' });
+    expect(place([3, 0.4])).toEqual(attached([3, 0.2], 0, 'w_south'));
+    expect(place([14.6, 5])).toEqual(attached([14.8, 5], 270, 'w_east'));
+    expect(place([10, 9.6])).toEqual(attached([10, 9.8], 180, 'w_north'));
+    expect(place([0.4, 3])).toEqual(attached([0.2, 3], 90, 'w_west'));
   });
 
   test('объект прижат к грани стены: половина толщины плюс половина своей глубины', () => {
     // Информационное табло 1,1 × 0,1 м: 0,125 + 0,05 = 0,175 → сантиметр.
-    expect(place([7, 0.5], [1.1, 0.1])).toEqual({
-      position: [7, 0.18],
-      rotation_deg: 0,
-      wallId: 'w_south',
-    });
+    expect(place([7, 0.5], [1.1, 0.1])).toEqual(attached([7, 0.18], 0, 'w_south'));
     // Глубокий сплит 0,8 × 0,6 м отодвинут дальше: 0,125 + 0,3.
-    expect(place([7, 0.5], [0.8, 0.6])).toEqual({
-      position: [7, 0.43],
-      rotation_deg: 0,
-      wallId: 'w_south',
-    });
+    expect(place([7, 0.5], [0.8, 0.6])).toEqual(attached([7, 0.43], 0, 'w_south'));
   });
 
   test('у перегородки сторона выбирается по клику: объект остаётся там, где его ставили', () => {
-    expect(place([9, 3])).toEqual({ position: [9.1, 3], rotation_deg: 270, wallId: 'w_hall_back' });
-    expect(place([9.6, 3])).toEqual({ position: [9.5, 3], rotation_deg: 90, wallId: 'w_hall_back' });
+    expect(place([9, 3])).toEqual(attached([9.1, 3], 270, 'w_hall_back'));
+    expect(place([9.6, 3])).toEqual(attached([9.5, 3], 90, 'w_hall_back'));
   });
 
   test('наклонная перегородка разворачивает объект по своей нормали', () => {
@@ -150,30 +157,47 @@ describe('постановка у стены', () => {
     ];
     const placement = wallMountPlacement(diagonal, triangle, CAMERA_SIZE, [2, 1]);
 
-    expect(placement?.rotation_deg).toBe(135);
-    expect(placement?.position).toEqual([1.64, 1.36]);
+    expect(placement).toEqual(attached([1.64, 1.36], 135, 'w_diagonal'));
   });
 
-  test('клик в середине зала уходит к ближайшей стене, равные расстояния — к первой в списке', () => {
-    // От [3,3] до южной и до западной стены по 3 м: побеждает порядок в плане.
-    expect(place([3, 3])).toEqual({ position: [3, 0.2], rotation_deg: 0, wallId: 'w_south' });
-    expect(place([3, 3.2])).toEqual({ position: [0.2, 3.2], rotation_deg: 90, wallId: 'w_west' });
+  test('дальше порога объект остаётся под курсором, но смотрит от ближайшей стены', () => {
+    // Датчик посреди зала: в demo/before.json такие стоят в 1,2–2,7 м от стен,
+    // и клик должен класть их туда, куда ткнули.
+    expect(place([3, 3])).toEqual(free([3, 3], 0, 'w_south'));
+    // Равные расстояния до южной и западной стены решает порядок стен в плане;
+    // чуть ближе к западной — поворот меняется на 90°.
+    expect(place([3, 3.2])).toEqual(free([3, 3.2], 90, 'w_west'));
+    // Датчик eq_46 демо-плана: над перегородкой склада, смотрит от неё вверх.
+    expect(place([12, 7.4])).toEqual(free([12, 7.4], 0, 'w_storage'));
+  });
+
+  test('порог прилипания — метр от стены: ближе прижимает, дальше нет', () => {
+    expect(WALL_SNAP_REACH_M).toBe(1);
+    expect(place([3, WALL_SNAP_REACH_M])).toEqual(attached([3, 0.2], 0, 'w_south'));
+    expect(place([3, WALL_SNAP_REACH_M + 0.01])).toEqual(free([3, 1.01], 0, 'w_south'));
   });
 
   test('клик мимо конца стены прижимает объект к её концу, а не к бесконечной прямой', () => {
     // Перегородка персонала кончается на x = 9,3; клик правее и выше неё.
     const placement = place([10, 7.4], CAMERA_SIZE, [wall('w_staff', [6, 7], [9.3, 7])]);
 
-    expect(placement?.position).toEqual([9.3, 7.2]);
-    expect(placement?.rotation_deg).toBe(0);
+    expect(placement).toEqual(attached([9.3, 7.2], 0, 'w_staff'));
   });
 
   test('клик снаружи всё равно ставит объект внутрь помещения', () => {
-    expect(place([3, -0.5])).toEqual({ position: [3, 0.2], rotation_deg: 0, wallId: 'w_south' });
+    expect(place([3, -0.5])).toEqual(attached([3, 0.2], 0, 'w_south'));
   });
 
   test('клик точно по оси стены не оставляет объект без стороны', () => {
-    expect(place([3, 0])).toEqual({ position: [3, 0.2], rotation_deg: 0, wallId: 'w_south' });
+    expect(place([3, 0])).toEqual(attached([3, 0.2], 0, 'w_south'));
+  });
+
+  test('обе стороны стены вне помещения — сторона клика остаётся за кликом', () => {
+    // Стена в стороне от контура: разворачивать «внутрь» нечего, и объект не
+    // должен прыгать на другую её сторону.
+    const outside = [wall('w_far', [20, 0], [20, 10])];
+    expect(place([19.5, 5], CAMERA_SIZE, outside)).toEqual(attached([19.8, 5], 270, 'w_far'));
+    expect(place([20.5, 5], CAMERA_SIZE, outside)).toEqual(attached([20.2, 5], 90, 'w_far'));
   });
 
   test('без стен постановка ничего не предлагает', () => {

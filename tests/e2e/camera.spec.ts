@@ -117,6 +117,13 @@ test.describe('камеры: постановка и жесты', () => {
     expect(await numberOf(page, 'Поворот, °')).toBe(270);
     expect(await numberOf(page, 'X, м')).toBeCloseTo(11.8, 2);
 
+    // Дальше метра от стены камера остаётся под курсором, но смотрит от
+    // ближайшей стены: так повторяется демо-план, где приборы стоят посреди зала.
+    await place(page, CAMERA, view, 6, 5.5);
+    expect(await numberOf(page, 'Поворот, °')).toBe(180);
+    expect(await numberOf(page, 'X, м')).toBeCloseTo(6, 2);
+    expect(await numberOf(page, 'Y, м')).toBeCloseTo(5.5, 2);
+
     // Мебель ставится там, где кликнули, и без поворота — правило адресное.
     await place(page, RACK, view, 6, 4);
     expect(await numberOf(page, 'Поворот, °')).toBe(0);

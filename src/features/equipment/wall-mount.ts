@@ -3,13 +3,15 @@
  *
  * Камера, поставленная кликом, раньше получала `rotation_deg: 0` и смотрела
  * «вверх» независимо от того, где её поставили: сектор обзора уходил в стену.
- * Здесь считается осмысленная постановка — объект прижимается к ближайшей
- * стене и разворачивается от неё, то есть внутрь помещения.
+ * Здесь считается осмысленная постановка — объект разворачивается от
+ * ближайшей стены, то есть внутрь помещения, и прижимается к ней, если клик
+ * был к стене ближе `WALL_SNAP_REACH_M`.
  *
  * Чистые функции над метрами мира: ни экрана, ни React. Соглашение осей —
  * D-010 (X вправо, Y вверх, `position` — центр, положительный угол по часовой,
  * при 0° объект смотрит по локальному +Y), поэтому нормали (0,1) отвечает 0°,
- * а (-1,0) — 270°; та же арифметика, что в `transform.ts` и `viewSector`.
+ * а (-1,0) — 270°. Сам угол считает `rotationFromPointer` из `transform.ts` —
+ * та же функция, что стоит за ручкой поворота: второй копии соглашения нет.
  *
  * Что считать настенным, решает справочник, а не список типов в коде: правило
  * читает `occupiesFloor` и `defaultBase_m`, и новый настенный тип начинает
@@ -18,7 +20,8 @@
 
 import type { Id, ObjectType, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
-import { locatePoint, normalizeAngle, projectOnSegment } from '../../domain/geometry';
+import { locatePoint, projectOnSegment } from '../../domain/geometry';
+import { rotationFromPointer, snapPosition } from './transform';
 
 /**
  * Высота рабочей поверхности в справочнике: у стола `ot_workplace`
@@ -41,24 +44,43 @@ export function isWallMounted(type: ObjectType | null | undefined): boolean {
   return !type.occupiesFloor && type.defaultBase_m > SUPPORT_SURFACE_M;
 }
 
-/** Куда встать и куда смотреть; `wallId` — стена, к которой прижались. */
-export type WallMountPlacement = { position: Point; rotation_deg: number; wallId: Id };
+/**
+ * Куда встать и куда смотреть; `wallId` — стена, от которой считали.
+ * `attached` — прижали к стене (клик был ближе порога) или оставили под
+ * курсором, развернув от стены.
+ */
+export type WallMountPlacement = {
+  position: Point;
+  rotation_deg: number;
+  wallId: Id;
+  attached: boolean;
+};
 
-/** Сантиметры в позиции и десятые доли градуса в угле — как у остальных жестов. */
-function roundTo(value: number, units: number): number {
-  return Math.round(value * units) / units || 0;
-}
-
-/** Угол, при котором «перёд» объекта (локальный +Y) смотрит по `normal` (D-010). */
-function facing(normal: Point): number {
-  return normalizeAngle(roundTo((Math.atan2(normal[0], normal[1]) * 180) / Math.PI, 10)) || 0;
-}
+/**
+ * Насколько близко надо кликнуть, чтобы прибор прыгнул к стене.
+ *
+ * Прилипание без предела ломает повтор собственного демо-плана: в
+ * `demo/before.json` приборы, поставленные посреди зала, стоят от ближайшей
+ * стены на 1,2 м (`eq_46`), 1,4 м (`eq_53`), 2,3 м (`eq_8`), 2,4 м (`eq_7`),
+ * 2,5 м (`eq_27`) и 2,7 м (`eq_40`) — при пороге 1,5–2 м два из шести всё ещё
+ * уезжали бы к стене, и план нельзя было бы повторить кликами (D-058). Метр —
+ * ближе любого из них с запасом 0,2 м и при этом шире, чем промах мышью:
+ * клик в метре от стены осмысленно читается как «на эту стену». Порог — в
+ * метрах модели, а не в пикселях (в отличие от привязки переноса D-208):
+ * прибор притягивается к стене, а не к узлу сетки, и поведение не должно
+ * зависеть от текущего zoom.
+ */
+export const WALL_SNAP_REACH_M = 1;
 
 /**
  * Постановка настенного объекта по клику: ближайшая стена плана, сторона —
  * та, где кликнули (у перегородки помещение с обеих сторон), разворот — от
  * стены внутрь. Клик снаружи наружной стены разворачивает объект в помещение:
  * настенный прибор не вешают с улицы.
+ *
+ * Поворот считается всегда, позиция прилипает только в пределах
+ * `WALL_SNAP_REACH_M`: датчик, поставленный посреди зала, остаётся там, куда
+ * ткнули, но смотрит от ближайшей стены, а не «вверх».
  *
  * Равные расстояния решаются порядком стен в плане — так выбор повторяем.
  * Стен нет (или все вырождены) — `null`: вызывающий ставит объект как ставил.
@@ -81,33 +103,41 @@ export function wallMountPlacement(
   }
   if (nearest === null) return null;
 
-  const { wall, foot } = nearest;
+  const { wall, foot, distance } = nearest;
   const dx = wall.to[0] - wall.from[0];
   const dy = wall.to[1] - wall.from[1];
   const length = Math.hypot(dx, dy);
   // Единичная нормаль стены; знак выбирается ниже.
   const normal: Point = [dy / length, -dx / length];
   const offset_m = wall.thickness_m / 2 + size_m[1] / 2;
-  const centre = (sign: number): Point => [
-    roundTo(foot[0] + sign * normal[0] * offset_m, 100),
-    roundTo(foot[1] + sign * normal[1] * offset_m, 100),
-  ];
+  const centre = (sign: number): Point =>
+    snapPosition([foot[0] + sign * normal[0] * offset_m, foot[1] + sign * normal[1] * offset_m]);
 
-  // Сторона клика. Точно на оси стены стороны нет — тогда берётся та, что
-  // внутри помещения: объект не должен оказаться в стене или за ней.
+  // Сторона клика. Клик точно по оси стены стороны не задаёт — он достаётся
+  // «плюсу», а проверка ниже всё равно уводит объект внутрь помещения, если
+  // с этой стороны улица.
   const side = normal[0] * (point[0] - foot[0]) + normal[1] * (point[1] - foot[1]);
-  let sign = side >= TOLERANCE.coordinate_m ? 1 : side <= -TOLERANCE.coordinate_m ? -1 : 0;
-  if (sign === 0) sign = locatePoint(centre(1), boundary) === 'outside' ? -1 : 1;
-  else if (
+  let sign = side >= 0 ? 1 : -1;
+  if (
     locatePoint(centre(sign), boundary) === 'outside' &&
     locatePoint(centre(-sign), boundary) !== 'outside'
   ) {
     sign = -sign;
   }
 
+  const attached = distance <= WALL_SNAP_REACH_M;
   return {
-    position: centre(sign),
-    rotation_deg: facing([sign * normal[0], sign * normal[1]]),
+    // Тот же угол, что даёт ручка поворота: направление «перёд объекта на
+    // точку» живёт в transform.ts (D-010), второй копии соглашения здесь нет.
+    // Точка — в метре от стены по выбранной нормали.
+    rotation_deg: rotationFromPointer(
+      foot,
+      [foot[0] + sign * normal[0], foot[1] + sign * normal[1]],
+      false,
+      0,
+    ),
+    position: attached ? centre(sign) : snapPosition(point),
     wallId: wall.id,
+    attached,
   };
 }
