@@ -732,6 +732,27 @@ describe('A-fit: место ищется в зоне, где объект уме
     for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_back');
   });
 
+  test('клетки вне большой вогнутой уместной зоны не съедают лимит поиска', () => {
+    // U-образная зона занимает края квадрата, а якорь стоит в пустом центре.
+    // До ближайшего рукава больше 60 000 клеток общего bounding box, хотя в
+    // самой зоне свободного места достаточно.
+    const uShape: Polygon = [
+      [0, 0], [40, 0], [40, 40], [38, 40],
+      [38, 2], [2, 2], [2, 40], [0, 40],
+    ];
+    const document = plan({
+      room: { id: 'room_large', boundary: [[0, 0], [40, 0], [40, 40], [0, 40]], ceilingHeight_m: 3 },
+      zones: [zone('z_client', 'zt_client', uShape)],
+      catalog: fitCatalog([DESK_IN_CLIENT]),
+    });
+
+    expect((40 / PLACEMENT_SEARCH.step_m) ** 2).toBeGreaterThan(PLACEMENT_SEARCH.maxProbes);
+    expect((40 / PLACEMENT_SEARCH.step_m) ** 2).toBeLessThan(PLACEMENT_SEARCH.maxCells);
+    const candidates = values(document, 'ot_desk', null, [20, 20]);
+
+    expect(candidates).toHaveLength(PLACEMENT_SEARCH.maxCandidates);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_client');
+  });
   test('правило-потолок (только max) не делает зону «домом» типа', () => {
     const fit = zoneFit(hallWithQueue([countRule('rule_desk_max', 'zt_client', 'ot_desk', null, 1)]), 'ot_desk', null);
 
