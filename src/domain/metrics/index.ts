@@ -98,7 +98,9 @@ function occupiedPieces(geometry: Clipped): Occupied[] {
  * objects are nowhere near the zone being measured: pieces whose box misses the
  * outline's box contribute nothing, pieces that lie wholly inside it (and have
  * no courtyard) contribute their own area. Only the pieces that straddle the
- * outline are clipped — the answer is the same, the work is local (D-205).
+ * outline are clipped — the answer is the same within TOLERANCE (a box or a
+ * containment test treats a sliver thinner than the tolerance as contact), the
+ * work is local (D-205).
  */
 function occupiedWithin(pieces: Occupied[], outline: Polygon): number {
   const box = boundingBox(outline);

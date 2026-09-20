@@ -737,11 +737,12 @@ export const findPlacements: FindPlacements = (plan, request) => {
 
   const baseline = new Set(validatePlan(plan).map(issueKey));
   const taken = usedIds(plan);
+  const zoneIndex = prepareZones(plan.zones);
   const verified: VerifiedProbe[] = [];
   for (const probe of probes) {
     const id = reserveId(taken, `adv_${type.id}`, verified.length + 1);
     const trial = trialObject(id, type, probe.position, probe.rotation_deg, layer.id);
-    const object = { ...trial, zoneId: resolveZone(trial, plan.zones).zoneId };
+    const object = { ...trial, zoneId: resolveZone(trial, plan.zones, zoneIndex).zoneId };
     const warnings = verify(plan, baseline, object);
     if (warnings === null) {
       taken.delete(id);

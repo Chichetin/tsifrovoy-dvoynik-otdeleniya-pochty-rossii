@@ -118,7 +118,9 @@ export function prepareZones(zones: Zone[]): PreparedZones {
 /**
  * Assigns an object to the deepest zone containing its whole footprint.
  * Several equally deep candidates leave it unassigned with ZONE_AMBIGUOUS:
- * guessing would silently misplace it in the inventory.
+ * guessing would silently misplace it in the inventory. `prepared` must come
+ * from `prepareZones(zones)` for the same `zones`: an index of another list
+ * would assign silently wrong.
  */
 export function resolveZone(
   object: Equipment,
