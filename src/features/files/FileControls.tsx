@@ -150,7 +150,14 @@ export function FileControls({
     if (storage === null) return { opening: null, draft: null };
     const opening = fingerprint(encode, plan);
     const draft = readDraft(storage);
-    return { opening, draft: draft !== null && draftDiffers(draft, opening) ? draft : null };
+    // The draft is compared by the same fingerprint: one that differs from the
+    // opening plan only by which layers are shown is nothing to offer.
+    const draftShown = draft === null ? null : read(draft.text);
+    const comparable =
+      draft !== null && draftShown !== null && draftShown.ok
+        ? { ...draft, text: fingerprint(encode, draftShown.value.plan) ?? draft.text }
+        : draft;
+    return { opening, draft: comparable !== null && draftDiffers(comparable, opening) ? draft : null };
   });
   const [offered, setOffered] = useState<PlanDraft | null>(start.draft);
   // Ответил ли пользователь на предложение действием с документом: «Новый»,

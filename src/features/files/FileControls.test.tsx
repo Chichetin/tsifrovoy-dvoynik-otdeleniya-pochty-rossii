@@ -252,6 +252,15 @@ describe('FileControls: предложение восстановить черн
     rerender({ document: { ...filled, layers: filled.layers.map((layer) => ({ ...layer, visible: !layer.visible })) } });
     waitDebounce();
     expect(storage.setItem).toHaveBeenCalledTimes(1);
+    const written = JSON.parse(storage.entries.get(DRAFT_KEY) ?? '{}') as { text: string };
+    const layers = (JSON.parse(written.text) as PlanDocument).layers;
+    expect(layers.map((layer) => layer.visible)).toEqual(filled.layers.map((layer) => !layer.visible));
+  });
+
+  test('черновик, отличающийся от стартового плана только видимостью слоя, не предлагается', () => {
+    const toggled: PlanDocument = { ...empty, layers: empty.layers.map((layer) => ({ ...layer, visible: !layer.visible })) };
+    renderControls({ storage: fakeStorage(draftOf(toggled)) });
+    expect(screen.queryByTestId('draft-restore')).toBeNull();
   });
 
   test('первая правка плана возвращает запись черновика, хотя предложение ещё на экране', () => {
@@ -368,6 +377,18 @@ describe('FileControls: восстановление поверх открыто
 
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(onReplace).not.toHaveBeenCalled();
+  });
+
+  test('переключённая видимость слоя — не работа человека: черновик восстанавливается без вопроса', () => {
+    const storage = fakeStorage(draftOf(filled));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onReplace, rerender } = renderControls({ storage, document: empty, dirty: true });
+    rerender({ document: { ...empty, layers: empty.layers.map((layer) => ({ ...layer, visible: !layer.visible })) } });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onReplace).toHaveBeenCalledTimes(1);
   });
 
   test('в пустом плане терять нечего: черновик восстанавливается без вопроса', () => {
