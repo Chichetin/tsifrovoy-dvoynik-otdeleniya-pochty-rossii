@@ -20,6 +20,7 @@ import type {
 import type { Issue, PlanDocument } from '../src/contracts/model';
 import { LIMITS } from '../src/contracts/model';
 import { parsePlanDocument } from '../src/contracts/schema';
+import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
 import { calculateAdvice, defaultExplanation, verifyExplanation } from '../src/domain/advice';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
 
@@ -68,6 +69,14 @@ function promptPayload(recommendations: Recommendation[]): unknown {
     id: recommendation.id,
     scenario: recommendation.scenario,
     reasonCodes: recommendation.reasonCodes,
+    // The same rules the answer is checked against (D-206): which facts a
+    // reason code must cite and whether it names a candidate. Left to guess,
+    // the model cited a subset and the check rightly threw the answer away.
+    rules: recommendation.reasonCodes.map((code) => ({
+      code,
+      candidate: REASON_CODE_SPECS[code].candidate,
+      requiredFacts: REASON_CODE_SPECS[code].requiredFacts.map((fact) => `${fact.metric}/${fact.phase}`),
+    })),
     candidates: recommendation.candidates.map((candidate) => ({
       id: candidate.id,
       label: candidate.object.label,
@@ -92,6 +101,10 @@ const SYSTEM_PROMPT = [
   'Твоя задача — выбрать для каждой рекомендации один код причины из её reasonCodes,',
   'при необходимости один вариант размещения из её candidates и перечислить id фактов,',
   'которые этот выбор подтверждают.',
+  'У каждого кода в rules перечислены requiredFacts как «metric/phase»: factIds обязаны',
+  'содержать все факты рекомендации и выбранного варианта с такими metric и phase —',
+  'ответ без любого из них отклоняется. candidate: required — вариант назвать обязательно,',
+  'forbidden — candidateId должен быть null.',
   'Ответ — строго JSON вида {"explanations":[{"recommendationId":"...","candidateId":null,',
   '"reasonCode":"...","factIds":["..."]}]}. Никаких других полей, комментариев и текста.',
   'Любое собственное число или поле делает ответ недействительным.',

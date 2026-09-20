@@ -15,6 +15,7 @@ import { LIMITS, SCHEMA_VERSION, type Catalog, type PlanDocument } from '../src/
 import { registerAdviceRoutes } from './advice-route';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
 import { readConfig, describeConfig, publicModelName } from './config';
+import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
 
 const catalog: Catalog = {
   version: 'test-1',
@@ -154,6 +155,32 @@ describe('A05: маршрут ассистента', () => {
     expect(body.explanations[0]?.candidateId).toBe(body.recommendations[0]?.candidates[0]?.id);
   });
 
+  test('модели сообщают правила проверки: обязательные факты и вариант для каждого кода (D-206)', async () => {
+    let seenSystem = '';
+    let seenUser = '';
+    const recording: LlmClient = async ({ system, user }) => {
+      seenSystem = system;
+      seenUser = user;
+      return honestModel({ system, user });
+    };
+    const body = (await ask(server(recording), { plan, revision: 1, request: placeRequest })).json<AdviceResponse>();
+    expect(body.mode).toBe('llm');
+    const payload = JSON.parse(seenUser.slice(seenUser.indexOf('['), seenUser.lastIndexOf(']') + 1)) as {
+      reasonCodes: string[];
+      rules: { code: string; candidate: string; requiredFacts: string[] }[];
+    }[];
+    for (const entry of payload) {
+      expect(entry.rules.map((rule) => rule.code)).toEqual(entry.reasonCodes);
+      for (const rule of entry.rules) {
+        const spec = REASON_CODE_SPECS[rule.code as keyof typeof REASON_CODE_SPECS];
+        expect(rule.candidate).toBe(spec.candidate);
+        expect(rule.requiredFacts).toEqual(spec.requiredFacts.map((fact) => `${fact.metric}/${fact.phase}`));
+      }
+    }
+    expect(payload.some((entry) => entry.rules.some((rule) => rule.requiredFacts.includes('area.free/after')))).toBe(true);
+    expect(seenSystem).toContain('requiredFacts');
+  });
+
   test.each([
     ['таймаут', { code: LLM_ISSUE_CODES.LLM_TIMEOUT, message: 'Провайдер не ответил за 20000 мс.' }],
     ['429 провайдера', { code: LLM_ISSUE_CODES.LLM_HTTP_ERROR, message: 'Провайдер ответил статусом 429.' }],
@@ -259,7 +286,7 @@ describe('A05: маршрут ассистента', () => {
 
 describe('A05: конфигурация', () => {
   test('имя модели для публикации прячет id облачной папки', () => {
-    expect(publicModelName('gpt://b1gv1qukvdoctt94dgnu/deepseek-v4-flash')).toBe('gpt://<folder_ID>/deepseek-v4-flash');
+    expect(publicModelName('gpt://b1gexamplefolder00000/deepseek-v4-flash')).toBe('gpt://<folder_ID>/deepseek-v4-flash');
     expect(publicModelName('deepseek-chat')).toBe('deepseek-chat');
   });
 
