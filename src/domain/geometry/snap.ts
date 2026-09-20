@@ -94,6 +94,54 @@ export function snapPoint(
 }
 
 /**
+ * Below this many pixels apart the snapping grid reads as a grey fill rather
+ * than as a grid, and stops helping: it is not drawn at all instead.
+ */
+export const ROOM_GRID_MIN_PX = 7;
+
+/**
+ * Coordinates of the snapping step inside a room (D-230), in metres.
+ *
+ * The canvas already has a background grid whose step follows the zoom and says
+ * how big the plan is. This one is the other question — where a point will
+ * land — so its step is always the snapping step, and it exists only where
+ * snapping to it does: inside the room.
+ *
+ * Returned as bare coordinates over the room's extent. Cutting them to the
+ * outline is the caller's job: a room may be L-shaped, and clipping to a
+ * polygon is what a canvas does in one operation and arithmetic does badly.
+ */
+export function roomGridCoordinates(
+  boundary: readonly (readonly [number, number])[],
+  step_m: number,
+  scale: number,
+): { xs: number[]; ys: number[] } | null {
+  if (boundary.length < 3) return null;
+  // Нулевой, отрицательный шаг и нулевой масштаб отсекает этот же порог:
+  // отдельной проверки для них нет, потому что она никогда не срабатывает.
+  if (!(step_m * scale >= ROOM_GRID_MIN_PX)) return null;
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of boundary) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+
+  const xs: number[] = [];
+  for (let x = Math.ceil(minX / step_m) * step_m; x <= maxX; x += step_m) xs.push(x);
+  const ys: number[] = [];
+  for (let y = Math.ceil(minY / step_m) * step_m; y <= maxY; y += step_m) ys.push(y);
+
+  return { xs, ys };
+}
+
+/**
  * What a guide coordinate is on the plan (D-224). A guide is a bare number, and
  * a number cannot answer the one question the person drawing has: «к чему
  * прилипнет точка». The layer that draws the marker needs the answer before the
