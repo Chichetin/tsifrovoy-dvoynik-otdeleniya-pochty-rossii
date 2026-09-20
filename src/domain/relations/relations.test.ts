@@ -13,6 +13,7 @@ import {
   RELATION_ISSUE_CODES,
   hasZoneCycle,
   parentZoneFor,
+  prepareZones,
   reconcileZones,
   relationIssues,
   resolveZone,
@@ -69,6 +70,31 @@ describe('назначение объекта зоне', () => {
     );
     expect(resolution.issues[0]?.polygon).toHaveLength(4);
     expect(resolution.issues[0]?.refs[0]?.id).toBe('eq_bench_1');
+  });
+});
+
+describe('подготовленный индекс зон (D-205)', () => {
+  test('с индексом и без — один ответ для каждого объекта, включая диагностику', () => {
+    const plan = loadPlan('nested.json');
+    const prepared = prepareZones(plan.zones);
+    const probes = [
+      ...plan.objects,
+      moved(objectOf(plan, plan.objects[0]!.id), [-50, -50]),
+    ];
+    for (const object of probes) {
+      expect(resolveZone(object, plan.zones, prepared)).toEqual(resolveZone(object, plan.zones));
+    }
+  });
+
+  test('зона с невычислимой геометрией остаётся в индексе как непригодная', () => {
+    const plan = loadPlan('minimal.json');
+    const bowtie: Zone = { ...plan.zones[0]!, id: 'z_bowtie', polygon: [[0, 0], [2, 2], [2, 0], [0, 2]] };
+    const prepared = prepareZones([...plan.zones, bowtie]);
+    expect(prepared.unusable.map((zone) => zone.id)).toEqual(['z_bowtie']);
+    expect(prepared.usable.map((entry) => entry.zone.id)).toEqual(plan.zones.map((zone) => zone.id));
+    const resolution = resolveZone(objectOf(plan, 'eq_work_1'), [...plan.zones, bowtie], prepared);
+    expect(resolution.zoneId).toBeNull();
+    expect(resolution.issues.map((entry) => entry.code)).toEqual([RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE]);
   });
 });
 

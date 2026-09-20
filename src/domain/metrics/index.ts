@@ -31,7 +31,8 @@ import type {
 } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import { findObjectType } from '../catalog';
-import { footprint, isSimplePolygon, polygonArea } from '../geometry';
+import { boundingBox, boxesOverlap, contains, footprint, isSimplePolygon, polygonArea } from '../geometry';
+import type { BoundingBox } from '../geometry';
 
 /** Codes owned by this module. */
 export const METRICS_ISSUE_CODES = {
@@ -80,6 +81,42 @@ function intersect(
   return polyclip.intersection(left as polyclip.Geom, asGeometry(right));
 }
 
+/** One polygon of the occupied floor with its box, so a zone can skip what is nowhere near it. */
+type Occupied = { polygon: Clipped[number]; box: BoundingBox; outer: Polygon; solid: boolean };
+
+function occupiedPieces(geometry: Clipped): Occupied[] {
+  return geometry.flatMap((polygon) => {
+    const outer: Polygon = (polygon[0] ?? []).slice(0, -1).map((point) => [point[0], point[1]]);
+    if (outer.length < 3) return [];
+    return [{ polygon, box: boundingBox(outer), outer, solid: polygon.length === 1 }];
+  });
+}
+
+/**
+ * Area of the occupied floor inside an outline. Clipping is exact but costly
+ * (arbitrary precision, every edge of every object), and on a large plan most
+ * objects are nowhere near the zone being measured: pieces whose box misses the
+ * outline's box contribute nothing, pieces that lie wholly inside it (and have
+ * no courtyard) contribute their own area. Only the pieces that straddle the
+ * outline are clipped — the answer is the same within TOLERANCE (a box or a
+ * containment test treats a sliver thinner than the tolerance as contact), the
+ * work is local (D-205).
+ */
+function occupiedWithin(pieces: Occupied[], outline: Polygon): number {
+  const box = boundingBox(outline);
+  let total = 0;
+  const straddling: Clipped = [];
+  for (const piece of pieces) {
+    if (!boxesOverlap(piece.box, box)) continue;
+    if (piece.solid && contains(outline, piece.outer)) {
+      total += polygonArea(piece.outer);
+      continue;
+    }
+    straddling.push(piece.polygon);
+  }
+  return total + geometryArea(intersect(straddling, outline));
+}
+
 /** Objects the catalog says stand on the floor. Unknown types count as solid. */
 function floorObjects(catalog: Catalog, objects: Equipment[]): Equipment[] {
   return objects.filter(
@@ -104,11 +141,11 @@ function unionOfFootprints(objects: Equipment[]): Clipped {
 function metricsOf(
   outline: Polygon,
   room: Polygon,
-  occupiedEverywhere: Clipped,
+  occupiedEverywhere: Occupied[],
 ): AreaMetrics {
   const inside = polyclip.intersection(asGeometry(outline), asGeometry(room));
   const total = geometryArea(inside);
-  const occupied = geometryArea(intersect(occupiedEverywhere, outline));
+  const occupied = occupiedWithin(occupiedEverywhere, outline);
   const free = total - occupied;
   return {
     total_m2: total,
@@ -159,9 +196,8 @@ export function measurePlan(plan: PlanDocument): Result<Metrics> {
 
   // Footprints are unioned once and clipped to the room: an object sticking out
   // of the branch takes only the floor that is actually inside it.
-  const occupied = intersect(
-    unionOfFootprints(floorObjects(plan.catalog, plan.objects)),
-    plan.room.boundary,
+  const occupied = occupiedPieces(
+    intersect(unionOfFootprints(floorObjects(plan.catalog, plan.objects)), plan.room.boundary),
   );
 
   const zones: Record<Id, AreaMetrics> = {};
