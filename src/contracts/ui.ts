@@ -72,6 +72,15 @@ export type EditorSession = {
 
 export type CommandSink = (command: Command) => Result<PlanDocument>;
 export type SelectSink = (ref: Ref | null) => void;
+
+/** A frame of an object move: visible in the card, absent from document history. */
+export type ObjectGesturePreview = { objectId: Id; position: Point } | null;
+
+/** Read-only external store: subscribing re-renders the card, not the whole app. */
+export type ObjectGesturePreviewSource = {
+  getSnapshot: () => ObjectGesturePreview;
+  subscribe: (listener: () => void) => () => void;
+};
 /** A group of objects at once (`PlanStore.selectMany`). */
 export type SelectManySink = (ids: readonly Id[]) => void;
 export type FocusSink = (ref: Ref) => void;
@@ -112,6 +121,8 @@ export type EquipmentLayerProps = {
   onSelectMany?: SelectManySink;
   /** Drawn translucently; never turns into a command on its own. */
   preview: Candidate | null;
+  /** Current move frame for the properties card; null when the gesture ends. */
+  onGesturePreview?: (preview: ObjectGesturePreview) => void;
 };
 
 /**
@@ -123,6 +134,8 @@ export type PropertiesPanelProps = {
   document: PlanDocument;
   session: EditorSession;
   onCommand: CommandSink;
+  /** Live move coordinates; optional for isolated package stands. */
+  gesturePreview?: ObjectGesturePreviewSource;
 };
 
 export type LayersPanelProps = {
