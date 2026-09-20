@@ -20,6 +20,7 @@ import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
 import { SNAP, footprint, modelToScreen, objectGuides, screenToModel, snapObjectCentre } from '../../domain/geometry';
+import type { AxisSnap } from '../../domain/geometry';
 import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverSummary } from './hover-summary';
@@ -38,6 +39,9 @@ import {
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
+/** Snap lines (operator 20.09 №3): a guide is the plan's own edge, the grid is a hint. */
+const SNAP_GUIDE_STROKE = '#E64980';
+const SNAP_GRID_STROKE = '#868E96';
 const HANDLE_FILL = '#FFFFFF';
 const ROTATE_FILL = '#E7F5FF';
 
@@ -48,11 +52,18 @@ const HOVER_WIDTH_PX = 320;
 const HOVER_GAP_PX = 14;
 
 /**
+ * What a move snapped to, for the eye (D-215): the world line the object's
+ * edge landed on, per axis, and the stage size to draw it across.
+ */
+type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
+
+/**
  * The object as the pointer is currently shaping it; null outside a gesture.
  * `delta` is set while a member of a group is dragged: the other members
  * follow by the same offset in model metres, from their own positions.
+ * `lines` — what the move snapped to, drawn on the selection layer.
  */
-type Gesture = { id: string; object: Equipment; delta?: Point };
+type Gesture = { id: string; object: Equipment; delta?: Point; lines?: SnapLines };
 
 /**
  * A marquee in progress, in stage pixels. `width`/`height` are the stage's:
@@ -482,17 +493,27 @@ export function EquipmentLayer({
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
     // the object jump at release.
-    const movedTo = (node: Konva.Node, evt: unknown, phase: 'move' | 'drop'): Point => {
+    const movedTo = (
+      node: Konva.Node,
+      evt: unknown,
+      phase: 'move' | 'drop',
+    ): { position: Point; lines?: SnapLines } => {
       const centre = screenToModel([node.x(), node.y()], viewport);
       const started = guard.started;
       if (phase === 'move' && started !== null) {
         started.snapOff = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
       }
       const guides = started?.guides;
-      if (started?.snapOff === true || guides === undefined) return snapPosition(centre);
+      if (started?.snapOff === true || guides === undefined) return { position: snapPosition(centre) };
       // Already settled by the domain: a guide axis keeps the guide's own
       // millimetres, rounding it to the centimetre would push it into the wall.
-      return snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale).centre;
+      const snapped = snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale);
+      const stage = node.getStage();
+      const lines: SnapLines | undefined =
+        stage === null || (snapped.snap.x === null && snapped.snap.y === null)
+          ? undefined
+          : { x: snapped.snap.x, y: snapped.snap.y, width: stage.width(), height: stage.height() };
+      return { position: snapped.centre, lines };
     };
 
     return (
@@ -534,11 +555,12 @@ export function EquipmentLayer({
           hideHover();
         }}
         onDragMove={(event) => {
-          const next = { ...object, position: movedTo(event.target, event.evt, 'move') };
-          setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
+          const moved = movedTo(event.target, event.evt, 'move');
+          const next = { ...object, position: moved.position };
+          setGesture({ id: object.id, object: next, delta: groupDelta(object, next), lines: moved.lines });
         }}
         onDragEnd={(event) => {
-          const next = { ...object, position: movedTo(event.target, event.evt, 'drop') };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'drop').position };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
             return;
@@ -750,6 +772,29 @@ export function EquipmentLayer({
               ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),
               renderRotationHandle(selectedObject),
             ]}
+
+        {/* What the move snapped to: a guide (a neighbour's edge, a wall's
+            face) in one colour, a grid node in another. Drawn across the stage
+            so the eye finds the partner even three metres away. */}
+        {gesture?.lines === undefined
+          ? null
+          : (['x', 'y'] as const).map((axis) => {
+              const snap = gesture.lines?.[axis];
+              if (snap === null || snap === undefined) return null;
+              const [sx, sy] = modelToScreen(axis === 'x' ? [snap.value, 0] : [0, snap.value], viewport);
+              const { width, height } = gesture.lines ?? { width: 0, height: 0 };
+              return (
+                <Line
+                  key={`snap-line-${axis}`}
+                  name={`snap-line-${axis}-${snap.kind}`}
+                  points={axis === 'x' ? [sx, 0, sx, height] : [0, sy, width, sy]}
+                  stroke={snap.kind === 'guide' ? SNAP_GUIDE_STROKE : SNAP_GRID_STROKE}
+                  strokeWidth={1}
+                  dash={snap.kind === 'guide' ? undefined : [4, 4]}
+                  listening={false}
+                />
+              );
+            })}
 
         {marquee === null ? null : (
           <>
