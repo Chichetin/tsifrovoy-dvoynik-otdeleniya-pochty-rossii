@@ -177,10 +177,12 @@ export const usePlanToolController: UsePlanToolController = ({
 
       const current = draft ?? [];
       const first = current[0];
+      // Closing is judged by where the click landed, not by where it snapped:
+      // a click next to the first vertex may snap to the next grid node.
       const closes =
         current.length >= 3 &&
         first !== undefined &&
-        Math.hypot(point[0] - first[0], point[1] - first[1]) <= CLOSE_RADIUS_M;
+        Math.hypot(event.point[0] - first[0], event.point[1] - first[1]) <= CLOSE_RADIUS_M;
 
       if (closes) {
         // Отклонённый контур остаётся черновиком: пользователь дорисовывает

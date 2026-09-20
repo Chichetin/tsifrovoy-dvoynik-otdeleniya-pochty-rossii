@@ -144,6 +144,14 @@ describe('вершина при рисовании (D-209)', () => {
     for (const zone of plan.zones) for (const vertex of zone.polygon) expect(guides.ys).toContain(vertex[1]);
   });
 
+  test('ось перегородки — направляющая: конец новой перегородки найдёт начало старой', () => {
+    const partition = { ...plan.walls[0]!, id: 'w_part', from: [3, 1] as [number, number], to: [3, 6] as [number, number] };
+    const guides = pointGuides({ ...plan, walls: [...plan.walls, partition] });
+    expect(guides.xs).toContain(3);
+    expect(guides.ys).toContain(1);
+    expect(guides.ys).toContain(6);
+  });
+
   test('каждая координата идёт к ближайшей направляющей, иначе к сетке; вне допуска — как кликнули', () => {
     const guides = { xs: [10], ys: [8] };
     expect(snapPoint([9.94, 7.44], guides, 0.5, 0.1)).toEqual({

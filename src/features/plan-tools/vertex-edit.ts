@@ -17,19 +17,19 @@ const SNAP_M = 0.01;
 /** Pointer capture radius of a handle on screen, in pixels. */
 export const HANDLE_RADIUS_PX = 8;
 
-export function snapPoint(point: Point): Point {
+export function roundPoint(point: Point): Point {
   return [Math.round(point[0] / SNAP_M) * SNAP_M, Math.round(point[1] / SNAP_M) * SNAP_M];
 }
 
 export function moveVertex(polygon: Polygon, index: number, point: Point): Polygon {
-  const snapped = snapPoint(point);
+  const snapped = roundPoint(point);
   return polygon.map((vertex, at) => (at === index ? snapped : vertex));
 }
 
 /** Inserts after edge `index`, i.e. between vertex `index` and the next one. */
 export function insertVertex(polygon: Polygon, index: number, point: Point): Polygon {
   const next = polygon.slice();
-  next.splice(index + 1, 0, snapPoint(point));
+  next.splice(index + 1, 0, roundPoint(point));
   return next;
 }
 
@@ -85,7 +85,7 @@ export function canCommitRing(polygon: Polygon): boolean {
 }
 
 export function moveWallEnd(wall: Wall, end: 'from' | 'to', point: Point): Wall {
-  return { ...wall, [end]: snapPoint(point) };
+  return { ...wall, [end]: roundPoint(point) };
 }
 
 /**

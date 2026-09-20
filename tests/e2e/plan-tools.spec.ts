@@ -233,16 +233,17 @@ test.describe('инструменты плана', () => {
     const start = await savePlan(page);
     const corner = start.room.boundary[0];
     if (corner === undefined) throw new Error('у помещения нет контура');
-    const at = await worldPixel(page, corner[0], corner[1]);
-    // Клик в 5 px от угла по обеим осям — в допуске привязки (8 px).
-    const near: Pixel = { x: at.x + 5, y: at.y - 5 };
+    // Клик в 0,1 м внутрь от угла по обеим осям: до внутренней грани стены
+    // (0,125 м от оси) — 0,025 м, до оси — 0,1 м; в допуске 8 px при любом
+    // масштабе до 320 px/м.
+    const near = await worldPixel(page, corner[0] + 0.1, corner[1] + 0.1);
     const box = (from: Pixel): Pixel[] => [from, { x: from.x + 150, y: from.y }, { x: from.x + 150, y: from.y - 120 }, { x: from.x, y: from.y - 120 }];
 
     await drawRing(page, 'Зона', box(near));
     await page.keyboard.press('Escape');
     const snapped = await savePlan(page);
-    // Клик внутри помещения: ближе всего внутренняя грань наружной стены (угол
-    // контура плюс половина толщины), а не ось — вершина ложится на неё.
+    // Ближе всего внутренняя грань наружной стены (угол контура плюс половина
+    // толщины), а не ось — вершина ложится на неё.
     const half = (start.walls[0]?.thickness_m ?? 0) / 2;
     expect(snapped.zones[0]?.polygon[0]).toEqual([corner[0] + half, corner[1] + half]);
 
