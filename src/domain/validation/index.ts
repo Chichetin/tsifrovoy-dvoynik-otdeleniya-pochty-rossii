@@ -28,11 +28,15 @@ import {
 import { findObjectType } from '../catalog';
 import { countInZoneScope } from '../inventory';
 import {
+  boundingBox,
+  boxesOverlap,
   contains,
   footprint,
+  intersects,
+  intervalsOverlap,
   isSimplePolygon,
   objectHitsWall,
-  objectsShareSpace,
+  objectInterval,
   openingCentre,
   segmentLength,
 } from '../geometry';
@@ -238,7 +242,14 @@ function objectPlacementIssues(plan: PlanDocument): Issue[] {
 
 /** Only objects the catalog calls physical take part in collisions. */
 function collisionIssues(plan: PlanDocument): Issue[] {
-  const solid = plan.objects.filter((object) => isPhysical(plan.catalog, object));
+  // Footprints once, not once per pair: with a thousand objects the pairs run
+  // to half a million, and a box test settles almost all of them (D-205).
+  const solid = plan.objects
+    .filter((object) => isPhysical(plan.catalog, object))
+    .map((object) => {
+      const shape = footprint(object);
+      return { object, shape, box: boundingBox(shape), interval: objectInterval(object) };
+    });
   const issues: Issue[] = [];
 
   for (let left = 0; left < solid.length; left += 1) {
@@ -246,17 +257,19 @@ function collisionIssues(plan: PlanDocument): Issue[] {
       const a = solid[left];
       const b = solid[right];
       if (a === undefined || b === undefined) continue;
-      if (!objectsShareSpace(a, b)) continue;
+      if (!boxesOverlap(a.box, b.box)) continue;
+      if (!intervalsOverlap(a.interval, b.interval)) continue;
+      if (!intersects(a.shape, b.shape)) continue;
       issues.push(
         issue(
           VALIDATION_ISSUE_CODES.OBJECT_COLLISION,
           'error',
-          `Объекты «${a.label}» и «${b.label}» занимают одно место.`,
+          `Объекты «${a.object.label}» и «${b.object.label}» занимают одно место.`,
           [
-            { kind: 'object', id: a.id },
-            { kind: 'object', id: b.id },
+            { kind: 'object', id: a.object.id },
+            { kind: 'object', id: b.object.id },
           ],
-          footprint(a),
+          a.shape,
         ),
       );
     }

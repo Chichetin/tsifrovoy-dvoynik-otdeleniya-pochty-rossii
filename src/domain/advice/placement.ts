@@ -49,7 +49,7 @@ import {
 } from '../geometry';
 import { measurePlan } from '../metrics';
 import { editableContentLayer } from '../content-layer';
-import { resolveZone } from '../relations';
+import { prepareZones, resolveZone } from '../relations';
 import { validatePlan } from '../validation';
 
 /** Codes owned by this module. */
@@ -508,6 +508,7 @@ function sweep(
   if (allowed !== null && allowed.size === 0) return [];
   const blockers = blockersFor(plan, type);
   const reaches = reachesFor(plan, type);
+  const zoneIndex = prepareZones(plan.zones);
   const box = searchBox(plan, target, allowed);
   const allowedOutlines =
     allowed === null ? null : plan.zones.filter((zone) => allowed.has(zone.id)).map((zone) => zone.polygon);
@@ -568,7 +569,7 @@ function sweep(
       // Only after the cheap geometric test: a spot outside the zones where the
       // catalog expects this type is not offered at all.
       if (allowed !== null) {
-        const home = resolveZone(trial, plan.zones).zoneId;
+        const home = resolveZone(trial, plan.zones, zoneIndex).zoneId;
         if (home === null || !allowed.has(home)) continue;
       }
       const key = footprintKey(shape);

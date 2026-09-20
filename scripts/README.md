@@ -14,6 +14,7 @@
 
 - `gitlab-mr.sh` — создание и слияние Merge Request через API GitLab (`list`, `show`, `merge`, `create`).
 - `generate-benchmark.ts` — Q02.
+- `measure-advice.ts` — время расчёта ассистента (`measurePlan`, `validatePlan`, три сценария) на нагрузочных планах, медиана трёх прогонов (D-205).
 - `package-demo.ts` — E01.
 - `capture-presentation.ts` — четыре снимка синтетического плана из работающего
   редактора в `build/presentation/`. Браузер — бандловый Chromium из
