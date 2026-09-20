@@ -34,13 +34,13 @@ function wall(id: string, from: [number, number], to: [number, number]): Wall {
 }
 
 describe('перегородка по двум точкам', () => {
-  test('концы притянуты к сетке, высота — от потолка помещения', () => {
-    // Сетка — 1 см, та же, что у вершин контуров.
-    const created = createWall([3.024, 1.996], [3.017, 6.013], room, new Set());
+  test('концы хранятся как дал контроллер (грань стены 0,125 не округляется), высота — от потолка', () => {
+    // Округление до сантиметра или привязка — дело контроллера (D-211); здесь точка как есть.
+    const created = createWall([3.02, 2], [3.125, 6.01], room, new Set());
 
     expect(created).not.toBeNull();
     expect(created?.from).toEqual([3.02, 2]);
-    expect(created?.to).toEqual([3.02, 6.01]);
+    expect(created?.to).toEqual([3.125, 6.01]);
     expect(created?.height_m).toBe(room.ceilingHeight_m);
     expect(created?.thickness_m).toBe(WALL_DEFAULTS.partitionThickness_m);
   });

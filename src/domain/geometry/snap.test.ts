@@ -125,8 +125,9 @@ describe('направляющие плана и центр объекта', () 
       ],
     };
     const guides = objectGuides(withSensors, new Set());
-    expect(guides.xs).not.toContain(8.3 - 0.06);
-    expect(guides.xs).not.toContain(8.7 - 0.2);
+    const near = (value: number): boolean => guides.xs.some((x) => Math.abs(x - value) < 1e-9);
+    expect(near(8.24)).toBe(false);
+    expect(near(8.5)).toBe(false);
     expect(guides.xs).toContain(rack.position[0] - rack.size_m[0] / 2);
   });
 
@@ -194,6 +195,8 @@ describe('что попадает в файл после привязки (D-211
   test('координата от направляющей хранится до миллиметра, остальное — до сантиметра', () => {
     const guide = { value: 14.875, delta: 0.01, kind: 'guide' as const };
     expect(settle(14.875, guide)).toBe(14.875);
+    // Грань стены толщиной 0,125 — четыре знака: остаётся как есть, шум float снят.
+    expect(settle(14.9375 + 1e-12, guide)).toBe(14.9375);
     expect(settle(14.875, null)).toBe(14.88);
     expect(settle(14.875, { value: 15, delta: 0.125, kind: 'grid' })).toBe(14.88);
     expect(settlePoint({ point: [14.875, 3.004], x: guide, y: null })).toEqual([14.875, 3]);

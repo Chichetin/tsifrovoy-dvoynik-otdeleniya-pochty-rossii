@@ -4,7 +4,9 @@
  *
  * This module knows nothing about the catalog: whether an object is `physical`
  * or `occupiesFloor` is a catalog question, so the caller applies those flags.
- * Geometry only answers where things are and whether they overlap.
+ * Geometry only answers where things are and whether they overlap. The one
+ * exception is `objectGuides` (D-211): what to snap furniture to is decided
+ * here, and a sensor on the ceiling is not it.
  */
 
 import type { Equipment, Id, Opening, PlanDocument, Point, Polygon, Wall } from '../../contracts/model';
