@@ -11,14 +11,16 @@
  * экрана в презентации выглядит как измеренные данные.
  */
 
+import { useMemo } from 'react';
 import { Layer, Line, Rect, Shape, Text } from 'react-konva';
 import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
-import { modelToScreen, viewSector } from '../../domain/geometry';
+import { type BoundingBox, boundingBox, footprint, modelToScreen, viewSector } from '../../domain/geometry';
 import { labelWidth, placeLabels, type Box } from './label-layout';
 import { formatValue, legendLine, legendOf } from './legend';
 import { heatRegions } from './heat-regions';
+import { zoneNameAnchor } from './zone-name-anchor';
 
 const CAPTION_FILL = '#495057';
 const LABEL_BACKGROUND = '#FFFFFF';
@@ -29,16 +31,17 @@ const LABEL_GAP = 3;
 const SWATCH = 8;
 const LEGEND_FONT = 12;
 const LEGEND_ROW = 18;
-/** The zone name drawn by the geometry layer: 12 px, centred on the anchor. */
-const ZONE_NAME_FONT = 12;
-const ZONE_NAME_COLUMN = 120;
-
-/** Середина габаритов полигона: достаточно, чтобы повесить на зону подпись. */
-function labelAnchor(polygon: Polygon): Point {
-  const xs = polygon.map((point) => point[0]);
-  const ys = polygon.map((point) => point[1]);
-  return [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
-}
+/**
+ * The zone name drawn by the geometry layer (D-216, `ZONE_LABEL_FONT_PX` /
+ * `ZONE_LABEL_BOX_WIDTH` / `ZONE_LABEL_LETTER_SPACING` in `PlanGeometryLayer.tsx`):
+ * 13 px, upper-case, letter-spaced, wrapped into a 118 px column. Mirrored
+ * here as plain numbers — same duplication reasoning as `zone-name-anchor.ts`.
+ */
+const ZONE_NAME_FONT = 13;
+const ZONE_NAME_COLUMN = 118;
+const ZONE_NAME_LETTER_SPACING = 0.4;
+/** `1.25 * fontSize`, matching the line-height PlanGeometryLayer's wrap ends up with. */
+const ZONE_NAME_LINE_HEIGHT = Math.round(ZONE_NAME_FONT * 1.25);
 
 function numberAttribute(
   attributes: Record<string, string | number | boolean | null>,
@@ -68,6 +71,22 @@ function layerColor(type: LayerType): string {
   return representation.color;
 }
 
+/**
+ * Screen-space box the geometry layer's zone name actually occupies at
+ * `anchor` (D-216 draws it centred there, upper-case, letter-spaced, wrapped
+ * into `ZONE_NAME_COLUMN`). `labelWidth`'s own margin already covers most of
+ * the gap between its plain-text estimate and Konva's real measurement; the
+ * explicit `letterSpacing` term on top accounts for the one difference that
+ * margin was not sized for.
+ */
+function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
+  const upper = zone.name.toLocaleUpperCase('ru');
+  const full = labelWidth(upper, ZONE_NAME_FONT) + upper.length * ZONE_NAME_LETTER_SPACING;
+  const lines = Math.ceil(full / ZONE_NAME_COLUMN);
+  const width = Math.min(full, ZONE_NAME_COLUMN);
+  return { x: x - width / 2, y: y - ZONE_NAME_FONT / 2, width, height: lines * ZONE_NAME_LINE_HEIGHT };
+}
+
 type ZoneLabel = { key: string; text: string; color: string; request: Box };
 
 export function InformationLayer({
@@ -76,6 +95,24 @@ export function InformationLayer({
 }: InformationLayerProps): React.JSX.Element {
   const { viewport } = session;
   const screen = (point: Point): [number, number] => modelToScreen(point, viewport);
+
+  // Footprints a zone name steers around (D-216) — same input PlanGeometryLayer
+  // feeds its real `zoneLabelAnchor`, so this layer's copy (`zoneNameAnchor`,
+  // D-231) lands on the same point. Model metres and independent of the
+  // viewport, so a pan or zoom frame does not pay for it again.
+  const objectBoxes: BoundingBox[] = useMemo(() => {
+    const visibleLayers = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+    return plan.objects
+      .filter((object) => visibleLayers.has(object.layerId))
+      .map((object) => boundingBox(footprint(object)));
+  }, [plan.objects, plan.layers]);
+  const zoneAnchors = useMemo(
+    () => new Map(plan.zones.map((zone) => [zone.id, zoneNameAnchor(zone.polygon, objectBoxes)])),
+    [plan.zones, objectBoxes],
+  );
+  // `zoneAnchors` is built from `plan.zones` itself, so every zone has an
+  // entry; the recompute below only guards the type against a stale map.
+  const anchorOf = (zone: Zone): Point => zoneAnchors.get(zone.id) ?? zoneNameAnchor(zone.polygon, objectBoxes);
 
   const active: { id: Id; type: LayerType }[] = plan.layers
     .filter((layer) => layer.visible)
@@ -116,14 +153,15 @@ export function InformationLayer({
         const value = valueOf(zone);
         if (value === null) continue;
         const text = formatValue(value, representation.unit);
-        const [x, y] = screen(labelAnchor(zone.polygon));
+        const nameBox = zoneNameBox(zone, screen(anchorOf(zone)));
+        const x = nameBox.x + nameBox.width / 2;
         const width = labelWidth(text, LABEL_FONT) + SWATCH + 4;
         labels.push({
           key: `${layerId}-${zone.id}`,
           text,
           color: layerColor(type),
-          // Below the zone name; collisions are resolved after all layers are in.
-          request: { x: x - width / 2, y: y + 8, width, height: LABEL_HEIGHT },
+          // Just below the zone name's real box; collisions are resolved after all layers are in.
+          request: { x: x - width / 2, y: nameBox.y + nameBox.height + LABEL_GAP, width, height: LABEL_HEIGHT },
         });
       }
 
@@ -187,14 +225,7 @@ export function InformationLayer({
   // Zone names of the geometry layer and the legend are fixed; labels move around them.
   const obstacles: Box[] = [
     ...(legendRows.length === 0 ? [] : [legendBox]),
-    ...plan.zones.map((zone) => {
-      const [x, y] = screen(labelAnchor(zone.polygon));
-      // The geometry layer wraps names into a 120 px column: long names take two lines.
-      const full = labelWidth(zone.name, ZONE_NAME_FONT);
-      const lines = Math.ceil(full / ZONE_NAME_COLUMN);
-      const width = Math.min(full, ZONE_NAME_COLUMN);
-      return { x: x - width / 2, y: y - 7, width, height: lines * 15 };
-    }),
+    ...plan.zones.map((zone) => zoneNameBox(zone, screen(anchorOf(zone)))),
   ];
   const placed = placeLabels(
     obstacles,
