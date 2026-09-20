@@ -162,6 +162,15 @@ test.describe('перечень оборудования', () => {
     await expect(
       checks.locator('.table__link', { hasText: 'Терминал электронной очереди' }),
     ).toContainText('eq_1');
+
+    // Само предложение читается без внутренних кодов. Они остаются ниже в
+    // ссылках, по которым редактор переводит к объекту.
+    const messages = checks.locator('.issues__message');
+    await expect(messages.filter({ hasText: 'Скамья / кресла для ожидания' }).first()).toBeVisible();
+    await expect(messages.filter({ hasText: 'от главного входа' }).first()).toBeVisible();
+    for (const message of await messages.allTextContents()) {
+      expect(message).not.toMatch(/\b(?:ot|op|w)_[a-z0-9_]+\b/i);
+    }
   });
 
   test('поиск находит объект по инвентарному номеру и по зоне', async ({ page }) => {

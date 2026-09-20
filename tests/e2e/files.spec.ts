@@ -144,7 +144,7 @@ test.describe('файлы плана', () => {
 
     // Правила команды сомкнулись с примером: ловушка «терминал в ~7 м от входа
     // при норме 3 м» видна в проверке, а не только в unit-тесте.
-    await expect(page.getByLabel('Проверка плана')).toContainText('от входа');
+    await expect(page.getByLabel('Проверка плана')).toContainText('от главного входа');
     await expect(page.getByLabel('Проверка плана')).toContainText('не более 3 м');
     expect(errors).toEqual([]);
   });
