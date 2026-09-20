@@ -56,9 +56,12 @@ async function onPage(page: Page, point: Pixel): Promise<Pixel> {
   return { x: rect.x + point.x, y: rect.y + point.y };
 }
 
-async function clickAt(page: Page, point: Pixel): Promise<void> {
+async function clickAt(page: Page, point: Pixel, options: { alt?: boolean } = {}): Promise<void> {
   const target = await onPage(page, point);
+  // Alt: вершина ложится ровно под курсор, без привязки к сетке и соседям (D-209).
+  if (options.alt) await page.keyboard.down('Alt');
   await page.mouse.click(target.x, target.y);
+  if (options.alt) await page.keyboard.up('Alt');
 }
 
 async function dblclickAt(page: Page, point: Pixel): Promise<void> {
@@ -134,12 +137,13 @@ async function drawRing(
   page: Page,
   tool: 'Помещение' | 'Зона',
   ring: Pixel[],
+  options: { alt?: boolean } = {},
 ): Promise<void> {
   await page.getByRole('button', { name: tool, exact: true }).click();
-  for (const point of ring) await clickAt(page, point);
+  for (const point of ring) await clickAt(page, point, options);
   const first = ring[0];
   if (first === undefined) throw new Error('пустой контур');
-  await clickAt(page, first);
+  await clickAt(page, first, options);
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
@@ -171,13 +175,17 @@ function ring(size: Rect, fractions: readonly (readonly [number, number])[]): Pi
   return fractions.map(([fx, fy]) => px(size, fx, fy));
 }
 
-/** Помещение и две зоны: внешняя и нарисованная внутри неё вложенная. */
+/**
+ * Помещение и две зоны: внешняя и нарисованная внутри неё вложенная. Рисуется
+ * с Alt: тесты ниже целятся в вершины и рёбра по тем же долям сцены, и привязка
+ * (D-209) сдвинула бы вершины относительно кликов.
+ */
 async function drawPlan(page: Page, size: Rect): Promise<void> {
-  await drawRing(page, 'Помещение', ring(size, ROOM));
+  await drawRing(page, 'Помещение', ring(size, ROOM), { alt: true });
   await page.keyboard.press('Escape');
-  await drawRing(page, 'Зона', ring(size, OUTER));
+  await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
   await page.keyboard.press('Escape');
-  await drawRing(page, 'Зона', ring(size, INNER));
+  await drawRing(page, 'Зона', ring(size, INNER), { alt: true });
   await page.keyboard.press('Escape');
 }
 
@@ -216,6 +224,36 @@ test.describe('инструменты плана', () => {
     await clickAt(page, px(size, 0.3, 0.3));
     await expect(card.getByTestId('props-id')).toHaveText('z_1');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+  });
+
+  test('вершина зоны у угла помещения ложится ровно на грань стены; с Alt — куда кликнули (D-209)', async ({
+    page,
+  }) => {
+    await openEditor(page);
+    const start = await savePlan(page);
+    const corner = start.room.boundary[0];
+    if (corner === undefined) throw new Error('у помещения нет контура');
+    const at = await worldPixel(page, corner[0], corner[1]);
+    // Клик в 5 px от угла по обеим осям — в допуске привязки (8 px).
+    const near: Pixel = { x: at.x + 5, y: at.y - 5 };
+    const box = (from: Pixel): Pixel[] => [from, { x: from.x + 150, y: from.y }, { x: from.x + 150, y: from.y - 120 }, { x: from.x, y: from.y - 120 }];
+
+    await drawRing(page, 'Зона', box(near));
+    await page.keyboard.press('Escape');
+    const snapped = await savePlan(page);
+    // Клик внутри помещения: ближе всего внутренняя грань наружной стены (угол
+    // контура плюс половина толщины), а не ось — вершина ложится на неё.
+    const half = (start.walls[0]?.thickness_m ?? 0) / 2;
+    expect(snapped.zones[0]?.polygon[0]).toEqual([corner[0] + half, corner[1] + half]);
+
+    await drawRing(page, 'Зона', box({ x: near.x, y: near.y - 200 }), { alt: true });
+    await page.keyboard.press('Escape');
+    const free = await savePlan(page);
+    const vertex = free.zones[1]?.polygon[0];
+    if (vertex === undefined) throw new Error('вторая зона не нарисована');
+    // Без привязки вершина легла туда, куда кликнули: ни на ось, ни на грань стены.
+    expect(vertex[0]).not.toBe(corner[0]);
+    expect(vertex[0]).not.toBe(corner[0] + half);
   });
 
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {

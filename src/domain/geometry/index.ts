@@ -46,8 +46,8 @@ export {
   type PointPosition,
 } from './polygons';
 
-export { SNAP, snapAxis, snapBox } from './snap';
-export type { AxisSnap, BoxSnap, SnapGuides, SnapKind } from './snap';
+export { SNAP, snapAxis, snapBox, snapPoint } from './snap';
+export type { AxisSnap, BoxSnap, PointSnap, SnapGuides, SnapKind } from './snap';
 
 /**
  * Guides of a plan for moving an object (D-208): the room outline's vertices,
@@ -78,6 +78,29 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
     xs.add(box.maxX);
     ys.add(box.minY);
     ys.add(box.maxY);
+  }
+  return { xs: [...xs], ys: [...ys] };
+}
+
+/**
+ * Guides for drawing a vertex (D-209): every vertex the plan already has — the
+ * room outline, the zones, the walls' axes and faces — so a new zone meets the
+ * contour and a partition ends where another begins. Unlike an object, a
+ * vertex may sit on a wall's axis: that is where the contour's own vertices are.
+ */
+export function pointGuides(plan: PlanDocument): SnapGuides {
+  const xs = new Set<number>();
+  const ys = new Set<number>();
+  const add = (point: Point): void => {
+    xs.add(point[0]);
+    ys.add(point[1]);
+  };
+  for (const vertex of plan.room.boundary) add(vertex);
+  for (const zone of plan.zones) for (const vertex of zone.polygon) add(vertex);
+  for (const wall of plan.walls) {
+    add(wall.from);
+    add(wall.to);
+    for (const vertex of wallPolygon(wall)) add(vertex);
   }
   return { xs: [...xs], ys: [...ys] };
 }

@@ -56,6 +56,25 @@ export function snapAxis(
 
 export type BoxSnap = { dx: number; dy: number; x: AxisSnap | null; y: AxisSnap | null };
 
+export type PointSnap = { point: [number, number]; x: AxisSnap | null; y: AxisSnap | null };
+
+/**
+ * Where a clicked or dragged vertex lands: each coordinate goes to the nearest
+ * guide within tolerance, else to the grid. A vertex is a single value per
+ * axis, so unlike a box it may take the grid at full tolerance — that is what
+ * turns a hand-drawn 9.87 × 8.13 room into 10 × 8.
+ */
+export function snapPoint(
+  point: readonly [number, number],
+  guides: SnapGuides,
+  step: number | null,
+  tolerance: number,
+): PointSnap {
+  const x = snapAxis(point[0], guides.xs, step, tolerance);
+  const y = snapAxis(point[1], guides.ys, step, tolerance);
+  return { point: [x?.value ?? point[0], y?.value ?? point[1]], x, y };
+}
+
 /**
  * How far to shift a box so that one of its sides lands on a target. People
  * align furniture by its edges, so the centre is offered to guides only (a
