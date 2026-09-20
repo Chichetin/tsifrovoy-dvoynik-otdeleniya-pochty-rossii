@@ -12,13 +12,19 @@ import type { Id, Opening, Point, Polygon, Wall, Zone } from '../../contracts/mo
 import { isSimplePolygon, projectOnSegment, segmentLength, wallLength } from '../../domain/geometry';
 import { parentZoneFor } from '../../domain/relations';
 
-const SNAP_M = 0.01;
+/** Centimetres per metre: vertices are stored to the centimetre. */
+const CM_PER_M = 100;
 
 /** Pointer capture radius of a handle on screen, in pixels. */
 export const HANDLE_RADIUS_PX = 8;
 
+/**
+ * To the centimetre. Multiply then divide, not multiply by 0.01: dividing by
+ * 100 gives the nearest double to the decimal (2.3), where `230 * 0.01` gives
+ * 2.3000000000000003 — and the file is read by people (operator №17).
+ */
 export function roundPoint(point: Point): Point {
-  return [Math.round(point[0] / SNAP_M) * SNAP_M, Math.round(point[1] / SNAP_M) * SNAP_M];
+  return [Math.round(point[0] * CM_PER_M) / CM_PER_M, Math.round(point[1] * CM_PER_M) / CM_PER_M];
 }
 
 export function moveVertex(polygon: Polygon, index: number, point: Point): Polygon {
@@ -99,7 +105,7 @@ export function moveOpeningTo(opening: Opening, wall: Wall, point: Point): Openi
   const along = projectOnSegment(point, wall.from, wall.to).t * length;
   const maxOffset = Math.max(0, length - opening.width_m);
   const offset = Math.min(maxOffset, Math.max(0, along - opening.width_m / 2));
-  return { ...opening, offset_m: Math.round(offset / SNAP_M) * SNAP_M };
+  return { ...opening, offset_m: Math.round(offset * CM_PER_M) / CM_PER_M };
 }
 
 /** Nesting of a freshly drawn ring — the one rule from `domain/relations` (D-199). */

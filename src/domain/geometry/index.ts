@@ -95,8 +95,13 @@ export function pointGuides(plan: PlanDocument): SnapGuides {
     xs.add(point[0]);
     ys.add(point[1]);
   };
+  // A zone on a hidden layer is not on screen: nothing to aim at (as for objects).
+  const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
   for (const vertex of plan.room.boundary) add(vertex);
-  for (const zone of plan.zones) for (const vertex of zone.polygon) add(vertex);
+  for (const zone of plan.zones) {
+    if (hidden.has(zone.layerId)) continue;
+    for (const vertex of zone.polygon) add(vertex);
+  }
   for (const wall of plan.walls) {
     add(wall.from);
     add(wall.to);
