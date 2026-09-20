@@ -178,13 +178,16 @@ test('проверенный ответ модели показан её сло�
   expect(screen.queryByTestId('assistant-query-ignored')).toBeNull();
 });
 
-test('модель есть, но её текст отклонён: панель говорит именно это', () => {
+test('модель есть, а текста нет: плашка не выдумывает причину', () => {
   askWith({ ...placeResponse(), mode: 'llm' });
 
   expect(screen.queryByTestId('assistant-answer')).toBeNull();
   const notice = screen.getByTestId('assistant-query-ignored').textContent ?? '';
   expect(notice).toContain('ближе ко входу');
-  expect(notice).toContain('не прошёл проверку');
+  expect(notice).toContain('не дала ответа своими словами');
+  // Браузер не различает «модель промолчала» и «текст отклонён» — причину знает
+  // журнал сервера, и панель не имеет права называть её наугад.
+  expect(notice).not.toContain('не прошёл проверку');
   expect(notice).not.toContain('без модели');
   // Расчёт остался на месте и без слов модели подписи «Расчёт:» не получает.
   expect(screen.getAllByTestId('assistant-calculation')[0]?.textContent).toContain('Место найдено');

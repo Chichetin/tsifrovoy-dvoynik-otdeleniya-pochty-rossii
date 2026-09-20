@@ -26,10 +26,23 @@
  * — a model that never gets a word through is a fact we need to know, not a
  * silence.
  *
- * What the number check does not do: it compares magnitudes, not meaning. It
- * accepts «1,50 м²» for a delta of −1,50 and cannot tell «освободилось» from
- * «занято». The signed number stays visible in the template sentence next to
- * the text, which is where the reader sees the direction of the change.
+ * What this check does not do — the honest list, repeated for the user in the
+ * README so nobody reads more into the screen than is there. It filters tokens,
+ * not statements. A sentence whose every id and number is legitimate can still
+ * be false, and these get through:
+ *
+ * - sign: «1,50 м²» is accepted for a delta of −1,50; «освободилось» and
+ *   «занято» are indistinguishable to it;
+ * - units: the magnitude is compared bare, so «12,35 м» passes for 12,35 м²;
+ * - negation and any other claim between the numbers («стеллаж не поместится»);
+ * - numbers written as words («пятнадцать метров») — no digit token to check;
+ * - entities named in Russian rather than by id («зона ожидания»): only latin
+ *   id-shaped tokens are checked at all.
+ *
+ * This is why the interface never says the model's wording was verified: it
+ * says the ids and numbers in it were. The signed number and the subject stay
+ * visible in the template sentence next to the text, which is where the reader
+ * sees the direction of the change and what it is about.
  */
 
 import { z } from 'zod';
@@ -206,27 +219,40 @@ function ruleGaps(facts: Fact[]): number[] {
 
 /**
  * Every number the recommendation lets the user read, at the rounding they read
- * it in: the values of its facts and of its candidates' forecasts, the geometry
- * of each candidate, the ordinal of each variant («Вариант 2»), how many
- * variants and changes there are, and the shortfall the equipment template
- * prints. Magnitudes only — the sign is not part of the comparison, see the
- * module header.
+ * it in: the values of its facts, the forecast and geometry of the candidate
+ * this explanation is about, the ordinal of each variant («Вариант 2»), how
+ * many variants and changes there are, and the shortfall the equipment
+ * template prints. Magnitudes only — the sign is not part of the comparison,
+ * see the module header.
  */
-export function allowedNumbers(recommendation: Recommendation): number[] {
+export function allowedNumbers(
+  recommendation: Recommendation,
+  candidateId: Id | null,
+): number[] {
   const values: number[] = [];
   const add = (value: number, digits: number): void => {
     values.push(roundToDisplay(value, digits));
   };
   const addFact = (fact: Fact): void => add(fact.value, displayDigits(fact.unit));
   const addCandidate = (candidate: Candidate, index: number): void => {
-    for (const fact of candidate.facts) addFact(fact);
+    // Порядковый номер виден в списке вариантов у любого из них, а геометрия —
+    // только у того, о котором это объяснение.
+    add(index + 1, 0);
+    if (candidate.id !== candidateId) return;
     for (const coordinate of candidate.object.position) add(coordinate, 2);
     for (const side of candidate.object.size_m) add(side, 2);
     add(candidate.object.rotation_deg, 0);
-    add(index + 1, 0);
   };
 
-  for (const fact of recommendation.facts) addFact(fact);
+  // Прогнозы всех вариантов лежат и в общем списке фактов рекомендации, поэтому
+  // отбор идёт по владельцу факта — тем же правилом, что и в `checkOne`: иначе
+  // «вариант 1 оставит 9,87 м²» проходит с числом второго варианта.
+  const owner = factOwner(recommendation);
+  for (const fact of recommendation.facts) {
+    const belongsTo = owner.get(fact.id);
+    if (belongsTo !== undefined && belongsTo !== candidateId) continue;
+    addFact(fact);
+  }
   recommendation.candidates.forEach(addCandidate);
   add(recommendation.candidates.length, 0);
   add(recommendation.changes.length, 0);
@@ -266,8 +292,11 @@ export function unknownIds(text: string, allowed: ReadonlySet<Id>): string[] {
 /** Numbers of the text that the calculation did not produce. */
 export function unknownNumbers(text: string, allowed: readonly number[]): string[] {
   // Ids are removed first: `eq_6` carries a 6 that is part of a name, not a
-  // measurement, and it has already been checked as an id.
-  const prose = text.replace(ID_TOKEN, ' ');
+  // measurement, and it has already been checked as an id. Only the tokens the
+  // id check actually inspects are removed — `unknownIds` looks at tokens with
+  // an underscore, so `area.15` must stay in the prose and have its 15 checked
+  // as a number, or it would slip past both checks.
+  const prose = text.replace(ID_TOKEN, (token) => (token.includes('_') ? ' ' : token));
   const found: string[] = [];
   for (const [token] of prose.matchAll(NUMBER_TOKEN)) {
     const value = Number.parseFloat(token.replace(',', '.'));
@@ -281,7 +310,11 @@ export function unknownNumbers(text: string, allowed: readonly number[]): string
 /** The free answer after the check: kept as written, or dropped with a reason. */
 type TextReview = { text?: string; issues: Issue[] };
 
-function reviewText(text: string | undefined, recommendation: Recommendation): TextReview {
+function reviewText(
+  text: string | undefined,
+  recommendation: Recommendation,
+  candidateId: Id | null,
+): TextReview {
   if (text === undefined) return { issues: [] };
   const where: Ref[] = recommendation.refs;
 
@@ -316,7 +349,7 @@ function reviewText(text: string | undefined, recommendation: Recommendation): T
       ),
     );
   }
-  const numbers = unknownNumbers(parsed.data, allowedNumbers(recommendation));
+  const numbers = unknownNumbers(parsed.data, allowedNumbers(recommendation, candidateId));
   if (numbers.length > 0) {
     issues.push(
       issue(
@@ -574,7 +607,7 @@ export function reviewExplanations(
 
     // Текст собирается заново, а не переносится из ответа: в `verified` попадает
     // только то, что проверено, поэтому отклонённый текст физически не доедет.
-    const review = reviewText(explanation.text, recommendation);
+    const review = reviewText(explanation.text, recommendation, explanation.candidateId);
     textIssues.push(...review.issues);
     const checked: Explanation = {
       recommendationId: explanation.recommendationId,

@@ -142,7 +142,7 @@ describe('множества допустимого', () => {
   });
 
   test('допустимые числа берутся в том же округлении, в каком показаны', () => {
-    const numbers = allowedNumbers(RECOMMENDATION);
+    const numbers = allowedNumbers(RECOMMENDATION, CANDIDATE.id);
 
     expect(numbers).toContain(12.35); // area.free.current, 12,3456789 на экране 12,35
     expect(numbers).toContain(11.39); // прогноз варианта
@@ -171,11 +171,45 @@ describe('множества допустимого', () => {
       ],
     };
 
-    const numbers = allowedNumbers(compare);
+    const numbers = allowedNumbers(compare, null);
     expect(numbers).toContain(3); // всего изменений
     expect(numbers).toContain(2); // добавлено
     expect(numbers).toContain(1); // удалено
     expect(allowedIds(compare).has('eq_3')).toBe(true);
+  });
+
+  test('прогноз чужого варианта не становится допустимым числом', () => {
+    const other: Candidate = {
+      id: 'cand_2',
+      object: { ...DESK, id: 'eq_new_desk_2', position: [7.25, 8.75] },
+      facts: [
+        {
+          id: 'cand_2.area.free.after',
+          metric: 'area.free',
+          phase: 'after',
+          value: 9.87,
+          unit: 'm2',
+          refs: [{ kind: 'room', id: 'op_main' }],
+        },
+      ],
+    };
+    const two: Recommendation = {
+      ...RECOMMENDATION,
+      candidates: [CANDIDATE, other],
+      facts: [FREE_CURRENT, COUNT_CURRENT, ...CANDIDATE.facts, ...other.facts],
+    };
+
+    const numbers = allowedNumbers(two, CANDIDATE.id);
+
+    // Прогноз и геометрия — только у названного варианта.
+    expect(numbers).toContain(11.39);
+    expect(numbers).toContain(4.5);
+    expect(numbers).not.toContain(9.87);
+    expect(numbers).not.toContain(7.25);
+    expect(numbers).not.toContain(8.75);
+    // Порядковые номера видны у обоих: «Вариант 2» — законная ссылка на список.
+    expect(numbers).toContain(1);
+    expect(numbers).toContain(2);
   });
 });
 
@@ -226,6 +260,18 @@ describe('свободный ответ модели', () => {
     expect(codesOf('Свободно 12,3 м².')).toEqual([
       EXPLANATION_ISSUE_CODES.TEXT_UNKNOWN_NUMBER,
     ]);
+  });
+
+  test('число, приклеенное к слову через точку, проверяется как число', () => {
+    // `area.15` похоже на id, но без подчёркивания проверку id не проходит:
+    // если вырезать его из текста вместе с настоящими id, 15 не проверит никто.
+    expect(codesOf('Свободной площади станет area.15 м².')).toEqual([
+      EXPLANATION_ISSUE_CODES.TEXT_UNKNOWN_NUMBER,
+    ]);
+    // Название метрики без цифр остаётся свободным словарём и текст не рушит.
+    expect(textOf('Свободная площадь (area.free) взята из расчёта.')).toBe(
+      'Свободная площадь (area.free) взята из расчёта.',
+    );
   });
 
   test('текст длиннее предела не показывается', () => {

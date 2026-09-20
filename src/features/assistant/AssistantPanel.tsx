@@ -252,7 +252,7 @@ export function AssistantPanel({
               <span data-testid="assistant-query-ignored">
                 {' '}
                 {response.mode === 'llm'
-                  ? `Пожелание «${askedQuery}» осталось без ответа модели: её текст не прошёл проверку id и чисел — показан расчёт по выбранному сценарию.`
+                  ? `На пожелание «${askedQuery}» модель не дала ответа своими словами — показан расчёт по выбранному сценарию.`
                   : `Пожелание «${askedQuery}» без модели не учитывается — показан расчёт по выбранному сценарию.`}
               </span>
             )}
@@ -274,7 +274,8 @@ export function AssistantPanel({
               <article key={recommendation.id} className="advice">
                 {explanation?.text === undefined ? null : (
                   <p className="advice__sentence advice__answer" data-testid="assistant-answer">
-                    <strong>Ответ модели</strong> (её слова, проверены расчётом):{' '}
+                    <strong>Ответ модели</strong> (формулировка её; названные в ней id и
+                    числа сверены с расчётом):{' '}
                     {explanation.text}
                   </p>
                 )}

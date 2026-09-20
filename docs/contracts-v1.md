@@ -252,7 +252,10 @@ type Recommendation = {
   reasonCodes: ReasonCode[]; limitations: string[];
   changes: { ref: Ref; kind: 'added' | 'removed' | 'moved' | 'updated' }[];
 };
-type Explanation = { recommendationId: Id; candidateId: Id | null; reasonCode: ReasonCode; factIds: Id[] };
+type Explanation = {
+  recommendationId: Id; candidateId: Id | null; reasonCode: ReasonCode; factIds: Id[];
+  text?: string; // A08, D-223: свободный ответ модели, не длиннее ADVICE_LIMITS.maxAnswerChars
+};
 type AdviceResponse = {
   revision: number; recommendations: Recommendation[];
   explanations: Explanation[]; mode: 'llm' | 'fallback'; fallbackReason?: string;
@@ -263,6 +266,13 @@ type AdviceResponse = {
 // calculateAdvice(plan: PlanDocument, request: AdviceRequest): Result<Recommendation[]>
 // verifyExplanation(input: unknown, recommendations: Recommendation[]): Result<Explanation[]>
 ```
+
+`Explanation.text` добавлен пакетом A08 (D-223) **аддитивно**: поле необязательное,
+прежние поля и их смысл не менялись, типизация всех потребителей проходит без правок
+(`src/domain/advice`, `server/advice-route.ts`, `src/features/assistant`, `demo/build.ts`).
+Текст попадает в ответ, только пройдя проверку `id` и чисел; его отказ мягкий — теряется
+один текст, структурное объяснение остаётся. Предел длины — `ADVICE_LIMITS.maxAnswerChars`
+в `src/contracts/advice.ts`.
 
 Семантический словарь F02 (`src/contracts/advice-semantics.ts`) задаёт:
 

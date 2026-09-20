@@ -293,7 +293,7 @@ test.describe('ассистент в браузере', () => {
     // видит пользователь.
     await routeModel(page, (free) => {
       const shown = free.toFixed(2).replace('.', ',');
-      return `Место под окно есть: свободной площади сейчас ${shown} м².`;
+      return `Рабочее место поместится: свободной площади сейчас ${shown} м².`;
     });
     await page.goto('/');
     await drawZone(page);
@@ -303,16 +303,20 @@ test.describe('ассистент в браузере', () => {
 
     const answer = panel(page).getByTestId('assistant-answer');
     await expect(answer).toContainText('Ответ модели');
-    await expect(answer).toContainText('Место под окно есть');
+    await expect(answer).toContainText('Рабочее место поместится');
     await expect(answer).toContainText(/\d+,\d\d м²/);
     // Вопрос учтён — плашки про неучтённый вопрос быть не должно.
     await expect(panel(page).getByTestId('assistant-query-ignored')).toHaveCount(0);
     // Расчёт подписан отдельно, чтобы слова модели не смешивались с числами.
     await expect(panel(page).getByTestId('assistant-calculation').first()).toContainText('Расчёт:');
 
-    await panel(page).screenshot({
-      path: join('docs', 'verification', 'assistant-answer', 'answer-2026-09-20.png'),
-    });
+    // Снимок для отчёта пересоздаётся только по требованию: иначе каждый прогон
+    // набора менял бы отслеживаемый файл и оставлял интегратору грязное дерево.
+    if (process.env.CAPTURE_SCREENSHOTS === '1') {
+      await panel(page).screenshot({
+        path: join('docs', 'verification', 'assistant-answer', 'answer-2026-09-20.png'),
+      });
+    }
 
     // Та же модель, но с выдуманной зоной: текст не доходит до экрана, а ответ
     // остаётся прежним.
@@ -320,8 +324,10 @@ test.describe('ассистент в браузере', () => {
     await routeModel(page, () => 'Лучше поставить в зоне z_nowhere — там просторнее.');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
 
+    // Причину панель не называет: «модель промолчала» и «текст отклонён» в
+    // браузере неразличимы, причина отказа остаётся в журнале сервера.
     await expect(panel(page).getByTestId('assistant-query-ignored')).toContainText(
-      'не прошёл проверку',
+      'не дала ответа своими словами',
     );
     await expect(panel(page).getByTestId('assistant-answer')).toHaveCount(0);
     await expect(panel(page).locator('.advice')).not.toContainText('z_nowhere');
