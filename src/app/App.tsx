@@ -117,17 +117,19 @@ export function App(): React.JSX.Element {
   // browser, kept in localStorage exactly like the tour (D-217), never in the
   // plan. Every section is open on the first visit.
   const [sections, setSections] = useState(() => loadSectionState(rightColumnStorage()));
-  // UI-2В: the first render's `sections` is just what `loadSectionState`
-  // returned — writing it straight back would put a `{}` key in
-  // localStorage before the person ever touched a header (D-226). Skip that
-  // one write; every later run of this effect is a real toggle or an
-  // expand-on-selection, and does get saved.
-  const sectionsMounted = useRef(false);
+  // UI-2В: the value `sections` starts with is just what `loadSectionState`
+  // returned — writing it straight back would put a `{}` key in localStorage
+  // before the person ever touched a header (D-226). A "have we run before"
+  // ref flag looked like the fix, but `StrictMode` (`src/main.tsx`) invokes
+  // this effect twice on mount without resetting refs in between, so the
+  // second invocation saw the flag already set and wrote anyway. Comparing
+  // `sections` by reference to the exact object the initializer produced
+  // sidesteps that: every real toggle (`toggleSection`, `expandSection`,
+  // `without`) returns a new object, so identity only holds while nothing
+  // has been touched yet, StrictMode's extra pass included.
+  const initialSections = useRef(sections);
   useEffect(() => {
-    if (!sectionsMounted.current) {
-      sectionsMounted.current = true;
-      return;
-    }
+    if (sections === initialSections.current) return;
     saveSectionState(rightColumnStorage(), sections);
   }, [sections]);
   const toggleSectionState = useCallback((id: SectionId) => {
@@ -210,12 +212,19 @@ export function App(): React.JSX.Element {
   const issues = useMemo(() => validatePlan(document), [document]);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
+  // UI-2В (D-226): `planIndex(document)` only depends on the plan, not on
+  // the assistant's own state — building it here keeps `sectionSummaries`
+  // below from rebuilding the whole index on every advice request or object
+  // pick, the way the other consumers of `planIndex` already memoize it by
+  // `[plan]` alone (`EquipmentLayer`, `AssistantPanel`, `ValidationPanel`,
+  // `InventoryPanel`).
+  const names = useMemo(() => planIndex(document), [document]);
+
   // UI-2Б: a line for each section's collapsed header, so it stays useful
   // closed. Every number here already exists — `metrics`, `issues` and
   // `inventory` above, `advice` below — this only picks words around it.
   const sectionSummaries = useMemo<Record<SectionId, string>>(() => {
-    const properties =
-      selection === null ? 'ничего не выбрано' : (planIndex(document).nameOf(selection) ?? selection.id);
+    const properties = selection === null ? 'ничего не выбрано' : (names.nameOf(selection) ?? selection.id);
     const assistant =
       adviceState.status === 'loading'
         ? 'запрос отправлен'
@@ -230,7 +239,7 @@ export function App(): React.JSX.Element {
     const types = document.catalog.objectTypes.length;
     const catalogSummary = `${types} ${pluralRu(types, 'тип', 'типа', 'типов')}`;
     return { properties, assistant, metrics: areas, validation: found, inventory: placed, catalog: catalogSummary };
-  }, [selection, document, adviceState, advice, metrics, issues, inventory]);
+  }, [selection, names, document, adviceState, advice, metrics, issues, inventory]);
 
   const askAssistant = useCallback(
     (request: AssistantPanelRequest, query?: string) => {

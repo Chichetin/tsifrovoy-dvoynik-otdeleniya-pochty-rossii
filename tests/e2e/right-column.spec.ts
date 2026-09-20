@@ -53,6 +53,25 @@ test('заголовок несёт сводку, взятую из уже по�
   await expect(header(page, 'Свойства')).toContainText('ничего не выбрано');
 });
 
+test('переименование выбранного объекта сразу видно в сводке «Свойства» (D-226: индекс имён строится по документу, а не пересобирается заново кэшированным)', async ({
+  page,
+}) => {
+  await openDemo(page);
+  await page
+    .getByLabel('Инвентаризация')
+    .locator('tbody tr')
+    .first()
+    .locator('.table__link')
+    .first()
+    .click();
+
+  const nameField = page.getByLabel('Свойства').first().getByLabel('Название');
+  await nameField.fill('Переименованный объект D-226');
+  await nameField.blur();
+
+  await expect(header(page, 'Свойства')).toContainText('Переименованный объект D-226');
+});
+
 test('клик по заголовку сворачивает раздел: aria-expanded="false", содержимое остаётся в DOM, но скрыто', async ({
   page,
 }) => {
@@ -85,6 +104,18 @@ test('заголовок — кнопка: Enter и Space переключают
   await expect(button).toHaveAttribute('aria-expanded', 'true');
 });
 
+test('до первого щелчка по заголовку ключ в localStorage не появляется (D-226)', async ({ page }) => {
+  await openDemo(page);
+  // Все шесть разделов уже открыты и видимы (значит, эффект уже отработал
+  // хотя бы раз) — но раз человек ещё не тронул ни один заголовок, писать в
+  // хранилище нечего.
+  for (const title of SECTIONS) {
+    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
+  }
+  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
+  expect(stored).toBeNull();
+});
+
 test('состояние сворачивания живёт в localStorage и переживает перезагрузку', async ({ page }) => {
   await openDemo(page);
   await header(page, 'Справочник').click();
@@ -98,6 +129,26 @@ test('состояние сворачивания живёт в localStorage и 
   await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
   // Остальные разделы не пострадали от чужой отметки.
   await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('разворачивание раздела, свёрнутого ещё до открытия страницы, тоже сохраняется — не только сворачивание (D-226)', async ({
+  page,
+}) => {
+  // Страница стартует с уже свёрнутым разделом (как после прошлой сессии),
+  // а не с пустой записи — иначе тумблер «сравнить sections по ссылке на
+  // исходное значение» и тумблер «сохранять, пока объект не пуст» ведут себя
+  // одинаково и второй незаметно остаётся дырой в покрытии.
+  await openDemo(page);
+  await header(page, 'Справочник').click();
+  await page.reload();
+  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
+
+  await header(page, 'Справочник').click();
+  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'true');
+
+  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
+  expect(stored).not.toBeNull();
+  expect(JSON.parse(stored!)).toEqual({});
 });
 
 test('выбор объекта на плане разворачивает «Свойства», если раздел был свёрнут — без рывка прокрутки страницы', async ({
