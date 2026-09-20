@@ -7,7 +7,7 @@
  * screen reader) rather than `<details>/<summary>`: the header needs to stay
  * pinned to the top of the scrolling column and carry a two-part label (name
  * + live summary) that a native `<summary>` marker and default layout would
- * have to be fought with CSS to get (D-199).
+ * have to be fought with CSS to get (D-217).
  *
  * The content stays mounted and in the DOM when collapsed — `hidden`, not a
  * conditional render — so nothing this section wraps loses state, and a test

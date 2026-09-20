@@ -50,6 +50,13 @@ describe('loadSectionState', () => {
     expect(loadSectionState(storage)).toEqual({});
   });
 
+  it('falls back to open on a bare JSON null instead of indexing into it', () => {
+    // `typeof null === 'object'`, so this needs its own check: without it,
+    // `null[id]` throws instead of quietly returning "everything open".
+    const storage = memoryStorage({ [RIGHT_COLUMN_KEY]: 'null' });
+    expect(loadSectionState(storage)).toEqual({});
+  });
+
   it('does not throw when storage.getItem throws (private mode)', () => {
     const storage: SectionStorage = {
       getItem: () => {

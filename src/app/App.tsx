@@ -16,6 +16,7 @@ import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '.
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
 import { formatArea } from '../domain/number-format';
+import { planIndex } from '../domain/plan-index';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
@@ -36,7 +37,6 @@ import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
-import { refName } from '../features/validation/naming';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
@@ -112,7 +112,7 @@ export function App(): React.JSX.Element {
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   // UI-2Б: which right-column sections are collapsed — a fact about this
-  // browser, kept in localStorage exactly like the tour (D-199), never in the
+  // browser, kept in localStorage exactly like the tour (D-217), never in the
   // plan. Every section is open on the first visit.
   const [sections, setSections] = useState(() => loadSectionState(rightColumnStorage()));
   useEffect(() => {
@@ -202,7 +202,8 @@ export function App(): React.JSX.Element {
   // closed. Every number here already exists — `metrics`, `issues` and
   // `inventory` above, `advice` below — this only picks words around it.
   const sectionSummaries = useMemo<Record<SectionId, string>>(() => {
-    const properties = selection === null ? 'ничего не выбрано' : (refName(document, selection) ?? selection.id);
+    const properties =
+      selection === null ? 'ничего не выбрано' : (planIndex(document).nameOf(selection) ?? selection.id);
     const assistant =
       adviceState.status === 'loading'
         ? 'запрос отправлен'

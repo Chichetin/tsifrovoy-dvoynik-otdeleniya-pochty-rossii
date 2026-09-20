@@ -681,7 +681,7 @@ body {
   margin-bottom: var(--space-5);
 }
 
-/* UI-2Б (D-199): a collapsible section of the right column. Wraps a panel
+/* UI-2Б (D-217): a collapsible section of the right column. Wraps a panel
    from the outside — the panel's own markup and `aria-label` are untouched;
    only its bottom margin is cancelled below so the section's own margin does
    the spacing once. The header bleeds into `.shell__side`'s own padding

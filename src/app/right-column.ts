@@ -49,10 +49,14 @@ export function loadSectionState(storage: SectionStorage | null): SectionState {
     const raw = storage.getItem(RIGHT_COLUMN_KEY);
     if (raw === null) return {};
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== 'object' || parsed === null) return {};
+    // Guards `null` (typeof 'object', but indexing it throws) and every
+    // other JSON shape that is not a plain record in one place, instead of a
+    // separate early return the try/catch below would make unreachable to a
+    // test anyway.
+    const record = typeof parsed === 'object' && parsed !== null ? (parsed as Record<string, unknown>) : {};
     const state: SectionState = {};
     for (const id of SECTION_IDS) {
-      if ((parsed as Record<string, unknown>)[id] === true) state[id] = true;
+      if (record[id] === true) state[id] = true;
     }
     return state;
   } catch {
