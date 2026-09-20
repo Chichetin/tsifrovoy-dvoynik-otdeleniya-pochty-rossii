@@ -13,7 +13,7 @@ HTTP API, серверная конфигурация, клиент Qwen/DeepSee
 
 Следующие файлы создаются при реализации соответствующих пакетов:
 
-- `main.ts` — A05.
+- `main.ts` — A05; там же `stopOnSignals` — остановка по `SIGTERM`/`SIGINT` с доведением запросов в полёте (D-203), тест `main.test.ts`.
 - `advice-route.ts` — A05.
 - `llm-client.ts` — A05.
 - `config.ts` — A05.
