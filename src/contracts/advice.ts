@@ -70,11 +70,26 @@ export type Recommendation = {
   changes: Change[];
 };
 
+/**
+ * Limits owned by the assistant's contract. `maxAnswerChars` bounds the only
+ * free text the model is allowed to write (`Explanation.text`): an answer to
+ * the user's question, not a report — see the checks in src/domain/advice.
+ */
+export const ADVICE_LIMITS = { maxAnswerChars: 600 } as const;
+
 export type Explanation = {
   recommendationId: Id;
   candidateId: Id | null;
   reasonCode: ReasonCode;
   factIds: Id[];
+  /**
+   * The model's own Russian answer to the user's free question, at most
+   * ADVICE_LIMITS.maxAnswerChars characters. Optional, and dropped — without
+   * refusing the rest of the explanation — when it names an id or a number the
+   * calculation did not produce. Absent means the user sees only the template
+   * sentence, exactly as before this field existed.
+   */
+  text?: string;
 };
 
 export type AdviceMode = 'llm' | 'fallback';
