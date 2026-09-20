@@ -151,7 +151,13 @@ describe('известные ошибки примера находятся', ()
     for (const entry of team) {
       expect(entry.severity).toBe('warning');
       expect(entry.message).toContain('допущение команды, не норматив Почты');
+      // Тип назван подписью из справочника, а не кодом (operator 20.09 №8).
+      expect(entry.message).not.toMatch(/«ot_[a-z_]+»/);
     }
+    // …и именно подписью из справочника этого плана.
+    const labels = plan.catalog.objectTypes.map((type) => `«${type.label}»`);
+    expect(team.length).toBeGreaterThan(0);
+    for (const entry of team) expect(labels.some((label) => entry.message.includes(label))).toBe(true);
   });
 
   test('каждая находка показывается на плане и называет свои id', () => {
