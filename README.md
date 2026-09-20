@@ -327,7 +327,8 @@ LLM_PROVIDER=deepseek
 LLM_ENDPOINT=https://api.deepseek.com/v1/chat/completions   # полный URL метода, не база
 LLM_MODEL=<имя модели из документации провайдера>
 LLM_API_KEY=<ключ; в git не коммитится>
-LLM_TIMEOUT_MS=20000          # по умолчанию 20 с
+LLM_TIMEOUT_MS=20000          # по умолчанию 20 с; для рассуждающей модели — 60000
+LLM_MAX_OUTPUT_TOKENS=800     # по умолчанию 800; для рассуждающей модели — 4000
 ADVICE_RATE_LIMIT=30          # обращений к модели в минуту на процесс, защита баланса
 ```
 
@@ -387,8 +388,10 @@ LLM_PROVIDER=… LLM_ENDPOINT=… LLM_MODEL=… LLM_API_KEY=… npm test -- serv
 - **Живой прогон с настоящей моделью выполнен 19.09.2026:** DeepSeek-V4-Flash через
   OpenAI-совместимый API Yandex Cloud AI Studio, `mode: "llm"` в ответе `/api/advice` на
   демо-плане, объяснения прошли проверку кодом — [запись прогона](docs/verification/llm-live-2026-09-19.md).
-  Модель рассуждающая: ей нужен запас токенов и таймаут 30 с (`LLM_MAX_OUTPUT_TOKENS`,
-  `LLM_TIMEOUT_MS`).
+  Модель рассуждающая: ей нужен запас токенов и времени — `LLM_MAX_OUTPUT_TOKENS=4000`,
+  `LLM_TIMEOUT_MS=60000` (с 800 токенами ответ бывает пустым, за 30 с — не успевает; D-206).
+  Комплект сдачи пересобран с моделью 20.09.2026: `demo/recommendation.json` — `"mode": "llm"`,
+  объяснения всех трёх сценариев выбраны моделью и прошли проверку кодом.
 
 ### Чем это проверено
 
