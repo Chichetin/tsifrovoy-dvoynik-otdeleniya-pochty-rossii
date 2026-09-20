@@ -14,6 +14,7 @@ import { snapBox, type BoxSnap, type SnapGuides } from './snap';
 import {
   boundingBox,
   boxesOverlap,
+  pointSegmentDistance,
   polygonArea,
   polygonContains,
   polygonsOverlap,
@@ -62,8 +63,12 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
     xs.add(point[0]);
     ys.add(point[1]);
   };
-  for (const vertex of plan.room.boundary) add(vertex);
-  for (const zone of plan.zones) for (const vertex of zone.polygon) add(vertex);
+  // A contour or zone vertex on a wall's axis is inside that wall: the wall's
+  // faces are the guides there, and the axis would pull the object into it.
+  const onWallAxis = (point: Point): boolean =>
+    plan.walls.some((wall) => pointSegmentDistance(point, wall.from, wall.to) <= TOLERANCE.coordinate_m);
+  for (const vertex of plan.room.boundary) if (!onWallAxis(vertex)) add(vertex);
+  for (const zone of plan.zones) for (const vertex of zone.polygon) if (!onWallAxis(vertex)) add(vertex);
   for (const wall of plan.walls) for (const vertex of wallPolygon(wall)) add(vertex);
   const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
   for (const object of plan.objects) {

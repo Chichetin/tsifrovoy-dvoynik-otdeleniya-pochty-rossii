@@ -74,10 +74,11 @@ describe('направляющие плана и центр объекта', () 
     const all = objectGuides(plan, new Set());
     // Без исключения грани самого объекта попали бы в направляющие.
     expect(all.xs.length).toBeGreaterThan(own.xs.length);
-    for (const vertex of plan.room.boundary) {
-      expect(own.xs).toContain(vertex[0]);
-      expect(own.ys).toContain(vertex[1]);
-    }
+    // Вершины контура — направляющие, кроме лежащих на оси стены: (0,8) и (10,8) — под w_north.
+    expect(own.xs).toContain(0);
+    expect(own.xs).toContain(10);
+    expect(own.ys).toContain(0);
+    expect(own.ys).not.toContain(8);
   });
 
   test('стена тянет гранью толщины, а не осью: «впритык» не значит «внутри стены»', () => {
@@ -86,21 +87,27 @@ describe('направляющие плана и центр объекта', () 
     const half = wall.thickness_m / 2;
     expect(guides.ys).toContain(wall.from[1] - half);
     expect(guides.ys).toContain(wall.from[1] + half);
-    // Объект подходит изнутри: верхняя грань 7,87 ложится на 7,9, а не на ось 8,0 (вершина контура).
+    expect(guides.ys).not.toContain(wall.from[1]);
+    // Объект подходит изнутри: верхняя грань 7,87 ложится на 7,9, а не на ось 8,0.
     const depth = object.size_m[1];
     const centre: [number, number] = [5, 7.87 - depth / 2];
     const { centre: snapped } = snapObjectCentre({ ...object, rotation_deg: 0 }, centre, guides, null, 0.15);
     expect(snapped[1] + depth / 2).toBeCloseTo(wall.from[1] - half, 9);
   });
 
-  test('вершины зон — направляющие', () => {
+  test('вершины зон — направляющие, кроме лежащих на оси стены', () => {
     const guides = objectGuides(plan, new Set([object.id]));
+    const wall = plan.walls[0]!;
+    let counted = 0;
     for (const zone of plan.zones) {
       for (const vertex of zone.polygon) {
+        if (vertex[1] === wall.from[1]) continue; // на оси w_north — внутри стены
         expect(guides.xs).toContain(vertex[0]);
         expect(guides.ys).toContain(vertex[1]);
+        counted += 1;
       }
     }
+    expect(counted).toBeGreaterThan(0);
   });
 
   test('скрытый слой не тянет', () => {
