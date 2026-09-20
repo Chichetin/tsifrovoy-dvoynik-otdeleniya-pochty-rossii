@@ -419,7 +419,24 @@ test.describe('жесты над оборудованием', () => {
     const flush = right.x - ((right.x - left.x) / scale - width) * scale;
     const target: Screen = { x: flush + 5, y: right.y };
 
-    await drag(page, right, target);
+    // Пока стеллаж тянут, на холсте видна линия направляющей — грань соседа
+    // (operator 20.09 №3); после броска её нет.
+    const snapLine = () =>
+      page.evaluate(() => {
+        type Node = { findOne(selector: string): unknown };
+        const stage = (window as unknown as { Konva?: { stages: Node[] } }).Konva?.stages[0];
+        return stage?.findOne('.snap-line-x-guide') !== undefined;
+      });
+    const start = await onPage(page, right);
+    const end = await onPage(page, target);
+    await settle(page);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 3, start.y + 3);
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await expect.poll(snapLine).toBe(true);
+    await page.mouse.up();
+    await expect.poll(snapLine).toBe(false);
     await selectRow(page, 1);
     // Левая грань правого стеллажа легла ровно на правую грань левого.
     expect((await numberOf(page, 'X, м')) - width / 2).toBeCloseTo(leftX + width / 2, 6);
