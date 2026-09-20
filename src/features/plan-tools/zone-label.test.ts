@@ -63,6 +63,41 @@ describe('якорь подписи зоны (D-216)', () => {
     expect(y).toBeLessThan(3);
   });
 
+  test('объект прижат к нижней границе зоны — вверх уйти можно, вниз некуда', () => {
+    // Свободна только одна сторона: под объектом остаётся 0 м, и разойтись
+    // подпись может лишь над его верхним краем. Резерв подписи — 0,25 м от
+    // её середины плюс зазор 0,12 м, отсюда 3,2 + 0,37.
+    const fromBottom: BoundingBox = { minX: 2, maxX: 4, minY: 0, maxY: 3.2 };
+    const anchor = zoneLabelAnchor(square, [fromBottom]);
+    expect(anchor[1]).toBeCloseTo(3.57, 5);
+    expect(boxesOverlap(reservedAround(anchor), fromBottom)).toBe(false);
+  });
+
+  test('объект прижат к верхней границе зоны — вниз уйти можно, вверх некуда', () => {
+    // Зеркальный случай: над объектом свободного места нет, подпись обязана
+    // уйти под его нижний край (2,8 − 0,37), а не за верхний.
+    const fromTop: BoundingBox = { minX: 2, maxX: 4, minY: 2.8, maxY: 6 };
+    const anchor = zoneLabelAnchor(square, [fromTop]);
+    expect(anchor[1]).toBeCloseTo(2.43, 5);
+    expect(boxesOverlap(reservedAround(anchor), fromTop)).toBe(false);
+  });
+
+  test('объект попал в полосу подписи, но не на её центральную ось — всё равно мешает', () => {
+    // Подпись — это строка шириной 3 м вокруг центра (X от 1,5 до 4,5), а не
+    // точка: объект правее оси X=3 её всё равно перекрывает.
+    const besideAxis: BoundingBox = { minX: 3.2, maxX: 4.2, minY: 2.4, maxY: 3.5 };
+    const anchor = zoneLabelAnchor(square, [besideAxis]);
+    expect(anchor[1]).toBeCloseTo(3.87, 5);
+    expect(boxesOverlap(reservedAround(anchor), besideAxis)).toBe(false);
+  });
+
+  test('между подписью и объектом остаётся зазор, а не касание', () => {
+    const blocker: BoundingBox = { minX: 2, maxX: 4, minY: 2.4, maxY: 3.5 };
+    const anchor = zoneLabelAnchor(square, [blocker]);
+    // Нижний край резерва подписи выше верхнего края объекта ровно на GAP_M.
+    expect(reservedAround(anchor).minY - blocker.maxY).toBeCloseTo(0.12, 5);
+  });
+
   test('мелкая полоса вдоль стены — якорь не выходит за её пределы', () => {
     const strip: Polygon = [
       [0, 0],

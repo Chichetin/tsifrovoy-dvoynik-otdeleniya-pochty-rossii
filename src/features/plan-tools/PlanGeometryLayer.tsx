@@ -117,8 +117,12 @@ export function PlanGeometryLayer({
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
 
-  const visibleLayers = new Set(
-    plan.layers.filter((layer) => layer.visible).map((layer) => layer.id),
+  // One source for "which layers are on": zones, objects and labels must
+  // follow the same visibility rule, so it is not rebuilt per consumer. Memoised
+  // because the derived values below depend on it and must survive a pan frame.
+  const visibleLayers = useMemo(
+    () => new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id)),
+    [plan.layers],
   );
   const lockedLayers = new Set(
     plan.layers.filter((layer) => layer.locked).map((layer) => layer.id),
@@ -132,12 +136,21 @@ export function PlanGeometryLayer({
   // screen pixels, so it is independent of pan and zoom — a pan or a zoom
   // re-renders this layer on every frame (D-190), and recomputing it from
   // `plan.objects` instead of the viewport keeps that frame cheap.
-  const objectBoxes: BoundingBox[] = useMemo(() => {
-    const visible = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
-    return plan.objects
-      .filter((object) => visible.has(object.layerId))
-      .map((object) => boundingBox(footprint(object)));
-  }, [plan.objects, plan.layers]);
+  const objectBoxes: BoundingBox[] = useMemo(
+    () =>
+      plan.objects
+        .filter((object) => visibleLayers.has(object.layerId))
+        .map((object) => boundingBox(footprint(object))),
+    [plan.objects, visibleLayers],
+  );
+
+  // The anchors themselves are model metres too, and cost O(zones × objects) —
+  // recomputing them inside the render below would pay that on every pan and
+  // zoom frame for a result that cannot have changed.
+  const zoneLabelAnchors = useMemo(
+    () => new Map(plan.zones.map((zone) => [zone.id, zoneLabelAnchor(zone.polygon, objectBoxes)])),
+    [plan.zones, objectBoxes],
+  );
 
   // Delete and Backspace remove the selected zone, wall or opening; the room
   // stays, and objects belong to the equipment layer. What exactly the keys
@@ -426,7 +439,9 @@ export function PlanGeometryLayer({
         // Centred by default; nudged just clear of whichever object sits
         // where the name would (D-216) — a rack row or a bench in the middle
         // of a zone is the common case, not an edge case.
-        const [x, y] = modelToScreen(zoneLabelAnchor(zone.polygon, objectBoxes), viewport);
+        const anchor = zoneLabelAnchors.get(zone.id);
+        if (anchor === undefined) return null;
+        const [x, y] = modelToScreen(anchor, viewport);
         return (
           <Text
             key={`label-${zone.id}`}
