@@ -16,12 +16,12 @@
  * молчанием: клик, после которого ничего не произошло, читается как поломка.
  */
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Point, Polygon } from '../../contracts/model';
-import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
+import type { ToolController, ToolKind, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
-import { SNAP, pointGuides, settlePoint, snapPoint } from '../../domain/geometry';
+import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
@@ -30,11 +30,24 @@ import {
   droppedOpeningNotice,
   setNotice,
 } from './notice';
+import { setSnapHint } from './snap-marker';
 import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
 import { createOpening, createWall, nearestWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
+
+/**
+ * Tools that put a vertex where the pointer is, and therefore show what that
+ * vertex would catch (D-224). An opening is not among them: it is placed on the
+ * wall the click hits and does not snap at all (D-209), so promising a target
+ * would be a lie.
+ */
+const DRAWING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
+  'room.draw',
+  'zone.draw',
+  'wall.draw',
+]);
 
 export const usePlanToolController: UsePlanToolController = ({
   document: plan,
@@ -44,8 +57,21 @@ export const usePlanToolController: UsePlanToolController = ({
   const [draft, setDraft] = useState<Point[] | null>(null);
   const kind = session.tool.kind;
   const committing = useRef(false);
+  const scale = session.viewport.scale;
 
-  const cancel = useCallback(() => setDraft(null), []);
+  // Направляющие зависят только от плана, а спрашивают их на каждом движении
+  // мыши: пересобирать их покадрово ради маркера незачем.
+  const guides = useMemo(() => pointGuides(plan), [plan]);
+  const tolerance = SNAP.tolerance_px / scale;
+
+  // Маркер принадлежит текущему инструменту: сменили инструмент или ушли с
+  // холста — подсказки нет (D-224).
+  useEffect(() => () => setSnapHint(null), [kind]);
+
+  const cancel = useCallback(() => {
+    setDraft(null);
+    setSnapHint(null);
+  }, []);
 
   /** Returns false when the ring was refused and the draft has to stay. */
   const commit = useCallback(
@@ -141,10 +167,30 @@ export const usePlanToolController: UsePlanToolController = ({
     [onCommand, plan, session.retired],
   );
 
+  /**
+   * Куда сядет следующая точка и за что она зацепится — под курсором, до
+   * клика (D-224). `Alt` выключает привязку, значит и обещать нечего.
+   */
+  const showTarget = useCallback(
+    (event: WorldPointer): void => {
+      if (event.alt || !DRAWING_TOOLS.has(kind)) {
+        setSnapHint(null);
+        return;
+      }
+      setSnapHint(snapHint(event.point, guides, SNAP.grid_m, tolerance));
+    },
+    [guides, kind, tolerance],
+  );
+
   const handlePointer = useCallback(
     (event: WorldPointer): void => {
       if (event.phase === 'cancel') {
         setDraft(null);
+        setSnapHint(null);
+        return;
+      }
+      if (event.phase === 'move') {
+        showTarget(event);
         return;
       }
       if (event.phase !== 'down') return;
@@ -159,9 +205,12 @@ export const usePlanToolController: UsePlanToolController = ({
       // kept as the guide has it, the rest is stored to the centimetre
       // (operator №17, D-211). The opening above is not a vertex: it sits on
       // the wall the click hit.
+      //
+      // The same call the marker under the cursor is drawn from (D-224): what
+      // was promised before the click is what the click does.
       const point = event.alt
         ? roundPoint(event.point)
-        : settlePoint(snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale));
+        : snapHint(event.point, guides, SNAP.grid_m, tolerance).point;
 
       if (kind === 'wall.draw') {
         const start = draft?.[0];
@@ -171,7 +220,10 @@ export const usePlanToolController: UsePlanToolController = ({
           setDraft([point]);
           return;
         }
-        if (drawWall(start, point)) setDraft(null);
+        if (drawWall(start, point)) {
+          setDraft(null);
+          setSnapHint(null);
+        }
         return;
       }
 
@@ -189,12 +241,15 @@ export const usePlanToolController: UsePlanToolController = ({
       if (closes) {
         // Отклонённый контур остаётся черновиком: пользователь дорисовывает
         // или отменяет его Escape, но нарисованное не пропадает молча.
-        if (commit(current)) setDraft(null);
+        if (commit(current)) {
+          setDraft(null);
+          setSnapHint(null);
+        }
         return;
       }
       setDraft([...current, point]);
     },
-    [commit, draft, drawWall, kind, placeOpening, plan, session.viewport.scale],
+    [commit, draft, drawWall, guides, kind, placeOpening, showTarget, tolerance],
   );
 
   return { handlePointer, cancel, draft };
