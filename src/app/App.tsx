@@ -45,6 +45,7 @@ import { readPlanFile } from '../persistence/format';
 import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
 import { catalog, createEmptyPlan } from './default-plan';
+import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
   browserStorage as rightColumnStorage,
   expandSection,
@@ -61,6 +62,7 @@ const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
 
 export function App(): React.JSX.Element {
   const [store, setStore] = useState(() => createPlanStore(createEmptyPlan(), 'new'));
+  const [gesturePreview] = useState(createObjectGesturePreviewChannel);
   const document = useStore(store, (state) => state.document);
   const baseline = useStore(store, (state) => state.baseline);
   const revision = useStore(store, (state) => state.revision);
@@ -401,6 +403,7 @@ export function App(): React.JSX.Element {
               onSelect={select}
               onSelectMany={selectMany}
               preview={preview}
+              onGesturePreview={gesturePreview.publish}
             />
             <InformationLayer document={document} session={session} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
@@ -418,7 +421,12 @@ export function App(): React.JSX.Element {
             collapsed={sections.properties === true}
             onToggle={() => toggleSectionState('properties')}
           >
-            <PropertiesPanel document={document} session={session} onCommand={dispatch} />
+            <PropertiesPanel
+              document={document}
+              session={session}
+              onCommand={dispatch}
+              gesturePreview={gesturePreview}
+            />
           </Section>
           <Section
             id="assistant"
