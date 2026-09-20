@@ -17,6 +17,7 @@
 import {
   type Catalog,
   type Equipment,
+  type Id,
   type Issue,
   type PlanDocument,
   type Point,
@@ -287,7 +288,7 @@ function wallIssues(plan: PlanDocument): Issue[] {
         issue(
           VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,
           'error',
-          `Объект «${object.label}» пересекает стену «${wall.id}».`,
+          `Объект «${object.label}» пересекает стену ${wall.id}.`,
           [
             { kind: 'object', id: object.id },
             { kind: 'wall', id: wall.id },
@@ -304,6 +305,15 @@ function isPhysical(catalog: Catalog, object: Equipment): boolean {
   // An unknown type is treated as solid: the schema refuses such a document on
   // load, and during an edit a silent "not physical" would hide a collision.
   return findObjectType(catalog, object.typeId)?.physical ?? true;
+}
+
+/**
+ * The type as the person knows it: «Скамья», not «ot_bench». The id stays in
+ * `refs`; a type missing from the catalog is named by its id, as elsewhere.
+ * Walls and openings carry no name, so their ids stand without quotes.
+ */
+function typeLabel(catalog: Catalog, typeId: Id): string {
+  return findObjectType(catalog, typeId)?.label ?? typeId;
 }
 
 function ruleIssues(plan: PlanDocument): Issue[] {
@@ -334,7 +344,7 @@ function countRuleIssues(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN,
           severityOf(rule),
-          `В зоне «${zone.name}» ${count} шт. «${rule.objectTypeId}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
+          `В зоне «${zone.name}» ${count} шт. «${typeLabel(plan.catalog, rule.objectTypeId)}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
         ),
@@ -345,7 +355,7 @@ function countRuleIssues(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX,
           severityOf(rule),
-          `В зоне «${zone.name}» ${count} шт. «${rule.objectTypeId}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
+          `В зоне «${zone.name}» ${count} шт. «${typeLabel(plan.catalog, rule.objectTypeId)}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
         ),
@@ -400,7 +410,7 @@ function distanceRuleIssues(
       issue(
         VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE,
         severityOf(rule),
-        `Объект «${object.label}» в ${best.toFixed(2)} м от входа «${nearest.opening.id}» при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
+        `Объект «${object.label}» в ${best.toFixed(2)} м от входа ${nearest.opening.id} при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
         [
           { kind: 'object', id: object.id },
           { kind: 'opening', id: nearest.opening.id },

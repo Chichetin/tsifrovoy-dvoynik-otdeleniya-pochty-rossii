@@ -133,7 +133,7 @@ describe('известные ошибки примера находятся', ()
     // Вход d_main занимает 1.5 м стены; расстояние меряется до его середины
     // (0.75, 7.5), а не до края — от терминала в (0.6, 0.6) это 6.90 м.
     const message = far[0]?.message ?? '';
-    expect(message).toContain('6.90 м от входа «d_main»');
+    expect(message).toContain('6.90 м от входа d_main');
     expect(message).toContain('материалы организаторов');
   });
 
@@ -149,7 +149,13 @@ describe('известные ошибки примера находятся', ()
     for (const entry of team) {
       expect(entry.severity).toBe('warning');
       expect(entry.message).toContain('допущение команды, не норматив Почты');
+      // Тип назван подписью из справочника, а не кодом (operator 20.09 №8).
+      expect(entry.message).not.toMatch(/«ot_[a-z_]+»/);
     }
+    // …и именно подписью из справочника этого плана.
+    const labels = plan.catalog.objectTypes.map((type) => `«${type.label}»`);
+    expect(team.length).toBeGreaterThan(0);
+    for (const entry of team) expect(labels.some((label) => entry.message.includes(label))).toBe(true);
   });
 
   test('каждая находка показывается на плане и называет свои id', () => {
