@@ -47,15 +47,23 @@ async function threeRacks(page: Page): Promise<void> {
   await expect(inventoryRows(page)).toHaveCount(3);
 }
 
-async function drag(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+async function drag(
+  page: Page,
+  from: [number, number],
+  to: [number, number],
+  options: { alt?: boolean } = {},
+): Promise<void> {
   const box = await canvas(page).boundingBox();
   if (box === null) throw new Error('холст не найден');
+  // Alt на время жеста выключает привязку (D-208): сдвиг ровно под курсор.
+  if (options.alt) await page.keyboard.down('Alt');
   await page.mouse.move(box.x + from[0], box.y + from[1]);
   await page.mouse.down();
   // Несколько шагов: порог начала рамки и перетаскивания — несколько пикселей.
   await page.mouse.move(box.x + (from[0] + to[0]) / 2, box.y + (from[1] + to[1]) / 2, { steps: 4 });
   await page.mouse.move(box.x + to[0], box.y + to[1], { steps: 4 });
   await page.mouse.up();
+  if (options.alt) await page.keyboard.up('Alt');
   await settle(page);
 }
 
@@ -150,8 +158,9 @@ test.describe('групповой выбор', () => {
 
     // Схвачен средний (eq_2): остальные обязаны уехать ровно на его сдвиг.
     // Сам сдвиг меньше пройденных пикселей на порог начала drag в Konva,
-    // поэтому сравнивается не с числом, а со сдвигом схваченного.
-    await drag(page, [420, 300], [516, 300]);
+    // поэтому сравнивается не с числом, а со сдвигом схваченного. Alt — чтобы
+    // привязка (D-208) не добавила к горизонтальному жесту сдвиг по Y.
+    await drag(page, [420, 300], [516, 300], { alt: true });
 
     const after = positions(await savedPlan(page));
     const dx = after['eq_2']![0] - before['eq_2']![0];

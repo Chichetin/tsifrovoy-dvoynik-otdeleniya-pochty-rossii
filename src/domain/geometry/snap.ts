@@ -57,9 +57,12 @@ export function snapAxis(
 export type BoxSnap = { dx: number; dy: number; x: AxisSnap | null; y: AxisSnap | null };
 
 /**
- * How far to shift a box so that one of its sides (or its centre line) lands
- * on a target. Sides are tried first: people align furniture by its edges.
- * Each axis snaps on its own — a box can meet a wall in x and a grid line in y.
+ * How far to shift a box so that one of its sides lands on a target. People
+ * align furniture by its edges, so the centre is offered to guides only (a
+ * neighbour's axis, a wall's face) and never to the grid; and the grid pulls
+ * from half the distance — otherwise a 1.2 m rack on a 0.5 m grid would be
+ * within reach of some node at every position and never move freely. Each
+ * axis snaps on its own — a box can meet a wall in x and a grid line in y.
  */
 export function snapBox(
   box: BoundingBox,
@@ -67,20 +70,25 @@ export function snapBox(
   step: number | null,
   tolerance: number,
 ): BoxSnap {
-  const x = snapEdges([box.minX, box.maxX, (box.minX + box.maxX) / 2], guides.xs, step, tolerance);
-  const y = snapEdges([box.minY, box.maxY, (box.minY + box.maxY) / 2], guides.ys, step, tolerance);
+  const x = snapEdges([box.minX, box.maxX], (box.minX + box.maxX) / 2, guides.xs, step, tolerance);
+  const y = snapEdges([box.minY, box.maxY], (box.minY + box.maxY) / 2, guides.ys, step, tolerance);
   return { dx: x?.delta ?? 0, dy: y?.delta ?? 0, x, y };
 }
 
 function snapEdges(
   edges: readonly number[],
+  centre: number,
   guides: readonly number[],
   step: number | null,
   tolerance: number,
 ): AxisSnap | null {
   let best: AxisSnap | null = null;
-  for (const edge of edges) {
-    const found = snapAxis(edge, guides, step, tolerance);
+  const candidates: [number, number | null, number][] = [
+    ...edges.map((edge): [number, number | null, number] => [edge, step, tolerance / 2]),
+    [centre, null, tolerance],
+  ];
+  for (const [edge, gridStep, gridTolerance] of candidates) {
+    const found = snapAxis(edge, guides, null, tolerance) ?? snapAxis(edge, [], gridStep, gridTolerance);
     if (found === null) continue;
     // A guide anywhere beats the grid anywhere; among equals, the closer one.
     const better =

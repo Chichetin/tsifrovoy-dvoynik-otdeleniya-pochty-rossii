@@ -32,6 +32,8 @@ export type GestureStart = {
   grab: Point;
   /** What a move may snap to (D-208); absent for gestures that do not snap. */
   guides?: SnapGuides;
+  /** Alt as seen at the last move: the drop must land where the drag showed it. */
+  snapOff?: boolean;
 };
 
 export type GestureGuard = {

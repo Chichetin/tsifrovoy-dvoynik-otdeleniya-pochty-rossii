@@ -375,7 +375,8 @@ export function EquipmentLayer({
     grab: Point = [0, 0],
   ): void => {
     const node = event.target;
-    const moving = isGroup && group.has(id) ? new Set<Id>(group) : new Set<Id>([id]);
+    // Locked members of a group stay put, so they remain something to snap to.
+    const moving = isGroup && group.has(id) ? new Set<Id>(movable.map((member) => member.id)) : new Set<Id>([id]);
     guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab, guides: objectGuides(plan, moving) });
     // Grabbing a member keeps the group and makes that member the primary —
     // the card follows the hand; anything else is a single pick.
@@ -436,12 +437,17 @@ export function EquipmentLayer({
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
     const [x, y] = modelToScreen(current.position, viewport);
-    // Alt during the drag turns snapping off for the gesture (D-208).
-    const movedTo = (node: Konva.Node, evt: unknown): Point => {
+    // Alt during the drag turns snapping off (D-208). The drop reuses what the
+    // last move saw: a key released a moment before the button must not make
+    // the object jump at release.
+    const movedTo = (node: Konva.Node, evt: unknown, phase: 'move' | 'drop'): Point => {
       const centre = screenToModel([node.x(), node.y()], viewport);
-      const guides = guard.started?.guides;
-      const alt = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
-      if (alt || guides === undefined) return snapPosition(centre);
+      const started = guard.started;
+      if (phase === 'move' && started !== null) {
+        started.snapOff = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
+      }
+      const guides = started?.guides;
+      if (started?.snapOff === true || guides === undefined) return snapPosition(centre);
       return snapPosition(
         snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale).centre,
       );
@@ -474,11 +480,11 @@ export function EquipmentLayer({
         }
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
-          const next = { ...object, position: movedTo(event.target, event.evt) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'move') };
           setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
         }}
         onDragEnd={(event) => {
-          const next = { ...object, position: movedTo(event.target, event.evt) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'drop') };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
             return;

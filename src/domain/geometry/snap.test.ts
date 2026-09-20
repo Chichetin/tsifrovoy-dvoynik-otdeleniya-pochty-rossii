@@ -47,6 +47,18 @@ describe('snapBox', () => {
     expect(snap.y?.kind).toBe('grid');
   });
 
+  test('к сетке тянутся только грани и с половинным допуском, центр — только к направляющим', () => {
+    // Центр 1,78 в 0,22 от узла 2,0 при допуске 0,3 — к сетке центр не предлагается;
+    // грани 1,28 и 2,28 в 0,22 от узлов, а сеточный допуск — 0,15: свободное движение.
+    expect(snapBox({ minX: 1.28, maxX: 2.28, minY: 1.28, maxY: 2.28 }, { xs: [], ys: [] }, 0.5, 0.3)).toEqual({
+      dx: 0, dy: 0, x: null, y: null,
+    });
+    // Та же коробка при направляющей 2,0: центр 1,78 ложится на неё (осевая линия соседа).
+    const centred = snapBox({ minX: 1.28, maxX: 2.28, minY: 0, maxY: 1 }, { xs: [2], ys: [] }, 0.5, 0.3);
+    expect(centred.dx).toBeCloseTo(0.22, 9);
+    expect(centred.x?.kind).toBe('guide');
+  });
+
   test('далеко от всего — сдвиг нулевой', () => {
     const snap = snapBox({ minX: 1.2, maxX: 2.2, minY: 1.2, maxY: 2.2 }, guides, 0.5, 0.05);
     expect(snap).toEqual({ dx: 0, dy: 0, x: null, y: null });
@@ -65,6 +77,29 @@ describe('направляющие плана и центр объекта', () 
     for (const vertex of plan.room.boundary) {
       expect(own.xs).toContain(vertex[0]);
       expect(own.ys).toContain(vertex[1]);
+    }
+  });
+
+  test('стена тянет гранью толщины, а не осью: «впритык» не значит «внутри стены»', () => {
+    const wall = plan.walls[0]!; // w_north по y = 8, толщина 0,2: грани 7,9 и 8,1
+    const guides = objectGuides(plan, new Set([object.id]));
+    const half = wall.thickness_m / 2;
+    expect(guides.ys).toContain(wall.from[1] - half);
+    expect(guides.ys).toContain(wall.from[1] + half);
+    // Объект подходит изнутри: верхняя грань 7,87 ложится на 7,9, а не на ось 8,0 (вершина контура).
+    const depth = object.size_m[1];
+    const centre: [number, number] = [5, 7.87 - depth / 2];
+    const { centre: snapped } = snapObjectCentre({ ...object, rotation_deg: 0 }, centre, guides, null, 0.15);
+    expect(snapped[1] + depth / 2).toBeCloseTo(wall.from[1] - half, 9);
+  });
+
+  test('вершины зон — направляющие', () => {
+    const guides = objectGuides(plan, new Set([object.id]));
+    for (const zone of plan.zones) {
+      for (const vertex of zone.polygon) {
+        expect(guides.xs).toContain(vertex[0]);
+        expect(guides.ys).toContain(vertex[1]);
+      }
     }
   });
 

@@ -50,8 +50,10 @@ export type { AxisSnap, BoxSnap, SnapGuides, SnapKind } from './snap';
 
 /**
  * Guides of a plan for moving an object (D-208): the room outline's vertices,
- * the walls' ends and the boxes of every other object on a visible layer.
- * `exclude` — the objects being moved: a thing must not snap to itself.
+ * the zones' vertices, the walls' faces (the rectangle of their thickness, not
+ * the centreline — «flush to the wall» must not put the object inside it) and
+ * the boxes of every other object on a visible layer. `exclude` — the objects
+ * being moved: a thing must not snap to itself.
  */
 export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): SnapGuides {
   const xs = new Set<number>();
@@ -61,10 +63,8 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
     ys.add(point[1]);
   };
   for (const vertex of plan.room.boundary) add(vertex);
-  for (const wall of plan.walls) {
-    add(wall.from);
-    add(wall.to);
-  }
+  for (const zone of plan.zones) for (const vertex of zone.polygon) add(vertex);
+  for (const wall of plan.walls) for (const vertex of wallPolygon(wall)) add(vertex);
   const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
   for (const object of plan.objects) {
     if (exclude.has(object.id) || hidden.has(object.layerId)) continue;
