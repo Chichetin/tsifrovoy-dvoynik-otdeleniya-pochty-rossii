@@ -88,11 +88,13 @@ async function drag(
   page: Page,
   from: Screen,
   to: Screen,
-  options: { shift?: boolean; escape?: boolean } = {},
+  options: { shift?: boolean; alt?: boolean; escape?: boolean } = {},
 ): Promise<void> {
   const start = await onPage(page, from);
   const end = await onPage(page, to);
   if (options.shift) await page.keyboard.down('Shift');
+  // Alt на время жеста выключает привязку (D-208): перенос ложится ровно под курсор.
+  if (options.alt) await page.keyboard.down('Alt');
   await settle(page);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -101,6 +103,7 @@ async function drag(
   // Escape до отпускания кнопки: жест отменяется на полпути.
   if (options.escape) await page.keyboard.press('Escape');
   await page.mouse.up();
+  if (options.alt) await page.keyboard.up('Alt');
   if (options.shift) await page.keyboard.up('Shift');
 }
 
@@ -347,13 +350,41 @@ test.describe('жесты над оборудованием', () => {
       .toBeGreaterThan(before * 2);
     const scale = await shownScale(page);
 
-    await drag(page, centre, { x: centre.x + 120, y: centre.y - 60 });
+    await drag(page, centre, { x: centre.x + 120, y: centre.y - 60 }, { alt: true });
     expect(Math.abs((await numberOf(page, 'X, м')) - (x0 + 120 / scale))).toBeLessThanOrEqual(0.05);
     expect(Math.abs((await numberOf(page, 'Y, м')) - (y0 + 60 / scale))).toBeLessThanOrEqual(0.05);
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     expect(await numberOf(page, 'X, м')).toBe(x0);
     expect(await numberOf(page, 'Y, м')).toBe(y0);
+  });
+
+  test('перенос притягивает грань к грани соседа, Alt отключает привязку (D-208)', async ({ page }) => {
+    await page.goto('/');
+    const left: Screen = { x: 300, y: 330 };
+    const right: Screen = { x: 520, y: 330 };
+    await placeFromLibrary(page, RACK, left.x, left.y);
+    await placeFromLibrary(page, RACK, right.x, right.y);
+    await selectRow(page, 0);
+    const leftX = await numberOf(page, 'X, м');
+    const width = await numberOf(page, 'Ширина, м');
+    const scale = await shownScale(page);
+    // Правый стеллаж оказывается на 5 px правее, чем «впритык» к левому: в допуске 8 px.
+    const flush = right.x - ((right.x - left.x) / scale - width) * scale;
+    const target: Screen = { x: flush + 5, y: right.y };
+
+    await drag(page, right, target);
+    await selectRow(page, 1);
+    // Левая грань правого стеллажа легла ровно на правую грань левого.
+    expect((await numberOf(page, 'X, м')) - width / 2).toBeCloseTo(leftX + width / 2, 6);
+
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await drag(page, right, target, { alt: true });
+    await selectRow(page, 1);
+    const gap = (await numberOf(page, 'X, м')) - width / 2 - (leftX + width / 2);
+    // Без привязки остался зазор в те самые ~5 px.
+    expect(gap).toBeGreaterThan(2 / scale);
+    expect(gap).toBeLessThan(8 / scale);
   });
 
   test('скрытый слой: объект не выбирается и не удаляется, пока слой не показан', async ({ page }) => {

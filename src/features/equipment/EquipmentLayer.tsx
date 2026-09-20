@@ -19,7 +19,7 @@ import type { Equipment, Id, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
-import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
+import { SNAP, footprint, modelToScreen, objectGuides, screenToModel, snapObjectCentre } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
 import { arrowDelta, marqueeHits, moveObjects, pasteObjects } from './selection-edit';
@@ -364,14 +364,20 @@ export function EquipmentLayer({
     if (container !== undefined) container.style.cursor = cursor;
   };
 
-  /** Start of every gesture: select what is being pulled, remember where from. */
+  /**
+   * Start of every gesture: select what is being pulled, remember where from.
+   * Guides are computed once here, without the objects being moved, so a
+   * thing never snaps to itself (D-208).
+   */
   const beginGesture = (
     event: Konva.KonvaEventObject<unknown>,
     id: string,
     grab: Point = [0, 0],
   ): void => {
     const node = event.target;
-    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab });
+    // Locked members of a group stay put, so they remain something to snap to.
+    const moving = isGroup && group.has(id) ? new Set<Id>(movable.map((member) => member.id)) : new Set<Id>([id]);
+    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab, guides: objectGuides(plan, moving) });
     // Grabbing a member keeps the group and makes that member the primary —
     // the card follows the hand; anything else is a single pick.
     if (isGroup && group.has(id) && onSelectMany !== undefined) {
@@ -431,8 +437,21 @@ export function EquipmentLayer({
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
     const [x, y] = modelToScreen(current.position, viewport);
-    const movedTo = (node: Konva.Node): Point =>
-      snapPosition(screenToModel([node.x(), node.y()], viewport));
+    // Alt during the drag turns snapping off (D-208). The drop reuses what the
+    // last move saw: a key released a moment before the button must not make
+    // the object jump at release.
+    const movedTo = (node: Konva.Node, evt: unknown, phase: 'move' | 'drop'): Point => {
+      const centre = screenToModel([node.x(), node.y()], viewport);
+      const started = guard.started;
+      if (phase === 'move' && started !== null) {
+        started.snapOff = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
+      }
+      const guides = started?.guides;
+      if (started?.snapOff === true || guides === undefined) return snapPosition(centre);
+      return snapPosition(
+        snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale).centre,
+      );
+    };
 
     return (
       <Group
@@ -461,11 +480,11 @@ export function EquipmentLayer({
         }
         onDragStart={(event) => beginGesture(event, object.id)}
         onDragMove={(event) => {
-          const next = { ...object, position: movedTo(event.target) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'move') };
           setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
         }}
         onDragEnd={(event) => {
-          const next = { ...object, position: movedTo(event.target) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'drop') };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
             return;

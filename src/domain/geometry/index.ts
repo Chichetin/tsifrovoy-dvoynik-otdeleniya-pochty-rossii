@@ -7,12 +7,14 @@
  * Geometry only answers where things are and whether they overlap.
  */
 
-import type { Equipment, Opening, Point, Polygon, Wall } from '../../contracts/model';
+import type { Equipment, Id, Opening, PlanDocument, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import { toWorld } from './coordinates';
+import { snapBox, type BoxSnap, type SnapGuides } from './snap';
 import {
   boundingBox,
   boxesOverlap,
+  pointSegmentDistance,
   polygonArea,
   polygonContains,
   polygonsOverlap,
@@ -43,6 +45,59 @@ export {
   type BoundingBox,
   type PointPosition,
 } from './polygons';
+
+export { SNAP, snapAxis, snapBox } from './snap';
+export type { AxisSnap, BoxSnap, SnapGuides, SnapKind } from './snap';
+
+/**
+ * Guides of a plan for moving an object (D-208): the room outline's vertices,
+ * the zones' vertices, the walls' faces (the rectangle of their thickness, not
+ * the centreline — «flush to the wall» must not put the object inside it) and
+ * the boxes of every other object on a visible layer. `exclude` — the objects
+ * being moved: a thing must not snap to itself.
+ */
+export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): SnapGuides {
+  const xs = new Set<number>();
+  const ys = new Set<number>();
+  const add = (point: Point): void => {
+    xs.add(point[0]);
+    ys.add(point[1]);
+  };
+  // A contour or zone vertex on a wall's axis is inside that wall: the wall's
+  // faces are the guides there, and the axis would pull the object into it.
+  const onWallAxis = (point: Point): boolean =>
+    plan.walls.some((wall) => pointSegmentDistance(point, wall.from, wall.to) <= TOLERANCE.coordinate_m);
+  for (const vertex of plan.room.boundary) if (!onWallAxis(vertex)) add(vertex);
+  for (const zone of plan.zones) for (const vertex of zone.polygon) if (!onWallAxis(vertex)) add(vertex);
+  for (const wall of plan.walls) for (const vertex of wallPolygon(wall)) add(vertex);
+  const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
+  for (const object of plan.objects) {
+    if (exclude.has(object.id) || hidden.has(object.layerId)) continue;
+    const box = boundingBox(footprint(object));
+    xs.add(box.minX);
+    xs.add(box.maxX);
+    ys.add(box.minY);
+    ys.add(box.maxY);
+  }
+  return { xs: [...xs], ys: [...ys] };
+}
+
+/**
+ * Where an object lands when its centre is dragged to `centre`: its box at
+ * that centre is snapped and the centre moves with it. Unchanged when nothing
+ * is within tolerance.
+ */
+export function snapObjectCentre(
+  object: Equipment,
+  centre: Point,
+  guides: SnapGuides,
+  step: number | null,
+  tolerance: number,
+): { centre: Point; snap: BoxSnap } {
+  const box = boundingBox(footprint({ ...object, position: centre }));
+  const snap = snapBox(box, guides, step, tolerance);
+  return { centre: [centre[0] + snap.dx, centre[1] + snap.dy], snap };
+}
 
 /** Vertical span an object occupies, from the floor. */
 export type HeightInterval = { base_m: number; top_m: number };
