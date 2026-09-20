@@ -52,16 +52,17 @@ const HOVER_WIDTH_PX = 320;
 const HOVER_GAP_PX = 14;
 
 /**
- * The object as the pointer is currently shaping it; null outside a gesture.
- * `delta` is set while a member of a group is dragged: the other members
- * follow by the same offset in model metres, from their own positions.
- */
-/**
- * What a move snapped to, for the eye (operator 20.09 №3): the world line the
- * object's edge landed on, per axis, and the stage size to draw it across.
+ * What a move snapped to, for the eye (D-215): the world line the object's
+ * edge landed on, per axis, and the stage size to draw it across.
  */
 type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
 
+/**
+ * The object as the pointer is currently shaping it; null outside a gesture.
+ * `delta` is set while a member of a group is dragged: the other members
+ * follow by the same offset in model metres, from their own positions.
+ * `lines` — what the move snapped to, drawn on the selection layer.
+ */
 type Gesture = { id: string; object: Equipment; delta?: Point; lines?: SnapLines };
 
 /**
