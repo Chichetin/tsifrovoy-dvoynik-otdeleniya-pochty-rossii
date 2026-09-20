@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Locator, type Page } from './fixtures';
 import type { PlanDocument } from '../../src/contracts/model';
 import { generateBenchmark } from '../../scripts/generate-benchmark';
 
@@ -48,7 +48,47 @@ async function openDemo(page: Page): Promise<void> {
   await expect(inventoryRows(page)).toHaveCount(demo.objects.length);
 }
 
+async function firstColumnWidth(table: Locator): Promise<number> {
+  return table.locator('col').first().evaluate((column) =>
+    Number.parseFloat((column as HTMLElement).style.width),
+  );
+}
+
+async function widenFirstColumn(page: Page, table: Locator, pixels: number): Promise<void> {
+  const handle = table.getByTestId('column-resize').first();
+  await handle.scrollIntoViewIfNeeded();
+  const box = await handle.boundingBox();
+  if (box === null) throw new Error('ручка ширины не видна');
+  // Левая половина ручки лежит внутри своей ячейки; ровно на границе браузер
+  // может выбрать соседний `th`, хотя визуально указатель стоит на разделителе.
+  const x = box.x + 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x + pixels, y, { steps: 4 });
+  await page.mouse.up();
+}
+
 test.describe('перечень оборудования', () => {
+  test('ширины колонок инвентаризации и площадей тянутся и переживают перезагрузку', async ({ page }) => {
+    await openDemo(page);
+    const inventoryTable = panel(page).locator('table').first();
+    const metricsTable = page.getByLabel('Площади').getByRole('table');
+    const inventoryBefore = await firstColumnWidth(inventoryTable);
+    const metricsBefore = await firstColumnWidth(metricsTable);
+
+    await widenFirstColumn(page, inventoryTable, 24);
+    await widenFirstColumn(page, metricsTable, 24);
+    await expect.poll(() => firstColumnWidth(inventoryTable)).toBeGreaterThan(inventoryBefore);
+    await expect.poll(() => firstColumnWidth(metricsTable)).toBeGreaterThan(metricsBefore);
+    const inventorySaved = await firstColumnWidth(inventoryTable);
+    const metricsSaved = await firstColumnWidth(metricsTable);
+
+    await openDemo(page);
+    await expect.poll(() => firstColumnWidth(panel(page).locator('table').first())).toBe(inventorySaved);
+    await expect.poll(() => firstColumnWidth(page.getByLabel('Площади').getByRole('table'))).toBe(metricsSaved);
+  });
+
   test('сводка по типам сходится со строками перечня', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
