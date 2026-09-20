@@ -30,7 +30,7 @@ import {
   droppedOpeningNotice,
   setNotice,
 } from './notice';
-import { canCommitRing, parentForRing } from './vertex-edit';
+import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
 import { createOpening, createWall, nearestWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
@@ -155,11 +155,14 @@ export const usePlanToolController: UsePlanToolController = ({
       }
 
       // A drawn vertex snaps to the plan's vertices and the grid (D-209);
-      // Alt keeps the click where it was made. The opening above is not a
-      // vertex: it sits on the wall the click hit.
-      const point = event.alt
-        ? event.point
-        : snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale).point;
+      // Alt keeps the click where it was made. Either way it is stored to the
+      // centimetre, like a dragged one (operator №17). The opening above is
+      // not a vertex: it sits on the wall the click hit.
+      const point = roundPoint(
+        event.alt
+          ? event.point
+          : snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale).point,
+      );
 
       if (kind === 'wall.draw') {
         const start = draft?.[0];

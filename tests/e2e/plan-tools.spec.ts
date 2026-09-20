@@ -243,9 +243,10 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
     const snapped = await savePlan(page);
     // Ближе всего внутренняя грань наружной стены (угол контура плюс половина
-    // толщины), а не ось — вершина ложится на неё.
+    // толщины), а не ось — вершина ложится на неё и хранится с точностью до сантиметра.
     const half = (start.walls[0]?.thickness_m ?? 0) / 2;
-    expect(snapped.zones[0]?.polygon[0]).toEqual([corner[0] + half, corner[1] + half]);
+    const cm = (value: number): number => Math.round(value * 100) / 100;
+    expect(snapped.zones[0]?.polygon[0]).toEqual([cm(corner[0] + half), cm(corner[1] + half)]);
 
     await drawRing(page, 'Зона', box({ x: near.x, y: near.y - 200 }), { alt: true });
     await page.keyboard.press('Escape');
@@ -254,7 +255,59 @@ test.describe('инструменты плана', () => {
     if (vertex === undefined) throw new Error('вторая зона не нарисована');
     // Без привязки вершина легла туда, куда кликнули: ни на ось, ни на грань стены.
     expect(vertex[0]).not.toBe(corner[0]);
-    expect(vertex[0]).not.toBe(corner[0] + half);
+    expect(vertex[0]).not.toBe(cm(corner[0] + half));
+  });
+
+  test('ручка вершины притягивается к вершине соседней зоны; с Alt — нет (D-210)', async ({ page }) => {
+    const size = await openEditor(page);
+    await drawPlan(page, size);
+    const start = await savePlan(page);
+    const target = start.zones[0]?.polygon[0];
+    const own = start.zones[1]?.polygon[0];
+    if (target === undefined || own === undefined) throw new Error('зоны не нарисованы');
+
+    // Выбрать вложенную зону и потянуть её первую вершину в 5 см от вершины внешней.
+    await clickAt(page, px(size, 0.45, 0.45));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('z_2');
+    const from = await worldPixel(page, own[0], own[1]);
+    const near = await worldPixel(page, target[0] + 0.05, target[1] + 0.05);
+    await dragAt(page, from, near);
+    await expect.poll(async () => (await savePlan(page)).zones[1]?.polygon[0]).toEqual(target);
+
+    // Угол помещения тянется наружу в точку посередине между узлами сетки: грани
+    // его же наружных стен (0,125 м от старого угла) могут оказаться в допуске, но
+    // направляющими не считаются — вершина ложится туда, куда отпустили (плюс-минус
+    // порог начала drag), с точностью до сантиметра. Мутант «стены остаются» — красный.
+    const corner = start.room.boundary[0];
+    if (corner === undefined) throw new Error('у помещения нет контура');
+    const midway = (value: number): number => Math.floor((value - 0.3) / 0.5) * 0.5 + 0.25;
+    const aim: Point = [midway(corner[0]), midway(corner[1])];
+    // Пол между контуром и внешней зоной: выбирается помещение.
+    await clickAt(page, px(size, 0.12, 0.12));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    await dragAt(page, await worldPixel(page, corner[0], corner[1]), await worldPixel(page, aim[0], aim[1]));
+    await expect
+      .poll(async () => {
+        const moved = (await savePlan(page)).room.boundary[0];
+        return moved === undefined ? null : Math.max(Math.abs(moved[0] - aim[0]), Math.abs(moved[1] - aim[1]));
+      })
+      .toBeLessThan(0.06);
+    const landed = (await savePlan(page)).room.boundary[0];
+    if (landed === undefined) throw new Error('контур пропал');
+    expect(landed.map((value) => Math.round(value * 100) / 100)).toEqual(landed);
+    await page.keyboard.press('Control+z');
+    await clickAt(page, px(size, 0.45, 0.45));
+
+    // Тот же жест с Alt: вершина остаётся в 5 см от соседней.
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await savePlan(page)).zones[1]?.polygon[0]).toEqual(own);
+    await page.keyboard.down('Alt');
+    await dragAt(page, from, near);
+    await page.keyboard.up('Alt');
+    const free = (await savePlan(page)).zones[1]?.polygon[0];
+    if (free === undefined) throw new Error('вершина пропала');
+    expect(free[0]).not.toBe(target[0]);
+    expect(Math.abs(free[0] - target[0] - 0.05)).toBeLessThan(0.02);
   });
 
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {

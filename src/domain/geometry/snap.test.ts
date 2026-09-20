@@ -144,6 +144,13 @@ describe('вершина при рисовании (D-209)', () => {
     for (const zone of plan.zones) for (const vertex of zone.polygon) expect(guides.ys).toContain(vertex[1]);
   });
 
+  test('зона на скрытом слое не даёт направляющих точке', () => {
+    const hiddenPlan: PlanDocument = { ...plan, layers: plan.layers.map((layer) => ({ ...layer, visible: false })) };
+    // В minimal.json зона z_client доходит до x = 7 — этой координаты нет ни у контура, ни у стен.
+    expect(pointGuides(plan).xs).toContain(7);
+    expect(pointGuides(hiddenPlan).xs).not.toContain(7);
+  });
+
   test('ось перегородки — направляющая: конец новой перегородки найдёт начало старой', () => {
     const partition = { ...plan.walls[0]!, id: 'w_part', from: [3, 1] as [number, number], to: [3, 6] as [number, number] };
     const guides = pointGuides({ ...plan, walls: [...plan.walls, partition] });
