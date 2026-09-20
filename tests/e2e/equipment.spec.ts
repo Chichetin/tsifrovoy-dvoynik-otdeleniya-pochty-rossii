@@ -414,6 +414,10 @@ test.describe('жесты над оборудованием', () => {
     await selectRow(page, 0);
     const leftX = await numberOf(page, 'X, м');
     const width = await numberOf(page, 'Ширина, м');
+    await selectRow(page, 1);
+    const rightXBefore = await numberOf(page, 'X, м');
+    const rightYBefore = await numberOf(page, 'Y, м');
+    await selectRow(page, 0);
     const scale = await shownScale(page);
     // Правый стеллаж оказывается на 5 px правее, чем «впритык» к левому: в допуске 8 px.
     const flush = right.x - ((right.x - left.x) / scale - width) * scale;
@@ -435,6 +439,10 @@ test.describe('жесты над оборудованием', () => {
     await page.mouse.move(start.x + 3, start.y + 3);
     await page.mouse.move(end.x, end.y, { steps: 8 });
     await expect.poll(snapLine).toBe(true);
+    // Карточка следует за рукой до mouseup: документ и история ещё не менялись.
+    await expect.poll(() => numberOf(page, 'X, м')).toBeCloseTo(leftX + width, 6);
+    await expect.poll(() => numberOf(page, 'Y, м')).toBeCloseTo(rightYBefore, 6);
+    expect(Math.abs((await numberOf(page, 'X, м')) - rightXBefore)).toBeGreaterThan(0.05);
     await page.mouse.up();
     await expect.poll(snapLine).toBe(false);
     await selectRow(page, 1);
