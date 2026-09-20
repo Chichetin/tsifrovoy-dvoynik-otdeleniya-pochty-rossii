@@ -21,7 +21,7 @@ import type { Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
-import { SNAP, pointGuides, snapPoint } from '../../domain/geometry';
+import { SNAP, pointGuides, settlePoint, snapPoint } from '../../domain/geometry';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
@@ -155,14 +155,13 @@ export const usePlanToolController: UsePlanToolController = ({
       }
 
       // A drawn vertex snaps to the plan's vertices and the grid (D-209);
-      // Alt keeps the click where it was made. Either way it is stored to the
-      // centimetre, like a dragged one (operator №17). The opening above is
-      // not a vertex: it sits on the wall the click hit.
-      const point = roundPoint(
-        event.alt
-          ? event.point
-          : snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale).point,
-      );
+      // Alt keeps the click where it was made. A guide-derived coordinate is
+      // kept as the guide has it, the rest is stored to the centimetre
+      // (operator №17, D-211). The opening above is not a vertex: it sits on
+      // the wall the click hit.
+      const point = event.alt
+        ? roundPoint(event.point)
+        : settlePoint(snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale));
 
       if (kind === 'wall.draw') {
         const start = draft?.[0];

@@ -22,7 +22,7 @@ import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from 
 import { TOLERANCE } from '../../contracts/model';
 import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import { findZoneType } from '../../domain/catalog';
-import { SNAP, modelToScreen, openingCentre, pointGuides, screenToModel, segmentLength, snapPoint, wallPolygon } from '../../domain/geometry';
+import { SNAP, modelToScreen, openingCentre, pointGuides, screenToModel, segmentLength, settlePoint, snapPoint, wallPolygon } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import {
@@ -41,6 +41,7 @@ import {
   moveVertex,
   moveWallEnd,
   removeVertex,
+  roundPoint,
 } from './vertex-edit';
 
 const ROOM_STROKE = '#212529';
@@ -152,8 +153,8 @@ export function PlanGeometryLayer({
     typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
   const handleWorld = (node: Konva.Node, snapOff: boolean, without: PlanDocument): Point => {
     const raw = nodeWorld(node);
-    if (snapOff) return raw;
-    return snapPoint(raw, pointGuides(without), SNAP.grid_m, SNAP.tolerance_px / viewport.scale).point;
+    if (snapOff) return roundPoint(raw);
+    return settlePoint(snapPoint(raw, pointGuides(without), SNAP.grid_m, SNAP.tolerance_px / viewport.scale));
   };
   const withoutVertex = (ref: Ref, polygon: Polygon, index: number): PlanDocument => {
     const rest = polygon.filter((_, at) => at !== index);

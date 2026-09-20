@@ -387,6 +387,29 @@ test.describe('жесты над оборудованием', () => {
     expect(gap).toBeLessThan(8 / scale);
   });
 
+  test('впритык к стене — на грань стены, не в стену: находки «пересекает стену» нет (D-211)', async ({ page }) => {
+    await page.goto('/');
+    const before = JSON.parse(await savePlan(page)) as {
+      room: { boundary: [number, number][] };
+      walls: { thickness_m: number }[];
+    };
+    const east = Math.max(...before.room.boundary.map((vertex) => vertex[0]));
+    const face = east - (before.walls[0]?.thickness_m ?? 0) / 2;
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const width = await numberOf(page, 'Ширина, м');
+    const view = await canvasView(page);
+    const y = await numberOf(page, 'Y, м');
+    // Правая грань в 4 px от внутренней грани стены — в допуске привязки.
+    const target = toScreen(view, face - width / 2, y);
+    await drag(page, centre, { x: target.x - 4, y: target.y });
+    await selectRow(page, 0);
+    // Грань стены 14,875 хранится как есть, а не округляется в стену (14,88).
+    expect((await numberOf(page, 'X, м')) + width / 2).toBeCloseTo(face, 9);
+    await expect(page.getByLabel('Проверка плана')).not.toContainText('пересекает стену');
+  });
+
   test('скрытый слой: объект не выбирается и не удаляется, пока слой не показан', async ({ page }) => {
     await page.goto('/');
     const centre: Screen = { x: 420, y: 330 };

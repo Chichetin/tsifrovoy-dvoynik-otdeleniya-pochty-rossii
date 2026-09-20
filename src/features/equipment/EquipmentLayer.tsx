@@ -448,9 +448,9 @@ export function EquipmentLayer({
       }
       const guides = started?.guides;
       if (started?.snapOff === true || guides === undefined) return snapPosition(centre);
-      return snapPosition(
-        snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale).centre,
-      );
+      // Already settled by the domain: a guide axis keeps the guide's own
+      // millimetres, rounding it to the centimetre would push it into the wall.
+      return snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale).centre;
     };
 
     return (
