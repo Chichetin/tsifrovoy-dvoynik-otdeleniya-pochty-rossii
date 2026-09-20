@@ -27,6 +27,7 @@ import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, polygonArea } from '../../domain/geometry';
+import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 
 type Errors = Record<string, string>;
 
@@ -329,7 +330,7 @@ export function PropertiesPanel({
 
         {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии. */}
         <p className="props__hint" data-testid="props-room-area">
-          Площадь по контуру {polygonArea(room.boundary).toFixed(2)} м², вершин {room.boundary.length}; контур тянется
+          Площадь по контуру {formatArea(polygonArea(room.boundary))}, вершин {room.boundary.length}; контур тянется
           за вершины на плане
         </p>
       </section>
@@ -419,7 +420,7 @@ export function PropertiesPanel({
         <h2 className="panel__title">Свойства объекта</h2>
         {groupMembers.length > 1 ? (
           <p className="props__hint" data-testid="props-group">
-            Выбрано объектов: {groupMembers.length}, суммарно {groupArea.toFixed(2)} м². Стрелки, Delete,
+            Выбрано объектов: {groupMembers.length}, суммарно {formatArea(groupArea)}. Стрелки, Delete,
             Ctrl+C и перетаскивание действуют на всю группу; карточка показывает главный.
           </p>
         ) : null}
@@ -532,8 +533,8 @@ export function PropertiesPanel({
         {/* Концы стены тянутся на плане: править их числами здесь значило бы
             держать две правды об одной геометрии. */}
         <p className="props__hint">
-          Длина {length.toFixed(2)} м, от ({wall.from[0].toFixed(2)}; {wall.from[1].toFixed(2)}) до (
-          {wall.to[0].toFixed(2)}; {wall.to[1].toFixed(2)}); концы тянутся на плане
+          Длина {formatLength(length)}, от ({formatNumber(wall.from[0])}; {formatNumber(wall.from[1])}) до (
+          {formatNumber(wall.to[0])}; {formatNumber(wall.to[1])}); концы тянутся на плане
         </p>
         <p className="props__hint">
           {openings.length === 0
@@ -597,7 +598,7 @@ export function PropertiesPanel({
         <p className="props__hint" data-testid="props-wall">
           {host === undefined
             ? `Стена «${opening.wallId}» не найдена: проём требует пересчёта`
-            : `На перегородке «${host.id}» длиной ${hostLength?.toFixed(2) ?? '—'} м`}
+            : `На перегородке «${host.id}» длиной ${hostLength === null ? '—' : formatLength(hostLength)}`}
         </p>
       </section>
     );

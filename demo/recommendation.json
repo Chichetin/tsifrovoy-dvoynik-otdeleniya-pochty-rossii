@@ -1,8 +1,12 @@
 {
-  "note": "Рекомендация получена расчётом ассистента (src/domain/advice) без обращения к LLM. Числа посчитал код, тексты собраны из шаблонов справочника объяснений.",
-  "mode": "fallback",
-  "fallbackReason": "При сборке комплекта провайдер LLM в окружении не был настроен (нужны LLM_ENDPOINT, LLM_MODEL и LLM_API_KEY, см. .env.example), поэтому использован обязательный режим без модели (D-016): показан расчёт с шаблонным объяснением.",
-  "llm": null,
+  "note": "Рекомендация получена расчётом ассистента (src/domain/advice); объяснение — код причины, вариант размещения и факты — выбрала модель через маршрут /api/advice, и выбор прошёл проверку кодом (verifyExplanation). Числа посчитал код, модель их не меняла; тексты собраны из шаблонов справочника объяснений по выбору модели.",
+  "mode": "llm",
+  "fallbackReason": null,
+  "llm": {
+    "provider": "deepseek-via-yandex-ai-studio",
+    "model": "gpt://<folder_ID>/deepseek-v4-flash",
+    "date": "2026-09-20"
+  },
   "generatedBy": "npx tsx demo/build.ts",
   "planId": "plan_demo_ops_synthetic",
   "requests": [
@@ -1460,8 +1464,10 @@
       "reasonCode": "placement.available",
       "factIds": [
         "adv_place_ot_bench_z_waiting.area.free.current",
-        "adv_ot_bench_1.area.free.after",
         "adv_place_ot_bench_z_waiting.equipment.count.current",
+        "adv_ot_bench_1.area.free.current",
+        "adv_ot_bench_1.area.free.after",
+        "adv_ot_bench_1.equipment.count.current",
         "adv_ot_bench_1.equipment.count.after"
       ]
     },
@@ -1471,8 +1477,10 @@
       "reasonCode": "placement.available",
       "factIds": [
         "adv_place_ot_queue_terminal_z_entrance.area.free.current",
-        "adv_ot_queue_terminal_1.area.free.after",
         "adv_place_ot_queue_terminal_z_entrance.equipment.count.current",
+        "adv_ot_queue_terminal_1.area.free.current",
+        "adv_ot_queue_terminal_1.area.free.after",
+        "adv_ot_queue_terminal_1.equipment.count.current",
         "adv_ot_queue_terminal_1.equipment.count.after"
       ]
     },
@@ -1483,8 +1491,7 @@
       "factIds": [
         "adv_compare.area.free.before",
         "adv_compare.area.free.after",
-        "adv_compare.area.free.delta",
-        "adv_compare.area.occupied.delta"
+        "adv_compare.area.free.delta"
       ]
     }
   ],

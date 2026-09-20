@@ -70,7 +70,10 @@ test.describe('развёрнутый сервис', () => {
   test('health отвечает ok', async ({ request }) => {
     const response = await request.get(`${DEPLOY_URL}/api/health`);
     expect(response.status()).toBe(200);
-    expect(await response.json()).toEqual({ status: 'ok' });
+    const body = (await response.json()) as { status: string; llm: { configured: boolean } };
+    expect(body.status).toBe('ok');
+    // Режим ассистента виден по адресу сервиса: с ключом на сервере — true.
+    expect(typeof body.llm.configured).toBe('boolean');
   });
 
   test('SPA отдаётся с того же адреса, включая прямую ссылку', async ({ page }) => {

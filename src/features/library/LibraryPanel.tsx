@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import type { ObjectType } from '../../contracts/model';
 import type { LibraryPanelProps } from '../../contracts/ui';
+import { formatShort, NBSP } from '../../domain/number-format';
 
 function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
   const groups = new Map<string, ObjectType[]>();
@@ -38,6 +39,7 @@ export function LibraryPanel({ catalog, onTool }: LibraryPanelProps): React.JSX.
         className="panel__search"
         type="search"
         value={query}
+        aria-label="Поиск в библиотеке"
         placeholder="Поиск по названию или категории"
         onChange={(event) => setQuery(event.target.value)}
       />
@@ -54,10 +56,11 @@ export function LibraryPanel({ catalog, onTool }: LibraryPanelProps): React.JSX.
                   title={type.provenance}
                   onClick={() => onTool({ kind: 'object.place', typeId: type.id })}
                 >
-                  <span className="library__swatch" style={{ background: type.color }} />
+                  <span className="library__swatch" style={{ background: type.color }} aria-hidden="true" />
                   <span className="library__label">{type.label}</span>
                   <span className="library__size">
-                    {type.defaultSize_m[0]}×{type.defaultSize_m[1]} м
+                    {formatShort(type.defaultSize_m[0], 2)}×{formatShort(type.defaultSize_m[1], 2)}
+                    {NBSP}м
                   </span>
                 </button>
               </li>

@@ -17,9 +17,11 @@
  */
 
 import { useCallback, useRef, useState } from 'react';
-import type { Id, Point, Polygon } from '../../contracts/model';
+import type { Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
+import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
+import { SNAP, pointGuides, snapPoint } from '../../domain/geometry';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
@@ -28,18 +30,11 @@ import {
   droppedOpeningNotice,
   setNotice,
 } from './notice';
-import { canCommitRing, parentForRing } from './vertex-edit';
+import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
 import { createOpening, createWall, nearestWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
-
-function nextId(prefix: string, taken: Set<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `${prefix}${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
 
 export const usePlanToolController: UsePlanToolController = ({
   document: plan,
@@ -75,7 +70,8 @@ export const usePlanToolController: UsePlanToolController = ({
           return true;
         }
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
-        const taken = new Set<Id>([...plan.zones.map((zone) => zone.id), ...(session.retired ?? [])]);
+        // One id space for the whole plan plus what a delete retired this session (D-198).
+        const taken = takenIds(plan, session.retired);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
         // Every content layer locked: address the first one anyway, so the
@@ -84,7 +80,7 @@ export const usePlanToolController: UsePlanToolController = ({
           editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
-        const id = nextId('z_', taken);
+        const id = nextFreeId('z_', taken);
         onCommand({
           type: 'zone.put',
           zone: {
@@ -105,21 +101,13 @@ export const usePlanToolController: UsePlanToolController = ({
         committing.current = false;
       }
     },
-    [
-      kind,
-      onCommand,
-      plan.catalog.zoneTypes,
-      plan.layers,
-      plan.openings,
-      plan.zones,
-      session.retired,
-    ],
+    [kind, onCommand, plan, session.retired],
   );
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
   const drawWall = useCallback(
     (from: Point, to: Point): boolean => {
-      const taken = new Set<Id>([...plan.walls.map((entry) => entry.id), ...(session.retired ?? [])]);
+      const taken = takenIds(plan, session.retired);
       const wall = createWall(from, to, plan.room, taken);
       if (wall === null) {
         setNotice(WALL_TOO_SHORT_NOTICE);
@@ -129,7 +117,7 @@ export const usePlanToolController: UsePlanToolController = ({
       setNotice(null);
       return true;
     },
-    [onCommand, plan.room, plan.walls, session.retired],
+    [onCommand, plan, session.retired],
   );
 
   /** Проём на стене под курсором; мимо стены — объяснение, а не тишина. */
@@ -140,8 +128,7 @@ export const usePlanToolController: UsePlanToolController = ({
         setNotice(NO_WALL_UNDER_POINTER_NOTICE);
         return;
       }
-      // Openings are retired by opening.delete and by wall.delete alike.
-      const taken = new Set<Id>([...plan.openings.map((entry) => entry.id), ...(session.retired ?? [])]);
+      const taken = takenIds(plan, session.retired);
       // Вид проёма правится карточкой свойств; ставим обычную дверь.
       const opening = createOpening(hit.wall, point, 'door', taken);
       if (opening === null) {
@@ -151,7 +138,7 @@ export const usePlanToolController: UsePlanToolController = ({
       onCommand({ type: 'opening.put', opening });
       setNotice(null);
     },
-    [onCommand, plan.openings, plan.walls, session.retired],
+    [onCommand, plan, session.retired],
   );
 
   const handlePointer = useCallback(
@@ -167,15 +154,25 @@ export const usePlanToolController: UsePlanToolController = ({
         return;
       }
 
+      // A drawn vertex snaps to the plan's vertices and the grid (D-209);
+      // Alt keeps the click where it was made. Either way it is stored to the
+      // centimetre, like a dragged one (operator №17). The opening above is
+      // not a vertex: it sits on the wall the click hit.
+      const point = roundPoint(
+        event.alt
+          ? event.point
+          : snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale).point,
+      );
+
       if (kind === 'wall.draw') {
         const start = draft?.[0];
         // Первый клик запоминает начало, второй заканчивает перегородку.
         if (start === undefined) {
           setNotice(null);
-          setDraft([event.point]);
+          setDraft([point]);
           return;
         }
-        if (drawWall(start, event.point)) setDraft(null);
+        if (drawWall(start, point)) setDraft(null);
         return;
       }
 
@@ -183,6 +180,8 @@ export const usePlanToolController: UsePlanToolController = ({
 
       const current = draft ?? [];
       const first = current[0];
+      // Closing is judged by where the click landed, not by where it snapped:
+      // a click next to the first vertex may snap to the next grid node.
       const closes =
         current.length >= 3 &&
         first !== undefined &&
@@ -194,9 +193,9 @@ export const usePlanToolController: UsePlanToolController = ({
         if (commit(current)) setDraft(null);
         return;
       }
-      setDraft([...current, event.point]);
+      setDraft([...current, point]);
     },
-    [commit, draft, drawWall, kind, placeOpening],
+    [commit, draft, drawWall, kind, placeOpening, plan, session.viewport.scale],
   );
 
   return { handlePointer, cancel, draft };

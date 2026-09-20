@@ -61,6 +61,8 @@
 
 ## 3. «id → человеческое название» существует в трёх видах (Strong)
 
+**Статус 20.09:** исправлено в части общего модуля (D-202): `src/domain/plan-index.ts` — `planIndex(plan)` на `Map`, одно правило «нет сущности → null»; `refName` (`validation/naming.ts`) удалён, `namingOf`/`RAW_IDS` в `inventory/rows.ts` заменены индексом, `equipmentSubject`/`candidateZone` ассистента зовут индекс. Не сделано: `document?` в `InventoryPanelViewProps`/`ValidationPanelViewProps` остаётся (замена на индекс в пропсах — контрактный MR, D-124), прямые `plan.zones.find` в `PropertiesPanel`/`PlanGeometryLayer`/`MetricsPanel` — UI, следующий пакет.
+
 **Где:** `src/features/validation/naming.ts:13` (`refName`),
 `src/features/inventory/rows.ts:26` (`namingOf` + `display`),
 `src/features/assistant/AssistantPanel.tsx:64` (`equipmentSubject`),
@@ -80,6 +82,8 @@
 не нужны как расширение контракта (это же снимает долг по D-124 из «Что дальше»).
 
 ## 4. Примитивы геометрии живут копиями вне `domain/geometry` (Strong)
+
+**Статус 20.09:** исправлено (D-199): `segmentLength`, `projectOnSegment`, `pointSegmentDistance`, `wallLength`, `wallSpanPolygon` экспортированы из `domain/geometry`; родитель зоны — `parentZoneFor` в `domain/relations`, его зовут рисование и импорт; копии в `vertex-edit`, `wall-draft`, `organizer-import`, `commands`, `view3d`, `plan-svg`, `validation` удалены. Тест «зона из файла и та же зона, нарисованная последней, получают одного родителя» — `relations.test.ts`. `onSegment` в `room-walls` переведён на `pointSegmentDistance`; не тронуты `Math.hypot` в `domain/advice` и `collinear` в `room-walls` (расстояния между точками, без второго правила), копия `zoneDepth` в `view3d/scene.ts` убрана 20.09 (цикл родителей → зона на полу, тест в `scene.test.ts`) и в `features/properties`/`PlanGeometryLayer` (показ длины).
 
 **Где (проверено `grep`):**
 
@@ -143,6 +147,8 @@ Delete для объекта живёт отдельно от `src/features/plan
 проверяется unit-тестом, а не только `tests/e2e/equipment.spec.ts`.
 
 ## 7. Четыре генератора `id`, ни один не видит удалённые (Worth exploring)
+
+**Статус 20.09:** исправлено (D-198): `nextFreeId`/`takenIds`/`freshId` в `src/domain/commands`, приватные генераторы удалены (к четырём добавился пятый — `nextObjectId` в `selection-edit`, теперь тонкая обёртка); удалённые id инструменты видят через `EditorSession.retired` (D-156). Тест «свежий id не совпадает ни с сущностью плана, ни с удалённым» — `commands.test.ts`, без UI. Щель «`room.set` внутри чистого `applyCommand` удалённых не видит» закрыта 20.09 (D-204): `applyCommand(plan, command, retired)` — store передаёт набор, пакет пробрасывает его шагам.
 
 **Где:** `src/features/plan-tools/use-plan-tool-controller.ts:35`,
 `src/features/plan-tools/wall-draft.ts:38`,

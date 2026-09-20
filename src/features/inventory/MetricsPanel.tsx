@@ -9,6 +9,7 @@
 
 import type { Issue, Metrics, PlanDocument, Result } from '../../contracts/model';
 import type { FocusSink } from '../../contracts/ui';
+import { formatArea, formatNumber } from '../../domain/number-format';
 
 export type MetricsPanelProps = {
   document: PlanDocument;
@@ -16,10 +17,12 @@ export type MetricsPanelProps = {
   onFocus: FocusSink;
 };
 
-/** Areas are shown to a hundredth: the model is in metres, not in pixels. */
-function m2(value: number): string {
-  return `${value.toFixed(2)} м²`;
-}
+/**
+ * Areas are shown to a hundredth, with a decimal comma and a glued unit. In the
+ * zone table the unit is said once, in the caption: a 316 px panel wrapped
+ * «63.00 м²» onto two lines and made the columns jump.
+ */
+const m2 = formatArea;
 
 function firstBroken(issues: Issue[]): Issue | undefined {
   return issues[0];
@@ -67,13 +70,14 @@ export function MetricsPanel({
       {named.length === 0 ? (
         <p className="panel__empty">Зоны ещё не размечены</p>
       ) : (
-        <table className="table">
+        <table className="table metrics__table">
+          <caption className="metrics__caption">Площади зон, м²</caption>
           <thead>
             <tr>
               <th scope="col">Зона</th>
-              <th scope="col">Всего</th>
-              <th scope="col">Занято</th>
-              <th scope="col">Свободно</th>
+              <th scope="col" className="metrics__num">Всего</th>
+              <th scope="col" className="metrics__num">Занято</th>
+              <th scope="col" className="metrics__num">Свободно</th>
             </tr>
           </thead>
           <tbody>
@@ -88,9 +92,9 @@ export function MetricsPanel({
                     {zone.name}
                   </button>
                 </td>
-                <td>{area === undefined ? '—' : m2(area.total_m2)}</td>
-                <td>{area === undefined ? '—' : m2(area.occupied_m2)}</td>
-                <td>{area === undefined ? '—' : m2(area.free_m2)}</td>
+                <td className="metrics__num">{area === undefined ? '—' : formatNumber(area.total_m2)}</td>
+                <td className="metrics__num">{area === undefined ? '—' : formatNumber(area.occupied_m2)}</td>
+                <td className="metrics__num">{area === undefined ? '—' : formatNumber(area.free_m2)}</td>
               </tr>
             ))}
           </tbody>

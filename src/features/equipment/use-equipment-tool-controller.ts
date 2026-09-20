@@ -7,9 +7,9 @@
  */
 
 import { useCallback } from 'react';
-import type { Id } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { defaultAttributes, findObjectType } from '../../domain/catalog';
+import { takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { nextObjectId } from './selection-edit';
 import { snapPosition } from './transform';
@@ -40,7 +40,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
       // the store refuses to resurrect the latter (D-019), so «удалить → поставить
       // снова» must not offer them. Один генератор с вставкой из буфера
       // (`nextObjectId`): два номерователя рядом рано или поздно выдадут один id.
-      const taken = new Set<Id>([...plan.objects.map((object) => object.id), ...(session.retired ?? [])]);
+      const taken = takenIds(plan, session.retired);
       onCommand({
         type: 'object.put',
         object: {
@@ -59,7 +59,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
         },
       });
     },
-    [onCommand, plan.catalog, plan.layers, plan.objects, session.retired, tool],
+    [onCommand, plan, session.retired, tool],
   );
 
   return { handlePointer, cancel: () => undefined, draft: null };

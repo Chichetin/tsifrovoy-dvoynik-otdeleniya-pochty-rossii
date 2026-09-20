@@ -13,6 +13,7 @@
  */
 
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
+import { nextFreeId } from '../../domain/commands';
 import { footprint, intersects } from '../../domain/geometry';
 import { snapPosition } from './transform';
 
@@ -60,16 +61,9 @@ export function moveObjects(objects: readonly Equipment[], delta: Point): Equipm
   }));
 }
 
-/**
- * Первый свободный `eq_<n>`. `taken` — это и то, что на плане, и то, что
- * удалено в этой сессии (`PlanStore.retired`, D-156): повторно занятый id
- * команда отклонит с `ID_REUSED`.
- */
-export function nextObjectId(taken: ReadonlySet<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `eq_${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
+/** Объекты — `eq_<n>`; правило выдачи одно на весь план (`nextFreeId`, D-198). */
+export function nextObjectId(taken: Set<Id>): Id {
+  return nextFreeId('eq_', taken);
 }
 
 /**
@@ -89,7 +83,6 @@ export function pasteObjects(
   const [dx, dy] = PASTE_OFFSET_M;
   return source.map((object) => {
     const id = nextObjectId(used);
-    used.add(id);
     return {
       ...object,
       id,

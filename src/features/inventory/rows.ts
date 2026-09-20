@@ -12,26 +12,12 @@
  * these functions only group, name and filter what it returned.
  */
 
-import type { Equipment, Id, Inventory, PlanDocument } from '../../contracts/model';
+import type { Equipment, Id, Inventory } from '../../contracts/model';
+import type { PlanIndex } from '../../domain/plan-index';
 
 /** Human names for ids taken from the plan; `null` means "no such id there". */
-export type Naming = {
-  typeLabel: (typeId: Id) => string | null;
-  zoneName: (zoneId: Id) => string | null;
-};
-
-/** Every id stays raw: the panel is rendered without a document. */
-export const RAW_IDS: Naming = { typeLabel: () => null, zoneName: () => null };
-
-export function namingOf(plan: PlanDocument | undefined): Naming {
-  if (plan === undefined) return RAW_IDS;
-  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type.label]));
-  const zones = new Map(plan.zones.map((zone) => [zone.id, zone.name]));
-  return {
-    typeLabel: (typeId) => types.get(typeId) ?? null,
-    zoneName: (zoneId) => zones.get(zoneId) ?? null,
-  };
-}
+/** Names for the rows: the document's own index (D-202); `EMPTY_INDEX` keeps every id raw. */
+export type Naming = Pick<PlanIndex, 'objectTypeLabel' | 'zoneName'>;
 
 export type TypeSummaryRow = { typeId: Id; label: string | null; count: number };
 
@@ -90,7 +76,7 @@ export function display(name: string | null, id: Id): string {
 export function typeSummary(inventory: Inventory, naming: Naming): TypeSummaryRow[] {
   return Object.entries(inventory.byType)
     .filter(([, count]) => count > 0)
-    .map(([typeId, count]) => ({ typeId, label: naming.typeLabel(typeId), count }))
+    .map(([typeId, count]) => ({ typeId, label: naming.objectTypeLabel(typeId), count }))
     .sort(
       (a, b) =>
         b.count - a.count || display(a.label, a.typeId).localeCompare(display(b.label, b.typeId), 'ru'),
@@ -127,7 +113,7 @@ export function zoneSummary(inventory: Inventory, naming: Naming): ZoneSummaryRo
 
 export function objectRows(inventory: Inventory, naming: Naming): ObjectRow[] {
   return inventory.rows.map((object) => {
-    const typeLabel = naming.typeLabel(object.typeId);
+    const typeLabel = naming.objectTypeLabel(object.typeId);
     const zoneName = object.zoneId === null ? null : naming.zoneName(object.zoneId);
     return {
       id: object.id,

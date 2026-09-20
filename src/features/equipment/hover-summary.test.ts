@@ -2,6 +2,7 @@ import { describe, expect, test } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
 import type { Issue } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
+import { planIndex } from '../../domain/plan-index';
 import { equipmentHoverSummary } from './hover-summary';
 
 function plan() {
@@ -20,7 +21,7 @@ describe('подсказка объекта', () => {
       size_m: [1.25, 0.5] as [number, number],
       rotation_deg: 37,
     };
-    const summary = equipmentHoverSummary(document, object, []);
+    const summary = equipmentHoverSummary(planIndex(document), object, []);
     const type = document.catalog.objectTypes.find((entry) => entry.id === object.typeId)!;
     const zone = document.zones.find((entry) => entry.id === object.zoneId)!;
 
@@ -47,7 +48,7 @@ describe('подсказка объекта', () => {
       { code: 'ERROR', severity: 'error', message: 'Ошибка объекта', refs: [{ kind: 'object', id: object.id }] },
     ];
 
-    const summary = equipmentHoverSummary(document, object, issues);
+    const summary = equipmentHoverSummary(planIndex(document), object, issues);
     expect(summary.lines).toContain('Тип: ot_missing');
     expect(summary.lines).toContain('Зона: z_missing');
     expect(summary.lines).toContain('Инв. №: —');

@@ -56,9 +56,12 @@ async function onPage(page: Page, point: Pixel): Promise<Pixel> {
   return { x: rect.x + point.x, y: rect.y + point.y };
 }
 
-async function clickAt(page: Page, point: Pixel): Promise<void> {
+async function clickAt(page: Page, point: Pixel, options: { alt?: boolean } = {}): Promise<void> {
   const target = await onPage(page, point);
+  // Alt: вершина ложится ровно под курсор, без привязки к сетке и соседям (D-209).
+  if (options.alt) await page.keyboard.down('Alt');
   await page.mouse.click(target.x, target.y);
+  if (options.alt) await page.keyboard.up('Alt');
 }
 
 async function dblclickAt(page: Page, point: Pixel): Promise<void> {
@@ -110,9 +113,9 @@ async function zoneArea(page: Page, name: string): Promise<string> {
   return ((await row.locator('td').nth(1).textContent()) ?? '').trim();
 }
 
-/** «12.34 м²» → 12.34: площадь нужна числом там, где сравнение с допуском. */
+/** «1 234,56» → 1234.56: площадь нужна числом там, где сравнение с допуском. */
 async function zoneAreaValue(page: Page, name: string): Promise<number> {
-  return Number.parseFloat(await zoneArea(page, name));
+  return Number((await zoneArea(page, name)).replace(/\s/g, '').replace(',', '.'));
 }
 
 async function savePlanFile(page: Page): Promise<string> {
@@ -134,12 +137,13 @@ async function drawRing(
   page: Page,
   tool: 'Помещение' | 'Зона',
   ring: Pixel[],
+  options: { alt?: boolean } = {},
 ): Promise<void> {
   await page.getByRole('button', { name: tool, exact: true }).click();
-  for (const point of ring) await clickAt(page, point);
+  for (const point of ring) await clickAt(page, point, options);
   const first = ring[0];
   if (first === undefined) throw new Error('пустой контур');
-  await clickAt(page, first);
+  await clickAt(page, first, options);
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
@@ -171,13 +175,17 @@ function ring(size: Rect, fractions: readonly (readonly [number, number])[]): Pi
   return fractions.map(([fx, fy]) => px(size, fx, fy));
 }
 
-/** Помещение и две зоны: внешняя и нарисованная внутри неё вложенная. */
+/**
+ * Помещение и две зоны: внешняя и нарисованная внутри неё вложенная. Рисуется
+ * с Alt: тесты ниже целятся в вершины и рёбра по тем же долям сцены, и привязка
+ * (D-209) сдвинула бы вершины относительно кликов.
+ */
 async function drawPlan(page: Page, size: Rect): Promise<void> {
-  await drawRing(page, 'Помещение', ring(size, ROOM));
+  await drawRing(page, 'Помещение', ring(size, ROOM), { alt: true });
   await page.keyboard.press('Escape');
-  await drawRing(page, 'Зона', ring(size, OUTER));
+  await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
   await page.keyboard.press('Escape');
-  await drawRing(page, 'Зона', ring(size, INNER));
+  await drawRing(page, 'Зона', ring(size, INNER), { alt: true });
   await page.keyboard.press('Escape');
 }
 
@@ -218,6 +226,90 @@ test.describe('инструменты плана', () => {
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
   });
 
+  test('вершина зоны у угла помещения ложится ровно на грань стены; с Alt — куда кликнули (D-209)', async ({
+    page,
+  }) => {
+    await openEditor(page);
+    const start = await savePlan(page);
+    const corner = start.room.boundary[0];
+    if (corner === undefined) throw new Error('у помещения нет контура');
+    // Клик в 0,1 м внутрь от угла по обеим осям: до внутренней грани стены
+    // (0,125 м от оси) — 0,025 м, до оси — 0,1 м; в допуске 8 px при любом
+    // масштабе до 320 px/м.
+    const near = await worldPixel(page, corner[0] + 0.1, corner[1] + 0.1);
+    const box = (from: Pixel): Pixel[] => [from, { x: from.x + 150, y: from.y }, { x: from.x + 150, y: from.y - 120 }, { x: from.x, y: from.y - 120 }];
+
+    await drawRing(page, 'Зона', box(near));
+    await page.keyboard.press('Escape');
+    const snapped = await savePlan(page);
+    // Ближе всего внутренняя грань наружной стены (угол контура плюс половина
+    // толщины), а не ось — вершина ложится на неё и хранится с точностью до сантиметра.
+    const half = (start.walls[0]?.thickness_m ?? 0) / 2;
+    const cm = (value: number): number => Math.round(value * 100) / 100;
+    expect(snapped.zones[0]?.polygon[0]).toEqual([cm(corner[0] + half), cm(corner[1] + half)]);
+
+    await drawRing(page, 'Зона', box({ x: near.x, y: near.y - 200 }), { alt: true });
+    await page.keyboard.press('Escape');
+    const free = await savePlan(page);
+    const vertex = free.zones[1]?.polygon[0];
+    if (vertex === undefined) throw new Error('вторая зона не нарисована');
+    // Без привязки вершина легла туда, куда кликнули: ни на ось, ни на грань стены.
+    expect(vertex[0]).not.toBe(corner[0]);
+    expect(vertex[0]).not.toBe(cm(corner[0] + half));
+  });
+
+  test('ручка вершины притягивается к вершине соседней зоны; с Alt — нет (D-210)', async ({ page }) => {
+    const size = await openEditor(page);
+    await drawPlan(page, size);
+    const start = await savePlan(page);
+    const target = start.zones[0]?.polygon[0];
+    const own = start.zones[1]?.polygon[0];
+    if (target === undefined || own === undefined) throw new Error('зоны не нарисованы');
+
+    // Выбрать вложенную зону и потянуть её первую вершину в 5 см от вершины внешней.
+    await clickAt(page, px(size, 0.45, 0.45));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('z_2');
+    const from = await worldPixel(page, own[0], own[1]);
+    const near = await worldPixel(page, target[0] + 0.05, target[1] + 0.05);
+    await dragAt(page, from, near);
+    await expect.poll(async () => (await savePlan(page)).zones[1]?.polygon[0]).toEqual(target);
+
+    // Угол помещения тянется наружу в точку посередине между узлами сетки: грани
+    // его же наружных стен (0,125 м от старого угла) могут оказаться в допуске, но
+    // направляющими не считаются — вершина ложится туда, куда отпустили (плюс-минус
+    // порог начала drag), с точностью до сантиметра. Мутант «стены остаются» — красный.
+    const corner = start.room.boundary[0];
+    if (corner === undefined) throw new Error('у помещения нет контура');
+    const midway = (value: number): number => Math.floor((value - 0.3) / 0.5) * 0.5 + 0.25;
+    const aim: Point = [midway(corner[0]), midway(corner[1])];
+    // Пол между контуром и внешней зоной: выбирается помещение.
+    await clickAt(page, px(size, 0.12, 0.12));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    await dragAt(page, await worldPixel(page, corner[0], corner[1]), await worldPixel(page, aim[0], aim[1]));
+    await expect
+      .poll(async () => {
+        const moved = (await savePlan(page)).room.boundary[0];
+        return moved === undefined ? null : Math.max(Math.abs(moved[0] - aim[0]), Math.abs(moved[1] - aim[1]));
+      })
+      .toBeLessThan(0.06);
+    const landed = (await savePlan(page)).room.boundary[0];
+    if (landed === undefined) throw new Error('контур пропал');
+    expect(landed.map((value) => Math.round(value * 100) / 100)).toEqual(landed);
+    await page.keyboard.press('Control+z');
+    await clickAt(page, px(size, 0.45, 0.45));
+
+    // Тот же жест с Alt: вершина остаётся в 5 см от соседней.
+    await page.keyboard.press('Control+z');
+    await expect.poll(async () => (await savePlan(page)).zones[1]?.polygon[0]).toEqual(own);
+    await page.keyboard.down('Alt');
+    await dragAt(page, from, near);
+    await page.keyboard.up('Alt');
+    const free = (await savePlan(page)).zones[1]?.polygon[0];
+    if (free === undefined) throw new Error('вершина пропала');
+    expect(free[0]).not.toBe(target[0]);
+    expect(Math.abs(free[0] - target[0] - 0.05)).toBeLessThan(0.02);
+  });
+
   test('контур помещения и вложенной зоны правится на плане', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -226,10 +318,10 @@ test.describe('инструменты плана', () => {
     const card = page.getByLabel('Свойства');
 
     // Помещение из шаблона — 12 × 9 м; нарисованное считается по контуру.
-    expect(await roomArea(page)).toBe('108.00 м²');
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
     await drawRing(page, 'Помещение', ring(size, ROOM));
     const drawnRoom = await roomArea(page);
-    expect(drawnRoom).not.toBe('108.00 м²');
+    expect(drawnRoom).not.toBe('108,00\u00a0м²');
 
     // Готовое помещение правится на плане: выбрать и подвинуть вершину.
     await clickAt(page, px(size, 0.5, 0.5));
@@ -280,7 +372,7 @@ test.describe('инструменты плана', () => {
 
     await page.getByTestId('plan-file-input').setInputFiles(file);
     await expect.poll(() => zoneArea(page, 'Зона 2')).toBe(moved);
-    expect(await roomArea(page)).not.toBe('108.00 м²');
+    expect(await roomArea(page)).not.toBe('108,00\u00a0м²');
 
     expect(errors).toEqual([]);
   });

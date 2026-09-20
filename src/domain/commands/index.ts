@@ -26,8 +26,12 @@ import type {
 import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
+import { normalizeAngle } from '../geometry';
 import { hasZoneCycle, reconcileZones } from '../relations';
+import { nextFreeId } from './ids';
 import { outerWallIds, rebuildOuterWalls } from './room-walls';
+
+export { nextFreeId } from './ids';
 
 /**
  * Thickness for outer walls of a plan that had none (team assumption, D-134).
@@ -65,6 +69,16 @@ function fail(code: string, message: string, refs: Ref[]): Result<never> {
 
 function failWith(issues: Issue[]): Result<never> {
   return { ok: false, issues };
+}
+
+/** Every id the plan holds plus the ids retired this session: what a new id must avoid (D-198). */
+export function takenIds(plan: PlanDocument, retired: Iterable<Id> = []): Set<Id> {
+  return new Set<Id>([...idOwners(plan).keys(), ...retired]);
+}
+
+/** A fresh `<prefix><n>` for an entity about to be put on the plan: not on it, not retired. */
+export function freshId(prefix: string, plan: PlanDocument, retired: Iterable<Id> = []): Id {
+  return nextFreeId(prefix, takenIds(plan, retired));
 }
 
 /** Every id the document uses, mapped to the kind that owns it. */
@@ -221,8 +235,7 @@ function checkPolygon(ref: Ref, polygon: Polygon, field: string): Result<null> {
 
 /** `rotation_deg` is normalised by the command, as contracts-v1.md requires. */
 function normaliseRotation(degrees: number): number {
-  const wrapped = degrees % 360;
-  return wrapped < 0 ? wrapped + 360 : wrapped;
+  return normalizeAngle(degrees);
 }
 
 /** Relations are recomputed after any edit that can move an object between zones. */
@@ -528,7 +541,18 @@ function replaceCatalog(plan: PlanDocument, catalog: Catalog): Result<PlanDocume
   return { ok: true, value: { ...plan, catalog, zones, objects } };
 }
 
-export function applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument> {
+/**
+ * Apply one command to a plan. The function is pure: the plan it returns is a
+ * new document, and the one it got stays untouched. `retired` is what the
+ * session has deleted (D-019): the one command that mints ids itself —
+ * `room.set` rebuilding the outer walls — must not hand a retired id to a new
+ * wall, and a pure function cannot know the session's deletions on its own.
+ */
+export function applyCommand(
+  plan: PlanDocument,
+  command: Command,
+  retired: Iterable<Id> = [],
+): Result<PlanDocument> {
   switch (command.type) {
     case 'room.set': {
       const ref: Ref = { kind: 'room', id: plan.room.id };
@@ -539,7 +563,7 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       const rebuilt = rebuildOuterWalls(plan.walls, plan.openings, plan.room.boundary, command.boundary, {
         thickness_m: OUTER_WALL_THICKNESS_M,
         height_m: plan.room.ceilingHeight_m,
-      }, [...idOwners(plan)].filter(([, kind]) => kind !== 'wall').map(([id]) => id));
+      }, [...[...idOwners(plan)].filter(([, kind]) => kind !== 'wall').map(([id]) => id), ...retired]);
       const entrances = checkEntrancesRetained(plan, rebuilt.openings);
       if (!entrances.ok) return entrances;
       return withRelations({
@@ -677,7 +701,7 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       // caller keeps the plan it started from.
       let current = plan;
       for (const step of command.commands) {
-        const result = applyCommand(current, step);
+        const result = applyCommand(current, step, retired);
         if (!result.ok) return result;
         current = result.value;
       }

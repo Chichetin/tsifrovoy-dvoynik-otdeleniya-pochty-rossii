@@ -9,7 +9,7 @@
 |---|---|---|---|
 | Код | [GitLab](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii) и [README](../README.md) | Репозиторий есть; commit сдачи ещё не зафиксирован | Открыть ссылку без локальных файлов, сверить `origin/main` с commit сдачи |
 | Редактор | Публичный адрес в README | **Не указан:** площадка не выбрана | Открыть URL с другой сети, пройти сценарий и API health |
-| Демо | [`output/demo/ops-digital-twin-demo.zip`](../output/demo/ops-digital-twin-demo.zip) по E01, в git; `tests/demo.test.ts` сверяет его со свежей сборкой | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 643 Б (после D-188), пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
+| Демо | [`output/demo/ops-digital-twin-demo.zip`](../output/demo/ops-digital-twin-demo.zip) по E01, в git; `tests/demo.test.ts` сверяет его со свежей сборкой | [MR !48](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/48) слит в `main` (`f65fcc9`); локальный архив 25 784 Б (после D-206, с моделью), пять файлов | `npm run package:demo`; оба файла из ZIP открываются браузерным тестом (2/2), `Expand-Archive` распаковал 5/5 с совпадающими SHA-256; после выбора commit сдачи повторить |
 | Презентация | Один [PDF](../output/pdf/posttech-digital-twin-2026-09-18.pdf) ≤ 20 МБ | Черновик создан: 6 страниц, 301 567 Б; [факты для слайдов](presentation-facts.md). К форме сдачи ещё не прикреплён | PDF распечатан в PNG и осмотрен постранично, текст извлечён `pypdf`; перед сдачей участник проверяет содержание и прикрепляет один файл |
 
 Приёмка на релизной версии: зафиксировать SHA из `origin/main`, выполнить
@@ -31,9 +31,10 @@ E01 не подменяют проверку публичного адреса. 
 
 ### Пересобрать ZIP с рекомендацией модели (`"mode": "llm"`)
 
-В репозитории комплект собран без ключа и честно помечен `"mode": "fallback"` с
-причиной. Человек с `.env` (переменные `LLM_*` — те же, что у сервера, см.
-`.env.example`) пересобирает его одной командой из корня репозитория:
+Комплект в репозитории собран с моделью 20.09.2026 (`"mode": "llm"`, провайдер и дата в
+`recommendation.json`); без ключа сборка честно пишет `"mode": "fallback"` с причиной.
+Пересобрать с моделью может человек с `.env` (переменные `LLM_*` — те же, что у сервера, см.
+`.env.example`) одной командой из корня репозитория:
 
 ```bash
 npx tsx --env-file=.env demo/build.ts && npm run package:demo

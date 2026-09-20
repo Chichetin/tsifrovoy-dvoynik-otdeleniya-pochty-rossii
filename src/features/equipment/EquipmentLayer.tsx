@@ -12,13 +12,15 @@
  * file only converts the pointer to world metres and draws the result.
  */
 
-import { Fragment, memo, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
 import Konva from 'konva';
 import type { Equipment, Id, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
-import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
+import { takenIds } from '../../domain/commands';
+import { SNAP, footprint, modelToScreen, objectGuides, screenToModel, snapObjectCentre } from '../../domain/geometry';
+import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
@@ -132,6 +134,7 @@ export function EquipmentLayer({
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
+  const names = useMemo(() => planIndex(plan), [plan]);
   // A click while a drawing or placing tool is active belongs to that tool:
   // the object under the pointer must not take the selection away from the one
   // just placed, and the handles of the selected object must not swallow the
@@ -316,10 +319,7 @@ export function EquipmentLayer({
         // Свободные номера считаются и по плану, и по удалённым в этой сессии
         // id (D-156): иначе первая же вставка после удаления ляжет на
         // retired-id и команда откажет ID_REUSED.
-        const taken = new Set<Id>([
-          ...plan.objects.map((object) => object.id),
-          ...(session.retired ?? []),
-        ]);
+        const taken = takenIds(plan, session.retired);
         const copies = pasteObjects(buffer.objects, taken, buffer.pastes + 1);
         // Одним пакетом: вставка группы — одна правка и одно «Отменить».
         if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
@@ -383,12 +383,16 @@ export function EquipmentLayer({
 
   /** Imperative on purpose: hovering must not reconcile a thousand object nodes. */
   const showHover = (event: Konva.KonvaEventObject<MouseEvent>, object: Equipment): void => {
+    if (Konva.isDragging()) {
+      hideHover();
+      return;
+    }
     const stage = event.target.getStage();
     const pointer = stage?.getPointerPosition();
     const label = hoverLabel;
     const text = hoverText;
     if (stage === null || stage === undefined || pointer === null || pointer === undefined || text === null || label === null) return;
-    const summary = equipmentHoverSummary(plan, shown(object), issues);
+    const summary = equipmentHoverSummary(names, shown(object), issues);
     text.text([summary.title, ...summary.lines].join('\n'));
     const height = text.height();
     const left = Math.min(pointer.x + HOVER_GAP_PX, Math.max(0, stage.width() - HOVER_WIDTH_PX));
@@ -402,14 +406,20 @@ export function EquipmentLayer({
     label.getLayer()?.batchDraw();
   };
 
-  /** Start of every gesture: select what is being pulled, remember where from. */
+  /**
+   * Start of every gesture: select what is being pulled, remember where from.
+   * Guides are computed once here, without the objects being moved, so a
+   * thing never snaps to itself (D-208).
+   */
   const beginGesture = (
     event: Konva.KonvaEventObject<unknown>,
     id: string,
     grab: Point = [0, 0],
   ): void => {
     const node = event.target;
-    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab });
+    // Locked members of a group stay put, so they remain something to snap to.
+    const moving = isGroup && group.has(id) ? new Set<Id>(movable.map((member) => member.id)) : new Set<Id>([id]);
+    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab, guides: objectGuides(plan, moving) });
     // Grabbing a member keeps the group and makes that member the primary —
     // the card follows the hand; anything else is a single pick.
     if (isGroup && group.has(id) && onSelectMany !== undefined) {
@@ -469,8 +479,21 @@ export function EquipmentLayer({
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
     const [x, y] = modelToScreen(current.position, viewport);
-    const movedTo = (node: Konva.Node): Point =>
-      snapPosition(screenToModel([node.x(), node.y()], viewport));
+    // Alt during the drag turns snapping off (D-208). The drop reuses what the
+    // last move saw: a key released a moment before the button must not make
+    // the object jump at release.
+    const movedTo = (node: Konva.Node, evt: unknown, phase: 'move' | 'drop'): Point => {
+      const centre = screenToModel([node.x(), node.y()], viewport);
+      const started = guard.started;
+      if (phase === 'move' && started !== null) {
+        started.snapOff = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
+      }
+      const guides = started?.guides;
+      if (started?.snapOff === true || guides === undefined) return snapPosition(centre);
+      return snapPosition(
+        snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale).centre,
+      );
+    };
 
     return (
       <Group
@@ -497,7 +520,10 @@ export function EquipmentLayer({
               }
             : undefined
         }
-        onDragStart={(event) => beginGesture(event, object.id)}
+        onDragStart={(event) => {
+          hideHover();
+          beginGesture(event, object.id);
+        }}
         onMouseEnter={(event) => {
           setCursor(event, lockedLayers.has(object.layerId) ? 'default' : 'grab');
           showHover(event, object);
@@ -508,11 +534,11 @@ export function EquipmentLayer({
           hideHover();
         }}
         onDragMove={(event) => {
-          const next = { ...object, position: movedTo(event.target) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'move') };
           setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
         }}
         onDragEnd={(event) => {
-          const next = { ...object, position: movedTo(event.target) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'drop') };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
             return;

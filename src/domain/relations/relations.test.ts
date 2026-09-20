@@ -12,6 +12,8 @@ import { parsePlanDocument } from '../../contracts/schema';
 import {
   RELATION_ISSUE_CODES,
   hasZoneCycle,
+  parentZoneFor,
+  prepareZones,
   reconcileZones,
   relationIssues,
   resolveZone,
@@ -68,6 +70,31 @@ describe('назначение объекта зоне', () => {
     );
     expect(resolution.issues[0]?.polygon).toHaveLength(4);
     expect(resolution.issues[0]?.refs[0]?.id).toBe('eq_bench_1');
+  });
+});
+
+describe('подготовленный индекс зон (D-205)', () => {
+  test('с индексом и без — один ответ для каждого объекта, включая диагностику', () => {
+    const plan = loadPlan('nested.json');
+    const prepared = prepareZones(plan.zones);
+    const probes = [
+      ...plan.objects,
+      moved(objectOf(plan, plan.objects[0]!.id), [-50, -50]),
+    ];
+    for (const object of probes) {
+      expect(resolveZone(object, plan.zones, prepared)).toEqual(resolveZone(object, plan.zones));
+    }
+  });
+
+  test('зона с невычислимой геометрией остаётся в индексе как непригодная', () => {
+    const plan = loadPlan('minimal.json');
+    const bowtie: Zone = { ...plan.zones[0]!, id: 'z_bowtie', polygon: [[0, 0], [2, 2], [2, 0], [0, 2]] };
+    const prepared = prepareZones([...plan.zones, bowtie]);
+    expect(prepared.unusable.map((zone) => zone.id)).toEqual(['z_bowtie']);
+    expect(prepared.usable.map((entry) => entry.zone.id)).toEqual(plan.zones.map((zone) => zone.id));
+    const resolution = resolveZone(objectOf(plan, 'eq_work_1'), [...plan.zones, bowtie], prepared);
+    expect(resolution.zoneId).toBeNull();
+    expect(resolution.issues.map((entry) => entry.code)).toEqual([RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE]);
   });
 });
 
@@ -181,5 +208,61 @@ describe('пересчёт связей', () => {
     expect(relationIssues(broken).map((entry) => entry.code)).toContain(
       CONTRACT_ISSUE_CODES.RELATIONS_STALE,
     );
+  });
+});
+
+describe('родитель зоны — одно правило для руки и импорта', () => {
+  const square = (x: number, y: number, size: number): Zone['polygon'] => [
+    [x, y],
+    [x + size, y],
+    [x + size, y + size],
+    [x, y + size],
+  ];
+  const zone = (id: string, parentId: string | null, polygon: Zone['polygon']): Zone => ({
+    id,
+    typeId: 'zt_client',
+    name: id,
+    polygon,
+    parentId,
+    layerId: 'l_base',
+    attributes: {},
+  });
+
+  test('самая глубокая содержащая зона; при равной глубине — меньшая по площади', () => {
+    const hall = zone('z_hall', null, square(0, 0, 10));
+    const wait = zone('z_wait', 'z_hall', square(0, 0, 4));
+    const other = zone('z_other', null, square(20, 20, 2));
+    expect(parentZoneFor(square(0.5, 0.5, 1), [hall, wait, other])).toBe('z_wait');
+    expect(parentZoneFor(square(6, 6, 1), [hall, wait, other])).toBe('z_hall');
+    // Две корневые зоны накрывают контур — берётся меньшая.
+    const big = zone('z_big', null, square(0, 0, 10));
+    const small = zone('z_small', null, square(0, 0, 5));
+    expect(parentZoneFor(square(1, 1, 1), [big, small])).toBe('z_small');
+  });
+
+  test('контур через границу, вне зон или равный зоне — самостоятельный', () => {
+    const hall = zone('z_hall', null, square(0, 0, 10));
+    expect(parentZoneFor(square(8, 8, 4), [hall])).toBeNull();
+    expect(parentZoneFor(square(20, 20, 1), [hall])).toBeNull();
+    expect(parentZoneFor(square(0, 0, 10), [hall])).toBeNull();
+    // Своя же запись в списке не считается родителем.
+    expect(parentZoneFor(hall.polygon, [hall], 'z_hall')).toBeNull();
+  });
+
+  test('зона из файла и та же зона, нарисованная последней, получают одного родителя', () => {
+    // nested.json — иерархия из файла: для каждой зоны пересчёт по геометрии
+    // среди остальных даёт ровно записанного родителя.
+    const plan = loadPlan('nested.json');
+    for (const target of plan.zones) {
+      const others = plan.zones.filter((entry) => entry.id !== target.id);
+      const asDrawn = parentZoneFor(target.polygon, others);
+      const asImported = parentZoneFor(
+        target.polygon,
+        plan.zones.map((entry) => ({ id: entry.id, polygon: entry.polygon, parentId: null })),
+        target.id,
+      );
+      expect(asDrawn).toBe(target.parentId);
+      expect(asImported).toBe(target.parentId);
+    }
   });
 });

@@ -96,7 +96,8 @@ export type DocumentOrigin = 'file' | 'new' | 'draft';
 /**
  * Read-only store surface. A successful dispatch/replace/undo/redo raises
  * `revision`; preparing an export does not. `dirty` compares document content
- * against the last baseline, so undo back to it clears dirty.
+ * against the last baseline (layer visibility aside, D-207), so undo back to it
+ * clears dirty.
  */
 export type PlanStore = {
   readonly document: PlanDocument;

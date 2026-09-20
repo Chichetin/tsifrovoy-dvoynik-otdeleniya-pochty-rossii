@@ -6,9 +6,10 @@
  * spot on the plan.
  */
 
+import { useMemo } from 'react';
 import type { Issue, PlanDocument } from '../../contracts/model';
 import type { ValidationPanelProps } from '../../contracts/ui';
-import { refName } from './naming';
+import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 
 /**
  * The document is optional: without it the list keeps working and names each
@@ -21,13 +22,17 @@ function order(issue: Issue): number {
 }
 
 /** The raw id after the name: secondary, but never hidden. */
-const ID_STYLE = { marginLeft: '6px', fontSize: '11px' } as const;
+const ID_STYLE = { marginLeft: '6px', fontSize: '12px' } as const;
 
 export function ValidationPanel({
   issues,
   document: plan,
   onFocus,
 }: ValidationPanelViewProps): React.JSX.Element {
+  // One index per document (D-202): names come from the plan itself, so a
+  // rename in the card renames the finding; an id with nothing behind it
+  // stays raw.
+  const names = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const sorted = [...issues].sort((a, b) => order(a) - order(b));
   const errors = issues.filter((issue) => issue.severity === 'error').length;
 
@@ -50,7 +55,7 @@ export function ValidationPanel({
               <p className="issues__refs">
                 <span className="issues__code">{issue.code}</span>
                 {issue.refs.map((ref) => {
-                  const name = refName(plan, ref);
+                  const name = names.nameOf(ref);
                   return (
                     <button
                       key={`${ref.kind}-${ref.id}`}

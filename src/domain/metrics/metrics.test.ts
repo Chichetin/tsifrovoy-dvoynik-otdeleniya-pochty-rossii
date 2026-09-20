@@ -7,9 +7,11 @@
  * object, a camera on the wall, a zone inside a zone.
  */
 
+import * as polyclip from 'polyclip-ts';
 import { describe, expect, test } from 'vitest';
 import type { Catalog, Equipment, ObjectType, PlanDocument, Point, Zone } from '../../contracts/model';
 import { SCHEMA_VERSION } from '../../contracts/model';
+import { footprint, polygonArea } from '../geometry';
 import { METRICS_ISSUE_CODES, measurePlan } from './index';
 
 const SQUARE: ObjectType = {
@@ -221,6 +223,63 @@ describe('объединение с дыркой', () => {
 
     expect(metrics.room.occupied_m2).toBeCloseTo(20, 9);
     expect(metrics.room.free_m2).toBeCloseTo(60, 9);
+  });
+});
+
+describe('локальная обрезка даёт то же, что полная (D-205)', () => {
+  /** Reference: everything clipped by polyclip, no shortcuts. */
+  function reference(document: PlanDocument, outline: Point[]): number {
+    const closedRing = (ring: Point[]): [number, number][] => [
+      ...ring.map((point): [number, number] => [point[0], point[1]]),
+      [ring[0]![0], ring[0]![1]],
+    ];
+    const [first, ...rest] = document.objects.map((entry): polyclip.Geom => [[closedRing(footprint(entry))]]);
+    if (first === undefined) throw new Error('нет объектов');
+    const union = polyclip.union(first, ...rest);
+    const clipped = polyclip.intersection(
+      polyclip.intersection(union, [[closedRing(document.room.boundary)]]),
+      [[closedRing(outline)]],
+    );
+    let total = 0;
+    for (const polygon of clipped) {
+      polygon.forEach((ring, index) => {
+        const area = polygonArea(ring.slice(0, -1).map((point): Point => [point[0], point[1]]));
+        total += index === 0 ? area : -area;
+      });
+    }
+    return total;
+  }
+
+  test('объекты внутри, на границе, вне охвата и кольцо с двором — числа совпадают с полной обрезкой', () => {
+    // Зона 6×6 в углу; вогнутая зона-«уголок» — чтобы вершины внутри не значили «целиком внутри».
+    const square = zone('z_square', [[0, 0], [6, 0], [6, 6], [0, 6]]);
+    const corner = zone('z_corner', [[4, 4], [10, 4], [10, 8], [7, 8], [7, 6], [4, 6]]);
+    const document = plan(
+      [
+        object('inside', [2, 2]), // целиком в z_square
+        object('edge', [6, 3]), // пополам на границе z_square
+        object('far', [9, 1]), // вне охвата z_square
+        object('outside-room', [10, 7]), // наполовину за стеной
+        object('a', [8, 5], { size_m: [2, 1] }), // перекрывающиеся объекты в уголке
+        object('b', [8.5, 5], { size_m: [2, 1] }),
+        // Тонкая доска от (5; 5,5) к (8; 7,5): все четыре вершины внутри уголка, а
+        // ребро проходит через вырез — «целиком внутри» решает не вершина (D-020: -33,69°).
+        object('notch-edge', [6.5, 6.5], { size_m: [3.6, 0.2], rotation_deg: -33.69 }),
+        // Кольцо с двором: полосы вокруг z_square по периметру 1..5.
+        object('ring-bottom', [3, 1.5], { size_m: [4, 1] }),
+        object('ring-top', [3, 4.5], { size_m: [4, 1] }),
+        object('ring-left', [1.5, 3], { size_m: [1, 2] }),
+        object('ring-right', [4.5, 3], { size_m: [1, 2] }),
+      ],
+      [square, corner],
+    );
+
+    const metrics = measured(document);
+    expect(metrics.zones['z_square']!.occupied_m2).toBeCloseTo(reference(document, square.polygon), 9);
+    expect(metrics.zones['z_corner']!.occupied_m2).toBeCloseTo(reference(document, corner.polygon), 9);
+    expect(metrics.room.occupied_m2).toBeCloseTo(reference(document, document.room.boundary), 9);
+    // И числа не вырожденные: в уголке лежит и кусок «across-notch», и объединение a∪b.
+    expect(metrics.zones['z_corner']!.occupied_m2).toBeGreaterThan(2.5);
   });
 });
 

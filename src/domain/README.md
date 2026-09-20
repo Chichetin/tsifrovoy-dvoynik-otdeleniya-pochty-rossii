@@ -12,4 +12,13 @@
 `content-layer.ts` задаёт единое правило слоя для содержимого: зоны и оборудование можно
 добавлять или переносить только в обычный (`typeId: null`) незапертый слой (D-174).
 
+`plan-index.ts` — единственный ответ на «как называется этот id»: `planIndex(plan)` строит
+словари один раз, `nameOf(ref)`, `objectLabel`, `zoneName`, `layerName`, `objectTypeLabel`,
+`zoneTypeLabel` отвечают за O(1) и одинаково — `null`, когда сущности нет (D-202).
+
+`number-format.ts` — запись чисел для человека: запятая, разряды и единица через
+неразрывный пробел (`formatArea`, `formatLength`, `formatMeasure`, `formatShort`). Её
+используют панели features; файлы, CSV, SVG-экспорт и тексты `advice`/`validation`
+своих форматов не меняют (D-197).
+
 [Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md) · [План задач](../../docs/plans/2026-09-16-parallel-plan.md)

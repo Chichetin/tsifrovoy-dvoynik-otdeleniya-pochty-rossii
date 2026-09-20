@@ -11,10 +11,10 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fastifyStatic from '@fastify/static';
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import { LIMITS } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
-import { describeConfig, readConfig } from './config';
+import { describeConfig, readConfig, publicModelName } from './config';
 import { createLlmClient } from './llm-client';
 
 export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
@@ -27,7 +27,10 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
 
   registerAdviceRoutes(app, {
     llm: config.llm === null ? null : createLlmClient(config.llm),
-    llmLabel: config.llm === null ? null : `${config.llm.provider}/${config.llm.model}`,
+    // Label for the fallback reason: the folder id of a cloud model URI is
+    // not for the browser (D-200).
+    llmLabel: config.llm === null ? null : `${config.llm.provider}/${publicModelName(config.llm.model)}`,
+    llmProvider: config.llm === null ? null : config.llm.provider,
     rateLimit: config.rateLimit,
   });
 
@@ -52,11 +55,58 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
   return { app, config };
 }
 
+/**
+ * Stop on the signals a container receives. `docker stop` sends SIGTERM, and a
+ * process running as PID 1 gets no default action from the kernel: without a
+ * handler it keeps running until the grace period ends and SIGKILL cuts it off
+ * mid-request. `app.close()` stops accepting connections and lets the requests
+ * in flight finish — an assistant call may still be waiting on the provider,
+ * bounded by LLM_TIMEOUT_MS. A second signal while closing is ignored: the
+ * process is already on its way out.
+ *
+ * `close()` drops idle keep-alive sockets once, at the start; a socket busy at
+ * that moment goes idle only after its response and would hold the process
+ * until keepAliveTimeout (72 s by default). The sweep below closes such
+ * sockets as they free up, so the exit follows the last response by at most
+ * one sweep — active requests are never touched.
+ *
+ * Returns the handler so the shutdown can be exercised without a real signal.
+ */
+const IDLE_SWEEP_MS = 100;
+
+export function stopOnSignals(
+  app: FastifyInstance,
+  signals: readonly NodeJS.Signals[] = ['SIGTERM', 'SIGINT'],
+  exit: (code: number) => void = (code) => process.exit(code),
+): (signal: NodeJS.Signals) => void {
+  let stopping = false;
+  const stop = (signal: NodeJS.Signals): void => {
+    if (stopping) return;
+    stopping = true;
+    app.log.info({ signal }, 'остановка: новые соединения не принимаются, текущие запросы завершаются');
+    const sweep = setInterval(() => app.server.closeIdleConnections(), IDLE_SWEEP_MS);
+    app.close().then(
+      () => {
+        clearInterval(sweep);
+        exit(0);
+      },
+      (error: unknown) => {
+        clearInterval(sweep);
+        app.log.error(error, 'сервер не закрылся штатно');
+        exit(1);
+      },
+    );
+  };
+  for (const signal of signals) process.on(signal, stop);
+  return stop;
+}
+
 const isEntryPoint =
   process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 
 if (isEntryPoint) {
   const { app, config } = await buildServer();
+  stopOnSignals(app);
   try {
     await app.listen({ host: config.host, port: config.port });
   } catch (error) {

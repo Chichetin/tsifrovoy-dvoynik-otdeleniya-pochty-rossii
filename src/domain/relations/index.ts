@@ -18,7 +18,8 @@ import type {
   ZoneResolution,
 } from '../../contracts/model';
 import { CONTRACT_ISSUE_CODES } from '../../contracts/model';
-import { contains, footprint, isSimplePolygon } from '../geometry';
+import { boundingBox, boxesOverlap, contains, footprint, isSimplePolygon, polygonArea } from '../geometry';
+import type { BoundingBox } from '../geometry';
 
 /** Codes owned by this module, next to its own checks. */
 export const RELATION_ISSUE_CODES = {
@@ -34,11 +35,43 @@ function issue(code: string, message: string, refs: Ref[], polygon?: Polygon): I
     : { code, severity: 'warning', message, refs, polygon };
 }
 
+/** What `parentZoneFor` needs to know about the zones already on the plan. */
+export type ZoneShape = Pick<Zone, 'id' | 'polygon' | 'parentId'>;
+
+/**
+ * The zone a ring is nested in — one rule for a zone drawn by hand and for a
+ * zone read from the organizers' example, which writes no nesting: among the
+ * simple zones whose polygon contains the whole ring (and is not the same
+ * ring), the deepest in the existing hierarchy wins; equal depth — the
+ * smallest by area. A ring crossing a border, lying outside every zone, or
+ * coinciding with one stands on its own. `exclude` is the ring's own id when
+ * it is already in the list.
+ */
+export function parentZoneFor(
+  ring: Polygon,
+  zones: readonly ZoneShape[],
+  exclude: Id | null = null,
+): Id | null {
+  let best: { id: Id; depth: number; area: number } | null = null;
+  for (const zone of zones) {
+    if (zone.id === exclude) continue;
+    if (!isSimplePolygon(zone.polygon) || !contains(zone.polygon, ring)) continue;
+    // Equal polygons contain each other: neither is the other's parent.
+    if (contains(ring, zone.polygon)) continue;
+    const depth = zoneDepth(zone.id, zones) ?? 0;
+    const area = polygonArea(zone.polygon);
+    if (best === null || depth > best.depth || (depth === best.depth && area < best.area)) {
+      best = { id: zone.id, depth, area };
+    }
+  }
+  return best?.id ?? null;
+}
+
 /**
  * Nesting depth of a zone, 0 for a root. Returns null when the parent chain
  * does not terminate, so a cycle never turns into an endless walk.
  */
-export function zoneDepth(zoneId: Id, zones: Zone[]): number | null {
+export function zoneDepth(zoneId: Id, zones: readonly ZoneShape[]): number | null {
   const parents = new Map<Id, Id | null>(zones.map((zone) => [zone.id, zone.parentId]));
   const seen = new Set<Id>();
   let current: Id | null = zoneId;
@@ -59,16 +92,45 @@ export function hasZoneCycle(zones: Zone[]): boolean {
 }
 
 /**
+ * What resolving needs to know about the zones, computed once for a whole
+ * plan: whether each polygon is usable, its box, its depth. Resolving a
+ * thousand objects against fifty zones used to re-check every polygon for
+ * self-intersection a hundred thousand times (D-205).
+ */
+export type PreparedZones = {
+  usable: { zone: Zone; box: BoundingBox; depth: number }[];
+  unusable: Zone[];
+};
+
+export function prepareZones(zones: Zone[]): PreparedZones {
+  const usable: PreparedZones['usable'] = [];
+  const unusable: Zone[] = [];
+  for (const zone of zones) {
+    if (isSimplePolygon(zone.polygon)) {
+      usable.push({ zone, box: boundingBox(zone.polygon), depth: zoneDepth(zone.id, zones) ?? -1 });
+    } else {
+      unusable.push(zone);
+    }
+  }
+  return { usable, unusable };
+}
+
+/**
  * Assigns an object to the deepest zone containing its whole footprint.
  * Several equally deep candidates leave it unassigned with ZONE_AMBIGUOUS:
- * guessing would silently misplace it in the inventory.
+ * guessing would silently misplace it in the inventory. `prepared` must come
+ * from `prepareZones(zones)` for the same `zones`: an index of another list
+ * would assign silently wrong.
  */
-export function resolveZone(object: Equipment, zones: Zone[]): ZoneResolution {
+export function resolveZone(
+  object: Equipment,
+  zones: Zone[],
+  prepared: PreparedZones = prepareZones(zones),
+): ZoneResolution {
   const ref: Ref = { kind: 'object', id: object.id };
   const shape = footprint(object);
-
-  const usable = zones.filter((zone) => isSimplePolygon(zone.polygon));
-  const unusable = zones.filter((zone) => !isSimplePolygon(zone.polygon));
+  const box = boundingBox(shape);
+  const { unusable } = prepared;
 
   // One unusable zone makes the whole answer untrustworthy: the object might
   // belong to it once its polygon is fixed. Assigning it to a neighbour would
@@ -86,7 +148,9 @@ export function resolveZone(object: Equipment, zones: Zone[]): ZoneResolution {
     };
   }
 
-  const containing = usable.filter((zone) => contains(zone.polygon, shape));
+  const containing = prepared.usable.filter(
+    (entry) => boxesOverlap(entry.box, box) && contains(entry.zone.polygon, shape),
+  );
   if (containing.length === 0) {
     const issues = [
       issue(
@@ -108,12 +172,8 @@ export function resolveZone(object: Equipment, zones: Zone[]): ZoneResolution {
     return { zoneId: null, issues };
   }
 
-  const depths = containing.map((zone) => ({
-    zone,
-    depth: zoneDepth(zone.id, zones) ?? -1,
-  }));
-  const maxDepth = Math.max(...depths.map((entry) => entry.depth));
-  const deepest = depths.filter((entry) => entry.depth === maxDepth);
+  const maxDepth = Math.max(...containing.map((entry) => entry.depth));
+  const deepest = containing.filter((entry) => entry.depth === maxDepth);
 
   if (deepest.length > 1) {
     return {
@@ -169,13 +229,14 @@ export function reconcileZones(plan: PlanDocument): Result<PlanDocument> {
     };
   }
 
+  const prepared = prepareZones(plan.zones);
   return {
     ok: true,
     value: {
       ...plan,
       objects: plan.objects.map((object) => ({
         ...object,
-        zoneId: resolveZone(object, plan.zones).zoneId,
+        zoneId: resolveZone(object, plan.zones, prepared).zoneId,
       })),
     },
   };
@@ -204,5 +265,6 @@ export function relationIssues(plan: PlanDocument): Issue[] {
       ),
     );
   }
-  return plan.objects.flatMap((object) => resolveZone(object, plan.zones).issues);
+  const prepared = prepareZones(plan.zones);
+  return plan.objects.flatMap((object) => resolveZone(object, plan.zones, prepared).issues);
 }
