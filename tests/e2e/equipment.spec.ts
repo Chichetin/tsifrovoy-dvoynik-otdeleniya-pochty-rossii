@@ -284,7 +284,7 @@ test.describe('жесты над оборудованием', () => {
     await expect.poll(() => captionPixels(page, box)).toBeGreaterThan(30);
   });
 
-  test('поставленный из библиотеки объект сразу выбран, ручки не мешают ставить следующий', async ({
+  test('поставленный объект выбран, а повторный клик по такому же выбирает без дубля', async ({
     page,
   }) => {
     await page.goto('/');
@@ -304,8 +304,23 @@ test.describe('жесты над оборудованием', () => {
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
     await expect(inventoryRows(page)).toHaveCount(2);
 
-    // Клик по первому объекту под инструментом установки ставит третий, а не выбирает первый.
+    // Тот же тип уже стоит под указателем: выбираем существующий, не кладём дубль.
     await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // В 7 px за левой гранью — всё ещё тот же объект. Сначала уводим выбор,
+    // затем снова берём тот же тип из библиотеки, чтобы результат был наблюдаем.
+    await selectRow(page, 1);
+    await page.locator('.library__item', { hasText: RACK }).first().click();
+    const width = await numberOf(page, 'Ширина, м');
+    const nearLeft = centre.x - (width * scale) / 2 - 7;
+    await clickCanvas(page, nearLeft, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // За пределами допуска постановка продолжается тем же активным инструментом.
+    await clickCanvas(page, nearLeft - 4, centre.y);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
     await expect(inventoryRows(page)).toHaveCount(3);
   });
