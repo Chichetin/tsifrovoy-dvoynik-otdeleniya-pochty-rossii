@@ -27,6 +27,7 @@ services:
     # Сервер по SIGTERM перестаёт принимать соединения и доводит запросы в полёте
     # (D-203); запрос к модели ждёт до LLM_TIMEOUT_MS, поэтому срок больше
     # докеровских 10 с по умолчанию — иначе SIGKILL оборвёт ответ ассистента.
+    # Правило: stop_grace_period >= LLM_TIMEOUT_MS + 5 с.
     stop_grace_period: 35s
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:${PORT:-8080}/api/health || exit 1"]

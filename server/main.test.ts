@@ -24,7 +24,12 @@ describe('остановка по сигналу', () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
+    let reachedHandler: () => void = () => {};
+    const reached = new Promise<void>((resolve) => {
+      reachedHandler = resolve;
+    });
     app.get('/slow', async () => {
+      reachedHandler();
       await held;
       return { done: true };
     });
@@ -38,18 +43,20 @@ describe('остановка по сигналу', () => {
     expect(process.listenerCount(SIGNAL)).toBe(before + 1);
 
     const inFlight = fetch(`${base}/slow`);
-    // Дать запросу дойти до обработчика до сигнала.
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await reached;
     stop(SIGNAL);
     stop(SIGNAL);
     expect(exits).toEqual([]);
 
+    // Ответ уходит уже после того, как сервер перестал слушать: keep-alive
+    // соединение, занятое в момент сигнала, должно быть закрыто следом, а не
+    // держать процесс до keepAliveTimeout.
+    await expect.poll(() => app.server.listening).toBe(false);
     release();
     const response = await inFlight;
     expect(await response.json()).toEqual({ done: true });
 
-    await expect.poll(() => exits).toEqual([0]);
-    expect(app.server.listening).toBe(false);
+    await expect.poll(() => exits, { timeout: 3_000 }).toEqual([0]);
     await expect(fetch(`${base}/slow`)).rejects.toThrow();
   });
 

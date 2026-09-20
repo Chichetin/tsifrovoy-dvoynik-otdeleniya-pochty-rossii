@@ -64,8 +64,16 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
  * bounded by LLM_TIMEOUT_MS. A second signal while closing is ignored: the
  * process is already on its way out.
  *
+ * `close()` drops idle keep-alive sockets once, at the start; a socket busy at
+ * that moment goes idle only after its response and would hold the process
+ * until keepAliveTimeout (72 s by default). The sweep below closes such
+ * sockets as they free up, so the exit follows the last response by at most
+ * one sweep — active requests are never touched.
+ *
  * Returns the handler so the shutdown can be exercised without a real signal.
  */
+const IDLE_SWEEP_MS = 100;
+
 export function stopOnSignals(
   app: FastifyInstance,
   signals: readonly NodeJS.Signals[] = ['SIGTERM', 'SIGINT'],
@@ -76,9 +84,14 @@ export function stopOnSignals(
     if (stopping) return;
     stopping = true;
     app.log.info({ signal }, 'остановка: новые соединения не принимаются, текущие запросы завершаются');
+    const sweep = setInterval(() => app.server.closeIdleConnections(), IDLE_SWEEP_MS);
     app.close().then(
-      () => exit(0),
+      () => {
+        clearInterval(sweep);
+        exit(0);
+      },
       (error: unknown) => {
+        clearInterval(sweep);
         app.log.error(error, 'сервер не закрылся штатно');
         exit(1);
       },
