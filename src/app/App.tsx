@@ -15,6 +15,7 @@ import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
+import { formatArea } from '../domain/number-format';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
@@ -30,11 +31,12 @@ import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { Onboarding } from '../features/onboarding/Onboarding';
-import { browserStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
+import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
+import { refName } from '../features/validation/naming';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
@@ -43,6 +45,16 @@ import { readPlanFile } from '../persistence/format';
 import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
 import { catalog, createEmptyPlan } from './default-plan';
+import {
+  browserStorage as rightColumnStorage,
+  expandSection,
+  loadSectionState,
+  pluralRu,
+  saveSectionState,
+  toggleSection,
+  type SectionId,
+} from './right-column';
+import { Section } from './Section';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
@@ -63,9 +75,9 @@ export function App(): React.JSX.Element {
   const focusSequence = useRef(0);
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
-  const [tourOpen, setTourOpen] = useState(() => shouldShowTour(browserStorage()));
+  const [tourOpen, setTourOpen] = useState(() => shouldShowTour(tourStorage()));
   const closeTour = useCallback((outcome: TourOutcome) => {
-    rememberTour(browserStorage(), outcome);
+    rememberTour(tourStorage(), outcome);
     setTourOpen(false);
   }, []);
 
@@ -99,6 +111,17 @@ export function App(): React.JSX.Element {
   const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
+  // UI-2Б: which right-column sections are collapsed — a fact about this
+  // browser, kept in localStorage exactly like the tour (D-199), never in the
+  // plan. Every section is open on the first visit.
+  const [sections, setSections] = useState(() => loadSectionState(rightColumnStorage()));
+  useEffect(() => {
+    saveSectionState(rightColumnStorage(), sections);
+  }, [sections]);
+  const toggleSectionState = useCallback((id: SectionId) => {
+    setSections((prev) => toggleSection(prev, id));
+  }, []);
+
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
   const session: EditorSession = useMemo(
@@ -106,12 +129,23 @@ export function App(): React.JSX.Element {
     [tool, viewport, selection, selected, preview, focus, retired],
   );
 
+  // A selection just made — on the canvas or from a panel's «показать на
+  // плане» — is why the person needs the card that shows it: it opens even if
+  // its header was collapsed earlier. `expandSection` returns the same
+  // reference when it is already open, so an already-selected object does
+  // not re-render this on every store update.
   const select = useCallback(
-    (ref: Ref | null) => store.getState().select(ref),
+    (ref: Ref | null) => {
+      store.getState().select(ref);
+      if (ref !== null) setSections((prev) => expandSection(prev, 'properties'));
+    },
     [store],
   );
   const selectMany = useCallback(
-    (ids: readonly Id[]) => store.getState().selectMany(ids),
+    (ids: readonly Id[]) => {
+      store.getState().selectMany(ids);
+      if (ids.length > 0) setSections((prev) => expandSection(prev, 'properties'));
+    },
     [store],
   );
 
@@ -163,6 +197,27 @@ export function App(): React.JSX.Element {
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
   const metrics = useMemo(() => measurePlan(document), [document]);
+
+  // UI-2Б: a line for each section's collapsed header, so it stays useful
+  // closed. Every number here already exists — `metrics`, `issues` and
+  // `inventory` above, `advice` below — this only picks words around it.
+  const sectionSummaries = useMemo<Record<SectionId, string>>(() => {
+    const properties = selection === null ? 'ничего не выбрано' : (refName(document, selection) ?? selection.id);
+    const assistant =
+      adviceState.status === 'loading'
+        ? 'запрос отправлен'
+        : adviceState.status === 'error'
+          ? 'ошибка запроса'
+          : advice === null
+            ? 'без рекомендации'
+            : `${advice.recommendations.length} ${pluralRu(advice.recommendations.length, 'рекомендация', 'рекомендации', 'рекомендаций')}`;
+    const areas = metrics.ok ? formatArea(metrics.value.room.total_m2) : 'ошибка расчёта';
+    const found = `${issues.length} ${pluralRu(issues.length, 'находка', 'находки', 'находок')}`;
+    const placed = `${inventory.rows.length} ${pluralRu(inventory.rows.length, 'объект', 'объекта', 'объектов')}`;
+    const types = document.catalog.objectTypes.length;
+    const catalogSummary = `${types} ${pluralRu(types, 'тип', 'типа', 'типов')}`;
+    return { properties, assistant, metrics: areas, validation: found, inventory: placed, catalog: catalogSummary };
+  }, [selection, document, adviceState, advice, metrics, issues, inventory]);
 
   const askAssistant = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
@@ -354,20 +409,68 @@ export function App(): React.JSX.Element {
         </main>
 
         <aside className="shell__side shell__side--wide" data-tour="side-right">
-          <PropertiesPanel document={document} session={session} onCommand={dispatch} />
-          <AssistantPanel
-            document={document}
-            revision={revision}
-            response={advice}
-            state={adviceState}
-            onPreview={setPreview}
-            onFocus={focusOn}
-            onAsk={askAssistant}
-          />
-          <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
-          <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
-          <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
-          <CatalogPanel document={document} onCommand={dispatch} />
+          <Section
+            id="properties"
+            title="Свойства"
+            summary={sectionSummaries.properties}
+            collapsed={sections.properties === true}
+            onToggle={() => toggleSectionState('properties')}
+          >
+            <PropertiesPanel document={document} session={session} onCommand={dispatch} />
+          </Section>
+          <Section
+            id="assistant"
+            title="Ассистент"
+            summary={sectionSummaries.assistant}
+            collapsed={sections.assistant === true}
+            onToggle={() => toggleSectionState('assistant')}
+          >
+            <AssistantPanel
+              document={document}
+              revision={revision}
+              response={advice}
+              state={adviceState}
+              onPreview={setPreview}
+              onFocus={focusOn}
+              onAsk={askAssistant}
+            />
+          </Section>
+          <Section
+            id="metrics"
+            title="Площади"
+            summary={sectionSummaries.metrics}
+            collapsed={sections.metrics === true}
+            onToggle={() => toggleSectionState('metrics')}
+          >
+            <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
+          </Section>
+          <Section
+            id="validation"
+            title="Проверка"
+            summary={sectionSummaries.validation}
+            collapsed={sections.validation === true}
+            onToggle={() => toggleSectionState('validation')}
+          >
+            <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
+          </Section>
+          <Section
+            id="inventory"
+            title="Инвентаризация"
+            summary={sectionSummaries.inventory}
+            collapsed={sections.inventory === true}
+            onToggle={() => toggleSectionState('inventory')}
+          >
+            <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
+          </Section>
+          <Section
+            id="catalog"
+            title="Справочник"
+            summary={sectionSummaries.catalog}
+            collapsed={sections.catalog === true}
+            onToggle={() => toggleSectionState('catalog')}
+          >
+            <CatalogPanel document={document} onCommand={dispatch} />
+          </Section>
         </aside>
       </div>
 
