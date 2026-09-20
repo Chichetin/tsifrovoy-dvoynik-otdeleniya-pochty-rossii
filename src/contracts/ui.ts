@@ -104,6 +104,8 @@ export type PlanGeometryLayerProps = {
 export type EquipmentLayerProps = {
   document: PlanDocument;
   session: EditorSession;
+  /** Findings shown in the hover summary; optional for isolated package stands. */
+  issues?: Issue[];
   onCommand: CommandSink;
   onSelect: SelectSink;
   /** Group selection; optional until the app wires it (marquee, Shift+click). */

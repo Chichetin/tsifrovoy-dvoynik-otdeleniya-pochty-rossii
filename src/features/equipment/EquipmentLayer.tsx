@@ -20,6 +20,7 @@ import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
+import { equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
 import { arrowDelta, marqueeHits, moveObjects, pasteObjects } from './selection-edit';
 import {
@@ -41,6 +42,8 @@ const ROTATE_FILL = '#E7F5FF';
 /** Handles keep a screen size: a 10 cm object is still grabbable at any zoom. */
 const HANDLE_RADIUS_PX = 6;
 const ROTATION_GAP_PX = 28;
+const HOVER_WIDTH_PX = 320;
+const HOVER_GAP_PX = 14;
 
 /**
  * The object as the pointer is currently shaping it; null outside a gesture.
@@ -122,6 +125,7 @@ const EquipmentSymbol = memo(function EquipmentSymbol({
 export function EquipmentLayer({
   document: plan,
   session,
+  issues = [],
   onCommand,
   onSelect,
   onSelectMany,
@@ -167,6 +171,10 @@ export function EquipmentLayer({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
+  // Konva nodes live in state so event callbacks can update them without a
+  // React render on every pointer move. They are assigned once on mount.
+  const [hoverLabel, setHoverLabel] = useState<Konva.Label | null>(null);
+  const [hoverText, setHoverText] = useState<Konva.Text | null>(null);
   const put = (object: Equipment) => ({ type: 'object.put', object }) as const;
 
   // The marquee listens on the stage: a press on the floor, a zone, the grid
@@ -366,6 +374,34 @@ export function EquipmentLayer({
     if (container !== undefined) container.style.cursor = cursor;
   };
 
+  const hideHover = (): void => {
+    const label = hoverLabel;
+    if (label === null || !label.visible()) return;
+    label.hide();
+    label.getLayer()?.batchDraw();
+  };
+
+  /** Imperative on purpose: hovering must not reconcile a thousand object nodes. */
+  const showHover = (event: Konva.KonvaEventObject<MouseEvent>, object: Equipment): void => {
+    const stage = event.target.getStage();
+    const pointer = stage?.getPointerPosition();
+    const label = hoverLabel;
+    const text = hoverText;
+    if (stage === null || stage === undefined || pointer === null || pointer === undefined || text === null || label === null) return;
+    const summary = equipmentHoverSummary(plan, shown(object), issues);
+    text.text([summary.title, ...summary.lines].join('\n'));
+    const height = text.height();
+    const left = Math.min(pointer.x + HOVER_GAP_PX, Math.max(0, stage.width() - HOVER_WIDTH_PX));
+    const below = pointer.y + HOVER_GAP_PX;
+    const top = below + height <= stage.height()
+      ? below
+      : Math.max(0, pointer.y - height - HOVER_GAP_PX);
+    label.position({ x: left, y: top });
+    label.show();
+    label.moveToTop();
+    label.getLayer()?.batchDraw();
+  };
+
   /** Start of every gesture: select what is being pulled, remember where from. */
   const beginGesture = (
     event: Konva.KonvaEventObject<unknown>,
@@ -462,6 +498,15 @@ export function EquipmentLayer({
             : undefined
         }
         onDragStart={(event) => beginGesture(event, object.id)}
+        onMouseEnter={(event) => {
+          setCursor(event, lockedLayers.has(object.layerId) ? 'default' : 'grab');
+          showHover(event, object);
+        }}
+        onMouseMove={(event) => showHover(event, object)}
+        onMouseLeave={(event) => {
+          setCursor(event, 'default');
+          hideHover();
+        }}
         onDragMove={(event) => {
           const next = { ...object, position: movedTo(event.target) };
           setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
@@ -704,6 +749,30 @@ export function EquipmentLayer({
             />
           </>
         )}
+
+        <Label ref={setHoverLabel} name="equipment-hover" visible={false} listening={false}>
+          <Tag
+            fill="#212529"
+            opacity={0.94}
+            cornerRadius={6}
+            pointerDirection="none"
+            shadowColor="#000000"
+            shadowBlur={8}
+            shadowOpacity={0.24}
+          />
+          <Text
+            ref={setHoverText}
+            width={HOVER_WIDTH_PX}
+            text=""
+            fontSize={13}
+            lineHeight={1.35}
+            fontFamily="system-ui, sans-serif"
+            fontStyle="normal"
+            fill="#FFFFFF"
+            padding={10}
+            wrap="word"
+          />
+        </Label>
       </Layer>
     </>
   );

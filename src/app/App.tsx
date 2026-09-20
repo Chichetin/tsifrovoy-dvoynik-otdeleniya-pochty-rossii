@@ -331,6 +331,7 @@ export function App(): React.JSX.Element {
             <EquipmentLayer
               document={document}
               session={session}
+              issues={issues}
               onCommand={dispatch}
               onSelect={select}
               onSelectMany={selectMany}

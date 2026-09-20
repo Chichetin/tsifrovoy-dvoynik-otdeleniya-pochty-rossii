@@ -10,6 +10,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { validatePlan } from '../../src/domain/validation';
+import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 
 type Screen = { x: number; y: number };
@@ -188,6 +190,50 @@ async function armLayerClearCounter(page: Page): Promise<void> {
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('наведение показывает паспорт объекта и связанную находку проверки', async ({ page }) => {
+    const raw: unknown = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
+    const parsed = parsePlanDocument(raw);
+    if (!parsed.ok) throw new Error('demo/before.json не разобрался');
+    const issue = validatePlan(parsed.value).find((entry) =>
+      entry.refs.some((ref) => ref.kind === 'object'),
+    );
+    const ref = issue?.refs.find((entry) => entry.kind === 'object');
+    const object = parsed.value.objects.find((entry) => entry.id === ref?.id);
+    if (issue === undefined || object === undefined) throw new Error('В демо нет находки по объекту');
+
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await expect(inventoryRows(page)).toHaveCount(53);
+    const point = toScreen(await canvasView(page), object.position[0], object.position[1]);
+    const pagePoint = await onPage(page, point);
+    await page.mouse.move(0, 0);
+    await page.mouse.move(pagePoint.x, pagePoint.y);
+
+    await expect.poll(() => page.evaluate(() => {
+      type Node = { visible(): boolean; findOne(selector: string): { text(): string } | undefined };
+      const stage = (window as unknown as { Konva?: { stages: { findOne(selector: string): Node | undefined }[] } }).Konva?.stages[0];
+      const label = stage?.findOne('.equipment-hover');
+      return { visible: label?.visible() ?? false, text: label?.findOne('Text')?.text() ?? '' };
+    })).toMatchObject({ visible: true });
+    const text = await page.evaluate(() => {
+      type Node = { findOne(selector: string): { text(): string } | undefined };
+      const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+      return stage.findOne('.equipment-hover').findOne('Text')?.text() ?? '';
+    });
+    expect(text).toContain(object.label);
+    expect(text).toContain(`ID: ${object.id}`);
+    expect(text).toContain('Размер:');
+    expect(text).toContain('Поворот:');
+    expect(text).toContain(`Проверка: ${issue.message}`);
+
+    await page.mouse.move(0, 0);
+    await expect.poll(() => page.evaluate(() => {
+      type Node = { visible(): boolean };
+      const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+      return stage.findOne('.equipment-hover').visible();
+    })).toBe(false);
+  });
+
   test('клик в перечне не перерисовывает слой оборудования (D-177)', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
