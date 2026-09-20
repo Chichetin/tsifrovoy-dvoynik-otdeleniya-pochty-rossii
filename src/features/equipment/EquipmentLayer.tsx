@@ -12,14 +12,18 @@
  * file only converts the pointer to world metres and draws the result.
  */
 
-import { Fragment, memo, useEffect, useRef, useState } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
 import Konva from 'konva';
 import type { Equipment, Id, Point } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
-import { footprint, modelToScreen, screenToModel } from '../../domain/geometry';
+import { takenIds } from '../../domain/commands';
+import { SNAP, footprint, modelToScreen, objectGuides, screenToModel, snapObjectCentre } from '../../domain/geometry';
+import type { AxisSnap } from '../../domain/geometry';
+import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
+import { equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
 import { arrowDelta, marqueeHits, moveObjects, pasteObjects } from './selection-edit';
 import {
@@ -35,19 +39,31 @@ import {
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
+/** Snap lines (operator 20.09 №3): a guide is the plan's own edge, the grid is a hint. */
+const SNAP_GUIDE_STROKE = '#E64980';
+const SNAP_GRID_STROKE = '#868E96';
 const HANDLE_FILL = '#FFFFFF';
 const ROTATE_FILL = '#E7F5FF';
 
 /** Handles keep a screen size: a 10 cm object is still grabbable at any zoom. */
 const HANDLE_RADIUS_PX = 6;
 const ROTATION_GAP_PX = 28;
+const HOVER_WIDTH_PX = 320;
+const HOVER_GAP_PX = 14;
+
+/**
+ * What a move snapped to, for the eye (D-215): the world line the object's
+ * edge landed on, per axis, and the stage size to draw it across.
+ */
+type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
 
 /**
  * The object as the pointer is currently shaping it; null outside a gesture.
  * `delta` is set while a member of a group is dragged: the other members
  * follow by the same offset in model metres, from their own positions.
+ * `lines` — what the move snapped to, drawn on the selection layer.
  */
-type Gesture = { id: string; object: Equipment; delta?: Point };
+type Gesture = { id: string; object: Equipment; delta?: Point; lines?: SnapLines };
 
 /**
  * A marquee in progress, in stage pixels. `width`/`height` are the stage's:
@@ -122,12 +138,14 @@ const EquipmentSymbol = memo(function EquipmentSymbol({
 export function EquipmentLayer({
   document: plan,
   session,
+  issues = [],
   onCommand,
   onSelect,
   onSelectMany,
   preview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
+  const names = useMemo(() => planIndex(plan), [plan]);
   // A click while a drawing or placing tool is active belongs to that tool:
   // the object under the pointer must not take the selection away from the one
   // just placed, and the handles of the selected object must not swallow the
@@ -167,6 +185,10 @@ export function EquipmentLayer({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
+  // Konva nodes live in state so event callbacks can update them without a
+  // React render on every pointer move. They are assigned once on mount.
+  const [hoverLabel, setHoverLabel] = useState<Konva.Label | null>(null);
+  const [hoverText, setHoverText] = useState<Konva.Text | null>(null);
   const put = (object: Equipment) => ({ type: 'object.put', object }) as const;
 
   // The marquee listens on the stage: a press on the floor, a zone, the grid
@@ -308,10 +330,7 @@ export function EquipmentLayer({
         // Свободные номера считаются и по плану, и по удалённым в этой сессии
         // id (D-156): иначе первая же вставка после удаления ляжет на
         // retired-id и команда откажет ID_REUSED.
-        const taken = new Set<Id>([
-          ...plan.objects.map((object) => object.id),
-          ...(session.retired ?? []),
-        ]);
+        const taken = takenIds(plan, session.retired);
         const copies = pasteObjects(buffer.objects, taken, buffer.pastes + 1);
         // Одним пакетом: вставка группы — одна правка и одно «Отменить».
         if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
@@ -366,14 +385,52 @@ export function EquipmentLayer({
     if (container !== undefined) container.style.cursor = cursor;
   };
 
-  /** Start of every gesture: select what is being pulled, remember where from. */
+  const hideHover = (): void => {
+    const label = hoverLabel;
+    if (label === null || !label.visible()) return;
+    label.hide();
+    label.getLayer()?.batchDraw();
+  };
+
+  /** Imperative on purpose: hovering must not reconcile a thousand object nodes. */
+  const showHover = (event: Konva.KonvaEventObject<MouseEvent>, object: Equipment): void => {
+    if (Konva.isDragging()) {
+      hideHover();
+      return;
+    }
+    const stage = event.target.getStage();
+    const pointer = stage?.getPointerPosition();
+    const label = hoverLabel;
+    const text = hoverText;
+    if (stage === null || stage === undefined || pointer === null || pointer === undefined || text === null || label === null) return;
+    const summary = equipmentHoverSummary(names, shown(object), issues);
+    text.text([summary.title, ...summary.lines].join('\n'));
+    const height = text.height();
+    const left = Math.min(pointer.x + HOVER_GAP_PX, Math.max(0, stage.width() - HOVER_WIDTH_PX));
+    const below = pointer.y + HOVER_GAP_PX;
+    const top = below + height <= stage.height()
+      ? below
+      : Math.max(0, pointer.y - height - HOVER_GAP_PX);
+    label.position({ x: left, y: top });
+    label.show();
+    label.moveToTop();
+    label.getLayer()?.batchDraw();
+  };
+
+  /**
+   * Start of every gesture: select what is being pulled, remember where from.
+   * Guides are computed once here, without the objects being moved, so a
+   * thing never snaps to itself (D-208).
+   */
   const beginGesture = (
     event: Konva.KonvaEventObject<unknown>,
     id: string,
     grab: Point = [0, 0],
   ): void => {
     const node = event.target;
-    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab });
+    // Locked members of a group stay put, so they remain something to snap to.
+    const moving = isGroup && group.has(id) ? new Set<Id>(movable.map((member) => member.id)) : new Set<Id>([id]);
+    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab, guides: objectGuides(plan, moving) });
     // Grabbing a member keeps the group and makes that member the primary —
     // the card follows the hand; anything else is a single pick.
     if (isGroup && group.has(id) && onSelectMany !== undefined) {
@@ -433,8 +490,31 @@ export function EquipmentLayer({
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
     const [x, y] = modelToScreen(current.position, viewport);
-    const movedTo = (node: Konva.Node): Point =>
-      snapPosition(screenToModel([node.x(), node.y()], viewport));
+    // Alt during the drag turns snapping off (D-208). The drop reuses what the
+    // last move saw: a key released a moment before the button must not make
+    // the object jump at release.
+    const movedTo = (
+      node: Konva.Node,
+      evt: unknown,
+      phase: 'move' | 'drop',
+    ): { position: Point; lines?: SnapLines } => {
+      const centre = screenToModel([node.x(), node.y()], viewport);
+      const started = guard.started;
+      if (phase === 'move' && started !== null) {
+        started.snapOff = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
+      }
+      const guides = started?.guides;
+      if (started?.snapOff === true || guides === undefined) return { position: snapPosition(centre) };
+      // Already settled by the domain: a guide axis keeps the guide's own
+      // millimetres, rounding it to the centimetre would push it into the wall.
+      const snapped = snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale);
+      const stage = node.getStage();
+      const lines: SnapLines | undefined =
+        stage === null || (snapped.snap.x === null && snapped.snap.y === null)
+          ? undefined
+          : { x: snapped.snap.x, y: snapped.snap.y, width: stage.width(), height: stage.height() };
+      return { position: snapped.centre, lines };
+    };
 
     return (
       <Group
@@ -461,13 +541,26 @@ export function EquipmentLayer({
               }
             : undefined
         }
-        onDragStart={(event) => beginGesture(event, object.id)}
+        onDragStart={(event) => {
+          hideHover();
+          beginGesture(event, object.id);
+        }}
+        onMouseEnter={(event) => {
+          setCursor(event, lockedLayers.has(object.layerId) ? 'default' : 'grab');
+          showHover(event, object);
+        }}
+        onMouseMove={(event) => showHover(event, object)}
+        onMouseLeave={(event) => {
+          setCursor(event, 'default');
+          hideHover();
+        }}
         onDragMove={(event) => {
-          const next = { ...object, position: movedTo(event.target) };
-          setGesture({ id: object.id, object: next, delta: groupDelta(object, next) });
+          const moved = movedTo(event.target, event.evt, 'move');
+          const next = { ...object, position: moved.position };
+          setGesture({ id: object.id, object: next, delta: groupDelta(object, next), lines: moved.lines });
         }}
         onDragEnd={(event) => {
-          const next = { ...object, position: movedTo(event.target) };
+          const next = { ...object, position: movedTo(event.target, event.evt, 'drop').position };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
             return;
@@ -680,6 +773,29 @@ export function EquipmentLayer({
               renderRotationHandle(selectedObject),
             ]}
 
+        {/* What the move snapped to: a guide (a neighbour's edge, a wall's
+            face) in one colour, a grid node in another. Drawn across the stage
+            so the eye finds the partner even three metres away. */}
+        {gesture?.lines === undefined
+          ? null
+          : (['x', 'y'] as const).map((axis) => {
+              const snap = gesture.lines?.[axis];
+              if (snap === null || snap === undefined) return null;
+              const [sx, sy] = modelToScreen(axis === 'x' ? [snap.value, 0] : [0, snap.value], viewport);
+              const { width, height } = gesture.lines ?? { width: 0, height: 0 };
+              return (
+                <Line
+                  key={`snap-line-${axis}`}
+                  name={`snap-line-${axis}-${snap.kind}`}
+                  points={axis === 'x' ? [sx, 0, sx, height] : [0, sy, width, sy]}
+                  stroke={snap.kind === 'guide' ? SNAP_GUIDE_STROKE : SNAP_GRID_STROKE}
+                  strokeWidth={1}
+                  dash={snap.kind === 'guide' ? undefined : [4, 4]}
+                  listening={false}
+                />
+              );
+            })}
+
         {marquee === null ? null : (
           <>
             <Rect
@@ -704,6 +820,30 @@ export function EquipmentLayer({
             />
           </>
         )}
+
+        <Label ref={setHoverLabel} name="equipment-hover" visible={false} listening={false}>
+          <Tag
+            fill="#212529"
+            opacity={0.94}
+            cornerRadius={6}
+            pointerDirection="none"
+            shadowColor="#000000"
+            shadowBlur={8}
+            shadowOpacity={0.24}
+          />
+          <Text
+            ref={setHoverText}
+            width={HOVER_WIDTH_PX}
+            text=""
+            fontSize={13}
+            lineHeight={1.35}
+            fontFamily="system-ui, sans-serif"
+            fontStyle="normal"
+            fill="#FFFFFF"
+            padding={10}
+            wrap="word"
+          />
+        </Label>
       </Layer>
     </>
   );

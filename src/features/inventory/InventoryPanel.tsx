@@ -26,13 +26,13 @@
 import { useDeferredValue, useMemo, useState } from 'react';
 import type { Id, PlanDocument } from '../../contracts/model';
 import type { InventoryPanelProps, RequestState } from '../../contracts/ui';
+import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import {
   absentTypes,
   display,
   filterObjectRows,
   inventoryCsv,
   type InventorySort,
-  namingOf,
   NO_INVENTORY_NUMBER,
   objectRows,
   type SortColumn,
@@ -41,6 +41,7 @@ import {
   typesWord,
   zoneSummary,
 } from './rows';
+import { useResizableColumns } from './resizable-columns';
 
 /**
  * The document is optional: until the composition passes it the panel keeps
@@ -188,6 +189,8 @@ export function InventoryPanel({
   const [sort, setSort] = useState<InventorySort | null>(null);
   const [exported, setExported] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
+  const objectColumns = useResizableColumns('inventory-objects', [23, 26, 29, 22]);
+  const zoneColumns = useResizableColumns('inventory-zones', [50, 25, 25]);
   // Typing and clearing stay responsive on a thousand rows: the table redraws
   // one render behind the input instead of blocking every keystroke. Measured
   // (D-123): clearing the filter on 1000 objects is 728 ms against 2051 ms.
@@ -210,7 +213,7 @@ export function InventoryPanel({
   // экране. Такой фильтр снимается сам, иначе перечень остаётся пустым.
   if (typeId !== null && (inventory.byType[typeId] ?? 0) === 0) setTypeId(null);
 
-  const naming = useMemo(() => namingOf(plan), [plan]);
+  const naming = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const types = useMemo(() => typeSummary(inventory, naming), [inventory, naming]);
   const zones = useMemo(() => zoneSummary(inventory, naming), [inventory, naming]);
   const rows = useMemo(() => objectRows(inventory, naming), [inventory, naming]);
@@ -310,19 +313,17 @@ export function InventoryPanel({
           <div style={SCROLL_STYLE} data-testid="inventory-scroll">
             <table className="table inventory__table" style={TABLE_STYLE}>
               <colgroup>
-                <col style={{ width: '23%' }} />
-                <col style={{ width: '26%' }} />
-                <col style={{ width: '29%' }} />
-                <col style={{ width: '22%' }} />
+                {objectColumns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
               </colgroup>
               <thead>
                 <tr>
-                  {COLUMNS.map(({ column, title }) => (
+                  {COLUMNS.map(({ column, title }, index) => (
                     <th
                       key={column}
                       scope="col"
                       style={STICKY_HEAD_STYLE}
                       aria-sort={ariaSort(sort, column)}
+                      className="table__resizable-head"
                     >
                       <button
                         type="button"
@@ -337,6 +338,10 @@ export function InventoryPanel({
                           {sort?.column === column ? ARROW[sort.direction] : ''}
                         </span>
                       </button>
+                      {index === COLUMNS.length - 1 ? null : objectColumns.separator(
+                        index,
+                        `Изменить ширину между «${title}» и «${COLUMNS[index + 1]?.title ?? ''}»`,
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -453,14 +458,18 @@ export function InventoryPanel({
       {zones.length === 0 ? null : (
         <table className="table" style={TABLE_STYLE}>
           <colgroup>
-            <col style={{ width: '50%' }} />
-            <col style={{ width: '25%' }} />
-            <col style={{ width: '25%' }} />
+            {zoneColumns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
           </colgroup>
           <thead>
             <tr>
-              <th scope="col">Зона</th>
-              <th scope="col" className="inventory__num">В самой зоне</th>
+              <th scope="col" className="table__resizable-head">
+                Зона
+                {zoneColumns.separator(0, 'Изменить ширину между «Зона» и «В самой зоне»')}
+              </th>
+              <th scope="col" className="inventory__num table__resizable-head">
+                В самой зоне
+                {zoneColumns.separator(1, 'Изменить ширину между «В самой зоне» и «С вложенными»')}
+              </th>
               <th scope="col" className="inventory__num">С вложенными</th>
             </tr>
           </thead>

@@ -10,6 +10,8 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { validatePlan } from '../../src/domain/validation';
+import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 
 type Screen = { x: number; y: number };
@@ -88,11 +90,13 @@ async function drag(
   page: Page,
   from: Screen,
   to: Screen,
-  options: { shift?: boolean; escape?: boolean } = {},
+  options: { shift?: boolean; alt?: boolean; escape?: boolean } = {},
 ): Promise<void> {
   const start = await onPage(page, from);
   const end = await onPage(page, to);
   if (options.shift) await page.keyboard.down('Shift');
+  // Alt на время жеста выключает привязку (D-208): перенос ложится ровно под курсор.
+  if (options.alt) await page.keyboard.down('Alt');
   await settle(page);
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -101,6 +105,7 @@ async function drag(
   // Escape до отпускания кнопки: жест отменяется на полпути.
   if (options.escape) await page.keyboard.press('Escape');
   await page.mouse.up();
+  if (options.alt) await page.keyboard.up('Alt');
   if (options.shift) await page.keyboard.up('Shift');
 }
 
@@ -188,6 +193,50 @@ async function armLayerClearCounter(page: Page): Promise<void> {
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('наведение показывает паспорт объекта и связанную находку проверки', async ({ page }) => {
+    const raw: unknown = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
+    const parsed = parsePlanDocument(raw);
+    if (!parsed.ok) throw new Error('demo/before.json не разобрался');
+    const issue = validatePlan(parsed.value).find((entry) =>
+      entry.refs.some((ref) => ref.kind === 'object'),
+    );
+    const ref = issue?.refs.find((entry) => entry.kind === 'object');
+    const object = parsed.value.objects.find((entry) => entry.id === ref?.id);
+    if (issue === undefined || object === undefined) throw new Error('В демо нет находки по объекту');
+
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await expect(inventoryRows(page)).toHaveCount(53);
+    const point = toScreen(await canvasView(page), object.position[0], object.position[1]);
+    const pagePoint = await onPage(page, point);
+    await page.mouse.move(0, 0);
+    await page.mouse.move(pagePoint.x, pagePoint.y);
+
+    await expect.poll(() => page.evaluate(() => {
+      type Node = { visible(): boolean; findOne(selector: string): { text(): string } | undefined };
+      const stage = (window as unknown as { Konva?: { stages: { findOne(selector: string): Node | undefined }[] } }).Konva?.stages[0];
+      const label = stage?.findOne('.equipment-hover');
+      return { visible: label?.visible() ?? false, text: label?.findOne('Text')?.text() ?? '' };
+    })).toMatchObject({ visible: true });
+    const text = await page.evaluate(() => {
+      type Node = { findOne(selector: string): { text(): string } | undefined };
+      const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+      return stage.findOne('.equipment-hover').findOne('Text')?.text() ?? '';
+    });
+    expect(text).toContain(object.label);
+    expect(text).toContain(`ID: ${object.id}`);
+    expect(text).toContain('Размер:');
+    expect(text).toContain('Поворот:');
+    expect(text).toContain(`Проверка: ${issue.message}`);
+
+    await page.mouse.move(0, 0);
+    await expect.poll(() => page.evaluate(() => {
+      type Node = { visible(): boolean };
+      const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+      return stage.findOne('.equipment-hover').visible();
+    })).toBe(false);
+  });
+
   test('клик в перечне не перерисовывает слой оборудования (D-177)', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
@@ -347,13 +396,81 @@ test.describe('жесты над оборудованием', () => {
       .toBeGreaterThan(before * 2);
     const scale = await shownScale(page);
 
-    await drag(page, centre, { x: centre.x + 120, y: centre.y - 60 });
+    await drag(page, centre, { x: centre.x + 120, y: centre.y - 60 }, { alt: true });
     expect(Math.abs((await numberOf(page, 'X, м')) - (x0 + 120 / scale))).toBeLessThanOrEqual(0.05);
     expect(Math.abs((await numberOf(page, 'Y, м')) - (y0 + 60 / scale))).toBeLessThanOrEqual(0.05);
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     expect(await numberOf(page, 'X, м')).toBe(x0);
     expect(await numberOf(page, 'Y, м')).toBe(y0);
+  });
+
+  test('перенос притягивает грань к грани соседа, Alt отключает привязку (D-208)', async ({ page }) => {
+    await page.goto('/');
+    const left: Screen = { x: 300, y: 330 };
+    const right: Screen = { x: 520, y: 330 };
+    await placeFromLibrary(page, RACK, left.x, left.y);
+    await placeFromLibrary(page, RACK, right.x, right.y);
+    await selectRow(page, 0);
+    const leftX = await numberOf(page, 'X, м');
+    const width = await numberOf(page, 'Ширина, м');
+    const scale = await shownScale(page);
+    // Правый стеллаж оказывается на 5 px правее, чем «впритык» к левому: в допуске 8 px.
+    const flush = right.x - ((right.x - left.x) / scale - width) * scale;
+    const target: Screen = { x: flush + 5, y: right.y };
+
+    // Пока стеллаж тянут, на холсте видна линия направляющей — грань соседа
+    // (operator 20.09 №3); после броска её нет.
+    const snapLine = () =>
+      page.evaluate(() => {
+        type Node = { findOne(selector: string): unknown };
+        const stage = (window as unknown as { Konva?: { stages: Node[] } }).Konva?.stages[0];
+        return stage?.findOne('.snap-line-x-guide') !== undefined;
+      });
+    const start = await onPage(page, right);
+    const end = await onPage(page, target);
+    await settle(page);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 3, start.y + 3);
+    await page.mouse.move(end.x, end.y, { steps: 8 });
+    await expect.poll(snapLine).toBe(true);
+    await page.mouse.up();
+    await expect.poll(snapLine).toBe(false);
+    await selectRow(page, 1);
+    // Левая грань правого стеллажа легла ровно на правую грань левого.
+    expect((await numberOf(page, 'X, м')) - width / 2).toBeCloseTo(leftX + width / 2, 6);
+
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await drag(page, right, target, { alt: true });
+    await selectRow(page, 1);
+    const gap = (await numberOf(page, 'X, м')) - width / 2 - (leftX + width / 2);
+    // Без привязки остался зазор в те самые ~5 px.
+    expect(gap).toBeGreaterThan(2 / scale);
+    expect(gap).toBeLessThan(8 / scale);
+  });
+
+  test('впритык к стене — на грань стены, не в стену: находки «пересекает стену» нет (D-211)', async ({ page }) => {
+    await page.goto('/');
+    const before = JSON.parse(await savePlan(page)) as {
+      room: { boundary: [number, number][] };
+      walls: { thickness_m: number }[];
+    };
+    const east = Math.max(...before.room.boundary.map((vertex) => vertex[0]));
+    const face = east - (before.walls[0]?.thickness_m ?? 0) / 2;
+    const centre: Screen = { x: 420, y: 330 };
+    await placeFromLibrary(page, RACK, centre.x, centre.y);
+    await selectRow(page, 0);
+    const width = await numberOf(page, 'Ширина, м');
+    const view = await canvasView(page);
+    const y = await numberOf(page, 'Y, м');
+    // Правая грань в 4 px от внутренней грани стены — в допуске привязки.
+    const target = toScreen(view, face - width / 2, y);
+    await drag(page, centre, { x: target.x - 4, y: target.y });
+    await selectRow(page, 0);
+    // Грань стены 14,875 хранится как есть, а не округляется в стену (14,88).
+    expect((await numberOf(page, 'X, м')) + width / 2).toBeCloseTo(face, 9);
+    await expect(page.getByLabel('Проверка плана')).not.toContainText('пересекает стену');
   });
 
   test('скрытый слой: объект не выбирается и не удаляется, пока слой не показан', async ({ page }) => {

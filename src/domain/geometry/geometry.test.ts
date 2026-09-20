@@ -19,7 +19,12 @@ import {
   objectHitsWall,
   objectInterval,
   objectsShareSpace,
+  pointSegmentDistance,
   polygonArea,
+  projectOnSegment,
+  segmentLength,
+  wallLength,
+  wallSpanPolygon,
   polygonSegmentDistance,
   rotateOffset,
   screenToModel,
@@ -325,5 +330,36 @@ describe('расстояние до отрезка', () => {
 
   test('вырожденный отрезок — это точка', () => {
     expect(polygonSegmentDistance(square, [5, 1], [5, 1])).toBeCloseTo(3, CLOSE);
+  });
+});
+
+describe('примитивы отрезка', () => {
+  test('длина, проекция и расстояние — одно вычисление', () => {
+    expect(segmentLength([0, 0], [3, 4])).toBe(5);
+    const inside = projectOnSegment([2, 5], [0, 0], [10, 0]);
+    expect(inside.t).toBeCloseTo(0.2);
+    expect(inside.foot).toEqual([2, 0]);
+    expect(inside.distance).toBe(5);
+    // За концом отрезка проекция прижимается к концу.
+    const past = projectOnSegment([13, 4], [0, 0], [10, 0]);
+    expect(past.t).toBe(1);
+    expect(past.foot).toEqual([10, 0]);
+    expect(past.distance).toBe(5);
+    expect(pointSegmentDistance([5, -2], [0, 0], [10, 0])).toBe(2);
+    // Вырожденный отрезок — расстояние до точки.
+    expect(projectOnSegment([3, 4], [0, 0], [0, 0])).toEqual({ t: 0, foot: [0, 0], distance: 5 });
+  });
+
+  test('полоса стены: по всей длине и по пролёту с другой толщиной', () => {
+    const wall: Wall = { id: 'w', from: [0, 0], to: [10, 0], thickness_m: 0.2, height_m: 3 };
+    expect(wallLength(wall)).toBe(10);
+    const span = wallSpanPolygon(wall, 2, 5, 0.1);
+    expect(span.map(([x, y]) => [Number(x.toFixed(6)), Number(y.toFixed(6))])).toEqual([
+      [2, 0.05],
+      [5, 0.05],
+      [5, -0.05],
+      [2, -0.05],
+    ]);
+    expect(polygonArea(span)).toBeCloseTo(0.3);
   });
 });

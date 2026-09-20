@@ -14,7 +14,8 @@ import type { AdviceResponse } from '../src/contracts/advice';
 import { LIMITS, SCHEMA_VERSION, type Catalog, type PlanDocument } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
-import { readConfig, describeConfig } from './config';
+import { readConfig, describeConfig, publicModelName } from './config';
+import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
 
 const catalog: Catalog = {
   version: 'test-1',
@@ -68,7 +69,7 @@ const placeRequest = { scenario: 'place', typeId: 'ot_desk', zoneId: null } as c
 
 function server(llm: LlmClient | null, label: string | null = 'stub/stub'): FastifyInstance {
   const app = Fastify({ logger: false, bodyLimit: LIMITS.maxRequestBytes });
-  registerAdviceRoutes(app, { llm, llmLabel: label, rateLimit: { max: 30, windowMs: 60_000 } });
+  registerAdviceRoutes(app, { llm, llmLabel: label, llmProvider: 'stub', rateLimit: { max: 30, windowMs: 60_000 } });
   return app;
 }
 
@@ -117,10 +118,20 @@ describe('A05: маршрут ассистента', () => {
       const response = await app.inject({ method: 'GET', url: '/api/health' });
 
       expect(response.statusCode).toBe(200);
-      expect(response.json()).toEqual({ status: 'ok' });
+      expect(response.json()).toEqual({ status: 'ok', llm: { configured: false } });
     },
     20_000,
   );
+
+  test('health с провайдером называет его, но не ключ', async () => {
+    const app = server(async () => ({ ok: true, value: '{}' }));
+    const response = await app.inject({ method: 'GET', url: '/api/health' });
+    const body = response.json() as { llm: { configured: boolean; provider?: string } };
+    expect(body.llm.configured).toBe(true);
+    expect(body.llm.provider).toBe('stub');
+    // Ни ключа, ни URI модели (в нём бывает id облачной папки) — только имя провайдера.
+    expect(JSON.stringify(body)).not.toMatch(/key|secret|AQVN|gpt:\/\/|\//i);
+  });
 
   test('без провайдера ответ приходит с расчётом и пометкой fallback', async () => {
     const response = await ask(server(null), { plan, revision: 4, request: placeRequest });
@@ -142,6 +153,32 @@ describe('A05: маршрут ассистента', () => {
     expect(body.mode).toBe('llm');
     expect(body.explanations[0]?.reasonCode).toBe('placement.available');
     expect(body.explanations[0]?.candidateId).toBe(body.recommendations[0]?.candidates[0]?.id);
+  });
+
+  test('модели сообщают правила проверки: обязательные факты и вариант для каждого кода (D-206)', async () => {
+    let seenSystem = '';
+    let seenUser = '';
+    const recording: LlmClient = async ({ system, user }) => {
+      seenSystem = system;
+      seenUser = user;
+      return honestModel({ system, user });
+    };
+    const body = (await ask(server(recording), { plan, revision: 1, request: placeRequest })).json<AdviceResponse>();
+    expect(body.mode).toBe('llm');
+    const payload = JSON.parse(seenUser.slice(seenUser.indexOf('['), seenUser.lastIndexOf(']') + 1)) as {
+      reasonCodes: string[];
+      rules: { code: string; candidate: string; requiredFacts: string[] }[];
+    }[];
+    for (const entry of payload) {
+      expect(entry.rules.map((rule) => rule.code)).toEqual(entry.reasonCodes);
+      for (const rule of entry.rules) {
+        const spec = REASON_CODE_SPECS[rule.code as keyof typeof REASON_CODE_SPECS];
+        expect(rule.candidate).toBe(spec.candidate);
+        expect(rule.requiredFacts).toEqual(spec.requiredFacts.map((fact) => `${fact.metric}/${fact.phase}`));
+      }
+    }
+    expect(payload.some((entry) => entry.rules.some((rule) => rule.requiredFacts.includes('area.free/after')))).toBe(true);
+    expect(seenSystem).toContain('requiredFacts');
   });
 
   test.each([
@@ -220,6 +257,7 @@ describe('A05: маршрут ассистента', () => {
     registerAdviceRoutes(app, {
       llm: honestModel,
       llmLabel: 'stub/stub',
+      llmProvider: 'stub',
       rateLimit: { max: 1, windowMs: 60_000 },
     });
 
@@ -247,6 +285,11 @@ describe('A05: маршрут ассистента', () => {
 });
 
 describe('A05: конфигурация', () => {
+  test('имя модели для публикации прячет id облачной папки', () => {
+    expect(publicModelName('gpt://b1gexamplefolder00000/deepseek-v4-flash')).toBe('gpt://<folder_ID>/deepseek-v4-flash');
+    expect(publicModelName('deepseek-chat')).toBe('deepseek-chat');
+  });
+
   test('без ключа, модели или адреса провайдера нет', () => {
     expect(readConfig({}).llm).toBeNull();
     expect(readConfig({ LLM_ENDPOINT: 'https://example.invalid/v1/chat/completions' }).llm).toBeNull();

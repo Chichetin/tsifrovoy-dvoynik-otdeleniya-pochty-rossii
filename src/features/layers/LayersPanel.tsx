@@ -15,6 +15,7 @@ import { useState } from 'react';
 import type { Equipment, Layer, LayerType, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
+import { takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { legendOf } from './legend';
 
@@ -83,7 +84,7 @@ export function LayersPanel({
     const suffix = Date.now().toString(36);
     // A layer removed this session retired its id (D-019): adding the same
     // type again takes the next free number instead of a refused put.
-    const taken = new Set<string>([...plan.layers.map((layer) => layer.id), ...(session.retired ?? [])]);
+    const taken = takenIds(plan, session.retired);
     const freeId = (base: string): string => {
       if (!taken.has(base)) return base;
       for (let index = 2; ; index += 1) {

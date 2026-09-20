@@ -14,11 +14,13 @@ import type {
   AdviceHttpRequest,
   AdviceRequest,
   AdviceResponse,
+  HealthResponse,
   Recommendation,
 } from '../src/contracts/advice';
 import type { Issue, PlanDocument } from '../src/contracts/model';
 import { LIMITS } from '../src/contracts/model';
 import { parsePlanDocument } from '../src/contracts/schema';
+import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
 import { calculateAdvice, defaultExplanation, verifyExplanation } from '../src/domain/advice';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
 
@@ -27,6 +29,11 @@ export type AdviceRouteOptions = {
   llm: LlmClient | null;
   /** Shown in the fallback reason so the demo says which provider was tried. */
   llmLabel: string | null;
+  /**
+   * What health may say publicly: the provider's name only. The model URI can
+   * carry the cloud folder id, and that stays on the server with the key.
+   */
+  llmProvider: string | null;
   rateLimit: { max: number; windowMs: number };
 };
 
@@ -62,6 +69,14 @@ function promptPayload(recommendations: Recommendation[]): unknown {
     id: recommendation.id,
     scenario: recommendation.scenario,
     reasonCodes: recommendation.reasonCodes,
+    // The same rules the answer is checked against (D-206): which facts a
+    // reason code must cite and whether it names a candidate. Left to guess,
+    // the model cited a subset and the check rightly threw the answer away.
+    rules: recommendation.reasonCodes.map((code) => ({
+      code,
+      candidate: REASON_CODE_SPECS[code].candidate,
+      requiredFacts: REASON_CODE_SPECS[code].requiredFacts.map((fact) => `${fact.metric}/${fact.phase}`),
+    })),
     candidates: recommendation.candidates.map((candidate) => ({
       id: candidate.id,
       label: candidate.object.label,
@@ -86,6 +101,10 @@ const SYSTEM_PROMPT = [
   'Твоя задача — выбрать для каждой рекомендации один код причины из её reasonCodes,',
   'при необходимости один вариант размещения из её candidates и перечислить id фактов,',
   'которые этот выбор подтверждают.',
+  'У каждого кода в rules перечислены requiredFacts как «metric/phase»: factIds обязаны',
+  'содержать все факты рекомендации и выбранного варианта с такими metric и phase —',
+  'ответ без любого из них отклоняется. candidate: required — вариант назвать обязательно,',
+  'forbidden — candidateId должен быть null.',
   'Ответ — строго JSON вида {"explanations":[{"recommendationId":"...","candidateId":null,',
   '"reasonCode":"...","factIds":["..."]}]}. Никаких других полей, комментариев и текста.',
   'Любое собственное число или поле делает ответ недействительным.',
@@ -126,7 +145,16 @@ function fallbackResponse(
 export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteOptions): void {
   const allow = createLimiter(options.rateLimit);
 
-  app.get('/api/health', async () => ({ status: 'ok' }));
+  // Health says whether a provider is configured — the reviewer can see on the
+  // deployed address which mode the assistant will answer in, without a key
+  // ever leaving the server: only the provider/model label travels.
+  app.get('/api/health', async (): Promise<HealthResponse> => ({
+    status: 'ok',
+    llm:
+      options.llm === null || options.llmProvider === null
+        ? { configured: false }
+        : { configured: true, provider: options.llmProvider },
+  }));
 
   app.post('/api/advice', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = bodySchema.safeParse(request.body);
@@ -195,10 +223,12 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
     });
     if (!answer.ok) {
       request.log.warn({ issues: answer.issues.map((entry) => entry.code) }, 'llm call failed');
+      // «Недоступна» — про сеть и статус; пустой ответ модели — другая история.
+      const empty = answer.issues[0]?.code === LLM_ISSUE_CODES.LLM_EMPTY_CONTENT;
       return fallbackResponse(
         revision,
         recommendations,
-        `Модель недоступна (${options.llmLabel ?? 'провайдер'}): ${answer.issues[0]?.message ?? 'нет ответа'}`,
+        `${empty ? 'Модель ответила без текста' : 'Модель недоступна'} (${options.llmLabel ?? 'провайдер'}): ${answer.issues[0]?.message ?? 'нет ответа'}`,
       );
     }
 

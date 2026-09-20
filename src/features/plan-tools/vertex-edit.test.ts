@@ -10,7 +10,7 @@ import {
   nearestEdge,
   parentForRing,
   removeVertex,
-  wallLength,
+  roundPoint,
 } from './vertex-edit';
 
 const square: Polygon = [
@@ -32,14 +32,17 @@ const door: Opening = {
 };
 
 describe('правка вершин контура', () => {
-  it('moveVertex двигает только одну вершину и округляет до сантиметра', () => {
-    const moved = moveVertex(square, 2, [5.004, 4.996]);
+  it('moveVertex двигает только одну вершину и хранит точку как дал слой (D-211: грань стены 14,875 не округляется)', () => {
+    const moved = moveVertex(square, 2, [5.125, 4.996]);
     expect(moved).toEqual([
       [0, 0],
       [4, 0],
-      [5, 5],
+      [5.125, 4.996],
       [0, 4],
     ]);
+    // Округление до сантиметра — отдельная функция для точек без привязки.
+    expect(roundPoint([5.004, 4.996])).toEqual([5, 5]);
+    expect(roundPoint([2.3, 70 * 0.01])).toEqual([2.3, 0.7]);
     // Исходный контур не тронут: команда получает новый массив.
     expect(square[2]).toEqual([4, 4]);
   });
@@ -124,10 +127,9 @@ describe('правка вершин контура', () => {
 
 describe('правка стен и проёмов', () => {
   it('moveWallEnd двигает выбранный конец, второй остаётся', () => {
-    expect(moveWallEnd(wall, 'to', [10.004, 3]).to).toEqual([10, 3]);
+    expect(moveWallEnd(wall, 'to', [10.004, 3]).to).toEqual([10.004, 3]);
     expect(moveWallEnd(wall, 'to', [10, 3]).from).toEqual([0, 0]);
     expect(moveWallEnd(wall, 'from', [1, 1]).from).toEqual([1, 1]);
-    expect(wallLength(wall)).toBe(10);
   });
 
   it('moveOpeningTo держит проём в пределах стены', () => {

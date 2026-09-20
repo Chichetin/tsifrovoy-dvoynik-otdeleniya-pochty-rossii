@@ -176,7 +176,7 @@ type Command =
   | { type: 'room.setCeiling'; ceilingHeight_m: number }
   | { type: 'relations.reconcile' }
   | { type: 'batch'; commands: Command[] };
-// applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument>
+// applyCommand(plan: PlanDocument, command: Command, retired?: Iterable<Id>): Result<PlanDocument>
 // decodePlan(text: string): Result<PlanDocument>
 // encodePlan(plan: PlanDocument): Result<string>
 // importOrganizerExample(input: unknown): Result<PlanDocument>
@@ -300,7 +300,7 @@ Timeout внешнего API — 15 с, не более одного повто�
 `query` ≤2000 символов; лимиты v1: 2000 объектов, 200 зон, 256 вершин на полигон и
 20000 вершин суммарно; F02 фиксирует их в схеме. Эти ограничения не равны замеру быстродействия.
 Браузер при сетевой ошибке/429 формирует fallback из своего такого же расчёта.
-`GET /api/health` → `{status:'ok'}` без ключей, model ID и переменных окружения.
+`GET /api/health` → `{status:'ok', llm: {configured:false} | {configured:true, provider}}` — `provider` только имя из `LLM_PROVIDER`; ключей, адресов и model ID в ответе нет (D-200).
 
 ## Контрактные fixtures и поведение UI
 

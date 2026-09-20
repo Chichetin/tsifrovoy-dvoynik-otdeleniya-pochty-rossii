@@ -114,6 +114,20 @@ describe('коллизии считают только физические об
     expect(issues[0]?.refs.map((ref) => ref.id)).toEqual([object.id, `${object.id}_copy`]);
   });
 
+  test('повёрнутые объекты с общим охватом, но без общего пола — не коллизия; порядок пар прежний (D-205)', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    // Две параллельные диагональные «доски» 2×0,2 со сдвигом:
+    // охваты пересекаются, отпечатки — нет. Третья лежит на первой.
+    const a = { ...object, id: 'diag_a', position: [2, 2] as [number, number], size_m: [2, 0.2] as [number, number], rotation_deg: 45 };
+    const b = { ...object, id: 'diag_b', position: [3.2, 1.6] as [number, number], size_m: [2, 0.2] as [number, number], rotation_deg: 45 };
+    const c = { ...a, id: 'diag_c' };
+    const issues = validatePlan({ ...plan, objects: [a, b, c] }).filter(
+      (entry) => entry.code === VALIDATION_ISSUE_CODES.OBJECT_COLLISION,
+    );
+    expect(issues.map((entry) => entry.refs.map((ref) => ref.id))).toEqual([['diag_a', 'diag_c']]);
+  });
+
   test('нефизический тип в том же месте коллизией не считается', () => {
     const plan = loadPlan('minimal.json');
     const object = firstObject(plan);
@@ -179,6 +193,10 @@ describe('правила комплектования', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('warning');
     expect(issues[0]?.message).toContain('допущение команды, не норматив Почты');
+    // Тип назван как в библиотеке, а не кодом; код остаётся в refs (operator №8).
+    const label = plan.catalog.objectTypes.find((type) => type.id === object.typeId)?.label;
+    expect(issues[0]?.message).toContain(`«${label}»`);
+    expect(issues[0]?.message).not.toContain(object.typeId);
   });
 
   test('правило расстояния без входа в плане говорит об этом, а не молчит', () => {

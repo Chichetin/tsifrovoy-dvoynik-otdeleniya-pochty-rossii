@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
+import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import nested from '../../contracts/fixtures/nested.json';
 import type { Inventory, PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -20,11 +21,9 @@ import {
   filterObjectRows,
   inventoryCsv,
   type InventorySort,
-  namingOf,
   type Naming,
   type ObjectRow,
   objectRows,
-  RAW_IDS,
   sortObjectRows,
   toCsv,
   typeSummary,
@@ -37,7 +36,7 @@ if (!parsed.ok) throw new Error('nested.json не разобрался');
 /** Две зоны верхнего уровня, вложенная зона ожидания, два объекта. */
 const plan: PlanDocument = parsed.value;
 const inventory = buildInventory(plan);
-const naming = namingOf(plan);
+const naming = planIndex(plan);
 
 /** Первый элемент там, где его отсутствие — уже провал теста. */
 function first<T>(items: T[]): T {
@@ -67,7 +66,7 @@ describe('имена по документу', () => {
       ...plan,
       objects: [{ ...first(plan.objects), typeId: 'ot_ghost', zoneId: 'z_ghost' }],
     };
-    const row = first(objectRows(buildInventory(broken), namingOf(broken)));
+    const row = first(objectRows(buildInventory(broken), planIndex(broken)));
 
     expect(row.typeLabel).toBeNull();
     expect(row.zoneName).toBeNull();
@@ -77,14 +76,14 @@ describe('имена по документу', () => {
 
   test('объект вне зон не получает названия зоны', () => {
     const loose: PlanDocument = { ...plan, objects: [{ ...first(plan.objects), zoneId: null }] };
-    const row = first(objectRows(buildInventory(loose), namingOf(loose)));
+    const row = first(objectRows(buildInventory(loose), planIndex(loose)));
 
     expect(row.zoneId).toBeNull();
     expect(row.zoneName).toBeNull();
   });
 
   test('без документа панель показывает id: названий нет, но строки есть', () => {
-    const rows = objectRows(inventory, RAW_IDS);
+    const rows = objectRows(inventory, EMPTY_INDEX);
 
     expect(rows.map((row) => row.typeLabel)).toEqual([null, null]);
     expect(rows.map((row) => display(row.typeLabel, row.typeId))).toEqual([
@@ -136,7 +135,7 @@ describe('сводка по типам', () => {
   test('при равном количестве порядок задаёт название, а не ключ справочника', () => {
     const tie: Inventory = { ...inventory, byType: { ot_a: 1, ot_b: 1 } };
     const labels: Naming = {
-      typeLabel: (typeId) => (typeId === 'ot_a' ? 'Яблоко' : 'Арбуз'),
+      objectTypeLabel: (typeId) => (typeId === 'ot_a' ? 'Яблоко' : 'Арбуз'),
       zoneName: () => null,
     };
 

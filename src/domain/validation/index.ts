@@ -17,6 +17,7 @@
 import {
   type Catalog,
   type Equipment,
+  type Id,
   type Issue,
   type PlanDocument,
   type Point,
@@ -28,12 +29,17 @@ import {
 import { findObjectType } from '../catalog';
 import { countInZoneScope } from '../inventory';
 import {
+  boundingBox,
+  boxesOverlap,
   contains,
   footprint,
+  intersects,
+  intervalsOverlap,
   isSimplePolygon,
   objectHitsWall,
-  objectsShareSpace,
+  objectInterval,
   openingCentre,
+  segmentLength,
 } from '../geometry';
 import { RELATION_ISSUE_CODES, relationIssues } from '../relations';
 
@@ -237,7 +243,14 @@ function objectPlacementIssues(plan: PlanDocument): Issue[] {
 
 /** Only objects the catalog calls physical take part in collisions. */
 function collisionIssues(plan: PlanDocument): Issue[] {
-  const solid = plan.objects.filter((object) => isPhysical(plan.catalog, object));
+  // Footprints once, not once per pair: with a thousand objects the pairs run
+  // to half a million, and a box test settles almost all of them (D-205).
+  const solid = plan.objects
+    .filter((object) => isPhysical(plan.catalog, object))
+    .map((object) => {
+      const shape = footprint(object);
+      return { object, shape, box: boundingBox(shape), interval: objectInterval(object) };
+    });
   const issues: Issue[] = [];
 
   for (let left = 0; left < solid.length; left += 1) {
@@ -245,17 +258,19 @@ function collisionIssues(plan: PlanDocument): Issue[] {
       const a = solid[left];
       const b = solid[right];
       if (a === undefined || b === undefined) continue;
-      if (!objectsShareSpace(a, b)) continue;
+      if (!boxesOverlap(a.box, b.box)) continue;
+      if (!intervalsOverlap(a.interval, b.interval)) continue;
+      if (!intersects(a.shape, b.shape)) continue;
       issues.push(
         issue(
           VALIDATION_ISSUE_CODES.OBJECT_COLLISION,
           'error',
-          `Объекты «${a.label}» и «${b.label}» занимают одно место.`,
+          `Объекты «${a.object.label}» и «${b.object.label}» занимают одно место.`,
           [
-            { kind: 'object', id: a.id },
-            { kind: 'object', id: b.id },
+            { kind: 'object', id: a.object.id },
+            { kind: 'object', id: b.object.id },
           ],
-          footprint(a),
+          a.shape,
         ),
       );
     }
@@ -273,7 +288,7 @@ function wallIssues(plan: PlanDocument): Issue[] {
         issue(
           VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,
           'error',
-          `Объект «${object.label}» пересекает стену «${wall.id}».`,
+          `Объект «${object.label}» пересекает стену ${wall.id}.`,
           [
             { kind: 'object', id: object.id },
             { kind: 'wall', id: wall.id },
@@ -290,6 +305,15 @@ function isPhysical(catalog: Catalog, object: Equipment): boolean {
   // An unknown type is treated as solid: the schema refuses such a document on
   // load, and during an edit a silent "not physical" would hide a collision.
   return findObjectType(catalog, object.typeId)?.physical ?? true;
+}
+
+/**
+ * The type as the person knows it: «Скамья», not «ot_bench». The id stays in
+ * `refs`; a type missing from the catalog is named by its id, as elsewhere.
+ * Walls and openings carry no name, so their ids stand without quotes.
+ */
+function typeLabel(catalog: Catalog, typeId: Id): string {
+  return findObjectType(catalog, typeId)?.label ?? typeId;
 }
 
 function ruleIssues(plan: PlanDocument): Issue[] {
@@ -320,7 +344,7 @@ function countRuleIssues(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN,
           severityOf(rule),
-          `В зоне «${zone.name}» ${count} шт. «${rule.objectTypeId}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
+          `В зоне «${zone.name}» ${count} шт. «${typeLabel(plan.catalog, rule.objectTypeId)}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
         ),
@@ -331,7 +355,7 @@ function countRuleIssues(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX,
           severityOf(rule),
-          `В зоне «${zone.name}» ${count} шт. «${rule.objectTypeId}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
+          `В зоне «${zone.name}» ${count} шт. «${typeLabel(plan.catalog, rule.objectTypeId)}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
         ),
@@ -386,7 +410,7 @@ function distanceRuleIssues(
       issue(
         VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE,
         severityOf(rule),
-        `Объект «${object.label}» в ${best.toFixed(2)} м от входа «${nearest.opening.id}» при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
+        `Объект «${object.label}» в ${best.toFixed(2)} м от входа ${nearest.opening.id} при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
         [
           { kind: 'object', id: object.id },
           { kind: 'opening', id: nearest.opening.id },
@@ -399,5 +423,5 @@ function distanceRuleIssues(
 }
 
 function distance(a: Point, b: Point): number {
-  return Math.hypot(b[0] - a[0], b[1] - a[1]);
+  return segmentLength(a, b);
 }

@@ -254,14 +254,37 @@ export function isSimplePolygon(polygon: Polygon): boolean {
   return true;
 }
 
-function pointSegmentDistance(point: Point, from: Point, to: Point): number {
+/** Euclidean length of the segment `from → to`. */
+export function segmentLength(from: Point, to: Point): number {
+  return Math.hypot(to[0] - from[0], to[1] - from[1]);
+}
+
+/**
+ * Where a point falls against a segment: `t` in [0, 1] is the clamped position
+ * along it, `foot` the closest point of the segment, `distance` how far the
+ * point is from that foot. Every "snap to edge", "offset along a wall" and
+ * "is it near this wall" in the project is this one computation.
+ */
+export function projectOnSegment(
+  point: Point,
+  from: Point,
+  to: Point,
+): { t: number; foot: Point; distance: number } {
   const dx = to[0] - from[0];
   const dy = to[1] - from[1];
   const lengthSq = dx * dx + dy * dy;
-  if (lengthSq <= EPS * EPS) return Math.hypot(point[0] - from[0], point[1] - from[1]);
+  if (lengthSq <= EPS * EPS) {
+    return { t: 0, foot: from, distance: segmentLength(from, point) };
+  }
   const along = ((point[0] - from[0]) * dx + (point[1] - from[1]) * dy) / lengthSq;
-  const clamped = Math.min(1, Math.max(0, along));
-  return Math.hypot(point[0] - (from[0] + clamped * dx), point[1] - (from[1] + clamped * dy));
+  const t = Math.min(1, Math.max(0, along));
+  const foot: Point = [from[0] + t * dx, from[1] + t * dy];
+  return { t, foot, distance: segmentLength(foot, point) };
+}
+
+/** Distance from a point to a segment (zero on the segment). */
+export function pointSegmentDistance(point: Point, from: Point, to: Point): number {
+  return projectOnSegment(point, from, to).distance;
 }
 
 /** Nearest approach of two segments; zero when they cross. */

@@ -802,6 +802,7 @@ async function askModel(calculation: DemoCalculation, config: LlmConfig): Promis
   registerAdviceRoutes(app, {
     llm: createLlmClient(config),
     llmLabel: label,
+    llmProvider: config.provider,
     // Four calls per build; the server's limit protects a public demo, not this.
     rateLimit: { max: calculation.asked.length, windowMs: 60_000 },
   });

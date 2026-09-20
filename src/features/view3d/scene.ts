@@ -13,7 +13,6 @@ import type {
   Equipment,
   Opening,
   PlanDocument,
-  Point,
   Polygon,
   Ref,
   Wall,
@@ -23,11 +22,12 @@ import { TOLERANCE } from '../../contracts/model';
 import {
   boundingBox,
   footprint,
-  openingCentre,
-  toWorld,
+  wallLength,
   wallObstacles,
+  wallSpanPolygon,
   type BoundingBox,
 } from '../../domain/geometry';
+import { zoneDepth } from '../../domain/relations';
 
 export type PrismKind = 'floor' | 'zone' | 'wall' | 'opening' | 'object';
 
@@ -124,24 +124,13 @@ function zonePrism(zone: Zone, zones: Zone[], catalog: Catalog): ScenePrism {
     ref: { kind: 'zone', id: zone.id },
     label: zone.name,
     polygon: zone.polygon,
-    base_m: zoneDepth(zone, zones) * ZONE_SLAB_M,
+    // A nested zone's slab sits one step above its parent's; a broken or
+    // cyclic chain (domain returns null) lies flat rather than guessing.
+    base_m: (zoneDepth(zone.id, zones) ?? 0) * ZONE_SLAB_M,
     height_m: ZONE_SLAB_M,
     color: type?.color ?? SCENE_COLORS.zone,
     opacity: 1,
   };
-}
-
-/** Number of ancestors; a broken or cyclic chain stops at the number of zones. */
-function zoneDepth(zone: Zone, zones: Zone[]): number {
-  let depth = 0;
-  let parentId = zone.parentId;
-  while (parentId !== null && depth < zones.length) {
-    const parent = zones.find((candidate) => candidate.id === parentId);
-    if (!parent) break;
-    depth += 1;
-    parentId = parent.parentId;
-  }
-  return depth;
 }
 
 /**
@@ -183,33 +172,21 @@ function wallPrisms(wall: Wall, openings: Opening[]): ScenePrism[] {
 
 /**
  * Translucent pane in the wall plane: the opening stays visible as a thing with
- * an id. Position and orientation come from geometry — `openingCentre` for the
- * middle and `toWorld` for the turn, the same clockwise convention `footprint`
- * uses — so the pane never drifts from the wall it belongs to. (Geometry's own
- * `wallSpanPolygon` would give the rectangle outright, but it is private to
- * G01 and exporting it belongs to that module's owner.)
+ * an id. The rectangle is geometry's own `wallSpanPolygon` with a thinner
+ * thickness, so the pane never drifts from the wall it belongs to (D-199).
  */
 function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
   const wall = walls.find((candidate) => candidate.id === opening.wallId);
   if (!wall) return [];
-  const [fx, fy] = wall.from;
-  const [tx, ty] = wall.to;
-  const length = Math.hypot(tx - fx, ty - fy);
+  const length = wallLength(wall);
   if (length <= TOLERANCE.coordinate_m) return [];
 
-  // Heading that turns the local +X axis along the wall: clockwise, as in
-  // `rotateOffset`, where (1,0) at angle a becomes (cos a, -sin a).
-  const heading_deg = (Math.atan2(-(ty - fy), tx - fx) * 180) / Math.PI;
-  const halfWidth = opening.width_m / 2;
-  const halfThick = (wall.thickness_m * PANE_SHARE) / 2;
-  const centre = openingCentre(opening, wall);
-  const corners: Point[] = [
-    [-halfWidth, halfThick],
-    [halfWidth, halfThick],
-    [halfWidth, -halfThick],
-    [-halfWidth, -halfThick],
-  ];
-  const polygon: Polygon = corners.map((corner) => toWorld(centre, corner, heading_deg));
+  const polygon: Polygon = wallSpanPolygon(
+    wall,
+    opening.offset_m,
+    opening.offset_m + opening.width_m,
+    wall.thickness_m * PANE_SHARE,
+  );
   return [
     {
       kind: 'opening',

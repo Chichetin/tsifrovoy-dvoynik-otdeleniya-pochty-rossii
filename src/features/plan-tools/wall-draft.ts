@@ -12,7 +12,9 @@
  */
 
 import type { Id, Opening, OpeningKind, Point, Room, Wall } from '../../contracts/model';
-import { moveOpeningTo, snapPoint, wallLength } from './vertex-edit';
+import { nextFreeId } from '../../domain/commands';
+import { pointSegmentDistance, segmentLength, wallLength } from '../../domain/geometry';
+import { moveOpeningTo } from './vertex-edit';
 
 /**
  * Значения, которых нет в жесте пользователя. Это допущения команды, а не
@@ -35,13 +37,6 @@ export const MIN_WALL_LENGTH_M = 0.2;
 /** Дальше этого от стены клик проёмом в неё не попал. */
 export const OPENING_HIT_RADIUS_M = 0.6;
 
-function nextId(prefix: string, taken: Set<Id>): Id {
-  for (let index = 1; ; index += 1) {
-    const candidate = `${prefix}${index}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-}
-
 /**
  * Перегородка по двум точкам. Концы притягиваются к сетке — тем же шагом, что
  * и вершины контуров, иначе стена, нарисованная вдоль зоны, не сойдётся с ней
@@ -56,12 +51,14 @@ export function createWall(
   room: Room,
   taken: Set<Id>,
 ): Wall | null {
-  const start = snapPoint(from);
-  const end = snapPoint(to);
-  if (Math.hypot(end[0] - start[0], end[1] - start[1]) < MIN_WALL_LENGTH_M) return null;
+  // The ends arrive settled by the controller (snapped or rounded, D-211):
+  // rounding here again would move a face-snapped end off the face.
+  const start = from;
+  const end = to;
+  if (segmentLength(start, end) < MIN_WALL_LENGTH_M) return null;
 
   return {
-    id: nextId('w_', taken),
+    id: nextFreeId('w_', taken),
     from: start,
     to: end,
     thickness_m: WALL_DEFAULTS.partitionThickness_m,
@@ -72,17 +69,9 @@ export function createWall(
 
 export type WallHit = { wall: Wall; distance_m: number };
 
-/** Расстояние от точки до отрезка стены. */
+/** Расстояние от точки до отрезка стены — примитив из `domain/geometry`. */
 function distanceToWall(wall: Wall, point: Point): number {
-  const [ax, ay] = wall.from;
-  const [bx, by] = wall.to;
-  const dx = bx - ax;
-  const dy = by - ay;
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) return Math.hypot(point[0] - ax, point[1] - ay);
-
-  const t = Math.min(1, Math.max(0, ((point[0] - ax) * dx + (point[1] - ay) * dy) / lengthSquared));
-  return Math.hypot(point[0] - (ax + t * dx), point[1] - (ay + t * dy));
+  return pointSegmentDistance(point, wall.from, wall.to);
 }
 
 /**
@@ -118,7 +107,7 @@ export function createOpening(
   if (wallLength(wall) < defaults.width_m) return null;
 
   const opening: Opening = {
-    id: nextId('op_', taken),
+    id: nextFreeId('op_', taken),
     wallId: wall.id,
     offset_m: 0,
     width_m: defaults.width_m,

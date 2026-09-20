@@ -27,7 +27,7 @@ docker compose up --build -d
 
 ```bash
 docker compose ps                        # STATUS должен стать "Up ... (healthy)"
-curl http://127.0.0.1:8080/api/health    # {"status":"ok"}
+curl http://127.0.0.1:8080/api/health    # {"status":"ok","llm":{"configured":false}} — с ключом: {"configured":true,"provider":"…"}
 ```
 
 Редактор открывается в браузере по адресу <http://127.0.0.1:8080> (на удалённой машине —
@@ -82,7 +82,7 @@ docker compose up -d     # перечитывает .env
 | Переменная | Зачем | Без неё |
 |---|---|---|
 | `LLM_PROVIDER`, `LLM_ENDPOINT`, `LLM_MODEL`, `LLM_API_KEY` | объяснения ассистента от модели (Qwen, DeepSeek, GigaChat, YandexGPT) | ассистент считает рекомендации сам и помечает ответ «Без LLM» — штатный режим, а не ошибка |
-| `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS` | предел ожидания и длины ответа модели | 20 000 мс и 800 токенов |
+| `LLM_TIMEOUT_MS`, `LLM_MAX_OUTPUT_TOKENS` | предел ожидания и длины ответа модели | 20 000 мс и 800 токенов; для рассуждающей модели 60 000 мс и 4000 токенов (D-206) |
 | `ADVICE_RATE_LIMIT`, `ADVICE_RATE_WINDOW_MS` | защита баланса: сколько обращений к модели в окно | 30 запросов в минуту на процесс |
 | `PORT` | порт наружу и внутри контейнера | 8080 |
 
@@ -120,6 +120,17 @@ docker compose down              # остановить и удалить кон
    поэтому: клиент подключает их на сборке, и без них `vite build` в образе упал бы.
 3. Процесс запускается от пользователя `node` (не root), слушает `0.0.0.0:$PORT`, имеет
    `HEALTHCHECK` на `/api/health`.
+4. Остановка штатная (D-203): по `SIGTERM`/`SIGINT` сервер перестаёт принимать
+   соединения, доводит запросы в полёте, закрывает освободившиеся keep-alive-сокеты
+   и выходит с кодом 0; `docker stop` и `docker compose down` не ждут срок и не рвут
+   ответ ассистента. Запрос к модели может длиться до `LLM_TIMEOUT_MS`, поэтому в
+   `compose.yaml` стоит `stop_grace_period: 65s` — больше докеровских 10 с по
+   умолчанию и достаточно для рекомендованных 60 000 мс. Правило: `stop_grace_period` ≥
+   `LLM_TIMEOUT_MS` + 5 с; подняли таймаут модели выше 60 000 мс — поднимите и срок,
+   иначе ответ в полёте оборвёт SIGKILL.
+   Обработчик покрыт `server/main.test.ts`; прогон `docker stop` на Linux-хосте —
+   `TBD` при деплое (ожидание: `time docker compose down` меньше секунды без
+   запросов в полёте).
 
 Размер образа на 17.09.2026: 322 МБ на диске (70,8 МБ в реестре), из них ~75 МБ —
 production-зависимости по слоям образа, 1,5 МБ — собранный SPA, 119 КБ — сервер.
@@ -180,6 +191,6 @@ docker run -d --name ops-digital-twin -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 
 | Проверка | Команда | Результат 17.09.2026 |
 |---|---|---|
 | Образ собирается и контейнер поднимается | `docker compose up --build -d` | `Up ... (healthy)` |
-| Health | `curl http://127.0.0.1:8080/api/health` | `{"status":"ok"}` |
+| Health | `curl http://127.0.0.1:8080/api/health` | `{"status":"ok","llm":{"configured":…}}` — `configured: true` и подпись провайдера, если ключ на сервере задан; ключ не выдаётся |
 | Сервис целиком | `DEPLOY_URL=http://127.0.0.1:8080 npx playwright test tests/e2e/deployment.spec.ts` | `5 passed` |
 | Без адреса деплоя тесты не трогают чужой порт | `npx playwright test tests/e2e/deployment.spec.ts` | `5 skipped` |

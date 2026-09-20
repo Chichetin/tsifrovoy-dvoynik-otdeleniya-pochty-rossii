@@ -9,27 +9,33 @@
  */
 
 import type { Id, Opening, Point, Polygon, Wall, Zone } from '../../contracts/model';
-import { contains, isSimplePolygon } from '../../domain/geometry';
-import { zoneDepth } from '../../domain/relations';
+import { isSimplePolygon, projectOnSegment, segmentLength, wallLength } from '../../domain/geometry';
+import { parentZoneFor } from '../../domain/relations';
 
-const SNAP_M = 0.01;
+/** Centimetres per metre: vertices are stored to the centimetre. */
+const CM_PER_M = 100;
 
 /** Pointer capture radius of a handle on screen, in pixels. */
 export const HANDLE_RADIUS_PX = 8;
 
-export function snapPoint(point: Point): Point {
-  return [Math.round(point[0] / SNAP_M) * SNAP_M, Math.round(point[1] / SNAP_M) * SNAP_M];
+/**
+ * To the centimetre. Multiply then divide, not multiply by 0.01: dividing by
+ * 100 gives the nearest double to the decimal (2.3), where `230 * 0.01` gives
+ * 2.3000000000000003 — and the file is read by people (operator №17).
+ */
+export function roundPoint(point: Point): Point {
+  return [Math.round(point[0] * CM_PER_M) / CM_PER_M, Math.round(point[1] * CM_PER_M) / CM_PER_M];
 }
 
+/** The point arrives settled by the layer (snapped or rounded) and is stored as given. */
 export function moveVertex(polygon: Polygon, index: number, point: Point): Polygon {
-  const snapped = snapPoint(point);
-  return polygon.map((vertex, at) => (at === index ? snapped : vertex));
+  return polygon.map((vertex, at) => (at === index ? point : vertex));
 }
 
 /** Inserts after edge `index`, i.e. between vertex `index` and the next one. */
 export function insertVertex(polygon: Polygon, index: number, point: Point): Polygon {
   const next = polygon.slice();
-  next.splice(index + 1, 0, snapPoint(point));
+  next.splice(index + 1, 0, roundPoint(point));
   return next;
 }
 
@@ -42,24 +48,13 @@ export function removeVertex(polygon: Polygon, index: number): Polygon | null {
 
 export type EdgeHit = { index: number; point: Point; distance: number };
 
-function projectOnSegment(point: Point, from: Point, to: Point): Point {
-  const dx = to[0] - from[0];
-  const dy = to[1] - from[1];
-  const lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared === 0) return from;
-  const t = ((point[0] - from[0]) * dx + (point[1] - from[1]) * dy) / lengthSquared;
-  const clamped = Math.min(1, Math.max(0, t));
-  return [from[0] + dx * clamped, from[1] + dy * clamped];
-}
-
 /** Closest edge of the ring to a point, with the foot of the perpendicular. */
 export function nearestEdge(polygon: Polygon, point: Point): EdgeHit {
   let best: EdgeHit = { index: 0, point: polygon[0] ?? point, distance: Infinity };
   for (let index = 0; index < polygon.length; index += 1) {
     const from = polygon[index]!;
     const to = polygon[(index + 1) % polygon.length]!;
-    const foot = projectOnSegment(point, from, to);
-    const distance = Math.hypot(point[0] - foot[0], point[1] - foot[1]);
+    const { foot, distance } = projectOnSegment(point, from, to);
     if (distance < best.distance) best = { index, point: foot, distance };
   }
   return best;
@@ -82,7 +77,7 @@ export function insertionOnEdge(polygon: Polygon, point: Point): EdgeHit | null 
   if (from === undefined || to === undefined) return null;
 
   const middle: Point = [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
-  const away = (target: Point): number => Math.hypot(point[0] - target[0], point[1] - target[1]);
+  const away = (target: Point): number => segmentLength(point, target);
   const toVertex = Math.min(away(from), away(to));
   return toVertex < away(middle) ? null : hit;
 }
@@ -95,12 +90,9 @@ export function canCommitRing(polygon: Polygon): boolean {
   return isSimplePolygon(polygon);
 }
 
-export function wallLength(wall: Wall): number {
-  return Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
-}
-
+/** As `moveVertex`: the end is stored as the layer settled it. */
 export function moveWallEnd(wall: Wall, end: 'from' | 'to', point: Point): Wall {
-  return { ...wall, [end]: snapPoint(point) };
+  return { ...wall, [end]: point };
 }
 
 /**
@@ -111,24 +103,13 @@ export function moveWallEnd(wall: Wall, end: 'from' | 'to', point: Point): Wall 
 export function moveOpeningTo(opening: Opening, wall: Wall, point: Point): Opening {
   const length = wallLength(wall);
   if (length === 0) return { ...opening, offset_m: 0 };
-  const foot = projectOnSegment(point, wall.from, wall.to);
-  const along = Math.hypot(foot[0] - wall.from[0], foot[1] - wall.from[1]);
+  const along = projectOnSegment(point, wall.from, wall.to).t * length;
   const maxOffset = Math.max(0, length - opening.width_m);
   const offset = Math.min(maxOffset, Math.max(0, along - opening.width_m / 2));
-  return { ...opening, offset_m: Math.round(offset / SNAP_M) * SNAP_M };
+  return { ...opening, offset_m: Math.round(offset * CM_PER_M) / CM_PER_M };
 }
 
-/**
- * A zone drawn inside another zone is nested in it: the deepest zone whose
- * polygon contains the whole ring becomes the parent. A ring crossing a
- * border or lying outside every zone stands on its own.
- */
+/** Nesting of a freshly drawn ring — the one rule from `domain/relations` (D-199). */
 export function parentForRing(ring: Polygon, zones: Zone[]): Id | null {
-  let best: { id: Id; depth: number } | null = null;
-  for (const zone of zones) {
-    if (!isSimplePolygon(zone.polygon) || !contains(zone.polygon, ring)) continue;
-    const depth = zoneDepth(zone.id, zones) ?? 0;
-    if (best === null || depth > best.depth) best = { id: zone.id, depth };
-  }
-  return best?.id ?? null;
+  return parentZoneFor(ring, zones);
 }

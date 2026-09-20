@@ -873,6 +873,37 @@ body {
   font-size: 12px;
 }
 
+.table__resizable-head {
+  position: relative;
+}
+
+.table__resize-handle {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  right: -5px;
+  width: 10px;
+  height: 100%;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.table__resize-handle::after {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  content: '';
+}
+
+.table__resize-handle:hover::after,
+.table__resize-handle:focus-visible::after {
+  background: var(--accent);
+}
+
 .table__link {
   padding: 0;
   border: none;
@@ -944,11 +975,6 @@ span.inventory__num {
   vertical-align: top;
   overflow-wrap: break-word;
   hyphens: auto;
-}
-
-.metrics__table th:first-child,
-.metrics__table td:first-child {
-  width: 100%;
 }
 
 .metrics__table td.metrics__num,

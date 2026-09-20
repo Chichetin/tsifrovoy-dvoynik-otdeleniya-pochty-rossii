@@ -66,6 +66,10 @@ for (const size of [
         await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expectOneRow(page, reference, `инструмент «${name}»`);
       }
+      await expect(page.getByRole('button', { name: 'Выбор', exact: true })).toHaveAttribute(
+        'title',
+        /Alt — без привязки/,
+      );
 
       // Самая длинная кнопка шапки: «Удалить перегородку» у только что нарисованной стены.
       await page.getByRole('button', { name: 'Перегородка', exact: true }).click();

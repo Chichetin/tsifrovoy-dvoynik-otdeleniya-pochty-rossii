@@ -189,6 +189,8 @@ test.describe('слои в браузере', () => {
     // Включение слоя — это показ: в плане меняется только флаг самого слоя,
     // а зоны, объекты и геометрия остаются теми же.
     await heat.getByRole('button', { name: 'Показывать слой Тепловая нагрузка зон' }).click();
+    // Показ слоя — не правка: статус остаётся «сохранено» (D-207, находка operator №11).
+    await expect(page.getByText('сохранено', { exact: true })).toBeVisible();
     const shown = JSON.parse(await savePlan(page));
     expect(shown.zones).toEqual(before.zones);
     expect(shown.objects).toEqual(before.objects);

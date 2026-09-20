@@ -24,14 +24,14 @@ import { deleteIntent } from './delete-key';
 import { setNotice, useNotice } from './notice';
 
 const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: string }[] = [
-  { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать объекты' },
+  { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
   { kind: 'pan', label: 'Рука', hint: 'Двигать план; то же делает средняя кнопка мыши' },
-  { kind: 'room.draw', label: 'Помещение', hint: 'Обвести границу помещения по точкам' },
-  { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; клик по первой точке замыкает' },
+  { kind: 'room.draw', label: 'Помещение', hint: 'Обвести границу по точкам; Alt — без привязки' },
+  { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; Alt — без привязки' },
   {
     kind: 'wall.draw',
     label: 'Перегородка',
-    hint: 'Два клика: начало и конец перегородки внутри помещения',
+    hint: 'Два клика: начало и конец; Alt — без привязки',
   },
   {
     kind: 'opening.place',
@@ -49,9 +49,9 @@ function selectionKey(selection: Ref | null): string {
 function editingHint(selection: Ref | null): string | null {
   if (selection === null) return null;
   if (selection.kind === 'zone' || selection.kind === 'room') {
-    return 'Контур: тяните вершину, клик по ребру добавит вершину, двойной клик по вершине удалит';
+    return 'Контур: тяните вершину; Alt — без привязки; клик по ребру добавит вершину';
   }
-  if (selection.kind === 'wall') return 'Перегородка: тяните концы';
+  if (selection.kind === 'wall') return 'Перегородка: тяните концы; Alt — без привязки';
   if (selection.kind === 'opening') return 'Проём: тяните вдоль стены';
   return null;
 }

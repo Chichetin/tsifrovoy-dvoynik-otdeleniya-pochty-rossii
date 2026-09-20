@@ -108,6 +108,16 @@ function atTime(iso: string): string {
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
+/**
+ * «Тронут ли план» судится по содержимому без видимости слоёв: показать слой —
+ * не правка (D-207), и черновик от этого ни писаться, ни спрашивать
+ * подтверждения не должен. В сам черновик план идёт как есть.
+ */
+function fingerprint(encode: FileControlsProps['encode'], document: PlanDocument): string | null {
+  const shown = encode({ ...document, layers: document.layers.map((layer) => ({ ...layer, visible: true })) });
+  return shown.ok ? shown.value : null;
+}
+
 export function FileControls({
   document: plan,
   dirty,
@@ -129,6 +139,7 @@ export function FileControls({
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
+  const [dropped, setDropped] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
     given === undefined ? browserStorage() : given,
   );
@@ -137,10 +148,16 @@ export function FileControls({
   // писать нельзя, иначе пустой план затрёт то, что предлагаем восстановить.
   const [start] = useState<{ opening: string | null; draft: PlanDraft | null }>(() => {
     if (storage === null) return { opening: null, draft: null };
-    const started = encode(plan);
-    const opening = started.ok ? started.value : null;
+    const opening = fingerprint(encode, plan);
     const draft = readDraft(storage);
-    return { opening, draft: draft !== null && draftDiffers(draft, opening) ? draft : null };
+    // The draft is compared by the same fingerprint: one that differs from the
+    // opening plan only by which layers are shown is nothing to offer.
+    const draftShown = draft === null ? null : read(draft.text);
+    const comparable =
+      draft !== null && draftShown !== null && draftShown.ok
+        ? { ...draft, text: fingerprint(encode, draftShown.value.plan) ?? draft.text }
+        : draft;
+    return { opening, draft: comparable !== null && draftDiffers(comparable, opening) ? draft : null };
   });
   const [offered, setOffered] = useState<PlanDraft | null>(start.draft);
   // Ответил ли пользователь на предложение действием с документом: «Новый»,
@@ -179,7 +196,7 @@ export function FileControls({
       const encoded = encode(plan);
       // План, который не запишется в файл, не годится и в черновик.
       if (!encoded.ok) return null;
-      if (!answered && encoded.value === start.opening) return null;
+      if (!answered && fingerprint(encode, plan) === start.opening) return null;
       return { text: encoded.value, name: plan.name };
     });
     return () => active.cancel();
@@ -192,6 +209,7 @@ export function FileControls({
     setAnswered(true);
     onReplace(opened.plan, origin);
     setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
+    setDropped(opened.dropped);
     setNotice(
       opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
     );
@@ -229,6 +247,8 @@ export function FileControls({
     const opened = read(text);
     if (!opened.ok) {
       // The open document stays untouched: a rejected file never replaces it.
+      // Документ не сменился: допущения прежнего файла уже неверны для сообщения
+      // об отказе, а список полей вне формата относится к оставшемуся плану.
       setAssumptions([]);
       setState({ status: 'error', message: `План не открыт. ${describe(opened.issues)}` });
       return;
@@ -241,8 +261,8 @@ export function FileControls({
     // `dirty` чист, но это работа пользователя. И когда план тронут с момента
     // открытия страницы: зон и объектов может не быть, а контур, стены и
     // название уже правились. Нетронутый пустой план терять нечего.
-    const current = encode(plan);
-    const touched = !current.ok || current.value !== start.opening;
+    const current = fingerprint(encode, plan);
+    const touched = current === null || current !== start.opening;
     if ((hasContent(plan) || touched) && !window.confirm(RESTORE_WARNING)) return;
     openSequence.current += 1;
     const opened = read(draft.text);
@@ -326,6 +346,7 @@ export function FileControls({
           setAnswered(true);
           setDraftAt(null);
           setAssumptions([]);
+          setDropped([]);
           setNotice(null);
           setState({ status: 'idle' });
         }}
@@ -416,6 +437,18 @@ export function FileControls({
           {notice}
         </span>
       ) : null}
+
+      {dropped.length === 0 ? null : (
+        <details className="files__status" data-testid="dropped-fields">
+          <summary>Поля вне формата ({dropped.length}) — при сохранении не запишутся</summary>
+          <ul>
+            {dropped.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="panel__note">Своё поле лучше положить в «extensions»: этот блок файл переносит целиком.</p>
+        </details>
+      )}
 
       {assumptions.length === 0 ? null : (
         <details className="files__status" data-testid="organizer-assumptions">
