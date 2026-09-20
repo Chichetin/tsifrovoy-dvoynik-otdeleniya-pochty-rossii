@@ -11,15 +11,37 @@
  *
  * That is the whole point of the package: a model will confidently state that
  * 12 m² became 15 m². This module makes such an answer unshowable.
+ *
+ * A08 adds one thing the model may write itself: `text`, a short Russian answer
+ * to the user's free question. It is held to the same standard — every id-shaped
+ * token must be one the recommendation names, every number must be one the
+ * calculation produced, in the rounding the user is shown — but its refusal is
+ * *soft*, and that asymmetry is deliberate. The structural part is what the
+ * sentence and the figures are built from: one bad field there and nothing on
+ * screen can be trusted, so the whole answer goes. The free text is an addition
+ * on top of a complete answer, so dropping it alone returns the user exactly to
+ * the screen they had before the field existed. A hard refusal there would
+ * punish the reader for the model's chatter: they would lose the verified
+ * explanation too. Every drop is reported in `textIssues` so the server logs it
+ * — a model that never gets a word through is a fact we need to know, not a
+ * silence.
+ *
+ * What the number check does not do: it compares magnitudes, not meaning. It
+ * accepts «1,50 м²» for a delta of −1,50 and cannot tell «освободилось» from
+ * «занято». The signed number stays visible in the template sentence next to
+ * the text, which is where the reader sees the direction of the change.
  */
 
 import { z } from 'zod';
 import type {
+  Candidate,
+  Change,
   Explanation,
   Fact,
   Recommendation,
   VerifyExplanation,
 } from '../../contracts/advice';
+import { ADVICE_LIMITS } from '../../contracts/advice';
 import { REASON_CODES, REASON_CODE_SPECS } from '../../contracts/advice-semantics';
 import type { Id, Issue, Ref, Result } from '../../contracts/model';
 
@@ -51,6 +73,14 @@ export const EXPLANATION_ISSUE_CODES = {
   DELTA_NONZERO: 'DELTA_NONZERO',
   /** The recommendation lost the limitation its code must carry. */
   LIMITATION_MISSING: 'LIMITATION_MISSING',
+  /** The free answer names an id the recommendation does not. Text only. */
+  TEXT_UNKNOWN_ID: 'TEXT_UNKNOWN_ID',
+  /** The free answer states a number the calculation did not produce. */
+  TEXT_UNKNOWN_NUMBER: 'TEXT_UNKNOWN_NUMBER',
+  /** The free answer is longer than ADVICE_LIMITS.maxAnswerChars. */
+  TEXT_TOO_LONG: 'TEXT_TOO_LONG',
+  /** The free answer is blank — the field was sent, the answer was not. */
+  TEXT_EMPTY: 'TEXT_EMPTY',
 } as const;
 
 const explanationSchema = z
@@ -59,8 +89,13 @@ const explanationSchema = z
     candidateId: z.string().min(1).nullable(),
     reasonCode: z.enum(REASON_CODES as [string, ...string[]]),
     factIds: z.array(z.string().min(1)).min(1),
+    // Любая строка: длину и содержимое разбирает мягкая проверка ниже, иначе
+    // болтливая модель уносила бы с собой и проверенное объяснение.
+    text: z.string().optional(),
   })
   .strict();
+
+const answerTextSchema = z.string().trim().min(1).max(ADVICE_LIMITS.maxAnswerChars);
 
 const payloadSchema = z
   .object({ explanations: z.array(explanationSchema).min(1) })
@@ -110,6 +145,189 @@ export function factOwner(recommendation: Recommendation): Map<Id, Id> {
     for (const fact of candidate.facts) owner.set(fact.id, candidate.id);
   }
   return owner;
+}
+
+/**
+ * Every id the recommendation itself puts on the screen or rests on: its own
+ * id, the entities it points at, the rules it applied, its facts and the refs
+ * under them, its candidates with their reserved objects and target zones, and
+ * the entities its diff touches. The free answer may name these and nothing
+ * else — a zone that exists in the plan but is not part of this recommendation
+ * is already an invention as far as this answer is concerned.
+ */
+export function allowedIds(recommendation: Recommendation): Set<Id> {
+  const ids = new Set<Id>([recommendation.id]);
+  const addFact = (fact: Fact): void => {
+    ids.add(fact.id);
+    for (const ref of fact.refs) ids.add(ref.id);
+  };
+
+  for (const ref of recommendation.refs) ids.add(ref.id);
+  for (const ruleId of recommendation.ruleIds) ids.add(ruleId);
+  for (const fact of recommendation.facts) addFact(fact);
+  for (const candidate of recommendation.candidates) {
+    ids.add(candidate.id);
+    ids.add(candidate.object.id);
+    if (candidate.object.zoneId !== null) ids.add(candidate.object.zoneId);
+    for (const fact of candidate.facts) addFact(fact);
+  }
+  for (const change of recommendation.changes) ids.add(change.ref.id);
+  return ids;
+}
+
+/** How many decimals the interface shows for a value in these units. */
+function displayDigits(unit: Fact['unit']): number {
+  return unit === 'count' ? 0 : 2;
+}
+
+/**
+ * Rounds the way the interface rounds — half away from zero, like
+ * `Intl.NumberFormat` in src/domain/number-format.ts. Comparing against the raw
+ * value would reject «12,35» for a free area of 12,3456789: the honest quote of
+ * a number the user is actually shown.
+ */
+function roundToDisplay(value: number, digits: number): number {
+  const factor = 10 ** digits;
+  return Math.round(Math.abs(value) * factor) / factor;
+}
+
+const CHANGE_KINDS: readonly Change['kind'][] = ['added', 'removed', 'moved', 'updated'];
+
+/** |min − count| and |count − max|: the difference the template prints. */
+function ruleGaps(facts: Fact[]): number[] {
+  const value = (metric: Fact['metric']): number | undefined =>
+    facts.find((fact) => fact.metric === metric && fact.phase === 'current')?.value;
+  const count = value('equipment.count');
+  if (count === undefined) return [];
+  return [value('equipment.min'), value('equipment.max')]
+    .filter((limit): limit is number => limit !== undefined)
+    .map((limit) => Math.abs(limit - count));
+}
+
+/**
+ * Every number the recommendation lets the user read, at the rounding they read
+ * it in: the values of its facts and of its candidates' forecasts, the geometry
+ * of each candidate, the ordinal of each variant («Вариант 2»), how many
+ * variants and changes there are, and the shortfall the equipment template
+ * prints. Magnitudes only — the sign is not part of the comparison, see the
+ * module header.
+ */
+export function allowedNumbers(recommendation: Recommendation): number[] {
+  const values: number[] = [];
+  const add = (value: number, digits: number): void => {
+    values.push(roundToDisplay(value, digits));
+  };
+  const addFact = (fact: Fact): void => add(fact.value, displayDigits(fact.unit));
+  const addCandidate = (candidate: Candidate, index: number): void => {
+    for (const fact of candidate.facts) addFact(fact);
+    for (const coordinate of candidate.object.position) add(coordinate, 2);
+    for (const side of candidate.object.size_m) add(side, 2);
+    add(candidate.object.rotation_deg, 0);
+    add(index + 1, 0);
+  };
+
+  for (const fact of recommendation.facts) addFact(fact);
+  recommendation.candidates.forEach(addCandidate);
+  add(recommendation.candidates.length, 0);
+  add(recommendation.changes.length, 0);
+  for (const kind of CHANGE_KINDS) {
+    add(recommendation.changes.filter((change) => change.kind === kind).length, 0);
+  }
+  for (const gap of ruleGaps(recommendation.facts)) add(gap, 0);
+  return values;
+}
+
+/**
+ * A token shaped like an id of this project: latin, and carrying at least one
+ * underscore — `z_waiting`, `eq_6`, `rule_desk_zone`, `adv_place_x.area.free`.
+ * The underscore is what separates an id from the vocabulary the answer may use
+ * freely: `area.free` is a metric name, not an entity.
+ */
+const ID_TOKEN = /[A-Za-z][A-Za-z0-9]*(?:[_.][A-Za-z0-9]+)+/g;
+
+/** Field names of the prompt payload — the model sees them, they are not ids. */
+const PAYLOAD_FIELDS: ReadonlySet<string> = new Set(['size_m', 'rotation_deg']);
+
+/** Unsigned: «−1,50» is read as 1,50, and «2-3» does not become −3. */
+const NUMBER_TOKEN = /\d+(?:[.,]\d+)?/g;
+
+/** Id-shaped tokens of the text that the recommendation does not name. */
+export function unknownIds(text: string, allowed: ReadonlySet<Id>): string[] {
+  const found: string[] = [];
+  for (const [token] of text.matchAll(ID_TOKEN)) {
+    if (!token.includes('_')) continue;
+    if (PAYLOAD_FIELDS.has(token)) continue;
+    if (allowed.has(token)) continue;
+    found.push(token);
+  }
+  return found;
+}
+
+/** Numbers of the text that the calculation did not produce. */
+export function unknownNumbers(text: string, allowed: readonly number[]): string[] {
+  // Ids are removed first: `eq_6` carries a 6 that is part of a name, not a
+  // measurement, and it has already been checked as an id.
+  const prose = text.replace(ID_TOKEN, ' ');
+  const found: string[] = [];
+  for (const [token] of prose.matchAll(NUMBER_TOKEN)) {
+    const value = Number.parseFloat(token.replace(',', '.'));
+    if (!Number.isFinite(value)) continue;
+    if (allowed.some((entry) => Math.abs(entry - value) < 1e-9)) continue;
+    found.push(token);
+  }
+  return found;
+}
+
+/** The free answer after the check: kept as written, or dropped with a reason. */
+type TextReview = { text?: string; issues: Issue[] };
+
+function reviewText(text: string | undefined, recommendation: Recommendation): TextReview {
+  if (text === undefined) return { issues: [] };
+  const where: Ref[] = recommendation.refs;
+
+  const parsed = answerTextSchema.safeParse(text);
+  if (!parsed.success) {
+    const tooLong = text.trim().length > ADVICE_LIMITS.maxAnswerChars;
+    return {
+      issues: [
+        tooLong
+          ? issue(
+              EXPLANATION_ISSUE_CODES.TEXT_TOO_LONG,
+              `Свободный ответ модели длиннее ${ADVICE_LIMITS.maxAnswerChars} символов: показан только расчёт.`,
+              where,
+            )
+          : issue(
+              EXPLANATION_ISSUE_CODES.TEXT_EMPTY,
+              'Модель прислала пустой свободный ответ: показан только расчёт.',
+              where,
+            ),
+      ],
+    };
+  }
+
+  const issues: Issue[] = [];
+  const ids = unknownIds(parsed.data, allowedIds(recommendation));
+  if (ids.length > 0) {
+    issues.push(
+      issue(
+        EXPLANATION_ISSUE_CODES.TEXT_UNKNOWN_ID,
+        `Свободный ответ называет идентификаторы, которых в рекомендации нет: ${ids.join(', ')}.`,
+        where,
+      ),
+    );
+  }
+  const numbers = unknownNumbers(parsed.data, allowedNumbers(recommendation));
+  if (numbers.length > 0) {
+    issues.push(
+      issue(
+        EXPLANATION_ISSUE_CODES.TEXT_UNKNOWN_NUMBER,
+        `Свободный ответ называет числа, которых расчёт не выдавал: ${numbers.join(', ')}.`,
+        where,
+      ),
+    );
+  }
+
+  return issues.length > 0 ? { issues } : { text: parsed.data, issues };
 }
 
 /**
@@ -279,13 +497,27 @@ function checkOne(explanation: Explanation, recommendation: Recommendation): Iss
   return issues;
 }
 
+export type ExplanationReview = {
+  explanations: Explanation[];
+  /**
+   * Why a free answer was dropped. The explanations came through regardless —
+   * these go to the server log, so a model that never gets a word past the
+   * check is visible to us instead of looking like a model that stays silent.
+   */
+  textIssues: Issue[];
+};
+
 /**
  * Checks the model's choice against the calculation. Either every explanation
  * holds up — and comes back typed — or the whole answer is refused: showing one
  * verified sentence next to one unverified one would leave the user guessing
- * which is which.
+ * which is which. The free answer is the one part that can fail alone, and then
+ * only it is dropped.
  */
-export const verifyExplanation: VerifyExplanation = (input, recommendations) => {
+export function reviewExplanations(
+  input: unknown,
+  recommendations: Recommendation[],
+): Result<ExplanationReview> {
   const parsed = parse(input);
   if (!parsed.ok) return parsed;
 
@@ -307,6 +539,7 @@ export const verifyExplanation: VerifyExplanation = (input, recommendations) => 
   const byId = new Map(recommendations.map((entry) => [entry.id, entry]));
   const seen = new Set<Id>();
   const issues: Issue[] = [];
+  const textIssues: Issue[] = [];
   const verified: Explanation[] = [];
 
   for (const entry of payload.data.explanations) {
@@ -334,10 +567,32 @@ export const verifyExplanation: VerifyExplanation = (input, recommendations) => 
     seen.add(explanation.recommendationId);
 
     const problems = checkOne(explanation, recommendation);
-    if (problems.length > 0) issues.push(...problems);
-    else verified.push(explanation);
+    if (problems.length > 0) {
+      issues.push(...problems);
+      continue;
+    }
+
+    // Текст собирается заново, а не переносится из ответа: в `verified` попадает
+    // только то, что проверено, поэтому отклонённый текст физически не доедет.
+    const review = reviewText(explanation.text, recommendation);
+    textIssues.push(...review.issues);
+    const checked: Explanation = {
+      recommendationId: explanation.recommendationId,
+      candidateId: explanation.candidateId,
+      reasonCode: explanation.reasonCode,
+      factIds: explanation.factIds,
+    };
+    if (review.text !== undefined) checked.text = review.text;
+    verified.push(checked);
   }
 
   if (issues.length > 0) return { ok: false, issues };
-  return { ok: true, value: verified };
+  return { ok: true, value: { explanations: verified, textIssues } };
+}
+
+/** Contract-shaped view of the review: the explanations only. */
+export const verifyExplanation: VerifyExplanation = (input, recommendations) => {
+  const reviewed = reviewExplanations(input, recommendations);
+  if (!reviewed.ok) return reviewed;
+  return { ok: true, value: reviewed.value.explanations };
 };

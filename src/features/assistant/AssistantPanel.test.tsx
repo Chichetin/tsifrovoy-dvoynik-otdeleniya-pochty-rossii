@@ -124,3 +124,78 @@ test('числа ответа записаны по-русски: запятая
     .filter((text) => text.endsWith('м²'));
   for (const text of areaFacts) expect(text).toMatch(/^[+-]?\d[\d\u00a0]*,\d\d\u00a0м²$/);
 });
+
+/** Ответ на свободный вопрос: одна рекомендация расчёта плюс объяснение к ней. */
+const placeResponse = (text?: string) => {
+  const calculated = calculateAdvice(parsed.value, {
+    scenario: 'place',
+    typeId: 'ot_workplace',
+    zoneId: null,
+  });
+  if (!calculated.ok) throw new Error('расчёт не выполнился');
+  const recommendations = calculated.value;
+  const explanations = recommendations
+    .map((recommendation) => defaultExplanation(recommendation))
+    .filter((explanation) => explanation !== null)
+    .map((explanation) => (text === undefined ? explanation : { ...explanation, text }));
+  return { revision: 0, recommendations, explanations };
+};
+
+/** Вводит вопрос, спрашивает и показывает пришедший ответ. */
+const askWith = (response: {
+  revision: number;
+  recommendations: ReturnType<typeof placeResponse>['recommendations'];
+  explanations: ReturnType<typeof placeResponse>['explanations'];
+  mode: 'llm' | 'fallback';
+  fallbackReason?: string;
+}): void => {
+  const props = {
+    document: parsed.value,
+    revision: 0,
+    state: { status: 'done' as const },
+    onPreview: vi.fn(),
+    onFocus: vi.fn(),
+    onAsk: vi.fn(),
+  };
+  const { rerender } = render(<AssistantPanel {...props} response={null} />);
+  fireEvent.change(screen.getByLabelText('Вопрос (необязательно)'), {
+    target: { value: 'Куда поставить второе окно?' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Спросить' }));
+  rerender(<AssistantPanel {...props} response={response} />);
+};
+
+test('проверенный ответ модели показан её словами и отделён от расчёта', () => {
+  askWith({ ...placeResponse('Свободное место есть у стены — поставьте окно там.'), mode: 'llm' });
+
+  expect(screen.getByTestId('assistant-answer').textContent).toContain(
+    'Свободное место есть у стены',
+  );
+  expect(screen.getByTestId('assistant-answer').textContent).toContain('Ответ модели на вопрос');
+  // Предложение расчёта подписано рядом со словами модели, чтобы не смешивались.
+  expect(screen.getAllByTestId('assistant-calculation')[0]?.textContent).toContain('Расчёт:');
+  // Вопрос учтён — плашка про неучтённый вопрос не показывается.
+  expect(screen.queryByTestId('assistant-query-ignored')).toBeNull();
+});
+
+test('модель есть, но её текст отклонён: панель говорит именно это', () => {
+  askWith({ ...placeResponse(), mode: 'llm' });
+
+  expect(screen.queryByTestId('assistant-answer')).toBeNull();
+  const notice = screen.getByTestId('assistant-query-ignored').textContent ?? '';
+  expect(notice).toContain('второе окно');
+  expect(notice).toContain('не прошёл проверку');
+  expect(notice).not.toContain('без модели');
+  // Расчёт остался на месте и без слов модели подписи «Расчёт:» не получает.
+  expect(screen.getAllByTestId('assistant-calculation')[0]?.textContent).toContain('Место найдено');
+  expect(screen.getAllByTestId('assistant-calculation')[0]?.textContent).not.toContain('Расчёт:');
+});
+
+test('модели нет: плашка говорит про отсутствие модели, а не про отклонённый текст', () => {
+  askWith({ ...placeResponse(), mode: 'fallback', fallbackReason: 'провайдер не настроен' });
+
+  expect(screen.queryByTestId('assistant-answer')).toBeNull();
+  const notice = screen.getByTestId('assistant-query-ignored').textContent ?? '';
+  expect(notice).toContain('без модели не учитывается');
+  expect(notice).not.toContain('не прошёл проверку');
+});

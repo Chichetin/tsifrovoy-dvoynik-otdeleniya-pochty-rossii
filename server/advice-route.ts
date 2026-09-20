@@ -21,7 +21,8 @@ import type { Issue, PlanDocument } from '../src/contracts/model';
 import { LIMITS } from '../src/contracts/model';
 import { parsePlanDocument } from '../src/contracts/schema';
 import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
-import { calculateAdvice, defaultExplanation, verifyExplanation } from '../src/domain/advice';
+import { ADVICE_LIMITS } from '../src/contracts/advice';
+import { calculateAdvice, defaultExplanation, reviewExplanations } from '../src/domain/advice';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
 
 export type AdviceRouteOptions = {
@@ -106,12 +107,27 @@ const SYSTEM_PROMPT = [
   'ответ без любого из них отклоняется. candidate: required — вариант назвать обязательно,',
   'forbidden — candidateId должен быть null.',
   'Ответ — строго JSON вида {"explanations":[{"recommendationId":"...","candidateId":null,',
-  '"reasonCode":"...","factIds":["..."]}]}. Никаких других полей, комментариев и текста.',
+  '"reasonCode":"...","factIds":["..."],"text":"..."}]}. Никаких других полей и комментариев.',
   'Любое собственное число или поле делает ответ недействительным.',
+  // Правила текста перечислены списком, а не намёком: D-206 показал, что без
+  // явного перечня эта модель проверку не соблюдает и ответ приходится выбрасывать.
+  'Поле text необязательно: это короткий ответ на вопрос пользователя по-русски.',
+  'Если вопроса нет — text не присылай. Правила для text:',
+  `(1) не длиннее ${ADVICE_LIMITS.maxAnswerChars} символов;`,
+  '(2) называть можно только идентификаторы из этой рекомендации — её id, refs, ruleIds,',
+  'id фактов, id вариантов и их объектов; любой другой идентификатор запрещён;',
+  '(3) называть можно только числа из этой рекомендации: значения фактов, координаты,',
+  'габариты и поворот вариантов; своих чисел, процентов и оценок не придумывать;',
+  '(4) числа писать в том же виде, в каком они даны, округляя до сотых;',
+  '(5) выдуманное число или идентификатор — и весь text выбрасывается целиком,',
+  'пользователь увидит только расчёт. Остальные поля при этом остаются в силе.',
 ].join(' ');
 
 function userPrompt(recommendations: Recommendation[], query: string | undefined): string {
-  const question = query === undefined ? '' : `\n\nВопрос пользователя: ${query}`;
+  const question =
+    query === undefined
+      ? '\n\nВопроса пользователя нет: поле text не присылай.'
+      : `\n\nВопрос пользователя: ${query}\nОтветь на него в поле text по правилам выше.`;
   return `Рекомендации расчёта:\n${JSON.stringify(promptPayload(recommendations), null, 1)}${question}`;
 }
 
@@ -232,7 +248,7 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
       );
     }
 
-    const verified = verifyExplanation(answer.value, recommendations);
+    const verified = reviewExplanations(answer.value, recommendations);
     if (!verified.ok) {
       request.log.warn(
         { issues: verified.issues.map((entry) => entry.code) },
@@ -244,11 +260,20 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
         `Ответ модели не прошёл проверку (${verified.issues.map((entry) => entry.code).join(', ')}): показан расчёт.`,
       );
     }
+    // Свободный текст мог отпасть отдельно от объяснения. Ответ от этого не
+    // портится, но молчать об этом нельзя: иначе «модель ничего не пишет» и
+    // «модели не дают ничего написать» выглядят одинаково.
+    if (verified.value.textIssues.length > 0) {
+      request.log.warn(
+        { issues: verified.value.textIssues.map((entry) => entry.code) },
+        'llm answer text rejected',
+      );
+    }
 
     const response: AdviceResponse = {
       revision,
       recommendations,
-      explanations: verified.value,
+      explanations: verified.value.explanations,
       mode: 'llm',
     };
     return response;

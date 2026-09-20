@@ -121,6 +121,11 @@ export function AssistantPanel({
   // One index per document: names for every recommendation and candidate (D-202).
   const names = useMemo(() => planIndex(plan), [plan]);
   const stale = response !== null && response.revision !== revision;
+  // Ответ модели своими словами доезжает, только если прошёл проверку id и
+  // чисел (A08). Его отсутствие при живой модели — не то же самое, что её
+  // отсутствие, и панель обязана различать эти случаи.
+  const answered =
+    response !== null && response.explanations.some((entry) => entry.text !== undefined);
 
   function ask(): void {
     if (placeUnavailable) return;
@@ -243,12 +248,14 @@ export function AssistantPanel({
             {response.mode === 'llm'
               ? 'Объяснение модели проверено расчётом'
               : `Без LLM: ${response.fallbackReason ?? 'показан расчёт'}`}
-            {response.mode !== 'llm' && askedQuery !== null ? (
+            {askedQuery === null || answered ? null : (
               <span data-testid="assistant-query-ignored">
                 {' '}
-                Вопрос «{askedQuery}» без модели не учитывается — показан расчёт по выбранному сценарию.
+                {response.mode === 'llm'
+                  ? `Вопрос «${askedQuery}» остался без ответа модели: её текст не прошёл проверку id и чисел — показан расчёт по выбранному сценарию.`
+                  : `Вопрос «${askedQuery}» без модели не учитывается — показан расчёт по выбранному сценарию.`}
               </span>
-            ) : null}
+            )}
           </p>
 
           {response.recommendations.length === 0 ? (
@@ -265,7 +272,17 @@ export function AssistantPanel({
 
             return (
               <article key={recommendation.id} className="advice">
-                <p className="advice__sentence">
+                {explanation?.text === undefined ? null : (
+                  <p className="advice__sentence advice__answer" data-testid="assistant-answer">
+                    <strong>Ответ модели на вопрос</strong> (её слова, проверены расчётом):{' '}
+                    {explanation.text}
+                  </p>
+                )}
+
+                <p className="advice__sentence" data-testid="assistant-calculation">
+                  {/* Рядом со словами модели предложение расчёта подписано, чтобы
+                      сотрудник видел, где чей текст; без слов модели подпись лишняя. */}
+                  {explanation?.text === undefined ? null : <><strong>Расчёт:</strong>{' '}</>}
                   {subject === null ? null : <><strong>{subject}.</strong>{' '}</>}
                   {sentence ?? 'Объяснение недоступно — ниже расчёт, на который оно опиралось.'}
                 </p>

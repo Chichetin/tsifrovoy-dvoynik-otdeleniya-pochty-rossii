@@ -10,7 +10,7 @@
 
 import Fastify, { type FastifyInstance } from 'fastify';
 import { describe, expect, test } from 'vitest';
-import type { AdviceResponse } from '../src/contracts/advice';
+import { ADVICE_LIMITS, type AdviceResponse } from '../src/contracts/advice';
 import { LIMITS, SCHEMA_VERSION, type Catalog, type PlanDocument } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
@@ -313,5 +313,140 @@ describe('A05: конфигурация', () => {
     expect(config.llm?.apiKey).toBe('sk-очень-секретный-ключ');
     expect(JSON.stringify(describeConfig(config))).not.toContain('sk-очень-секретный-ключ');
     expect(JSON.stringify(describeConfig(config))).toContain('test-model');
+  });
+});
+
+/** Факты рекомендации, как их видит модель в промпте. */
+type PromptFact = { id: string; metric: string; phase: string; value: number };
+
+function promptFacts(user: string): PromptFact[] {
+  const payload = JSON.parse(user.slice(user.indexOf('['), user.lastIndexOf(']') + 1)) as {
+    facts: PromptFact[];
+  }[];
+  return payload[0]?.facts ?? [];
+}
+
+/**
+ * Тот же честный выбор, что и `honestModel`, плюс свободный текст: модель
+ * сочиняет его по фактам, которые ей дали, — или врёт, если так попросили.
+ */
+function modelAnswering(write: (facts: PromptFact[]) => string): LlmClient {
+  return async (input) => {
+    const base = await honestModel(input);
+    if (!base.ok) return base;
+    const parsed = JSON.parse(base.value) as { explanations: Record<string, unknown>[] };
+    const first = parsed.explanations[0];
+    if (first !== undefined) first.text = write(promptFacts(input.user));
+    return { ok: true, value: JSON.stringify(parsed) };
+  };
+}
+
+describe('A08: свободный ответ модели на вопрос пользователя', () => {
+  test('промпт называет правила текста и сам вопрос', async () => {
+    let seenSystem = '';
+    let seenUser = '';
+    const spy: LlmClient = async ({ system, user }) => {
+      seenSystem = system;
+      seenUser = user;
+      return honestModel({ system, user });
+    };
+
+    await ask(server(spy), {
+      plan,
+      revision: 1,
+      request: placeRequest,
+      query: 'Куда поставить второй стол?',
+    });
+
+    expect(seenSystem).toContain('text');
+    expect(seenSystem).toContain('только идентификаторы из этой рекомендации');
+    expect(seenSystem).toContain('только числа из этой рекомендации');
+    expect(seenSystem).toContain(String(ADVICE_LIMITS.maxAnswerChars));
+    expect(seenUser).toContain('Куда поставить второй стол?');
+    expect(seenUser).toContain('в поле text');
+  });
+
+  test('без вопроса модели прямо говорят не присылать текст', async () => {
+    let seenUser = '';
+    const spy: LlmClient = async ({ system, user }) => {
+      seenUser = user;
+      return honestModel({ system, user });
+    };
+
+    await ask(server(spy), { plan, revision: 1, request: placeRequest });
+    expect(seenUser).toContain('Вопроса пользователя нет');
+  });
+
+  test('честный текст с числом расчёта доходит до ответа', async () => {
+    const model = modelAnswering((facts) => {
+      const free = facts.find((fact) => fact.metric === 'area.free' && fact.phase === 'current');
+      const value = (free?.value ?? 0).toFixed(2).replace('.', ',');
+      return `Свободной площади сейчас ${value} м², место для стола есть.`;
+    });
+
+    const response = await ask(server(model), {
+      plan,
+      revision: 1,
+      request: placeRequest,
+      query: 'Есть ли место под стол?',
+    });
+
+    const body = response.json<AdviceResponse>();
+    expect(body.mode).toBe('llm');
+    expect(body.explanations[0]?.text).toContain('Свободной площади сейчас');
+    expect(body.explanations[0]?.text).toMatch(/\d+,\d\d м²/);
+  });
+
+  test('выдуманный id выбрасывает текст, но ответ остаётся ответом модели', async () => {
+    const model = modelAnswering(() => 'Лучше в зоне z_nowhere: там просторнее.');
+
+    const response = await ask(server(model), {
+      plan,
+      revision: 1,
+      request: placeRequest,
+      query: 'Где лучше?',
+    });
+
+    const body = response.json<AdviceResponse>();
+    // Мягкий отказ: режим не падает в fallback, объяснение на месте, текста нет.
+    expect(body.mode).toBe('llm');
+    expect(body.fallbackReason).toBeUndefined();
+    expect(body.explanations[0]?.reasonCode).toBe('placement.available');
+    expect(body.explanations[0]?.text).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('z_nowhere');
+  });
+
+  test('выдуманное число выбрасывает текст, объяснение и расчёт целы', async () => {
+    const model = modelAnswering(() => 'После установки останется 999,99 м² свободной площади.');
+
+    const response = await ask(server(model), {
+      plan,
+      revision: 1,
+      request: placeRequest,
+      query: 'Сколько останется?',
+    });
+
+    const body = response.json<AdviceResponse>();
+    expect(body.mode).toBe('llm');
+    expect(body.explanations[0]?.text).toBeUndefined();
+    expect(body.explanations.length).toBe(1);
+    expect(body.recommendations[0]?.candidates.length).toBeGreaterThan(0);
+    expect(JSON.stringify(body)).not.toContain('999,99');
+  });
+
+  test('слишком длинный текст выбрасывается, ответ не портится', async () => {
+    const model = modelAnswering(() => 'о'.repeat(ADVICE_LIMITS.maxAnswerChars + 1));
+
+    const response = await ask(server(model), {
+      plan,
+      revision: 1,
+      request: placeRequest,
+      query: 'Расскажи подробно',
+    });
+
+    const body = response.json<AdviceResponse>();
+    expect(body.mode).toBe('llm');
+    expect(body.explanations[0]?.text).toBeUndefined();
+    expect(body.explanations[0]?.factIds.length).toBeGreaterThan(0);
   });
 });

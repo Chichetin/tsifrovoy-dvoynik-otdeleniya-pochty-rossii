@@ -28,9 +28,15 @@ export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements, zoneFit } from
 export type { ZoneFit } from './placement';
 export {
   EXPLANATION_ISSUE_CODES,
+  allowedIds,
+  allowedNumbers,
   defaultExplanation,
+  reviewExplanations,
+  unknownIds,
+  unknownNumbers,
   verifyExplanation,
 } from './explanation';
+export type { ExplanationReview } from './explanation';
 export { fallbackExplanation, renderExplanation } from './templates';
 
 /** How the search was run, said plainly — the user is owed the method. */

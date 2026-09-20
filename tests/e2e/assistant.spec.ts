@@ -8,6 +8,59 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import type { AdviceRequest, Explanation } from '../../src/contracts/advice';
+import { parsePlanDocument } from '../../src/contracts/schema';
+import { calculateAdvice, defaultExplanation, reviewExplanations } from '../../src/domain/advice';
+
+/**
+ * Подставная модель вместо сервера: маршрут считает те же рекомендации, что и
+ * настоящий `/api/advice`, приписывает к объяснению текст `write` и прогоняет
+ * ответ через ту же проверку. Врущий текст здесь отпадает по-настоящему, а не
+ * потому, что тест его не положил.
+ */
+async function routeModel(
+  page: Page,
+  write: (free: number) => string,
+): Promise<void> {
+  await page.route('**/api/advice', async (route) => {
+    const body = route.request().postDataJSON() as {
+      plan: unknown;
+      revision: number;
+      request: AdviceRequest;
+    };
+    const plan = parsePlanDocument(body.plan);
+    if (!plan.ok) throw new Error('подставная модель получила неразбираемый план');
+    const calculated = calculateAdvice(plan.value, body.request);
+    if (!calculated.ok) throw new Error('расчёт не выполнился');
+    const recommendations = calculated.value;
+
+    const answer = {
+      explanations: recommendations
+        .map((recommendation): Explanation | null => {
+          const explanation = defaultExplanation(recommendation);
+          if (explanation === null) return null;
+          const free = recommendation.facts.find(
+            (fact) => fact.metric === 'area.free' && fact.phase === 'current',
+          );
+          return { ...explanation, text: write(free?.value ?? 0) };
+        })
+        .filter((explanation) => explanation !== null),
+    };
+
+    const verified = reviewExplanations(JSON.stringify(answer), recommendations);
+    if (!verified.ok) throw new Error('структура подставного ответа не прошла проверку');
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        revision: body.revision,
+        recommendations,
+        explanations: verified.value.explanations,
+        mode: 'llm',
+      }),
+    });
+  });
+}
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
@@ -232,6 +285,48 @@ test.describe('ассистент в браузере', () => {
 
     await expect(panel(page).locator('.advice__sentence')).toContainText(
       'Показатели не изменились',
+    );
+  });
+
+  test('свободный вопрос: проверенный текст модели показан, враньё отсечено', async ({ page }) => {
+    // Честная модель: пересказывает площадь из расчёта в том виде, в каком её
+    // видит пользователь.
+    await routeModel(page, (free) => {
+      const shown = free.toFixed(2).replace('.', ',');
+      return `Место под окно есть: свободной площади сейчас ${shown} м².`;
+    });
+    await page.goto('/');
+    await drawZone(page);
+
+    await panel(page).getByLabel('Вопрос (необязательно)').fill('Куда поставить второе окно?');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    const answer = panel(page).getByTestId('assistant-answer');
+    await expect(answer).toContainText('Ответ модели на вопрос');
+    await expect(answer).toContainText('Место под окно есть');
+    await expect(answer).toContainText(/\d+,\d\d м²/);
+    // Вопрос учтён — плашки про неучтённый вопрос быть не должно.
+    await expect(panel(page).getByTestId('assistant-query-ignored')).toHaveCount(0);
+    // Расчёт подписан отдельно, чтобы слова модели не смешивались с числами.
+    await expect(panel(page).getByTestId('assistant-calculation').first()).toContainText('Расчёт:');
+
+    await panel(page).screenshot({
+      path: join('docs', 'verification', 'assistant-answer', 'answer-2026-09-20.png'),
+    });
+
+    // Та же модель, но с выдуманной зоной: текст не доходит до экрана, а ответ
+    // остаётся прежним.
+    await page.unroute('**/api/advice');
+    await routeModel(page, () => 'Лучше поставить в зоне z_nowhere — там просторнее.');
+    await panel(page).getByRole('button', { name: 'Спросить' }).click();
+
+    await expect(panel(page).getByTestId('assistant-query-ignored')).toContainText(
+      'не прошёл проверку',
+    );
+    await expect(panel(page).getByTestId('assistant-answer')).toHaveCount(0);
+    await expect(panel(page).locator('.advice')).not.toContainText('z_nowhere');
+    await expect(panel(page).getByTestId('assistant-calculation').first()).toContainText(
+      'Место найдено',
     );
   });
 });
