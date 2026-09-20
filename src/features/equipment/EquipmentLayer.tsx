@@ -735,8 +735,10 @@ export function EquipmentLayer({
                 y={label.y - height / 2}
                 listening={false}
               >
-                {/* A pale tag under the text: dark letters on a red rack are unreadable. */}
-                <Tag fill="#FFFFFF" opacity={0.72} cornerRadius={2} />
+                {/* A pale tag under the text: dark letters on a red rack are
+                    unreadable. One legibility technique, applied everywhere
+                    (D-216) — no outlined text alongside it. */}
+                <Tag fill="#FFFFFF" opacity={0.85} cornerRadius={2} />
                 <Text
                   width={label.width}
                   height={height}
@@ -747,7 +749,10 @@ export function EquipmentLayer({
                   fill="#212529"
                   align="center"
                   verticalAlign="middle"
-                  wrap={label.lines === 2 ? 'word' : 'none'}
+                  // Always by word (D-216): a one-line caption too long for
+                  // its box loses whole words to the ellipsis, never a
+                  // half-word — «Стеллаж…», not «Стелл…».
+                  wrap="word"
                   ellipsis
                   padding={1}
                 />

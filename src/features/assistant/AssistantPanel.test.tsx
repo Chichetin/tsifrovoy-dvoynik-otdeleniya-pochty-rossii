@@ -158,8 +158,8 @@ const askWith = (response: {
     onAsk: vi.fn(),
   };
   const { rerender } = render(<AssistantPanel {...props} response={null} />);
-  fireEvent.change(screen.getByLabelText('Вопрос (необязательно)'), {
-    target: { value: 'Куда поставить второе окно?' },
+  fireEvent.change(screen.getByLabelText('Пожелание к варианту (необязательно)'), {
+    target: { value: 'ближе ко входу' },
   });
   fireEvent.click(screen.getByRole('button', { name: 'Спросить' }));
   rerender(<AssistantPanel {...props} response={response} />);
@@ -183,7 +183,7 @@ test('модель есть, но её текст отклонён: панель
 
   expect(screen.queryByTestId('assistant-answer')).toBeNull();
   const notice = screen.getByTestId('assistant-query-ignored').textContent ?? '';
-  expect(notice).toContain('второе окно');
+  expect(notice).toContain('ближе ко входу');
   expect(notice).toContain('не прошёл проверку');
   expect(notice).not.toContain('без модели');
   // Расчёт остался на месте и без слов модели подписи «Расчёт:» не получает.

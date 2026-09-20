@@ -101,9 +101,9 @@ export function AssistantPanel({
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
   const [zoneId, setZoneId] = useState<string>('');
   const [query, setQuery] = useState('');
-  // Вопрос, с которым ушёл последний запрос: без модели он никуда не попадает —
+  // Пожелание, с которым ушёл последний запрос: без модели оно никуда не попадает —
   // расчёт идёт по сценарию, — и человек должен это увидеть, а не гадать,
-  // почему ответ не про его слова.
+  // почему выбран именно этот вариант.
   const [askedQuery, setAskedQuery] = useState<string | null>(null);
 
   // The panel stays mounted when another file is opened. Its form state may
@@ -201,11 +201,11 @@ export function AssistantPanel({
         )}
 
         <label className="assistant__field">
-          Вопрос (необязательно)
+          Пожелание к варианту (необязательно)
           <input
             type="text"
             value={query}
-            placeholder="Куда поставить второе окно?"
+            placeholder="Например: ближе к главному входу"
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
@@ -252,8 +252,8 @@ export function AssistantPanel({
               <span data-testid="assistant-query-ignored">
                 {' '}
                 {response.mode === 'llm'
-                  ? `Вопрос «${askedQuery}» остался без ответа модели: её текст не прошёл проверку id и чисел — показан расчёт по выбранному сценарию.`
-                  : `Вопрос «${askedQuery}» без модели не учитывается — показан расчёт по выбранному сценарию.`}
+                  ? `Пожелание «${askedQuery}» осталось без ответа модели: её текст не прошёл проверку id и чисел — показан расчёт по выбранному сценарию.`
+                  : `Пожелание «${askedQuery}» без модели не учитывается — показан расчёт по выбранному сценарию.`}
               </span>
             )}
           </p>

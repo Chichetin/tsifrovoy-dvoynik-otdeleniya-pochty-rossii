@@ -15,14 +15,27 @@
  * A ring dragged into a self-intersection is drawn red and never committed.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Circle, Layer, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import { findZoneType } from '../../domain/catalog';
-import { SNAP, modelToScreen, openingCentre, pointGuides, screenToModel, segmentLength, settlePoint, snapPoint, wallPolygon } from '../../domain/geometry';
+import {
+  SNAP,
+  type BoundingBox,
+  boundingBox,
+  footprint,
+  modelToScreen,
+  openingCentre,
+  pointGuides,
+  screenToModel,
+  segmentLength,
+  settlePoint,
+  snapPoint,
+  wallPolygon,
+} from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import {
@@ -43,6 +56,7 @@ import {
   removeVertex,
   roundPoint,
 } from './vertex-edit';
+import { zoneLabelAnchor } from './zone-label';
 
 const ROOM_STROKE = '#212529';
 const WALL_FILL = '#495057';
@@ -52,6 +66,20 @@ const SELECTED_STROKE = '#1971C2';
 const INVALID_STROKE = '#E03131';
 const HANDLE_FILL = '#FFFFFF';
 const ZONE_FALLBACK = '#E9ECEF';
+/**
+ * Zone name style, deliberately unlike an object's caption (D-216): muted —
+ * same grey as the app's `--color-muted` token, so it reads as a background
+ * label, not a fact competing with the furniture on top of it — larger than
+ * an object caption (11 px, `object-label.ts`), spaced and upper-case so the
+ * two never look like the same kind of text on a crowded plan.
+ */
+const ZONE_LABEL_FILL = '#56626E';
+const ZONE_LABEL_FONT_PX = 13;
+const ZONE_LABEL_LETTER_SPACING = 0.4;
+// Narrow enough that two neighbouring zones (a waiting area nested in the
+// client hall, say) do not bleed into each other's name at the plan's usual
+// zoom; a name too long for this wraps onto a second line on its own.
+const ZONE_LABEL_BOX_WIDTH = 118;
 
 type Editing =
   | { kind: 'ring'; ref: Ref; polygon: Polygon; snapOff?: boolean }
@@ -69,16 +97,6 @@ function isTextTarget(target: EventTarget | null): boolean {
 
 function flatten(polygon: Polygon, viewport: PlanGeometryLayerProps['session']['viewport']): number[] {
   return polygon.flatMap((point) => modelToScreen(point, viewport));
-}
-
-/** Midpoint of the polygon's extent — good enough to hang a zone label on. */
-function labelAnchor(polygon: Polygon): Point {
-  const xs = polygon.map((point) => point[0]);
-  const ys = polygon.map((point) => point[1]);
-  return [
-    (Math.min(...xs) + Math.max(...xs)) / 2,
-    (Math.min(...ys) + Math.max(...ys)) / 2,
-  ];
 }
 
 export function PlanGeometryLayer({
@@ -99,8 +117,12 @@ export function PlanGeometryLayer({
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
 
-  const visibleLayers = new Set(
-    plan.layers.filter((layer) => layer.visible).map((layer) => layer.id),
+  // One source for "which layers are on": zones, objects and labels must
+  // follow the same visibility rule, so it is not rebuilt per consumer. Memoised
+  // because the derived values below depend on it and must survive a pan frame.
+  const visibleLayers = useMemo(
+    () => new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id)),
+    [plan.layers],
   );
   const lockedLayers = new Set(
     plan.layers.filter((layer) => layer.locked).map((layer) => layer.id),
@@ -109,6 +131,26 @@ export function PlanGeometryLayer({
     .filter((zone) => visibleLayers.has(zone.layerId))
     .slice()
     .sort((a, b) => (zoneDepth(a.id, plan.zones) ?? 0) - (zoneDepth(b.id, plan.zones) ?? 0));
+
+  // Footprints a zone name has to steer around (D-216). In model metres, not
+  // screen pixels, so it is independent of pan and zoom — a pan or a zoom
+  // re-renders this layer on every frame (D-190), and recomputing it from
+  // `plan.objects` instead of the viewport keeps that frame cheap.
+  const objectBoxes: BoundingBox[] = useMemo(
+    () =>
+      plan.objects
+        .filter((object) => visibleLayers.has(object.layerId))
+        .map((object) => boundingBox(footprint(object))),
+    [plan.objects, visibleLayers],
+  );
+
+  // The anchors themselves are model metres too, and cost O(zones × objects) —
+  // recomputing them inside the render below would pay that on every pan and
+  // zoom frame for a result that cannot have changed.
+  const zoneLabelAnchors = useMemo(
+    () => new Map(plan.zones.map((zone) => [zone.id, zoneLabelAnchor(zone.polygon, objectBoxes)])),
+    [plan.zones, objectBoxes],
+  );
 
   // Delete and Backspace remove the selected zone, wall or opening; the room
   // stays, and objects belong to the equipment layer. What exactly the keys
@@ -394,17 +436,24 @@ export function PlanGeometryLayer({
       })}
 
       {zones.map((zone) => {
-        const [x, y] = modelToScreen(labelAnchor(zone.polygon), viewport);
+        // Centred by default; nudged just clear of whichever object sits
+        // where the name would (D-216) — a rack row or a bench in the middle
+        // of a zone is the common case, not an edge case.
+        const anchor = zoneLabelAnchors.get(zone.id);
+        if (anchor === undefined) return null;
+        const [x, y] = modelToScreen(anchor, viewport);
         return (
           <Text
             key={`label-${zone.id}`}
-            x={x - 60}
-            y={y - 7}
-            width={120}
+            x={x - ZONE_LABEL_BOX_WIDTH / 2}
+            y={y - ZONE_LABEL_FONT_PX / 2}
+            width={ZONE_LABEL_BOX_WIDTH}
             align="center"
-            text={zone.name}
-            fontSize={12}
-            fill="#495057"
+            text={zone.name.toLocaleUpperCase('ru')}
+            fontSize={ZONE_LABEL_FONT_PX}
+            fontStyle="500"
+            letterSpacing={ZONE_LABEL_LETTER_SPACING}
+            fill={ZONE_LABEL_FILL}
             listening={false}
           />
         );
