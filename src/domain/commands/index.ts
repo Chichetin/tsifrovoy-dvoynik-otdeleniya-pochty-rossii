@@ -27,7 +27,7 @@ import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
 import { normalizeAngle } from '../geometry';
-import { hasZoneCycle, reconcileZones } from '../relations';
+import { hasZoneCycle, parentZoneFor, reconcileZones } from '../relations';
 import { nextFreeId } from './ids';
 import { outerWallIds, rebuildOuterWalls } from './room-walls';
 
@@ -329,7 +329,14 @@ function putZone(plan: PlanDocument, zone: Zone): Result<PlanDocument> {
   const attributes = normaliseAttributes(zoneType.attributes, zone.attributes, ref);
   if (!attributes.ok) return attributes;
 
-  const zones = replaceById(plan.zones, { ...zone, attributes: attributes.value });
+  // Вложенность новой зоны — из геометрии, одним правилом с импортом (D-199,
+  // D-223): зона, нарисованная внутри другой, принадлежит ей. Уже заявленный
+  // родитель — выбор человека и геометрией не переписывается; у существующей
+  // зоны снятый родитель не возвращается сам.
+  const parentId =
+    isNew && zone.parentId === null ? parentZoneFor(zone.polygon, plan.zones) : zone.parentId;
+
+  const zones = replaceById(plan.zones, { ...zone, parentId, attributes: attributes.value });
   if (hasZoneCycle(zones)) {
     return fail(
       CONTRACT_ISSUE_CODES.ZONE_CYCLE,

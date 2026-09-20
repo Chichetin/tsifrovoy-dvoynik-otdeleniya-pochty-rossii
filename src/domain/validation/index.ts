@@ -37,6 +37,7 @@ import {
   intersects,
   intervalsOverlap,
   isSimplePolygon,
+  polygonArea,
   objectHitsWall,
   objectInterval,
   openingCentre,
@@ -52,6 +53,8 @@ export const VALIDATION_ISSUE_CODES = {
   ZONE_OUTSIDE_ROOM: 'ZONE_OUTSIDE_ROOM',
   /** A nested zone is not contained by its parent. */
   ZONE_OUTSIDE_PARENT: 'ZONE_OUTSIDE_PARENT',
+  /** Two zones share floor without one being nested in the other. */
+  ZONE_OVERLAPS_ZONE: 'ZONE_OVERLAPS_ZONE',
   /** An object reaches outside the room. */
   OBJECT_OUTSIDE_ROOM: 'OBJECT_OUTSIDE_ROOM',
   /** The zone an object claims does not contain it. */
@@ -212,6 +215,50 @@ function zoneIssues(plan: PlanDocument): Issue[] {
         zone.polygon,
       ),
     );
+  }
+
+  issues.push(...zoneOverlapIssues(plan));
+  return issues;
+}
+
+/**
+ * Зоны делят пол только по вложенности: если две зоны налезают друг на друга,
+ * не вкладываясь, объект в общей части одинаково глубоко лежит в обеих и
+ * теряет зону. Без этой находки человек видит только по метке на каждом
+ * объекте и не понимает, что чинить (D-223).
+ */
+function zoneOverlapIssues(plan: PlanDocument): Issue[] {
+  const usable = plan.zones
+    .filter((zone) => isSimplePolygon(zone.polygon))
+    .map((zone) => ({ zone, area: polygonArea(zone.polygon) }));
+  const issues: Issue[] = [];
+
+  for (let i = 0; i < usable.length; i += 1) {
+    for (let j = i + 1; j < usable.length; j += 1) {
+      const first = usable[i]!;
+      const second = usable[j]!;
+      // `intersects` отсеивает зоны встык и по охватам: общей площади нет.
+      if (!intersects(first.zone.polygon, second.zone.polygon)) continue;
+      const firstInside = contains(second.zone.polygon, first.zone.polygon);
+      const secondInside = contains(first.zone.polygon, second.zone.polygon);
+      // Ровно одно вложение — это иерархия зон, а не находка. Равные контуры
+      // вкладываются друг в друга оба сразу и родителя не получают.
+      if (firstInside !== secondInside) continue;
+      // Подсвечивается меньшая: обычно это та, которую только что обвели.
+      const smaller = first.area <= second.area ? first.zone : second.zone;
+      issues.push(
+        issue(
+          VALIDATION_ISSUE_CODES.ZONE_OVERLAPS_ZONE,
+          'warning',
+          `Зоны «${first.zone.name}» и «${second.zone.name}» пересекаются, не вкладываясь одна в другую: объекты в общей части не могут определить свою зону. Вложите одну в другую или разведите границы.`,
+          [
+            { kind: 'zone', id: first.zone.id },
+            { kind: 'zone', id: second.zone.id },
+          ],
+          smaller.polygon,
+        ),
+      );
+    }
   }
   return issues;
 }
