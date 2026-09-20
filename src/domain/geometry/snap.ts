@@ -60,13 +60,15 @@ export type PointSnap = { point: [number, number]; x: AxisSnap | null; y: AxisSn
 
 /**
  * What gets stored after a snap (D-211). A coordinate that came from a guide is
- * kept as the guide has it (to the millimetre): a wall face at 14,875 rounded
- * to the centimetre is 14,88 — five millimetres inside the wall, and the check
- * that was meant to be satisfied fires instead. Everything else is stored to
- * the centimetre, as a hand-placed value is.
+ * kept as the guide has it: a wall face at 14,875 rounded to the centimetre is
+ * 14,88 — five millimetres inside the wall, and the check that was meant to be
+ * satisfied fires instead. Everything else is stored to the centimetre, as a
+ * hand-placed value is.
  */
 export function settle(value: number, snap: AxisSnap | null): number {
-  const units = snap?.kind === 'guide' ? 1000 : 100;
+  // A guide keeps its own digits (a face at x ± 0,0625 included); only the
+  // float noise of `centre + delta` is removed, far below any tolerance.
+  const units = snap?.kind === 'guide' ? 1e9 : 100;
   return Math.round(value * units) / units;
 }
 
