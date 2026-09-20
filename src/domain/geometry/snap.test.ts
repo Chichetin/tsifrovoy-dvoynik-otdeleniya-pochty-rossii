@@ -9,7 +9,18 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { objectGuides, pointGuides, settle, settlePoint, snapAxis, snapBox, snapObjectCentre, snapPoint } from './index';
+import {
+  objectGuides,
+  pointGuides,
+  settle,
+  settlePoint,
+  snapAxis,
+  snapBox,
+  snapHint,
+  snapObjectCentre,
+  snapPoint,
+  strongerSource,
+} from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -188,6 +199,72 @@ describe('вершина при рисовании (D-209)', () => {
       y: { value: 7.5, delta: expect.closeTo(0.06, 9), kind: 'grid' },
     });
     expect(snapPoint([9.7, 7.3], guides, 0.5, 0.1).point).toEqual([9.7, 7.3]);
+  });
+});
+
+describe('цель привязки при рисовании (D-224)', () => {
+  const plan = loadPlan('minimal.json');
+
+  test('направляющая знает, чем она была на плане: стена, контур, зона', () => {
+    const { sources } = pointGuides(plan);
+    // x = 7 есть только у зоны z_client, x = 0 и x = 10 — контур и концы стены.
+    expect(sources.xs.get(7)).toBe('zone');
+    expect(sources.xs.get(0)).toBe('wall');
+    // y = 7,9 — внутренняя грань w_north; y = 0 — только контур и зона.
+    expect(sources.ys.get(7.9)).toBe('wall');
+    expect(sources.ys.get(0)).toBe('room');
+    // y = 8 — и вершина контура, и ось стены: сильнее стена, её и видно.
+    expect(sources.ys.get(8)).toBe('wall');
+  });
+
+  test('одна координата — несколько источников: стена сильнее контура, контур сильнее зоны', () => {
+    expect(strongerSource('zone', 'wall')).toBe('wall');
+    expect(strongerSource('wall', 'zone')).toBe('wall');
+    expect(strongerSource('zone', 'room')).toBe('room');
+    expect(strongerSource('room', 'zone')).toBe('room');
+    expect(strongerSource(undefined, 'zone')).toBe('zone');
+  });
+
+  test('цель называется по осям отдельно: X — направляющая, Y — узел сетки', () => {
+    const guides = {
+      xs: [10],
+      ys: [8],
+      sources: { xs: new Map([[10, 'wall' as const]]), ys: new Map([[8, 'zone' as const]]) },
+    };
+    expect(snapHint([9.94, 7.44], guides, 0.5, 0.1)).toEqual({
+      point: [10, 7.5],
+      x: { value: 10, delta: expect.closeTo(0.06, 9), kind: 'guide', target: 'wall' },
+      y: { value: 7.5, delta: expect.closeTo(0.06, 9), kind: 'grid', target: 'grid' },
+    });
+  });
+
+  test('точка садится туда же, куда её положил бы клик', () => {
+    const guides = pointGuides(plan);
+    const raw: [number, number] = [6.96, 7.86];
+    expect(snapHint(raw, guides, 0.5, 0.1).point).toEqual(settlePoint(snapPoint(raw, guides, 0.5, 0.1)));
+  });
+
+  test('вне допуска цели нет ни по одной оси', () => {
+    const guides = { xs: [10], ys: [8], sources: { xs: new Map([[10, 'wall' as const]]), ys: new Map() } };
+    expect(snapHint([9.7, 7.3], guides, null, 0.1)).toEqual({ point: [9.7, 7.3], x: null, y: null });
+  });
+
+  test('направляющая без имени не показывается: маркер либо называет цель, либо молчит', () => {
+    const guides = { xs: [10], ys: [], sources: { xs: new Map(), ys: new Map() } };
+    const hint = snapHint([9.94, 3], guides, null, 0.1);
+    // Координата всё равно притянулась — молчит именно маркер, а не привязка.
+    expect(hint.point[0]).toBe(10);
+    expect(hint.x).toBeNull();
+  });
+
+  test('находка operator №5: у стены точка садится на чужую зону по X и на стену по Y', () => {
+    // Клик «чуть внутри стены» в углу зоны z_client при масштабе 69 px/м:
+    // допуск 8 px = 0,116 м. По X ближе всего вершина зоны (7), по Y — грань
+    // стены (7,9). Раньше об этом можно было узнать только из файла.
+    const hint = snapHint([7.05, 7.85], pointGuides(plan), 0.5, 0.116);
+    expect(hint.x?.target).toBe('zone');
+    expect(hint.y?.target).toBe('wall');
+    expect(hint.point).toEqual([7, 7.9]);
   });
 });
 
