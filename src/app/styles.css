@@ -49,6 +49,10 @@
   --control-h: 30px;
   --side-left: 260px;
   --side-right: 340px;
+  /* UI-2В (D-226): the sticky section header's own height, measured in the
+     browser at 1280×800 (37.3px) with a little slack — a scrolled-to card
+     uses it as `scroll-margin-top` so the header does not cover its top. */
+  --section-header-h: 40px;
 
   /* Aliases kept for module blocks. */
   --ink: var(--color-ink);
@@ -753,6 +757,30 @@ body {
 
 .section__body .panel {
   margin-bottom: 0;
+  /* UI-2В: `scrollIntoView({ block: 'nearest' })` (PropertiesPanel) and Tab
+     focus must not let the sticky section header above cover the card's own
+     top edge (D-226). */
+  scroll-margin-top: var(--section-header-h);
+}
+
+/* UI-2В (D-226): the section header above already names this panel — a
+   second, identical-looking name right below it (e.g. «Площади» / «Площади»)
+   was flagged in review as a wasted line on every one of the six sections.
+   The heading stays in the DOM — a screen reader's heading list still finds
+   it — just not painted; the visible name of record is the section's own
+   header. Scoped to `.section__body` only: `LayersPanel`/`LibraryPanel` in
+   the left column are not wrapped by a `Section` and keep their own visible
+   heading. */
+.section__body .panel__title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Panel headings: sentence case, bold, ink — the panel's name, not a label. */

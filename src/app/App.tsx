@@ -115,7 +115,17 @@ export function App(): React.JSX.Element {
   // browser, kept in localStorage exactly like the tour (D-217), never in the
   // plan. Every section is open on the first visit.
   const [sections, setSections] = useState(() => loadSectionState(rightColumnStorage()));
+  // UI-2В: the first render's `sections` is just what `loadSectionState`
+  // returned — writing it straight back would put a `{}` key in
+  // localStorage before the person ever touched a header (D-226). Skip that
+  // one write; every later run of this effect is a real toggle or an
+  // expand-on-selection, and does get saved.
+  const sectionsMounted = useRef(false);
   useEffect(() => {
+    if (!sectionsMounted.current) {
+      sectionsMounted.current = true;
+      return;
+    }
     saveSectionState(rightColumnStorage(), sections);
   }, [sections]);
   const toggleSectionState = useCallback((id: SectionId) => {
