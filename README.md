@@ -154,16 +154,19 @@ scripts/measure-advice.ts`, медиана трёх прогонов) поиск
 > 4,7 с. Набор держит пороги: выбор < 400 мс, zoom < 300 мс
 > ([отчёт](docs/verification/performance-2026-09-19-d187.md)).
 
-**Прогон проверок 19.09.2026** на коммите `5d54986` (Windows 10.0.19044,
-Node 22, бандловый Chromium Playwright):
+**Прогон проверок 20.09.2026** на коммите `095a23f` (Windows 10 LTSC 2019,
+Intel Pentium G3220, Node 22, бандловый Chromium Playwright):
 
 | Команда | Результат |
 |---|---|
-| `npm test` | 669 passed, 1 skipped (48 файлов, 11,9 с) |
+| `npm test` | 942 passed, 1 skipped (68 файлов, 131,8 с на этой машине) |
 | `npm run typecheck` | без ошибок |
 | `npm run lint` | без ошибок |
-| `npm run build` | 256 модулей, собрано за 1,94 с |
-| `DEV_PORT=5180 npm run test:e2e` | 82 passed, 5 skipped, без падений и ретраев (2,9 мин) |
+| `npm run build` | 266 модулей, собрано за 0,89 с |
+| `DEV_PORT=5331 CI=1 npx playwright test --workers=2 --retries=0` | 124 passed, 5 skipped, без падений и ретраев (9,8 мин) |
+
+Предыдущий прогон 19.09.2026 на `5d54986` (Windows 10.0.19044): 669 unit, 82 e2e — с тех
+пор добавились сценарии слоёв, группового выбора, горячих клавиш, оболочки и находок на плане.
 
 Пропущенные браузерные сценарии — деплойные (`tests/e2e/deployment.spec.ts`):
 без `DEPLOY_URL` они не запускаются. Публичный URL в этом прогоне не
