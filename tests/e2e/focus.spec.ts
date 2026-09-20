@@ -178,11 +178,11 @@ test.describe('холст показывает то, о чём спрашива�
     // Правка вид не двигает: объект уехал за кадр, и сам он не вернётся.
     expect(await sees(page, OUTSIDE.x, OUTSIDE.y)).toBe(false);
 
-    // Проверка нашла его: в кнопке перехода стоит название объекта, а `id`
-    // идёт последним вторичным текстом (D-122) — по нему и ищем.
+    // Проверка нашла его: сотрудник видит название, а стабильный `id` остаётся
+    // в структурном атрибуте ссылки и не загромождает подпись (D-224).
     const finding = page
       .getByLabel('Проверка плана')
-      .getByRole('button', { name: new RegExp(`${id}$`) })
+      .locator(`button[data-ref-id="${id}"]`)
       .first();
     await expect(finding).toBeVisible();
     await finding.click();
