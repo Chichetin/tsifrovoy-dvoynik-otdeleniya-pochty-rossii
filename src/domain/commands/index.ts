@@ -541,7 +541,18 @@ function replaceCatalog(plan: PlanDocument, catalog: Catalog): Result<PlanDocume
   return { ok: true, value: { ...plan, catalog, zones, objects } };
 }
 
-export function applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument> {
+/**
+ * Apply one command to a plan. The function is pure: the plan it returns is a
+ * new document, and the one it got stays untouched. `retired` is what the
+ * session has deleted (D-019): the one command that mints ids itself —
+ * `room.set` rebuilding the outer walls — must not hand a retired id to a new
+ * wall, and a pure function cannot know the session's deletions on its own.
+ */
+export function applyCommand(
+  plan: PlanDocument,
+  command: Command,
+  retired: Iterable<Id> = [],
+): Result<PlanDocument> {
   switch (command.type) {
     case 'room.set': {
       const ref: Ref = { kind: 'room', id: plan.room.id };
@@ -552,7 +563,7 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       const rebuilt = rebuildOuterWalls(plan.walls, plan.openings, plan.room.boundary, command.boundary, {
         thickness_m: OUTER_WALL_THICKNESS_M,
         height_m: plan.room.ceilingHeight_m,
-      }, [...idOwners(plan)].filter(([, kind]) => kind !== 'wall').map(([id]) => id));
+      }, [...[...idOwners(plan)].filter(([, kind]) => kind !== 'wall').map(([id]) => id), ...retired]);
       const entrances = checkEntrancesRetained(plan, rebuilt.openings);
       if (!entrances.ok) return entrances;
       return withRelations({
@@ -690,7 +701,7 @@ export function applyCommand(plan: PlanDocument, command: Command): Result<PlanD
       // caller keeps the plan it started from.
       let current = plan;
       for (const step of command.commands) {
-        const result = applyCommand(current, step);
+        const result = applyCommand(current, step, retired);
         if (!result.ok) return result;
         current = result.value;
       }

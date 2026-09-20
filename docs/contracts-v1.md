@@ -176,7 +176,7 @@ type Command =
   | { type: 'room.setCeiling'; ceilingHeight_m: number }
   | { type: 'relations.reconcile' }
   | { type: 'batch'; commands: Command[] };
-// applyCommand(plan: PlanDocument, command: Command): Result<PlanDocument>
+// applyCommand(plan: PlanDocument, command: Command, retired?: Iterable<Id>): Result<PlanDocument>
 // decodePlan(text: string): Result<PlanDocument>
 // encodePlan(plan: PlanDocument): Result<string>
 // importOrganizerExample(input: unknown): Result<PlanDocument>

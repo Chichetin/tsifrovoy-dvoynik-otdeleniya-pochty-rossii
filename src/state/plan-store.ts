@@ -177,7 +177,7 @@ export function createPlanStore(
           };
         }
 
-        const result = applyCommand(current, command);
+        const result = applyCommand(current, command, retired);
         if (!result.ok) return result;
 
         for (const id of retiredBy(command, current)) retired.add(id);

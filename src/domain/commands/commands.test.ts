@@ -545,6 +545,24 @@ describe('applyCommand: стены, проёмы и справочник', () =>
     expect(changed.openings[0]!.id).toBe('w_5');
   });
 
+  test('перестроение наружных стен не выдаёт id, удалённый в этой сессии', () => {
+    const plan = minimalPlan();
+    const pentagon: [number, number][] = [[0, 0], [10, 0], [10, 8], [5, 10], [0, 8]];
+    // Без сведений об удалённых первый свободный номер — w_1: он и уходит стене.
+    const unaware = expectOk(applyCommand(plan, { type: 'room.set', boundary: pentagon }));
+    expect(unaware.walls.map((wall) => wall.id)).toContain('w_1');
+    // Удалённая в сессии перегородка w_1 (D-019): её номер пропускается, а в пакете тоже.
+    const aware = expectOk(applyCommand(plan, { type: 'room.set', boundary: pentagon }, ['w_1']));
+    expect(aware.walls.map((wall) => wall.id)).not.toContain('w_1');
+    expect(aware.walls).toHaveLength(unaware.walls.length);
+    const batched = expectOk(applyCommand(
+      plan,
+      { type: 'batch', commands: [{ type: 'room.set', boundary: pentagon }] },
+      new Set(['w_1']),
+    ));
+    expect(batched.walls.map((wall) => wall.id)).not.toContain('w_1');
+  });
+
   test.each(['opening.delete', 'wall.delete', 'room.set'] as const)(
     '%s не удаляет вход, указанный в правиле расстояния',
     (type) => {
