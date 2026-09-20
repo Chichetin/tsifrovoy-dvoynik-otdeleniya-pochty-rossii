@@ -14,7 +14,7 @@
 import type { Id, Opening, OpeningKind, Point, Room, Wall } from '../../contracts/model';
 import { nextFreeId } from '../../domain/commands';
 import { pointSegmentDistance, segmentLength, wallLength } from '../../domain/geometry';
-import { moveOpeningTo, snapPoint } from './vertex-edit';
+import { moveOpeningTo, roundPoint } from './vertex-edit';
 
 /**
  * Значения, которых нет в жесте пользователя. Это допущения команды, а не
@@ -51,8 +51,8 @@ export function createWall(
   room: Room,
   taken: Set<Id>,
 ): Wall | null {
-  const start = snapPoint(from);
-  const end = snapPoint(to);
+  const start = roundPoint(from);
+  const end = roundPoint(to);
   if (segmentLength(start, end) < MIN_WALL_LENGTH_M) return null;
 
   return {

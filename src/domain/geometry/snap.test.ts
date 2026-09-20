@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { objectGuides, snapAxis, snapBox, snapObjectCentre } from './index';
+import { objectGuides, pointGuides, snapAxis, snapBox, snapObjectCentre, snapPoint } from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -129,5 +129,36 @@ describe('направляющие плана и центр объекта', () 
     expect(snapped[0] + halfWidth).toBeCloseTo(4, 9);
     expect(snapped[1]).toBe(2);
     expect(snap.x?.kind).toBe('guide');
+  });
+});
+
+describe('вершина при рисовании (D-209)', () => {
+  const plan = loadPlan('minimal.json');
+
+  test('направляющие точки — все вершины плана, включая ось и грани стены', () => {
+    const guides = pointGuides(plan);
+    const wall = plan.walls[0]!;
+    expect(guides.ys).toContain(wall.from[1]);
+    expect(guides.ys).toContain(wall.from[1] - wall.thickness_m / 2);
+    for (const vertex of plan.room.boundary) expect(guides.xs).toContain(vertex[0]);
+    for (const zone of plan.zones) for (const vertex of zone.polygon) expect(guides.ys).toContain(vertex[1]);
+  });
+
+  test('ось перегородки — направляющая: конец новой перегородки найдёт начало старой', () => {
+    const partition = { ...plan.walls[0]!, id: 'w_part', from: [3, 1] as [number, number], to: [3, 6] as [number, number] };
+    const guides = pointGuides({ ...plan, walls: [...plan.walls, partition] });
+    expect(guides.xs).toContain(3);
+    expect(guides.ys).toContain(1);
+    expect(guides.ys).toContain(6);
+  });
+
+  test('каждая координата идёт к ближайшей направляющей, иначе к сетке; вне допуска — как кликнули', () => {
+    const guides = { xs: [10], ys: [8] };
+    expect(snapPoint([9.94, 7.44], guides, 0.5, 0.1)).toEqual({
+      point: [10, 7.5],
+      x: { value: 10, delta: expect.closeTo(0.06, 9), kind: 'guide' },
+      y: { value: 7.5, delta: expect.closeTo(0.06, 9), kind: 'grid' },
+    });
+    expect(snapPoint([9.7, 7.3], guides, 0.5, 0.1).point).toEqual([9.7, 7.3]);
   });
 });

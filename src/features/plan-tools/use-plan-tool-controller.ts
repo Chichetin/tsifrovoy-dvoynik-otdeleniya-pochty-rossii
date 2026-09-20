@@ -21,6 +21,7 @@ import type { Point, Polygon } from '../../contracts/model';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
+import { SNAP, pointGuides, snapPoint } from '../../domain/geometry';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
@@ -153,15 +154,22 @@ export const usePlanToolController: UsePlanToolController = ({
         return;
       }
 
+      // A drawn vertex snaps to the plan's vertices and the grid (D-209);
+      // Alt keeps the click where it was made. The opening above is not a
+      // vertex: it sits on the wall the click hit.
+      const point = event.alt
+        ? event.point
+        : snapPoint(event.point, pointGuides(plan), SNAP.grid_m, SNAP.tolerance_px / session.viewport.scale).point;
+
       if (kind === 'wall.draw') {
         const start = draft?.[0];
         // Первый клик запоминает начало, второй заканчивает перегородку.
         if (start === undefined) {
           setNotice(null);
-          setDraft([event.point]);
+          setDraft([point]);
           return;
         }
-        if (drawWall(start, event.point)) setDraft(null);
+        if (drawWall(start, point)) setDraft(null);
         return;
       }
 
@@ -169,6 +177,8 @@ export const usePlanToolController: UsePlanToolController = ({
 
       const current = draft ?? [];
       const first = current[0];
+      // Closing is judged by where the click landed, not by where it snapped:
+      // a click next to the first vertex may snap to the next grid node.
       const closes =
         current.length >= 3 &&
         first !== undefined &&
@@ -180,9 +190,9 @@ export const usePlanToolController: UsePlanToolController = ({
         if (commit(current)) setDraft(null);
         return;
       }
-      setDraft([...current, event.point]);
+      setDraft([...current, point]);
     },
-    [commit, draft, drawWall, kind, placeOpening],
+    [commit, draft, drawWall, kind, placeOpening, plan, session.viewport.scale],
   );
 
   return { handlePointer, cancel, draft };
