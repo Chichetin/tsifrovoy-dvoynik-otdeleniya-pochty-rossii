@@ -148,7 +148,7 @@ Delete для объекта живёт отдельно от `src/features/plan
 
 ## 7. Четыре генератора `id`, ни один не видит удалённые (Worth exploring)
 
-**Статус 20.09:** исправлено (D-198): `nextFreeId`/`takenIds`/`freshId` в `src/domain/commands`, приватные генераторы удалены (к четырём добавился пятый — `nextObjectId` в `selection-edit`, теперь тонкая обёртка); удалённые id инструменты видят через `EditorSession.retired` (D-156). Тест «свежий id не совпадает ни с сущностью плана, ни с удалённым» — `commands.test.ts`, без UI. Щель: `room.set` внутри чистого `applyCommand` удалённых не видит.
+**Статус 20.09:** исправлено (D-198): `nextFreeId`/`takenIds`/`freshId` в `src/domain/commands`, приватные генераторы удалены (к четырём добавился пятый — `nextObjectId` в `selection-edit`, теперь тонкая обёртка); удалённые id инструменты видят через `EditorSession.retired` (D-156). Тест «свежий id не совпадает ни с сущностью плана, ни с удалённым» — `commands.test.ts`, без UI. Щель «`room.set` внутри чистого `applyCommand` удалённых не видит» закрыта 20.09 (D-204): `applyCommand(plan, command, retired)` — store передаёт набор, пакет пробрасывает его шагам.
 
 **Где:** `src/features/plan-tools/use-plan-tool-controller.ts:35`,
 `src/features/plan-tools/wall-draft.ts:38`,

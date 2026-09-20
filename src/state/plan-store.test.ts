@@ -196,6 +196,24 @@ describe('ошибка команды', () => {
     expect(store.getState().retired.size).toBe(0);
   });
 
+  test('перестроение контура не воскрешает id удалённой перегородки', () => {
+    const boundary = store.getState().document.room.boundary;
+    const [a, b] = [boundary[0]!, boundary[1]!];
+    const partition = store.getState().dispatch({
+      type: 'wall.put',
+      wall: { id: 'w_1', from: [a[0] + 1, a[1] + 1], to: [b[0] - 1, a[1] + 1], thickness_m: 0.1, height_m: 3 },
+    });
+    if (!partition.ok) throw new Error(partition.issues.map((issue) => issue.message).join('; '));
+    store.getState().dispatch({ type: 'wall.delete', id: 'w_1' });
+    expect(store.getState().retired.has('w_1')).toBe(true);
+
+    const [x0, y0] = a;
+    const pentagon: [number, number][] = [[x0, y0], [x0 + 10, y0], [x0 + 10, y0 + 8], [x0 + 5, y0 + 10], [x0, y0 + 8]];
+    const result = store.getState().dispatch({ type: 'room.set', boundary: pentagon });
+    if (!result.ok) throw new Error(result.issues.map((issue) => issue.message).join('; '));
+    expect(result.value.walls.map((wall) => wall.id)).not.toContain('w_1');
+  });
+
   test('после undo удаления та же сущность снова редактируема', () => {
     store.getState().dispatch({ type: 'object.delete', id: 'eq_work_1' });
     store.getState().undo();
