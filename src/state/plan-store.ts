@@ -15,6 +15,11 @@ import { applyCommand, idOwners, COMMAND_ISSUE_CODES } from '../domain/commands'
 export type PlanStoreState = PlanStore;
 export type PlanStoreApi = StoreApi<PlanStoreState>;
 
+/** The document as dirty tracking sees it: layer visibility is a view setting. */
+function withoutVisibility(document: PlanDocument): PlanDocument {
+  return { ...document, layers: document.layers.map((layer) => ({ ...layer, visible: true })) };
+}
+
 /** Deep structural comparison of two JSON documents, key order aside. */
 function sameContent(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -99,8 +104,11 @@ export function createPlanStore(
   const retired = new Set<Id>();
 
   return createStore<PlanStoreState>()((set, get) => {
+    // Showing or hiding a layer is how the plan is looked at, not what it
+    // says: the flag travels in the file for convenience, but it must not
+    // turn a freshly opened plan into «unsaved edits» (D-207).
     const isDirty = (document: PlanDocument, baseline: PlanDocument): boolean =>
-      !hasExportedBaseline || !sameContent(document, baseline);
+      !hasExportedBaseline || !sameContent(withoutVisibility(document), withoutVisibility(baseline));
 
     /** Selection cannot outlive the entity it points at. */
     const keepSelection = (document: PlanDocument, selection: Ref | null): Ref | null => {

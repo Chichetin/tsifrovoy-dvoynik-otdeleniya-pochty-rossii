@@ -245,6 +245,21 @@ describe('dirty и подготовка экспорта', () => {
     expect(store.getState().baseline).toBe(store.getState().document);
   });
 
+  test('показать или скрыть слой — не правка: dirty не поднимается, а переименование слоя — поднимает (D-207)', () => {
+    const layer = store.getState().document.layers[0]!;
+    const hidden = store.getState().dispatch({ type: 'layer.put', layer: { ...layer, visible: !layer.visible } });
+    expect(hidden.ok).toBe(true);
+    expect(store.getState().revision).toBeGreaterThan(0);
+    expect(store.getState().dirty).toBe(false);
+
+    store.getState().dispatch({ type: 'layer.put', layer: { ...layer, visible: !layer.visible, name: 'Иное имя' } });
+    expect(store.getState().dirty).toBe(true);
+    store.getState().undo();
+    expect(store.getState().dirty).toBe(false);
+    // Видимость в документе всё же осталась переключённой: в файл она попадёт.
+    expect(store.getState().document.layers[0]!.visible).toBe(!layer.visible);
+  });
+
   test('подготовка экспорта не меняет revision, но снимает dirty', () => {
     const before = store.getState().document.objects[0]!;
     store.getState().dispatch({ type: 'object.put', object: { ...before, position: [3, 3] } });
