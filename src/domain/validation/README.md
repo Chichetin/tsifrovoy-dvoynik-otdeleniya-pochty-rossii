@@ -9,7 +9,7 @@
 
 ## Граница модуля
 
-Потребляет contracts, geometry, relations и catalog. Возвращает Issue[], не исправляет план молча.
+Потребляет contracts, geometry, relations, catalog и вычисление наружных стен из commands. Возвращает Issue[], не исправляет план молча.
 
 ## Файлы по плану
 
