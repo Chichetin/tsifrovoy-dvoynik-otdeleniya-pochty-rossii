@@ -133,7 +133,7 @@ describe('известные ошибки примера находятся', ()
     // Вход d_main занимает 1.5 м стены; расстояние меряется до его середины
     // (0.75, 7.5), а не до края — от терминала в (0.6, 0.6) это 6.90 м.
     const message = far[0]?.message ?? '';
-    expect(message).toContain('6.90 м от входа «d_main»');
+    expect(message).toContain('6.90 м от входа d_main');
     expect(message).toContain('материалы организаторов');
   });
 

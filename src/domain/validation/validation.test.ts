@@ -193,6 +193,10 @@ describe('правила комплектования', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('warning');
     expect(issues[0]?.message).toContain('допущение команды, не норматив Почты');
+    // Тип назван как в библиотеке, а не кодом; код остаётся в refs (operator №8).
+    const label = plan.catalog.objectTypes.find((type) => type.id === object.typeId)?.label;
+    expect(issues[0]?.message).toContain(`«${label}»`);
+    expect(issues[0]?.message).not.toContain(object.typeId);
   });
 
   test('правило расстояния без входа в плане говорит об этом, а не молчит', () => {
