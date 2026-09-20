@@ -12,7 +12,7 @@
  * месте — иначе пользователь теряет то, что печатал, и не понимает почему.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   AttributeDef,
   Attributes,
@@ -30,6 +30,9 @@ import { footprintArea, polygonArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 
 type Errors = Record<string, string>;
+
+const noGesturePreview = () => null;
+const subscribeToNothing = (): (() => void) => () => {};
 
 /** Что карточка умеет править: по форме сущности понятно, какой командой. */
 type Editable = Zone | Equipment | Wall | Opening;
@@ -79,9 +82,15 @@ export function PropertiesPanel({
   document: plan,
   session,
   onCommand,
+  gesturePreview,
 }: PropertiesPanelProps): React.JSX.Element {
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const liveGesture = useSyncExternalStore(
+    gesturePreview?.subscribe ?? subscribeToNothing,
+    gesturePreview?.getSnapshot ?? noGesturePreview,
+    gesturePreview?.getSnapshot ?? noGesturePreview,
+  );
 
   // A click in the inventory or in the findings list asks for this card: the
   // column may be scrolled far below it, so the card comes to the viewer.
@@ -411,6 +420,7 @@ export function PropertiesPanel({
 
   if (object !== undefined) {
     const type = findObjectType(plan.catalog, object.typeId);
+    const position = liveGesture?.objectId === object.id ? liveGesture.position : object.position;
     // Группа (рамка, Shift+клик): карточка показывает главного, а счёт и площадь
     // — всей группы, чтобы было видно, на что подействуют стрелки и Delete.
     const groupMembers = plan.objects.filter((item) => session.selected?.has(item.id) ?? false);
@@ -457,13 +467,13 @@ export function PropertiesPanel({
         )}
 
         <div className="props__pair">
-          {numberField('position.x', 'X, м', object.position[0], (next) => ({
+          {numberField('position.x', 'X, м', position[0], (next) => ({
             ...object,
-            position: [next, object.position[1]],
+            position: [next, position[1]],
           }))}
-          {numberField('position.y', 'Y, м', object.position[1], (next) => ({
+          {numberField('position.y', 'Y, м', position[1], (next) => ({
             ...object,
-            position: [object.position[0], next],
+            position: [position[0], next],
           }))}
         </div>
 

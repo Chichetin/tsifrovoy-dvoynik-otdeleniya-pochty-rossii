@@ -143,6 +143,7 @@ export function EquipmentLayer({
   onSelect,
   onSelectMany,
   preview,
+  onGesturePreview,
 }: EquipmentLayerProps): React.JSX.Element {
   const { viewport, selection } = session;
   const names = useMemo(() => planIndex(plan), [plan]);
@@ -190,6 +191,9 @@ export function EquipmentLayer({
   const [hoverLabel, setHoverLabel] = useState<Konva.Label | null>(null);
   const [hoverText, setHoverText] = useState<Konva.Text | null>(null);
   const put = (object: Equipment) => ({ type: 'object.put', object }) as const;
+
+  // The channel outlives this layer in App; never leave a stale frame behind.
+  useEffect(() => () => onGesturePreview?.(null), [onGesturePreview]);
 
   // The marquee listens on the stage: a press on the floor, a zone, the grid
   // or the empty stage may begin one; a press on an object, a handle or any
@@ -281,12 +285,13 @@ export function EquipmentLayer({
       const cancelled = guard.cancel();
       if (cancelled === null) return;
       setGesture(null);
+      onGesturePreview?.(null);
       cancelled.node.position(cancelled.origin);
       cancelled.node.stopDrag();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [guard]);
+  }, [guard, onGesturePreview]);
 
   // Delete removes what the user sees selected; a hidden object is out of reach,
   // and a key pressed inside a field belongs to that field.
@@ -451,6 +456,7 @@ export function EquipmentLayer({
     before: Point,
   ): void => {
     setGesture(null);
+    onGesturePreview?.(null);
     const accepted = guard.finish() && onCommand({ type: 'object.put', object: next }).ok;
     const [x, y] = modelToScreen(accepted ? handleAfter(next) : before, viewport);
     node.position({ x, y });
@@ -475,6 +481,7 @@ export function EquipmentLayer({
   /** One batch per finished group drag; refused, every member snaps back. */
   const commitGroup = (node: Konva.Node, dragged: Equipment, next: Equipment): void => {
     setGesture(null);
+    onGesturePreview?.(null);
     const delta = groupDelta(dragged, next) ?? [0, 0];
     const moved = moveObjects(
       movable.filter((object) => object.id !== dragged.id),
@@ -544,6 +551,7 @@ export function EquipmentLayer({
         onDragStart={(event) => {
           hideHover();
           beginGesture(event, object.id);
+          onGesturePreview?.({ objectId: object.id, position: object.position });
         }}
         onMouseEnter={(event) => {
           setCursor(event, lockedLayers.has(object.layerId) ? 'default' : 'grab');
@@ -557,6 +565,7 @@ export function EquipmentLayer({
         onDragMove={(event) => {
           const moved = movedTo(event.target, event.evt, 'move');
           const next = { ...object, position: moved.position };
+          onGesturePreview?.({ objectId: object.id, position: next.position });
           setGesture({ id: object.id, object: next, delta: groupDelta(object, next), lines: moved.lines });
         }}
         onDragEnd={(event) => {
@@ -726,8 +735,10 @@ export function EquipmentLayer({
                 y={label.y - height / 2}
                 listening={false}
               >
-                {/* A pale tag under the text: dark letters on a red rack are unreadable. */}
-                <Tag fill="#FFFFFF" opacity={0.72} cornerRadius={2} />
+                {/* A pale tag under the text: dark letters on a red rack are
+                    unreadable. One legibility technique, applied everywhere
+                    (D-216) — no outlined text alongside it. */}
+                <Tag fill="#FFFFFF" opacity={0.85} cornerRadius={2} />
                 <Text
                   width={label.width}
                   height={height}
@@ -738,7 +749,10 @@ export function EquipmentLayer({
                   fill="#212529"
                   align="center"
                   verticalAlign="middle"
-                  wrap={label.lines === 2 ? 'word' : 'none'}
+                  // Always by word (D-216): a one-line caption too long for
+                  // its box loses whole words to the ellipsis, never a
+                  // half-word — «Стеллаж…», not «Стелл…».
+                  wrap="word"
                   ellipsis
                   padding={1}
                 />

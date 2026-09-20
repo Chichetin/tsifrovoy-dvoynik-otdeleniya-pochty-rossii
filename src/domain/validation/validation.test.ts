@@ -164,6 +164,19 @@ describe('коллизии считают только физические об
 });
 
 describe('правила комплектования', () => {
+  test('сообщения называют типы и вход по-человечески, а не внутренними id', () => {
+    const parsed = parsePlanDocument(
+      JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as unknown,
+    );
+    if (!parsed.ok) throw new Error('demo/before.json не разобрался');
+
+    const messages = validatePlan(parsed.value).map((entry) => entry.message).join('\n');
+    expect(messages).toContain('Скамья / кресла для ожидания');
+    expect(messages).toContain('Центральное информационное табло');
+    expect(messages).toContain('от главного входа');
+    expect(messages).not.toMatch(/«(?:ot_|op_)/);
+  });
+
   test('верхняя граница правила срабатывает и остаётся предупреждением команды', () => {
     const plan = loadPlan('minimal.json');
     const object = firstObject(plan);
@@ -193,7 +206,7 @@ describe('правила комплектования', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('warning');
     expect(issues[0]?.message).toContain('допущение команды, не норматив Почты');
-    // Тип назван как в библиотеке, а не кодом; код остаётся в refs (operator №8).
+    // Тип назван как в библиотеке, а не внутренним кодом (operator №8).
     const label = plan.catalog.objectTypes.find((type) => type.id === object.typeId)?.label;
     expect(issues[0]?.message).toContain(`«${label}»`);
     expect(issues[0]?.message).not.toContain(object.typeId);
@@ -226,6 +239,45 @@ describe('правила комплектования', () => {
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('error');
+  });
+});
+
+describe('стены в сообщениях', () => {
+  test('наружная стена названа по назначению, её id остаётся только в refs', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    const againstWall: PlanDocument = {
+      ...plan,
+      objects: [{ ...object, position: [2, 7.9] }],
+    };
+    const found = validatePlan(againstWall).find(
+      (entry) => entry.code === VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,
+    );
+
+    expect(found?.message).toContain('пересекает наружную стену');
+    expect(found?.message).not.toContain('w_');
+    expect(found?.refs.some((ref) => ref.kind === 'wall')).toBe(true);
+  });
+
+  test('внутренняя стена названа перегородкой', () => {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    const withPartition: PlanDocument = {
+      ...plan,
+      walls: [
+        ...plan.walls,
+        { id: 'w_partition', from: [5, 0], to: [5, 8], thickness_m: 0.1, height_m: 3 },
+      ],
+      objects: [{ ...object, position: [5, 2] }],
+    };
+    const found = validatePlan(withPartition).find(
+      (entry) =>
+        entry.code === VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL &&
+        entry.refs.some((ref) => ref.id === 'w_partition'),
+    );
+
+    expect(found?.message).toContain('пересекает перегородку');
+    expect(found?.message).not.toContain('w_partition');
   });
 });
 

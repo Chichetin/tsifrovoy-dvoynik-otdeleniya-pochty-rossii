@@ -71,8 +71,10 @@ export const PLACEMENT_SEARCH = {
   step_m: 0.1,
   /** Only axis-aligned and quarter-turned placements are considered. */
   angles_deg: [0, 90],
-  /** Upper bound on geometric probes, so a large hall still answers. */
+  /** Upper bound on cells inside the relevant zones and on geometric probes. */
   maxProbes: 60_000,
+  /** Safety bound for raw grid cells visited before the zone filter. */
+  maxCells: 1_000_000,
   /** How many survivors get the full `validatePlan` treatment. */
   maxVerified: 24,
   /** How many candidates the user is offered. */
@@ -516,7 +518,8 @@ function sweep(
   const found: Probe[] = [];
   const seen = new Set<string>();
   let probes = 0;
-  let cells = 0;
+  let visitedCells = 0;
+  let domainCells = 0;
 
   const rings = cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m);
   const order =
@@ -541,20 +544,24 @@ function sweep(
         })();
 
   for (const position of order) {
-    // Rejected cells still cost time. In particular an unreachable entrance
-    // must not make the search walk an arbitrarily large grid without a limit.
-    if (cells >= PLACEMENT_SEARCH.maxProbes) return found;
-    cells += 1;
-    if (!withinReach(position, reaches)) continue;
-    // A centre outside every fitting zone cannot give a footprint inside one:
-    // skip it before the geometry, so the wall-side pass does not spend the
-    // probe budget on zones the object does not belong in.
+    // The raw walk is bounded too: filtering a pathological polygon must not
+    // turn the request into an arbitrarily long scan over its bounding box.
+    if (visitedCells >= PLACEMENT_SEARCH.maxCells) return found;
+    visitedCells += 1;
+    // A centre outside every fitting zone cannot give a footprint inside one.
+    // It is outside the search domain, so it must not spend the domain budget:
+    // a large concave zone may have most of its bounding box outside itself.
     if (
       allowedOutlines !== null &&
       !allowedOutlines.some((outline) => locatePoint(position, outline) !== 'outside')
     ) {
       continue;
     }
+    // Rejected cells inside the search domain still cost time. In particular
+    // an unreachable entrance must not make the search walk forever.
+    if (domainCells >= PLACEMENT_SEARCH.maxProbes) return found;
+    domainCells += 1;
+    if (!withinReach(position, reaches)) continue;
     // Места собираются разнесёнными: обход идёт кольцами от указанной точки,
     // поэтому соседние клетки подошли бы все подряд и бюджет ушёл бы на 24
     // варианта одной точки вместо 24 разных мест.

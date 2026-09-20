@@ -9,7 +9,7 @@
  */
 
 import { useState } from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
 import type { Command } from '../../contracts/commands';
@@ -111,6 +111,47 @@ describe('карточка помещения', () => {
   });
 });
 
+describe('живые координаты объекта', () => {
+  test('во время переноса меняет X/Y без команды и после жеста возвращается к документу', () => {
+    const object = plan.objects[0];
+    if (object === undefined) throw new Error('в minimal.json нет объекта');
+    let preview: { objectId: string; position: [number, number] } | null = null;
+    const listeners = new Set<() => void>();
+    const channel = {
+      getSnapshot: () => preview,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      publish: (next: typeof preview) => {
+        preview = next;
+        for (const listener of listeners) listener();
+      },
+    };
+    const { spy, commands } = sink();
+
+    render(
+      <PropertiesPanel
+        document={plan}
+        session={session({ kind: 'object', id: object.id })}
+        onCommand={spy}
+        gesturePreview={channel}
+      />,
+    );
+
+    expect((screen.getByLabelText('X, м') as HTMLInputElement).value).toBe(String(object.position[0]));
+    expect((screen.getByLabelText('Y, м') as HTMLInputElement).value).toBe(String(object.position[1]));
+
+    act(() => channel.publish({ objectId: object.id, position: [6.25, 4.75] }));
+    expect((screen.getByLabelText('X, м') as HTMLInputElement).value).toBe('6.25');
+    expect((screen.getByLabelText('Y, м') as HTMLInputElement).value).toBe('4.75');
+    expect(commands).toEqual([]);
+
+    act(() => channel.publish(null));
+    expect((screen.getByLabelText('X, м') as HTMLInputElement).value).toBe(String(object.position[0]));
+    expect((screen.getByLabelText('Y, м') as HTMLInputElement).value).toBe(String(object.position[1]));
+  });
+});
 describe('карточка перегородки', () => {
   test('выбранная перегородка показывает свою карточку, а не пустое состояние', () => {
     show({ kind: 'wall', id: 'w_north' });

@@ -55,13 +55,13 @@ test.describe('ассистент в браузере', () => {
 
     await expect(panel(page).getByText('Ответа пока нет')).toBeVisible();
 
-    // Свободный вопрос без модели никуда не уходит — панель говорит об этом прямо.
-    await panel(page).getByLabel('Вопрос (необязательно)').fill('Куда поставить второе окно?');
+    // Пожелание без модели никуда не уходит — панель говорит об этом прямо.
+    await panel(page).getByLabel('Пожелание к варианту (необязательно)').fill('ближе ко входу');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
 
     // Сервера в dev нет: ответ приходит из расчёта в браузере и говорит об этом.
     await expect(panel(page).locator('.assistant__mode')).toContainText('Без LLM');
-    await expect(panel(page).getByTestId('assistant-query-ignored')).toContainText('второе окно');
+    await expect(panel(page).getByTestId('assistant-query-ignored')).toContainText('ближе ко входу');
     await expect(panel(page).locator('.advice__sentence')).toContainText('Место найдено');
 
     const candidates = panel(page).locator('.advice__candidates li');

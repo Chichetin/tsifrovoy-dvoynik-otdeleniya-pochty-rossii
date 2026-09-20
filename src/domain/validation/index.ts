@@ -17,8 +17,8 @@
 import {
   type Catalog,
   type Equipment,
-  type Id,
   type Issue,
+  type Opening,
   type PlanDocument,
   type Point,
   type Polygon,
@@ -27,6 +27,7 @@ import {
   type Severity,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
+import { outerWallIds } from '../commands/room-walls';
 import { countInZoneScope } from '../inventory';
 import {
   boundingBox,
@@ -90,6 +91,21 @@ function ruleNote(rule: Rule): string {
   return rule.source === 'organizer-material'
     ? `Источник правила: материалы организаторов (${rule.id}).`
     : `Источник правила: допущение команды, не норматив Почты (${rule.id}).`;
+}
+
+/** User-facing subjects: ids stay in refs for focus, not in the sentence. */
+function objectTypeName(plan: PlanDocument, typeId: string): string {
+  return findObjectType(plan.catalog, typeId)?.label ?? typeId;
+}
+
+function wallName(isOuter: boolean): string {
+  return isOuter ? 'наружную стену' : 'перегородку';
+}
+
+function openingName(opening: Opening): string {
+  if (opening.kind === 'entrance') return 'главного входа';
+  if (opening.kind === 'door') return 'двери';
+  return 'окна';
 }
 
 /**
@@ -280,6 +296,7 @@ function collisionIssues(plan: PlanDocument): Issue[] {
 
 function wallIssues(plan: PlanDocument): Issue[] {
   const issues: Issue[] = [];
+  const outer = outerWallIds(plan.walls, plan.room.boundary);
   for (const object of plan.objects) {
     if (!isPhysical(plan.catalog, object)) continue;
     for (const wall of plan.walls) {
@@ -288,7 +305,7 @@ function wallIssues(plan: PlanDocument): Issue[] {
         issue(
           VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,
           'error',
-          `Объект «${object.label}» пересекает стену ${wall.id}.`,
+          `Объект «${object.label}» пересекает ${wallName(outer.has(wall.id))}.`,
           [
             { kind: 'object', id: object.id },
             { kind: 'wall', id: wall.id },
@@ -305,15 +322,6 @@ function isPhysical(catalog: Catalog, object: Equipment): boolean {
   // An unknown type is treated as solid: the schema refuses such a document on
   // load, and during an edit a silent "not physical" would hide a collision.
   return findObjectType(catalog, object.typeId)?.physical ?? true;
-}
-
-/**
- * The type as the person knows it: «Скамья», not «ot_bench». The id stays in
- * `refs`; a type missing from the catalog is named by its id, as elsewhere.
- * Walls and openings carry no name, so their ids stand without quotes.
- */
-function typeLabel(catalog: Catalog, typeId: Id): string {
-  return findObjectType(catalog, typeId)?.label ?? typeId;
 }
 
 function ruleIssues(plan: PlanDocument): Issue[] {
@@ -344,7 +352,7 @@ function countRuleIssues(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN,
           severityOf(rule),
-          `В зоне «${zone.name}» ${count} шт. «${typeLabel(plan.catalog, rule.objectTypeId)}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
+          `В зоне «${zone.name}» ${count} шт. «${objectTypeName(plan, rule.objectTypeId)}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
         ),
@@ -355,7 +363,7 @@ function countRuleIssues(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX,
           severityOf(rule),
-          `В зоне «${zone.name}» ${count} шт. «${typeLabel(plan.catalog, rule.objectTypeId)}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
+          `В зоне «${zone.name}» ${count} шт. «${objectTypeName(plan, rule.objectTypeId)}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
         ),
@@ -410,7 +418,7 @@ function distanceRuleIssues(
       issue(
         VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE,
         severityOf(rule),
-        `Объект «${object.label}» в ${best.toFixed(2)} м от входа ${nearest.opening.id} при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
+        `Объект «${object.label}» в ${best.toFixed(2)} м от ${openingName(nearest.opening)} при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
         [
           { kind: 'object', id: object.id },
           { kind: 'opening', id: nearest.opening.id },
