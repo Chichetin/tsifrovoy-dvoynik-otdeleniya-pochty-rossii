@@ -14,10 +14,10 @@
 
 import { useMemo, useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
-import { LIMITS, type PlanDocument } from '../../contracts/model';
-import type { AssistantAction } from '../../contracts/advice-chat';
+import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { renderExplanation } from '../../domain/advice';
+import { AgentChat } from './AgentChat';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
@@ -27,14 +27,6 @@ const SCENARIO_LABELS: Record<Scenario, string> = {
   place: 'Найти место',
   equipment: 'Комплектование',
   compare: 'Эффект изменений',
-};
-
-const ACTION_LABELS: Record<AssistantAction['kind'], string> = {
-  focus: 'Показать на плане',
-  'open-properties': 'Открыть свойства',
-  'filter-inventory': 'Открыть в инвентаризации',
-  'show-layer': 'Показать слой',
-  'preview-candidate': 'Предпросмотр варианта',
 };
 
 const METRIC_LABELS: Record<Fact['metric'], string> = {
@@ -105,16 +97,16 @@ export function AssistantPanel({
   onPreview,
   onFocus,
   onAsk,
-  chatTurns = [],
-  chatStatus,
-  onAskChat,
-  onAssistantAction,
+  exchanges = [],
+  actionStatus = null,
+  onAskAgent,
+  onAgentAction,
+  onClearChat,
 }: AssistantPanelProps): React.JSX.Element {
   const [scenario, setScenario] = useState<Scenario>('place');
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
   const [zoneId, setZoneId] = useState<string>('');
   const [query, setQuery] = useState('');
-  const [chatQuery, setChatQuery] = useState('');
   // Пожелание, с которым ушёл последний запрос: без модели оно никуда не попадает —
   // расчёт идёт по сценарию, — и человек должен это увидеть, а не гадать,
   // почему выбран именно этот вариант.
@@ -135,13 +127,6 @@ export function AssistantPanel({
   // One index per document: names for every recommendation and candidate (D-202).
   const names = useMemo(() => planIndex(plan), [plan]);
   const stale = response !== null && response.revision !== revision;
-  const latestTurn = chatTurns.at(-1);
-  const chatStale = latestTurn !== undefined && latestTurn.revision !== revision;
-  const busy = state.status === 'loading';
-  const status = busy ? 'Считаем рекомендации…'
-    : stale || chatStale ? 'План изменился после этого ответа: спросите заново, числа устарели. Действия отключены.'
-    : chatStatus ?? (latestTurn?.intent.kind === 'clarify' ? `Уточните: ${latestTurn.intent.question}`
-      : state.status === 'done' ? 'Ответ готов. Проверьте основания и выберите действие.' : '');
 
   function ask(): void {
     if (placeUnavailable) return;
@@ -169,33 +154,22 @@ export function AssistantPanel({
     <section className="panel assistant" aria-label="Ассистент">
       <h2 className="panel__title">Ассистент</h2>
 
-      {onAskChat !== undefined ? (
+      {onAskAgent === undefined || onAgentAction === undefined ? null : (
         <>
-          <ol className="assistant__history" aria-label="История диалога">
-            {chatTurns.map((turn) => (
-              <li key={turn.id}>
-                <span>{turn.intent.kind === 'clarify' ? turn.intent.question : SCENARIO_LABELS[turn.intent.request.scenario]}</span>
-                {turn.revision !== revision ? <span className="assistant__history-note">План изменён — пересчитайте вывод</span> : null}
-              </li>
-            ))}
-          </ol>
-          <form className="assistant__form" onSubmit={(event) => {
-            event.preventDefault();
-            if (!busy && chatQuery.trim()) onAskChat(chatQuery.trim());
-          }}>
-            <label className="assistant__field">
-              Вопрос ассистенту
-              <textarea name="assistant-question" autoComplete="off" rows={2} value={chatQuery} maxLength={LIMITS.maxQueryChars}
-                placeholder="Например: где добавить рабочее место?"
-                onChange={(event) => setChatQuery(event.target.value)} />
-            </label>
-            <button type="submit" className="files__button is-primary" disabled={busy || !chatQuery.trim()}>Отправить</button>
-          </form>
+          <AgentChat
+            plan={plan}
+            revision={revision}
+            names={names}
+            exchanges={exchanges}
+            actionStatus={actionStatus}
+            onAsk={onAskAgent}
+            onAction={onAgentAction}
+            onClear={onClearChat ?? (() => undefined)}
+          />
+          <h3 className="agent__section">Расчёт по сценарию</h3>
         </>
-      ) : null}
-      <p className={stale || chatStale ? 'assistant__stale' : 'assistant__status'} role="status" aria-live="polite" aria-atomic="true">{status}</p>
-      <details className="assistant__quick" open={chatTurns.length === 0}>
-      <summary>Быстрый расчёт по сценарию</summary>
+      )}
+
       <div className="assistant__form">
         <label className="assistant__field">
           Сценарий
@@ -263,12 +237,11 @@ export function AssistantPanel({
           {state.status === 'loading' ? 'Считаем…' : 'Спросить'}
         </button>
         {placeUnavailable ? (
-          <p className="panel__empty">
+          <p className="panel__empty" role="status">
             Для поиска места сначала добавьте тип оборудования в справочник.
           </p>
         ) : null}
       </div>
-      </details>
 
       {state.status === 'error' ? (
         <p className="files__error" role="alert">
@@ -276,13 +249,18 @@ export function AssistantPanel({
         </p>
       ) : null}
 
+      {stale ? (
+        <p className="assistant__stale" role="status">
+          План изменился после этого ответа: спросите заново, числа устарели.
+        </p>
+      ) : null}
+
       {response === null ? (
         <p className="panel__empty">
-          {latestTurn?.intent.kind === 'clarify' ? 'Ответьте на уточнение в поле вопроса.' : state.status === 'loading' ? 'Считаем рекомендации…' : 'Ответа пока нет'}
+          {state.status === 'loading' ? 'Считаем рекомендации…' : 'Ответа пока нет'}
         </p>
       ) : (
         <>
-          <h3 className="assistant__subheading">Вывод</h3>
           <p className={response.mode === 'llm' ? 'assistant__mode' : 'assistant__mode is-fallback'}>
             {response.mode === 'llm'
               ? 'Объяснение модели проверено расчётом'
@@ -299,8 +277,6 @@ export function AssistantPanel({
             <p className="panel__empty">Расчёт не нашёл, что предложить по этому запросу</p>
           ) : null}
 
-          <h3 className="assistant__subheading">Предложения</h3>
-
           {response.recommendations.map((recommendation) => {
             const explanation = response.explanations.find(
               (entry) => entry.recommendationId === recommendation.id,
@@ -316,7 +292,6 @@ export function AssistantPanel({
                   {sentence ?? 'Объяснение недоступно — ниже расчёт, на который оно опиралось.'}
                 </p>
 
-                <h4 className="assistant__subheading">Основание</h4>
                 <ul className="advice__facts">
                   {ownFacts(recommendation).map((fact) => (
                     <li key={fact.id}>
@@ -333,7 +308,7 @@ export function AssistantPanel({
                     {recommendation.candidates.map((candidate: Candidate, index) => (
                       <li
                         key={candidate.id}
-                        onMouseEnter={() => { if (!stale) onPreview(candidate); }}
+                        onMouseEnter={() => onPreview(candidate)}
                         onMouseLeave={() => onPreview(null)}
                       >
                         <span>
@@ -350,8 +325,6 @@ export function AssistantPanel({
                             .map((fact) => `${METRIC_LABELS[fact.metric]}: ${formatValue(fact)}`)
                             .join(', ')}
                         </span>
-                        <button type="button" className="table__link" disabled={stale}
-                          onClick={() => onPreview(candidate)}>Показать вариант {index + 1}</button>
                       </li>
                     ))}
                   </ol>
@@ -364,7 +337,6 @@ export function AssistantPanel({
                         <button
                           type="button"
                           className="table__link"
-                          disabled={stale}
                           onClick={() => onFocus(change.ref)}
                         >
                           {change.ref.id}
@@ -381,7 +353,6 @@ export function AssistantPanel({
                       key={`${ref.kind}-${ref.id}`}
                       type="button"
                       className="table__link"
-                      disabled={stale}
                       onClick={() => onFocus(ref)}
                     >
                       {ref.id}
@@ -410,19 +381,6 @@ export function AssistantPanel({
           })}
         </>
       )}
-      {latestTurn?.selection !== null && latestTurn?.selection !== undefined ? (
-        <div className="assistant__actions">
-          <h3>Действие</h3>
-          <p>Проверенные переходы к плану</p>
-          {latestTurn.selection.selections.flatMap((entry) => entry.actions).map((action, index) => (
-            <button key={index} type="button" className="files__button assistant__route"
-              disabled={chatStale || stale || busy || onAssistantAction === undefined}
-              onClick={() => onAssistantAction?.(action)}>
-              <span aria-hidden="true">→ </span>{ACTION_LABELS[action.kind]}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }

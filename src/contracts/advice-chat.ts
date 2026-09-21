@@ -96,3 +96,15 @@ export const agentBodySchema = z.object({
   history: z.array(agentTurnSchema).max(AGENT_LIMITS.maxTurns).default([]),
   before: z.unknown().optional(),
 });
+
+/** One question and what came of it, as the chat shows it. */
+export type AgentExchange = {
+  id: string;
+  question: string;
+  /** Plan revision the question was asked about. */
+  revision: number;
+  /** Tool calls seen so far; the answer carries the final list. */
+  steps: AgentStep[];
+  answer: AgentAnswer | null;
+  error: string | null;
+};

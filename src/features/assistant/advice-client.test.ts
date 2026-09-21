@@ -2,7 +2,7 @@ import { describe, expect, test } from 'vitest';
 import type { AdviceHttpRequest } from '../../contracts/advice';
 import minimal from '../../contracts/fixtures/minimal.json';
 import { parsePlanDocument } from '../../contracts/schema';
-import { requestAdvice, requestChatAdvice } from './advice-client';
+import { requestAdvice } from './advice-client';
 
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('Контрактный fixture minimal.json не разобрался');
@@ -86,79 +86,4 @@ describe('причина «без модели» написана для сот�
     expect(result.issues[0]?.message).toContain('Повторите запрос');
     expect(result.issues[0]?.message).toMatch(/\(код 200\)/);
   });
-});
-
-test('разговорный запрос передаёт только компактную историю и читает уточнение', async () => {
-  let body: unknown = null;
-  const result = await requestChatAdvice(
-    {
-      plan: parsed.value,
-      revision: 3,
-      query: 'Где поставить окно?',
-      history: [
-        {
-          id: 'q1',
-          revision: 2,
-          intent: { kind: 'clarify', question: 'В какой зоне?' },
-          selection: null,
-          refs: [],
-        },
-      ],
-    },
-    async (_url, init) => {
-      body = JSON.parse(String(init?.body));
-      return new Response(JSON.stringify({ revision: 3, kind: 'clarify', question: 'Укажите зону.' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      });
-    },
-  );
-
-  expect(body).toMatchObject({ query: 'Где поставить окно?', revision: 3, history: [{ id: 'q1' }] });
-  expect(result).toEqual({ ok: true, value: { revision: 3, kind: 'clarify', question: 'Укажите зону.' } });
-});
-
-test('разговорный клиент отклоняет ответ без типизированной формы', async () => {
-  const result = await requestChatAdvice(
-    { plan: parsed.value, revision: 3, query: 'Где поставить окно?', history: [] },
-    async () => new Response(JSON.stringify({ revision: 3, kind: 'result' }), { status: 200 }),
-  );
-
-  expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(result.issues[0]?.code).toBe('ADVICE_RESPONSE_UNEXPECTED');
-});
-
-test('разговорный клиент повторно проверяет действия из ответа перед передачей в UI', async () => {
-  const result = await requestChatAdvice(
-    { plan: parsed.value, revision: 3, query: 'Где поставить окно?', history: [] },
-    async () =>
-      new Response(
-        JSON.stringify({
-          revision: 3,
-          kind: 'result',
-          mode: 'llm',
-          intent: {
-            kind: 'request',
-            request: { scenario: 'place', typeId: 'ot_workplace', zoneId: 'z_client' },
-            preference: null,
-          },
-          recommendations: [],
-          selection: {
-            selections: [
-              {
-                recommendationId: 'invented',
-                factIds: ['fact'],
-                actions: [{ kind: 'show-layer', layerId: 'invented' }],
-              },
-            ],
-          },
-        }),
-        { status: 200 },
-      ),
-  );
-
-  expect(result.ok).toBe(false);
-  if (result.ok) return;
-  expect(result.issues[0]?.code).toBe('CHAT_UNKNOWN_RECOMMENDATION');
 });

@@ -10,18 +10,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
-import type { AssistantAction, ChatTurn } from '../contracts/advice-chat';
+import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
-import { defaultExplanation } from '../domain/advice';
 import { measurePlan } from '../domain/metrics';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
-import { requestAdvice, requestChatAdvice, type ChatAdviceResponse } from '../features/assistant/advice-client';
-import { appendTurn, clearChatSession, readChatSession, writeChatSession } from '../features/assistant/chat-session';
+import { requestAdvice } from '../features/assistant/advice-client';
+import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
@@ -66,119 +65,8 @@ import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
 
-type AssistantActionContext = {
-  document: PlanDocument;
-  revision: number;
-  responseRevision: number | null;
-  recommendations: readonly import('../contracts/advice').Recommendation[];
-  focusOn: (ref: Ref) => void;
-  setPreview: (candidate: Candidate | null) => void;
-  setInventoryFilter: (filter: { typeId: Id | null; zoneId: Id | null }) => void;
-  showLayer: (layerId: Id) => void;
-  setStatus: (message: string) => void;
-};
-
-function refExists(document: PlanDocument, ref: Ref): boolean {
-  switch (ref.kind) {
-    case 'room': return document.room.id === ref.id;
-    case 'zone': return document.zones.some((entry) => entry.id === ref.id);
-    case 'object': return document.objects.some((entry) => entry.id === ref.id);
-    case 'layer': return document.layers.some((entry) => entry.id === ref.id);
-    case 'wall': return document.walls.some((entry) => entry.id === ref.id);
-    case 'opening': return document.openings.some((entry) => entry.id === ref.id);
-  }
-}
-
-/**
- * Executes only presentation callbacks. It deliberately has no store or
- * command sink in scope: an assistant action cannot alter a plan or revision.
- */
-export function executeAssistantAction(action: AssistantAction, context: AssistantActionContext): void {
-  if (context.responseRevision === null || context.responseRevision !== context.revision) {
-    context.setStatus('План изменился после ответа: пересчитайте рекомендацию перед действием.');
-    return;
-  }
-
-  if (action.kind === 'focus') {
-    if (!refExists(context.document, action.ref)) {
-      context.setStatus(`Объект действия «${action.ref.id}» больше нет в текущем плане.`);
-      return;
-    }
-    context.focusOn(action.ref);
-    context.setStatus('Показано на плане.');
-    return;
-  }
-  if (action.kind === 'open-properties') {
-    if (!context.document.objects.some((entry) => entry.id === action.objectId)) {
-      context.setStatus(`Объекта «${action.objectId}» нет в текущем плане.`);
-      return;
-    }
-    context.focusOn({ kind: 'object', id: action.objectId });
-    context.setStatus('Открыты свойства объекта.');
-    return;
-  }
-  if (action.kind === 'preview-candidate') {
-    const candidate = context.recommendations
-      .find((recommendation) => recommendation.id === action.recommendationId)
-      ?.candidates.find((entry) => entry.id === action.candidateId);
-    if (candidate === undefined) {
-      context.setStatus('Вариант рекомендации больше недоступен: пересчитайте вывод.');
-      return;
-    }
-    context.setPreview(candidate);
-    context.setStatus('Вариант показан на плане полупрозрачно.');
-    return;
-  }
-  if (action.kind === 'filter-inventory') {
-    const knownType = action.typeId === undefined || context.document.catalog.objectTypes.some((entry) => entry.id === action.typeId);
-    const knownZone = action.zoneId === undefined || context.document.zones.some((entry) => entry.id === action.zoneId);
-    if (!knownType || !knownZone) {
-      context.setStatus('Фильтр ссылается на отсутствующие данные текущего плана.');
-      return;
-    }
-    context.setInventoryFilter({ typeId: action.typeId ?? null, zoneId: action.zoneId ?? null });
-    context.setStatus('Фильтр инвентаризации применён.');
-    return;
-  }
-  if (!context.document.layers.some((entry) => entry.id === action.layerId)) {
-    context.setStatus(`Слоя «${action.layerId}» нет в текущем плане.`);
-    return;
-  }
-  context.showLayer(action.layerId);
-  context.setStatus('Слой показан в текущем представлении.');
-}
-
-function sessionStorageOrNull(): Storage | null {
-  try {
-    return globalThis.sessionStorage;
-  } catch {
-    return null;
-  }
-}
-
-function turnFromChatResponse(response: ChatAdviceResponse): ChatTurn | null {
-  if (response.kind === 'fallback') return null;
-  if (response.kind === 'clarify') {
-    return {
-      id: `chat-${response.revision}-${Date.now().toString(36)}`,
-      revision: response.revision,
-      intent: { kind: 'clarify', question: response.question },
-      selection: null,
-      refs: [],
-    };
-  }
-  const refs = response.kind === 'result'
-    ? response.recommendations
-      .filter((recommendation) => response.selection?.selections.some((entry) => entry.recommendationId === recommendation.id) ?? false)
-      .flatMap((recommendation) => recommendation.refs)
-    : [];
-  return {
-    id: `chat-${response.revision}-${Date.now().toString(36)}`,
-    revision: response.revision,
-    intent: response.intent,
-    selection: response.selection,
-    refs,
-  };
+function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
+  return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
 }
 
 export function App(): React.JSX.Element {
@@ -226,6 +114,11 @@ export function App(): React.JSX.Element {
   // A new plan starts at revision 0 too, so comparing revisions cannot reject
   // a late answer from the document that was open before «Новый».
   const adviceRequestSequence = useRef(0);
+  // D-236: the conversation with the plan agent — interface state, never in
+  // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
+  const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
+  const [agentActionStatus, setAgentActionStatus] = useState<string | null>(null);
+  const agentSequence = useRef(0);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -236,11 +129,6 @@ export function App(): React.JSX.Element {
    */
   const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
-  const [chatTurns, setChatTurns] = useState<ChatTurn[]>(() => readChatSession(sessionStorageOrNull()));
-  const [chatResponse, setChatResponse] = useState<ChatAdviceResponse | null>(null);
-  const [assistantActionStatus, setAssistantActionStatus] = useState<string | null>(null);
-  const [, setAssistantInventoryFilter] = useState<{ typeId: Id | null; zoneId: Id | null }>({ typeId: null, zoneId: null });
-  const [, setAssistantShownLayer] = useState<Id | null>(null);
 
   // D-249: which tab each side column shows — a fact about this browser,
   // kept in localStorage like the tour (D-195), never in the plan. The value
@@ -399,62 +287,113 @@ export function App(): React.JSX.Element {
     [baseline, document, revision],
   );
 
-  const askChatAssistant = useCallback(
-    (query: string) => {
-      const sequence = ++adviceRequestSequence.current;
-      setAssistantActionStatus(null);
-      setAdviceState({ status: 'loading' });
-      setPreview(null);
-      const asked = { plan: document, revision, query, history: chatTurns, before: baseline };
-      void requestChatAdvice(asked).then((result) => {
-        if (sequence !== adviceRequestSequence.current) return;
+  // D-236: ring on the plan without selecting — the agent points, the
+  // person decides what to pick.
+  const highlight = useCallback((ref: Ref) => {
+    focusSequence.current += 1;
+    setFocus({ ref, sequence: focusSequence.current });
+  }, []);
+
+  const askAgent = useCallback(
+    (question: string) => {
+      const sequence = ++agentSequence.current;
+      const id = `ask-${sequence}`;
+      const update = (change: (exchange: AgentExchange) => AgentExchange): void => {
+        if (sequence !== agentSequence.current) return;
+        setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
+      };
+      setAgentActionStatus(null);
+      setExchanges((previous) => [...previous, { id, question, revision, steps: [], answer: null, error: null }]);
+      const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
+      void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
+        if (sequence !== agentSequence.current) return;
         if (!result.ok) {
-          setAdviceState({ status: 'error', message: result.issues.map((issue) => issue.message).join('; ') });
+          update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
           return;
         }
-        setChatResponse(result.value);
-        setAdviceState({ status: 'done' });
         const answer = result.value;
-        if (answer.kind === 'clarify') {
-          setAdvice(null);
-        } else {
-          const recommendations = answer.selection === null ? answer.recommendations
-            : answer.selection.selections.flatMap((selection) => answer.recommendations.filter((entry) => entry.id === selection.recommendationId));
-          setAdvice({ revision: answer.revision, mode: answer.mode, recommendations,
-            explanations: recommendations.map(defaultExplanation).filter((entry) => entry !== null),
-            ...(answer.fallbackReason === undefined ? {} : { fallbackReason: answer.fallbackReason }) });
+        update((exchange) => ({ ...exchange, answer }));
+        // The agent shows what it found: the offered variant ghosted on the
+        // plan, otherwise a ring round the first entity of the answer.
+        const offered = answer.actions.find((action) => action.kind === 'preview-candidate');
+        const candidate = offered === undefined ? null : candidateOf(answer, offered.recommendationId, offered.candidateId);
+        if (candidate !== null) {
+          setPreview(candidate);
+          if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
+        } else if (answer.refs[0] !== undefined) {
+          highlight(answer.refs[0]);
         }
-        const turn = turnFromChatResponse(result.value);
-        if (turn === null) return;
-        setChatTurns((previous) => {
-          const next = appendTurn(previous, [turn]);
-          writeChatSession(sessionStorageOrNull(), next);
-          return next;
-        });
       });
     },
-    [baseline, chatTurns, document, revision],
+    [baseline, document, exchanges, highlight, revision],
   );
 
-  const runAssistantAction = useCallback(
-    (action: AssistantAction) => {
-      executeAssistantAction(action, {
-        document,
-        revision,
-        responseRevision: chatResponse?.revision ?? null,
-        recommendations:
-          chatResponse?.kind === 'result' || chatResponse?.kind === 'fallback'
-            ? chatResponse.recommendations
-            : [],
-        focusOn,
-        setPreview,
-        setInventoryFilter: setAssistantInventoryFilter,
-        showLayer: setAssistantShownLayer,
-        setStatus: setAssistantActionStatus,
-      });
+  const runAgentAction = useCallback(
+    (action: AssistantAction, answer: AgentAnswer) => {
+      if (answer.revision !== revision) {
+        setAgentActionStatus('План изменился после ответа — спросите заново.');
+        return;
+      }
+      switch (action.kind) {
+        case 'focus': {
+          const exists = action.ref.kind === 'zone' ? document.zones.some((zone) => zone.id === action.ref.id) : document.objects.some((object) => object.id === action.ref.id);
+          if (!exists) {
+            setAgentActionStatus(`«${action.ref.id}» больше нет в плане.`);
+            return;
+          }
+          focusOn(action.ref);
+          setAgentActionStatus(null);
+          return;
+        }
+        case 'preview-candidate':
+        case 'apply-candidate': {
+          const candidate = candidateOf(answer, action.recommendationId, action.candidateId);
+          if (candidate === null) {
+            setAgentActionStatus('Вариант не найден в ответе — спросите заново.');
+            return;
+          }
+          if (action.kind === 'preview-candidate') {
+            setPreview(candidate);
+            if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
+            setAgentActionStatus('Вариант показан на плане полупрозрачно.');
+            return;
+          }
+          // The one edit an answer can lead to: the person pressed the button,
+          // and the variant goes in as an ordinary command with its undo step.
+          const result = dispatchAndSelect({ type: 'object.put', object: candidate.object });
+          setPreview(null);
+          setAgentActionStatus(
+            result.ok
+              ? `Применено: «${candidate.object.label}» поставлен на план. Отменить — Ctrl+Z.`
+              : `Не применено: ${result.issues.map((issue) => issue.message).join('; ')}`,
+          );
+          return;
+        }
+        case 'show-layer': {
+          const layer = document.layers.find((entry) => entry.id === action.layerId);
+          if (layer === undefined) {
+            setAgentActionStatus('Слоя больше нет в плане.');
+            return;
+          }
+          if (!layer.visible) dispatch({ type: 'layer.put', layer: { ...layer, visible: true } });
+          showLeftTab('layers');
+          setAgentActionStatus(`Слой «${layer.name}» включён.`);
+          return;
+        }
+        case 'open-panel':
+          showRightTab(action.panel);
+          return;
+      }
     },
-    [chatResponse, document, focusOn, revision],
+    [dispatch, dispatchAndSelect, document, focusOn, highlight, revision, showLeftTab, showRightTab],
   );
+
+  const clearChat = useCallback(() => {
+    agentSequence.current += 1;
+    setExchanges([]);
+    setAgentActionStatus(null);
+    setPreview(null);
+  }, []);
 
   // A recommendation belongs to the plan it was computed for: after «Открыть»
   // or «Новый» its ids point at objects that no longer exist, and «план
@@ -466,10 +405,9 @@ export function App(): React.JSX.Element {
     setAdvice(null);
     setAdviceState({ status: 'idle' });
     setPreview(null);
-    setChatResponse(null);
-    setChatTurns([]);
-    clearChatSession(sessionStorageOrNull());
-    setAssistantActionStatus(null);
+    agentSequence.current += 1;
+    setExchanges([]);
+    setAgentActionStatus(null);
   }, []);
 
   const replaceDocument = useCallback(
@@ -711,10 +649,11 @@ export function App(): React.JSX.Element {
                   onPreview={setPreview}
                   onFocus={focusOn}
                   onAsk={askAssistant}
-                  chatTurns={chatTurns}
-                  chatStatus={assistantActionStatus}
-                  onAskChat={askChatAssistant}
-                  onAssistantAction={chatResponse?.kind === 'result' ? runAssistantAction : undefined}
+                  exchanges={exchanges}
+                  actionStatus={agentActionStatus}
+                  onAskAgent={askAgent}
+                  onAgentAction={runAgentAction}
+                  onClearChat={clearChat}
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
