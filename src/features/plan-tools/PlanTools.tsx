@@ -17,18 +17,30 @@
  * document it was printed for.
  */
 
-import { useEffect } from 'react';
+import { Fragment, useEffect } from 'react';
 import type { Ref } from '../../contracts/model';
 import type { PlanToolsProps, ToolKind } from '../../contracts/ui';
 import { deleteIntent } from './delete-key';
 import { setNotice, useNotice } from './notice';
 
+/**
+ * Первые два инструмента («Выбор», «Обзор») меняют, что видно и что выделено;
+ * остальные создают геометрию плана. Разделитель между группами рисует стиль
+ * (`toolbar__group-gap`), а не пустая кнопка — граница видна и без hover.
+ */
+const VIEW_TOOL_COUNT = 2;
+
 const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: string }[] = [
   { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
   {
     kind: 'pan',
-    label: 'Рука',
-    hint: 'Двигать план: средняя кнопка или свайп двумя пальцами на тачпаде; колесо и Ctrl+колесо — масштаб',
+    // D-248: «Рука» не говорит, что произойдёт — инструмент двигает и
+    // масштабирует вид, а не хватает план рукой; «Обзор» короче
+    // «Панорамирования» и не путается с «Помещением» на слух.
+    label: 'Обзор',
+    hint:
+      'Двигать вид плана: средняя кнопка мыши или свайп двумя пальцами на тачпаде; ' +
+      'колесо и Ctrl+колесо — масштаб',
   },
   { kind: 'room.draw', label: 'Помещение', hint: 'Обвести границу по точкам; Alt — без привязки' },
   { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; Alt — без привязки' },
@@ -80,17 +92,23 @@ export function PlanTools({
 
   return (
     <div className="toolbar" role="toolbar" aria-label="Инструменты плана">
-      {TOOLS.map((tool) => (
-        <button
-          key={tool.kind}
-          type="button"
-          title={tool.hint}
-          aria-pressed={session.tool.kind === tool.kind}
-          className={session.tool.kind === tool.kind ? 'toolbar__button is-active' : 'toolbar__button'}
-          onClick={() => onTool({ kind: tool.kind })}
-        >
-          {tool.label}
-        </button>
+      {TOOLS.map((tool, index) => (
+        <Fragment key={tool.kind}>
+          <button
+            type="button"
+            title={tool.hint}
+            aria-pressed={session.tool.kind === tool.kind}
+            className={session.tool.kind === tool.kind ? 'toolbar__button is-active' : 'toolbar__button'}
+            onClick={() => onTool({ kind: tool.kind })}
+          >
+            {tool.label}
+          </button>
+          {/* Разрыв сегментированного вида между «Выбор/Обзор» и инструментами
+              создания: последние не относятся к сегменту с общей рамкой. */}
+          {index === VIEW_TOOL_COUNT - 1 ? (
+            <span className="toolbar__group-gap" aria-hidden="true" />
+          ) : null}
+        </Fragment>
       ))}
 
       {intent?.kind !== 'delete' ? null : (

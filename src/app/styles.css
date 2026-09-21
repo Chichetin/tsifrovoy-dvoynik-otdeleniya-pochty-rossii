@@ -96,8 +96,13 @@ body {
 .assistant-launcher {
   position: fixed;
   z-index: 20;
-  right: calc(var(--side-right) + var(--space-3));
+  /* Центр средней колонки (между --side-left и --side-right), не центр окна:
+     50vw сдвигается на полуразницу боковых панелей, а -50% центрирует сам
+     элемент. D-248: кнопка заслоняла правый нижний угол холста и крала жест
+     ручки вершины там (D-210) — теперь она посередине снизу и угол свободен. */
+  left: 50%;
   bottom: var(--space-3);
+  transform: translateX(calc((var(--side-left) - var(--side-right)) / 2 - 50%));
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -142,12 +147,6 @@ body {
 .assistant-launcher__copy small {
   color: var(--color-muted);
   font-size: var(--text-xs);
-}
-
-@media (max-width: 900px) {
-  .assistant-launcher {
-    right: var(--space-3);
-  }
 }
 
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
@@ -384,6 +383,20 @@ body {
   grid-column: 2;
   display: flex;
   align-items: center;
+}
+
+/* D-248: a thin rule between the view tools (Выбор, Обзор) and the drawing
+   tools that follow — two different kinds of action, not one segment. */
+.toolbar__group-gap {
+  flex: none;
+  width: 1px;
+  height: var(--control-h);
+  margin: 0 var(--space-2);
+  background: var(--color-line-strong);
+}
+
+.toolbar__group-gap + .toolbar__button[aria-pressed] {
+  border-radius: var(--radius-m) 0 0 var(--radius-m);
 }
 
 .toolbar__button,
