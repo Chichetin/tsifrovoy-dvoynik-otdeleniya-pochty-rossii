@@ -10,8 +10,10 @@ import { describe, expect, test } from 'vitest';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import {
+  ROOM_GRID_MIN_PX,
   objectGuides,
   pointGuides,
+  roomGridCoordinates,
   settle,
   settlePoint,
   snapAxis,
@@ -285,5 +287,47 @@ describe('что попадает в файл после привязки (D-211
     const half = object.size_m[0] / 2;
     const { centre } = snapObjectCentre({ ...object, rotation_deg: 0 }, [14.875 - half - 0.01, 2], { xs: [14.875], ys: [] }, 0.5, 0.1);
     expect(centre[0] + half).toBe(14.875);
+  });
+});
+
+describe('сетка шага привязки внутри помещения (D-230)', () => {
+  const step = 0.5;
+  const room: [number, number][] = [
+    [0.3, 0.3],
+    [6.3, 0.3],
+    [6.3, 4.3],
+    [0.3, 4.3],
+  ];
+
+  test('линии кратны шагу и ни одна не выходит за габарит помещения', () => {
+    const lines = roomGridCoordinates(room, step, 41);
+    if (lines === null) throw new Error('на рабочем масштабе сетка должна быть');
+
+    expect(lines.xs.length).toBeGreaterThan(1);
+    expect(lines.ys.length).toBeGreaterThan(1);
+    for (const x of lines.xs) {
+      expect(Math.abs(x / step - Math.round(x / step))).toBeLessThan(1e-6);
+      expect(x).toBeGreaterThanOrEqual(0.3);
+      expect(x).toBeLessThanOrEqual(6.3);
+    }
+    for (const y of lines.ys) {
+      expect(y).toBeGreaterThanOrEqual(0.3);
+      expect(y).toBeLessThanOrEqual(4.3);
+    }
+    // Край 0,3 не кратен шагу: округление вниз положило бы линию на 0,0 — за стену.
+    expect(lines.xs[0]).toBeCloseTo(0.5, 6);
+    expect(lines.ys[0]).toBeCloseTo(0.5, 6);
+  });
+
+  test('на мелком масштабе сетки нет: сплошная заливка не помогает', () => {
+    expect(roomGridCoordinates(room, step, (ROOM_GRID_MIN_PX - 1) / step)).toBeNull();
+    expect(roomGridCoordinates(room, step, (ROOM_GRID_MIN_PX + 1) / step)).not.toBeNull();
+  });
+
+  test('вырожденный контур, нулевой шаг и нечисловая вершина сетки не дают', () => {
+    expect(roomGridCoordinates([[0, 0], [1, 0]], step, 41)).toBeNull();
+    expect(roomGridCoordinates(room, 0, 41)).toBeNull();
+    expect(roomGridCoordinates(room, step, 0)).toBeNull();
+    expect(roomGridCoordinates([[0, 0], [Number.NaN, 1], [2, 2]], step, 41)).toBeNull();
   });
 });

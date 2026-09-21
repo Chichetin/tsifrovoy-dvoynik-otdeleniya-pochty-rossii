@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, Layer, Line, Text } from 'react-konva';
+import { Circle, Group, Layer, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
@@ -30,6 +30,7 @@ import {
   modelToScreen,
   openingCentre,
   pointGuides,
+  roomGridCoordinates,
   screenToModel,
   segmentLength,
   settlePoint,
@@ -60,6 +61,8 @@ import {
 import { zoneLabelAnchor } from './zone-label';
 
 const ROOM_STROKE = '#212529';
+/** Сетка шага привязки: заметнее фоновой, но слабее любой линии плана (D-230). */
+const ROOM_GRID_STROKE = '#CED4DA';
 const WALL_FILL = '#495057';
 const OPENING_FILL = '#FFFFFF';
 const DRAFT_STROKE = '#1971C2';
@@ -386,6 +389,67 @@ export function PlanGeometryLayer({
 
   const roomRef: Ref = { kind: 'room', id: plan.room.id };
   const room = ringShown(roomRef, plan.room.boundary);
+
+  // Сетка шага привязки на полу помещения (D-230): показывает узлы, к которым
+  // тянется точка, и потому рисуется сразу над полом — под заливками зон,
+  // стенами и оборудованием, чтобы ничего не загораживать.
+  //
+  // Координаты здесь без начала отсчёта: `modelToScreen` — это сдвиг на
+  // `origin` плюс масштаб, и сдвиг вынесен в саму группу. Поэтому панорама
+  // меняет только `x`/`y` группы и сотни линий при ней не пересобираются;
+  // зум пересобирает — от масштаба они и зависят.
+  // Сетка считается по сохранённому контуру, а не по редактируемому: пока
+  // тянут угол помещения, пол под ним не должен дрожать, а зависимость от
+  // стабильного пропа позволяет её мемоизировать.
+  const boundary = plan.room.boundary;
+  const roomGridLines = useMemo(() => {
+    const scale = viewport.scale;
+    const lines = roomGridCoordinates(boundary, SNAP.grid_m, scale);
+    if (lines === null) return null;
+    const box = boundingBox(boundary);
+    return (
+      <>
+        {lines.xs.map((x) => (
+          <Line
+            key={`gx${x}`}
+            points={[x * scale, -box.maxY * scale, x * scale, -box.minY * scale]}
+            stroke={ROOM_GRID_STROKE}
+            strokeWidth={1}
+          />
+        ))}
+        {lines.ys.map((y) => (
+          <Line
+            key={`gy${y}`}
+            points={[box.minX * scale, -y * scale, box.maxX * scale, -y * scale]}
+            stroke={ROOM_GRID_STROKE}
+            strokeWidth={1}
+          />
+        ))}
+      </>
+    );
+  }, [boundary, viewport.scale]);
+
+  // Обрезка по самому контуру, а не по его габариту: помещение бывает Г-образным.
+  const roomGrid =
+    roomGridLines === null ? null : (
+      <Group
+        x={viewport.origin[0]}
+        y={viewport.origin[1]}
+        listening={false}
+        clipFunc={(context: Konva.Context) => {
+          context.beginPath();
+          boundary.forEach((point, index) => {
+            const x = point[0] * viewport.scale;
+            const y = -point[1] * viewport.scale;
+            if (index === 0) context.moveTo(x, y);
+            else context.lineTo(x, y);
+          });
+          context.closePath();
+        }}
+      >
+        {roomGridLines}
+      </Group>
+    );
   const draftInvalid = draft !== null && draft.length >= 3 && !canCommitRing(draft);
 
   const selectedZone =
@@ -414,6 +478,8 @@ export function PlanGeometryLayer({
         strokeWidth={2}
         onPointerClick={pick({ kind: 'room', id: plan.room.id })}
       />
+
+      {roomGrid}
 
       {zones.map((zone) => {
         const shown = ringShown({ kind: 'zone', id: zone.id }, zone.polygon);
