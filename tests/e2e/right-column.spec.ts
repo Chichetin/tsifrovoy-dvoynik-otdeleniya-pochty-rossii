@@ -1,153 +1,210 @@
 /**
- * UI-2Б в браузере: правая колонка — разделы, а не одна лента (D-217).
+ * Боковые колонки в браузере — вкладки (D-249, заменило сворачиваемые
+ * разделы D-217/D-226/D-236).
  *
- * Колонка подстраивается под выбор (D-236): без выбора открыты разделы
- * обзора, а «Свойства» свёрнуты — показывать им нечего; с выбором наоборот,
- * и заголовки свёрнутых разделов остаются на месте, открываясь одним
- * щелчком. Заголовок — настоящая кнопка со сводкой, содержимое не уходит из
- * DOM, ручной щелчок сохраняется в localStorage и переживает перезагрузку,
- * заголовки липкие при прокрутке.
+ * Справа ряд «Ассистент / Площади / Проверка / Инвентаризация / Справочник»,
+ * видна одна панель; слева «Слои / Библиотека». «Свойства» — не вкладка:
+ * без выбора карточки нет, при выборе она стоит над вкладками, «×» снимает
+ * выделение. Выбранная вкладка живёт в localStorage и переживает
+ * перезагрузку, в план не попадает.
  */
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
+import { showTab, sideTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
+const TABS_KEY = 'ops-twin.side-tabs.v1';
 
-const SECTIONS = ['Свойства', 'Ассистент', 'Площади', 'Проверка', 'Инвентаризация', 'Справочник'] as const;
+const RIGHT = ['Ассистент', 'Площади', 'Проверка', 'Инвентаризация', 'Справочник'] as const;
 
 const aside = (page: Page): Locator => page.locator('aside[data-tour="side-right"]');
-const header = (page: Page, title: string): Locator => aside(page).getByRole('button', { name: new RegExp(`^${title}`) });
+const propsCard = (page: Page): Locator => aside(page).getByRole('region', { name: 'Свойства' });
+const closeProps = (page: Page): Locator => page.getByRole('button', { name: 'Снять выделение' });
+const inventoryRows = (page: Page): Locator => page.getByLabel('Инвентаризация').locator('tbody tr');
 
 async function openDemo(page: Page): Promise<void> {
   await page.goto('/');
   page.on('dialog', (dialog) => void dialog.accept());
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+  await expect(inventoryRows(page).first()).toBeVisible();
 }
 
-test('без выбора открыты разделы обзора, «Свойства» свёрнуты (D-236)', async ({ page }) => {
+async function selectFirstObject(page: Page): Promise<void> {
+  await inventoryRows(page).first().locator('.table__link').first().click();
+  await expect(propsCard(page)).toBeVisible();
+}
+
+test('по умолчанию справа открыта «Инвентаризация», слева «Библиотека»; остальные панели скрыты (D-249)', async ({
+  page,
+}) => {
   await openDemo(page);
-  for (const title of SECTIONS.filter((name) => name !== 'Свойства')) {
-    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByRole('tablist', { name: 'Панели справа' }).getByRole('tab')).toHaveCount(RIGHT.length);
+  for (const title of RIGHT) {
+    await expect(sideTab(page, title)).toHaveAttribute('aria-selected', title === 'Инвентаризация' ? 'true' : 'false');
   }
-  // `exact`: плавающая кнопка «Открыть ассистента» (MR !197) иначе попадает
-  // в тот же локатор и делает его неоднозначным.
-  await expect(page.getByLabel('Ассистент', { exact: true })).toBeVisible();
-  await expect(page.getByLabel('Проверка плана')).toBeVisible();
+  await expect(sideTab(page, 'Библиотека')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Слои')).toHaveAttribute('aria-selected', 'false');
+
   await expect(page.getByLabel('Инвентаризация')).toBeVisible();
-  await expect(page.getByLabel('Справочник')).toBeVisible();
-  // Показывать нечего — раздел свёрнут, но заголовок на месте.
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Библиотека оборудования')).toBeVisible();
+  // `exact`: плавающая кнопка «Открыть ассистента» иначе попадает в локатор.
+  await expect(page.getByLabel('Ассистент', { exact: true })).toBeHidden();
+  await expect(page.getByLabel('Проверка плана')).toBeHidden();
+  await expect(page.getByLabel('Справочник')).toBeHidden();
 });
 
-test('выбор раскрывает «Свойства», обзор плана остаётся на месте (D-236)', async ({ page }) => {
+test('без выбора карточки «Свойства» нет вовсе — ни заголовка, ни «×» (D-249)', async ({ page }) => {
   await openDemo(page);
-  await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
-
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByLabel('Свойства').first()).toBeVisible();
-  // Обзор не прячется: поставленный объект сразу выбран (D-147), и скрытые при
-  // выборе площади с перечнем были бы скрыты почти всё время работы.
-  for (const title of SECTIONS.filter((name) => name !== 'Свойства')) {
-    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
-  }
-  await expect(page.getByLabel('Площади').locator('tbody tr').first()).toBeVisible();
-  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+  await expect(propsCard(page)).toHaveCount(0);
+  await expect(closeProps(page)).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: /^Свойства/ })).toHaveCount(0);
 });
 
-test('снятие выбора снова сворачивает «Свойства» (D-236)', async ({ page }) => {
+test('выбор показывает карточку над вкладками, открытая вкладка не меняется (D-249)', async ({ page }) => {
   await openDemo(page);
-  await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+  await selectFirstObject(page);
+
+  // The card scrolls on its own (capped height): measure its box, not the
+  // taller section inside it.
+  const card = (await aside(page).locator('.shell__props').boundingBox())!;
+  const tabs = (await page.getByRole('tablist', { name: 'Панели справа' }).boundingBox())!;
+  expect(card.y + card.height).toBeLessThanOrEqual(tabs.y + 1);
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
+  await expect(inventoryRows(page).first()).toBeVisible();
+});
+
+test('«×» снимает выделение, и карточка исчезает (D-249)', async ({ page }) => {
+  await openDemo(page);
+  await selectFirstObject(page);
+
+  await closeProps(page).click();
+
+  await expect(propsCard(page)).toHaveCount(0);
+  await expect(page.locator('.table__row.is-selected, tr.is-selected')).toHaveCount(0);
+  await expect(inventoryRows(page).first()).toBeVisible();
+});
+
+test('Escape снимает выделение так же, как «×»', async ({ page }) => {
+  await openDemo(page);
+  await selectFirstObject(page);
 
   await page.keyboard.press('Escape');
 
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
-  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+  await expect(propsCard(page)).toHaveCount(0);
 });
 
-test('щелчок по заголовку сильнее автоматики: свёрнутые вручную «Свойства» не раскрываются выбором (D-236)', async ({
-  page,
-}) => {
+test('выбор объекта не дёргает прокрутку страницы', async ({ page }) => {
   await openDemo(page);
-  await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
-
-  await header(page, 'Свойства').click();
-
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
-  // Отметка живёт до смены выбора: другой объект снова раскрывает карточку.
-  await page.getByLabel('Инвентаризация').locator('tbody tr').nth(1).getByRole('button').first().click();
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+  const before = await page.evaluate(() => window.scrollY);
+  await selectFirstObject(page);
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
 });
 
-test('заголовок несёт сводку, взятую из уже посчитанных данных панели', async ({ page }) => {
+test('переключение вкладки: скрытая панель остаётся в DOM и сохраняет ввод', async ({ page }) => {
   await openDemo(page);
+  const row = inventoryRows(page).first();
 
-  // Инвентаризация: 53 объекта демо-плана — то же число, что в счётчике панели.
-  const inventoryCount = await page.getByLabel('Инвентаризация').locator('.panel__count').first().innerText();
-  await expect(header(page, 'Инвентаризация')).toContainText(`${inventoryCount} объект`);
+  await showTab(page, 'Площади');
+  await expect(page.getByLabel('Площади').locator('tbody tr').first()).toBeVisible();
+  await expect(row).toBeAttached();
+  await expect(row).toBeHidden();
 
-  // Проверка: число находок в заголовке совпадает со счётчиком панели, каким бы оно ни было.
-  const issueCount = await page.getByLabel('Проверка плана').locator('.panel__count').first().innerText();
-  await expect(header(page, 'Проверка')).toContainText(`${issueCount} наход`);
-
-  // Свойства: ничего не выбрано на свежеоткрытом плане.
-  await expect(header(page, 'Свойства')).toContainText('ничего не выбрано');
+  await showTab(page, 'Слои');
+  await showTab(page, 'Библиотека');
+  const search = page.getByLabel('Поиск в библиотеке');
+  await search.fill('касс');
+  await showTab(page, 'Слои');
+  await expect(search).toBeHidden();
+  await showTab(page, 'Библиотека');
+  await expect(search).toHaveValue('касс');
 });
 
-test('переименование выбранного объекта сразу видно в сводке «Свойства» (D-226: индекс имён строится по документу, а не пересобирается заново кэшированным)', async ({
-  page,
-}) => {
+test('вкладки с клавиатуры: стрелки по кругу, Home и End, фокус идёт за выбором', async ({ page }) => {
   await openDemo(page);
-  await page
-    .getByLabel('Инвентаризация')
-    .locator('tbody tr')
-    .first()
-    .locator('.table__link')
-    .first()
-    .click();
+  await sideTab(page, 'Инвентаризация').focus();
 
-  const nameField = page.getByLabel('Свойства').first().getByLabel('Название');
-  await nameField.fill('Переименованный объект D-226');
-  await nameField.blur();
+  await page.keyboard.press('ArrowRight');
+  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Справочник')).toBeFocused();
 
-  await expect(header(page, 'Свойства')).toContainText('Переименованный объект D-226');
+  await page.keyboard.press('ArrowRight');
+  await expect(sideTab(page, 'Ассистент')).toHaveAttribute('aria-selected', 'true');
+
+  await page.keyboard.press('ArrowLeft');
+  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
+
+  await page.keyboard.press('Home');
+  await expect(sideTab(page, 'Ассистент')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Ассистент')).toBeFocused();
+
+  await page.keyboard.press('End');
+  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Справочник')).toBeVisible();
 });
 
-test('сводка «Проверка» красится в цвет ошибки только когда среди находок есть severity: error, не от одних только warning (D-226, по ревью MR !177)', async ({
-  page,
-}) => {
-  const summary = () => header(page, 'Проверка').locator('.section__summary');
+test('до первого щелчка по вкладке ключ в localStorage не появляется', async ({ page }) => {
+  await openDemo(page);
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
+  expect(await page.evaluate((key) => window.localStorage.getItem(key), TABS_KEY)).toBeNull();
+});
 
-  // Пример организаторов даёт находки обеих серьёзностей сразу (геометрия —
-  // error, правило команды у клиентской зоны — warning), поэтому сам по
-  // себе не отличает «есть error» от «есть хоть один warning» — оба мутанта
-  // на условии `severity === 'error'` красили бы сводку и здесь.
+test('выбранные вкладки живут в localStorage и переживают перезагрузку', async ({ page }) => {
+  await openDemo(page);
+  await showTab(page, 'Справочник');
+  await showTab(page, 'Слои');
+
+  const stored = await page.evaluate((key) => window.localStorage.getItem(key), TABS_KEY);
+  expect(JSON.parse(stored!)).toEqual({ left: 'layers', right: 'catalog' });
+
+  await page.reload();
+  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Слои')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Инвентаризация')).toBeHidden();
+});
+
+test('чужое значение в localStorage не ломает колонки: открываются вкладки по умолчанию', async ({ page }) => {
+  await page.addInitScript((key) => window.localStorage.setItem(key, '{"left":"nope","right":42'), TABS_KEY);
+  await openDemo(page);
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Библиотека')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('ряд вкладок стоит на месте, пока прокручивается открытая панель', async ({ page }) => {
+  await openDemo(page);
+  const list = page.getByRole('tablist', { name: 'Панели справа' });
+  const before = (await list.boundingBox())!;
+
+  await page.locator('#side-right-panel-inventory').evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  expect(await page.locator('#side-right-panel-inventory').evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  const after = (await list.boundingBox())!;
+  expect(after.y).toBeCloseTo(before.y, 0);
+  expect(await aside(page).evaluate((element) => element.scrollTop)).toBe(0);
+});
+
+test('счётчик на вкладке «Проверка» равен числу находок и красный только при severity: error', async ({ page }) => {
+  const badge = () => sideTab(page, 'Проверка').locator('.side-tabs__badge');
+
+  // Пример организаторов: находки обеих серьёзностей, есть error.
   await page.goto('/');
   page.on('dialog', (dialog) => void dialog.accept());
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'example_plan.json'));
-  await expect(page.getByLabel('Проверка плана').locator('.issues__item.is-error').first()).toBeVisible();
-  await header(page, 'Проверка').click();
-  await expect(header(page, 'Проверка')).toHaveAttribute('aria-expanded', 'false');
-  await expect(summary()).toHaveClass(/is-error/);
+  await expect(inventoryRows(page).first()).toBeVisible();
+  const count = await page.getByLabel('Проверка плана').locator('.issues__item').count();
+  expect(count).toBeGreaterThan(0);
+  await expect(badge()).toHaveText(String(count));
+  await expect(badge()).toHaveClass(/is-error/);
 
-  // demo/after.json без единой находки, той же формы, что и «есть error» —
-  // мутант «сравнить с 'warning'» тоже красит эту сводку неверно только на
-  // третьем случае ниже, а не здесь (пустой список даёт `false` в обоих
-  // прочтениях условия).
+  // demo/after.json без находок: счётчика нет.
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'after.json'));
-  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+  await expect(inventoryRows(page).first()).toBeVisible();
   await expect(page.getByLabel('Проверка плана').locator('.issues__item')).toHaveCount(0);
-  await expect(summary()).not.toHaveClass(/is-error/);
+  await expect(badge()).toHaveCount(0);
 
-  // Тот же чистый план без единого рабочего места в клиентской зоне: только
-  // правило команды `rule_workplace_min` (team-assumption → warning),
-  // геометрия не задета — ни одной находки с severity: 'error'. Красная
-  // сводка здесь убивает мутанта «сравнить с 'warning'», а её отсутствие —
-  // мутанта «не передавать проп вовсе».
+  // Тот же план без рабочих мест: одно предупреждение правила команды, не error.
   const clean = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'after.json'), 'utf8')) as {
     objects: { typeId: string }[];
   };
@@ -158,126 +215,6 @@ test('сводка «Проверка» красится в цвет ошибк�
     buffer: Buffer.from(JSON.stringify(clean)),
   });
   await expect(page.getByLabel('Проверка плана').locator('.issues__item')).toHaveCount(1);
-  await expect(page.getByLabel('Проверка плана').locator('.issues__item.is-error')).toHaveCount(0);
-  await expect(summary()).not.toHaveClass(/is-error/);
-});
-
-test('клик по заголовку сворачивает раздел: aria-expanded="false", содержимое остаётся в DOM, но скрыто', async ({
-  page,
-}) => {
-  await openDemo(page);
-  const button = header(page, 'Инвентаризация');
-  const row = page.getByLabel('Инвентаризация').locator('tbody tr').first();
-  await expect(row).toBeVisible();
-
-  await button.click();
-  await expect(button).toHaveAttribute('aria-expanded', 'false');
-  // В DOM, не размонтировано: locator продолжает находить строку, просто не видит.
-  await expect(row).toBeAttached();
-  await expect(row).not.toBeVisible();
-
-  await button.click();
-  await expect(button).toHaveAttribute('aria-expanded', 'true');
-  await expect(row).toBeVisible();
-});
-
-test('заголовок — кнопка: Enter и Space переключают раздел с клавиатуры', async ({ page }) => {
-  await openDemo(page);
-  const button = header(page, 'Справочник');
-  await expect(button).toHaveAttribute('aria-expanded', 'true');
-
-  await button.focus();
-  await page.keyboard.press('Enter');
-  await expect(button).toHaveAttribute('aria-expanded', 'false');
-
-  await page.keyboard.press(' ');
-  await expect(button).toHaveAttribute('aria-expanded', 'true');
-});
-
-test('до первого щелчка по заголовку ключ в localStorage не появляется (D-226)', async ({ page }) => {
-  await openDemo(page);
-  // Разделы обзора уже открыты (значит, эффект уже отработал хотя бы раз) —
-  // но раз человек ещё не тронул ни один заголовок, писать в хранилище
-  // нечего. Свёрнутые при этом «Свойства» — вывод из выбора (D-236), а не
-  // сохранённое состояние, и в localStorage не попадают.
-  for (const title of SECTIONS.filter((name) => name !== 'Свойства')) {
-    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
-  }
-  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
-  expect(stored).toBeNull();
-});
-
-test('состояние сворачивания живёт в localStorage и переживает перезагрузку', async ({ page }) => {
-  await openDemo(page);
-  await header(page, 'Справочник').click();
-  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
-
-  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
-  expect(stored).not.toBeNull();
-  expect(JSON.parse(stored!)).toEqual({ catalog: true });
-
-  await page.reload();
-  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
-  // Остальные разделы не пострадали от чужой отметки.
-  await expect(header(page, 'Инвентаризация')).toHaveAttribute('aria-expanded', 'true');
-});
-
-test('разворачивание раздела, свёрнутого ещё до открытия страницы, тоже сохраняется — не только сворачивание (D-226)', async ({
-  page,
-}) => {
-  // Страница стартует с уже свёрнутым разделом (как после прошлой сессии),
-  // а не с пустой записи — иначе тумблер «сравнить sections по ссылке на
-  // исходное значение» и тумблер «сохранять, пока объект не пуст» ведут себя
-  // одинаково и второй незаметно остаётся дырой в покрытии.
-  await openDemo(page);
-  await header(page, 'Справочник').click();
-  await page.reload();
-  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
-
-  await header(page, 'Справочник').click();
-  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'true');
-
-  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
-  expect(stored).not.toBeNull();
-  expect(JSON.parse(stored!)).toEqual({});
-});
-
-test('выбор объекта на плане разворачивает «Свойства» — без рывка прокрутки страницы', async ({
-  page,
-}) => {
-  await openDemo(page);
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
-  const pageScrollBefore = await page.evaluate(() => window.scrollY);
-
-  await page
-    .getByLabel('Инвентаризация')
-    .locator('tbody tr')
-    .first()
-    .locator('.table__link')
-    .first()
-    .click();
-
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByLabel('Свойства').first()).toBeVisible();
-  // Раскрытие раздела не двигает саму страницу — рывка нет.
-  expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBefore);
-});
-
-test('заголовки разделов — липкие: остаются у верха колонки во время прокрутки', async ({ page }) => {
-  await openDemo(page);
-  for (const title of SECTIONS) {
-    await expect(header(page, title)).toHaveCSS('position', 'sticky');
-  }
-
-  const asideBox = (await aside(page).boundingBox())!;
-  const inventoryHeader = header(page, 'Инвентаризация');
-
-  await aside(page).evaluate((element) => {
-    element.scrollTop = element.scrollHeight;
-  });
-  const stuckBox = (await inventoryHeader.boundingBox())!;
-  // Прилипший заголовок стоит у верхней кромки колонки, а не там, куда его
-  // унесла бы обычная прокрутка (он выше первого экрана содержимого).
-  expect(stuckBox.y).toBeGreaterThanOrEqual(asideBox.y - 1);
-  expect(stuckBox.y).toBeLessThanOrEqual(asideBox.y + stuckBox.height + 1);
+  await expect(badge()).toHaveText('1');
+  await expect(badge()).not.toHaveClass(/is-error/);
 });

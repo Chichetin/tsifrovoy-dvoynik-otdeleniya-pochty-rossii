@@ -10,7 +10,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
-import { showTab } from './side-tabs';
+import { showTab, sideTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 
@@ -50,10 +50,11 @@ test('демо 1440×900: слои видны без прокрутки, у дв
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
 
-  // Панель слоёв — первая в боковой колонке и целиком помещается в окне вместе
-  // с переключателями информационных слоёв; прокрутки колонки нет.
-  const heading = panel(page).getByRole('heading', { name: 'Слои' });
-  await expect(heading).toBeInViewport();
+  // Панель слоёв открыта вкладкой левой колонки (D-249; заголовок панели
+  // спрятан от глаз — её называет сама вкладка) и целиком помещается в окне
+  // вместе с переключателями информационных слоёв; прокрутки нет.
+  await expect(sideTab(page, 'Слои')).toBeInViewport({ ratio: 1 });
+  await expect(layerItem(page, 'Основной')).toBeInViewport({ ratio: 1 });
   const heat = layerItem(page, 'Тепловая нагрузка зон');
   const staff = layerItem(page, 'Сотрудники по зонам');
   const heatToggle = heat.getByRole('button', { name: 'Показывать слой Тепловая нагрузка зон' });
@@ -61,6 +62,7 @@ test('демо 1440×900: слои видны без прокрутки, у дв
   await expect(heatToggle).toBeInViewport({ ratio: 1 });
   await expect(staffToggle).toBeInViewport({ ratio: 1 });
   expect(await page.locator('.shell__side').first().evaluate((side) => side.scrollTop)).toBe(0);
+  expect(await page.locator('#side-left-panel-layers').evaluate((node) => node.scrollTop)).toBe(0);
 
   // Подпись видна словами, а не значком; имя слоя не обрезано молча.
   await expect(heatToggle).toContainText('Показывать');
@@ -160,10 +162,18 @@ test('демо 1440×900: карточки слоёв компактны — б�
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
 
-  // Пять слоёв демо со свёрнутыми пояснениями оставляют место библиотеке (D-197).
-  await expect(
-    page.getByLabel('Библиотека оборудования').getByRole('heading', { name: 'Библиотека' }),
-  ).toBeInViewport();
+  // Пять слоёв демо со свёрнутыми пояснениями умещаются в панели без прокрутки
+  // (D-197), а библиотека — соседняя вкладка той же колонки (D-249): её первая
+  // группа видна сразу после переключения, тоже без прокрутки.
+  expect(
+    await page
+      .locator('#side-left-panel-layers')
+      .evaluate((node) => node.scrollHeight - node.clientHeight),
+  ).toBeLessThanOrEqual(1);
+  await showTab(page, 'Библиотека');
+  await expect(page.locator('.library__item').first()).toBeInViewport({ ratio: 1 });
+  expect(await page.locator('#side-left-panel-library').evaluate((node) => node.scrollTop)).toBe(0);
+  await showTab(page, 'Слои');
 
   // Цель нажатия у значков замка, порядка и удаления — не меньше 24×24 (WCAG 2.5.8).
   const icons = panel(page).locator('.layers__toggle');

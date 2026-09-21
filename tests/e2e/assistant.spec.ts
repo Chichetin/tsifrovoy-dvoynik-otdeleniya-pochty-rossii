@@ -116,6 +116,8 @@ test.describe('ассистент в браузере', () => {
     await showTab(page, 'Инвентаризация');
     await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
 
+    // Перечень был нужен, чтобы дождаться открытого плана; спрашивают на вкладке ассистента (D-249).
+    await showTab(page, 'Ассистент');
     await panel(page).getByLabel('Объект').selectOption('ot_workplace');
     await expect(panel(page).getByLabel('Зона')).toHaveValue('');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
@@ -175,6 +177,7 @@ test.describe('ассистент в браузере', () => {
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
     await showTab(page, 'Инвентаризация');
     await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
+    await showTab(page, 'Ассистент');
     await expect(panel(page).locator('.advice__sentence')).toHaveCount(0);
     await expect(panel(page).getByText('Ответа пока нет')).toBeVisible();
   });
@@ -229,6 +232,7 @@ test.describe('ассистент в браузере', () => {
     await page.keyboard.press('Delete');
     await expect(rows).toHaveCount(52);
 
+    await showTab(page, 'Ассистент');
     await panel(page).getByLabel('Сценарий').selectOption('compare');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
 
@@ -245,10 +249,12 @@ test.describe('ассистент в браузере', () => {
       page.waitForEvent('download'),
       page.getByRole('button', { name: 'Сохранить' }).click(),
     ]);
+    await showTab(page, 'Инвентаризация');
     await rows.first().locator('.table__link').first().click();
     await page.keyboard.press('Delete');
     await expect(rows).toHaveCount(51);
 
+    await showTab(page, 'Ассистент');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
     await expect(sentence).toContainText('удалено 1');
     await expect(sentence).not.toContainText('удалено 2');

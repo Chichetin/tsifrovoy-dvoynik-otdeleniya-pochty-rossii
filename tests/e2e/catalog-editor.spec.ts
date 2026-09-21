@@ -64,6 +64,8 @@ test('новый тип, атрибут и правило из справочн�
   await rows.first().locator('.table__link').first().click();
   await expect(page.getByLabel('Свойства')).toContainText('Состояние');
 
+  // Дальше снова правим справочник — возвращаемся на его вкладку (D-249).
+  await showTab(page, 'Справочник');
   // Теперь тип используется — удалить его из справочника нельзя.
   const typeRow = panel(page).getByTestId('catalog-types').locator('li', { hasText: 'Сейф ОПС' });
   await expect(typeRow.getByRole('button', { name: 'удалить' })).toBeDisabled();
@@ -143,12 +145,15 @@ test('новый тип зоны из справочника назначает�
   await expect(panel(page).getByTestId('catalog-attributes')).toContainText('Пост охраны');
 
   // Зона демо-плана получает новый тип в карточке; поле атрибута появляется там же.
+  // Ссылка на зону живёт в перечне — открываем его вкладку (D-249).
+  await showTab(page, 'Инвентаризация');
   await page.locator('.table__link', { hasText: 'z_back' }).first().click();
   const card = page.getByLabel('Свойства');
   await card.getByLabel('Тип зоны').selectOption({ label: 'Комната охраны' });
   await expect(card).toContainText('Пост охраны');
 
   // Пока тип используется, удалить его нельзя.
+  await showTab(page, 'Справочник');
   const row = panel(page).getByTestId('catalog-zone-types').locator('li', { hasText: 'Комната охраны' });
   await expect(row.getByRole('button', { name: 'удалить' })).toBeDisabled();
 

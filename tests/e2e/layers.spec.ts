@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from './fixtures';
-import { showTab } from './side-tabs';
+import { showTab, sideTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Слои');
 const layerItem = (page: Page, name: string) =>
@@ -29,10 +29,17 @@ async function drawZone(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
+/**
+ * Ставит объект из библиотеки и возвращает левую колонку на прежнюю вкладку:
+ * «Слои» и «Библиотека» делят одну колонку (D-249), а спека продолжает
+ * работать со списком слоёв сразу после расстановки.
+ */
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  const before = await sideTab(page, 'Слои').getAttribute('aria-selected');
   await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, x, y);
+  if (before === 'true') await showTab(page, 'Слои');
 }
 
 async function savePlan(page: Page): Promise<string> {
