@@ -233,7 +233,9 @@ test.describe('файлы плана', () => {
       mimeType: 'application/json',
       buffer: Buffer.from('{"hello": "world"}'),
     });
-    await expect(page.getByRole('alert')).toContainText('example_plan.json');
+    await expect(page.getByRole('alert')).toContainText('План не открыт');
+    await expect(page.getByRole('alert')).not.toContainText('DOCUMENT_UNREADABLE');
+    await expect(page.getByTestId('file-error-details')).toContainText('DOCUMENT_UNREADABLE');
     await expect(inventoryRows(page)).toHaveCount(12);
 
     await page.getByTestId('plan-file-input').setInputFiles({
@@ -241,7 +243,9 @@ test.describe('файлы плана', () => {
       mimeType: 'application/json',
       buffer: Buffer.from('{"schemaVersion": 1, "zones": ['),
     });
-    await expect(page.getByRole('alert')).toContainText('DOCUMENT_UNREADABLE');
+    await expect(page.getByRole('alert')).toContainText('План не открыт');
+    await expect(page.getByRole('alert')).not.toContainText('DOCUMENT_UNREADABLE');
+    await expect(page.getByTestId('file-error-details')).toContainText('DOCUMENT_UNREADABLE');
     await expect(inventoryRows(page)).toHaveCount(12);
   });
 

@@ -707,6 +707,35 @@ body {
   line-height: 1;
 }
 
+.files__error-details {
+  position: relative;
+  flex: none;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+.files__error-details > summary {
+  cursor: pointer;
+}
+
+.files__error-details > ul {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  z-index: 10;
+  width: min(520px, 60vw);
+  max-height: 50vh;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
+  overflow-y: auto;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  box-shadow: 0 4px 16px rgb(28 40 51 / 16%);
+  color: var(--color-ink);
+  white-space: normal;
+}
+
 /* Below 1600 px the header tightens so it still fits one row with the
    longest «Удалить перегородку»; below 1400 px the history keeps only its
    icons, the names stay for screen readers and in the tooltip. */
