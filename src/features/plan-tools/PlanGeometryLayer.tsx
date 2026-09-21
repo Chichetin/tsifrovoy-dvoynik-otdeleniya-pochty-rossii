@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, Group, Layer, Line } from 'react-konva';
+import { Circle, Group, Layer, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
@@ -37,6 +37,7 @@ import {
 } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
+import { WALL_LABEL_FONT_PX, wallLengthLabel } from './wall-length-label';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import { currentExtrusion, endExtrusion, startExtrusion } from './extrude';
 import {
@@ -69,6 +70,8 @@ const SELECTED_STROKE = '#1971C2';
 const INVALID_STROKE = '#E03131';
 const HANDLE_FILL = '#FFFFFF';
 const ZONE_FALLBACK = '#E9ECEF';
+/** Подпись длины стены — цвет основного текста интерфейса: она лежит на полу. */
+const WALL_LABEL_FILL = '#212529';
 
 type Editing =
   | { kind: 'ring'; ref: Ref; polygon: Polygon; snapOff?: boolean }
@@ -480,6 +483,19 @@ export function PlanGeometryLayer({
         {roomGridLines}
       </Group>
     );
+  // Подписи длин пересобираются при правке стен и при зуме — от панорамы они
+  // не зависят: `modelToScreen` сдвигает обе точки одинаково, а решает, влезет
+  // ли подпись, только масштаб.
+  const wallLabels = useMemo(() => {
+    // Середина габарита помещения: от неё подписи уходят наружу, и наружные
+    // стены подписаны снаружи, а не поверх зон и оборудования.
+    const box = boundingBox(plan.room.boundary);
+    const centre: Point = [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2];
+    return plan.walls
+      .map((wall) => ({ id: wall.id, label: wallLengthLabel(wall, viewport, centre) }))
+      .flatMap(({ id, label }) => (label === null ? [] : [{ id, ...label }]));
+  }, [plan.room.boundary, plan.walls, viewport]);
+
   const draftInvalid = draft !== null && draft.length >= 3 && !canCommitRing(draft);
 
   const selectedZone =
@@ -546,6 +562,30 @@ export function PlanGeometryLayer({
           stroke={isSelected('wall', wall.id) ? SELECTED_STROKE : WALL_FILL}
           strokeWidth={isSelected('wall', wall.id) ? 2.5 : 1}
           onPointerClick={pick({ kind: 'wall', id: wall.id })}
+        />
+      ))}
+
+      {/* Настоящая длина каждой стены, вдоль неё (D-256). Считается по
+          сохранённой стене, а не по редактируемой: пока тянут конец
+          перегородки, число не должно мигать под курсором — итог покажет
+          отпущенная ручка. Подписи, которая не влезает между концами стены,
+          нет вовсе. */}
+      {wallLabels.map((label) => (
+        <Text
+          key={`wall-length-${label.id}`}
+          name="wall-length"
+          id={`wall-length-${label.id}`}
+          x={label.x}
+          y={label.y}
+          rotation={label.rotation}
+          offsetX={label.width / 2}
+          offsetY={WALL_LABEL_FONT_PX / 2}
+          width={label.width}
+          align="center"
+          text={label.text}
+          fontSize={WALL_LABEL_FONT_PX}
+          fill={WALL_LABEL_FILL}
+          listening={false}
         />
       ))}
 

@@ -22,8 +22,14 @@ import type {
   Viewport,
 } from './model';
 
+/**
+ * `measure` — линейка: единственный инструмент, который ничего не меняет в
+ * документе. Он добавлен в список, а не сделан отдельным переключателем,
+ * потому что во время измерения клик не должен ни выделять, ни рисовать, а
+ * «что делает следующий клик» в редакторе решает ровно это поле.
+ */
 export type Tool =
-  | { kind: 'select' | 'pan' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
+  | { kind: 'select' | 'pan' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
   | { kind: 'object.place'; typeId: Id };
 
 export type ToolKind = Tool['kind'];

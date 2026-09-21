@@ -8,12 +8,13 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Command } from '../../contracts/commands';
 import type { Catalog, PlanDocument, Point, Result } from '../../contracts/model';
 import type { EditorSession, Tool, WorldPointer } from '../../contracts/ui';
 import { applyCommand } from '../../domain/commands';
 import { OUTER_OPENING_DROPPED_NOTICE, getNotice, setNotice } from './notice';
+import { getMeasurement, setMeasurement } from './measure';
 import { getSnapHint, setSnapHint } from './snap-marker';
 import { usePlanToolController } from './use-plan-tool-controller';
 
@@ -416,5 +417,113 @@ describe('маркер цели привязки', () => {
     expect(getSnapHint()).not.toBeNull();
     click([1.05, 1.05]);
     expect(getSnapHint()).toBeNull();
+  });
+});
+
+/**
+ * D-256: линейка меряет расстояние и ничего не меняет в плане. Два клика —
+ * измерение, третий начинает новое, Escape убирает; точки садятся туда же,
+ * куда их сажает рисование.
+ */
+describe('линейка', () => {
+  function move(point: Point, alt = false): WorldPointer {
+    return { phase: 'move', point, shift: false, alt, button: 0 };
+  }
+
+  beforeEach(() => setMeasurement(null));
+  afterEach(() => setMeasurement(null));
+
+  it('первый клик начинает измерение, второй его заканчивает', () => {
+    const { click } = setup({ kind: 'measure' }, planWith([]));
+    click([1, 1]);
+    expect(getMeasurement()).toEqual({ from: [1, 1], to: [1, 1], fixed: false });
+
+    click([4, 5]);
+    expect(getMeasurement()).toEqual({ from: [1, 1], to: [4, 5], fixed: true });
+  });
+
+  it('до первого клика на холсте ничего не меряется', () => {
+    const { hook } = setup({ kind: 'measure' }, planWith([]));
+    act(() => hook.result.current.handlePointer(move([3, 3])));
+    expect(getMeasurement()).toBeNull();
+  });
+
+  it('пока измерение не закончено, второй конец идёт за курсором', () => {
+    const { hook, click } = setup({ kind: 'measure' }, planWith([]));
+    click([1, 1]);
+    act(() => hook.result.current.handlePointer(move([2.5, 1])));
+    expect(getMeasurement()?.to).toEqual([2.5, 1]);
+    expect(getMeasurement()?.fixed).toBe(false);
+  });
+
+  it('законченное измерение за курсором не бегает', () => {
+    const { hook, click } = setup({ kind: 'measure' }, planWith([]));
+    click([1, 1]);
+    click([3, 1]);
+    act(() => hook.result.current.handlePointer(move([7, 7])));
+    expect(getMeasurement()?.to).toEqual([3, 1]);
+  });
+
+  it('третий клик начинает новое измерение с чистого листа', () => {
+    const { click } = setup({ kind: 'measure' }, planWith([]));
+    click([1, 1]);
+    click([3, 1]);
+    click([6, 2]);
+    expect(getMeasurement()).toEqual({ from: [6, 2], to: [6, 2], fixed: false });
+  });
+
+  it('Escape убирает измерение с холста', () => {
+    const { hook, click } = setup({ kind: 'measure' }, planWith([]));
+    click([1, 1]);
+    click([3, 1]);
+    act(() => hook.result.current.handlePointer({ ...down([0, 0]), phase: 'cancel' }));
+    expect(getMeasurement()).toBeNull();
+  });
+
+  it('смена инструмента убирает измерение: продолжать его больше нечем', () => {
+    const plan = planWith([]);
+    const session = (tool: Tool): EditorSession => ({
+      tool,
+      viewport: { origin: [0, 0], scale: 50 },
+      selection: null,
+      preview: null,
+      focus: null,
+    });
+    const hook = renderHook(
+      (tool: Tool) =>
+        usePlanToolController({
+          document: plan,
+          session: session(tool),
+          onCommand: () => ({ ok: true, value: plan }),
+        }),
+      { initialProps: { kind: 'measure' } as Tool },
+    );
+    act(() => hook.result.current.handlePointer(down([1, 1])));
+    act(() => hook.result.current.handlePointer(down([3, 1])));
+    expect(getMeasurement()).not.toBeNull();
+
+    hook.rerender({ kind: 'select' });
+    expect(getMeasurement()).toBeNull();
+  });
+
+  it('точки садятся по привязке, как у рисования: клик у вершины зоны берёт вершину', () => {
+    // Масштаб 50 px/м, допуск 8 px = 0,16 м: клик в 0,1 м от угла зоны.
+    const { click } = setup({ kind: 'measure' }, planWith([hall]));
+    click([7.9, 0.05]);
+    expect(getMeasurement()?.from).toEqual([8, 0]);
+  });
+
+  it('Alt выключает привязку и у линейки', () => {
+    const { hook } = setup({ kind: 'measure' }, planWith([hall]));
+    act(() => hook.result.current.handlePointer({ ...down([7.9, 0.05]), alt: true }));
+    expect(getMeasurement()?.from).toEqual([7.9, 0.05]);
+  });
+
+  it('измерение не отправляет в план ни одной команды', () => {
+    const { click, commands } = setup({ kind: 'measure' }, planWith([hall]));
+    click([1, 1]);
+    click([5, 5]);
+    click([2, 2]);
+    expect(commands).toEqual([]);
   });
 });
