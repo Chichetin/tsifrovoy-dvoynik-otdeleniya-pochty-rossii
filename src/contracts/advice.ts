@@ -135,3 +135,14 @@ export type VerifyExplanation = (
   input: unknown,
   recommendations: Recommendation[],
 ) => Result<Explanation[]>;
+
+/** Validators for the two schema-bound conversational model calls. */
+export type VerifyChatIntent = (
+  input: unknown,
+  plan: PlanDocument,
+) => Result<import('./advice-chat').ChatIntent>;
+export type VerifyChatSelection = (
+  input: unknown,
+  recommendations: Recommendation[],
+  plan: PlanDocument,
+) => Result<import('./advice-chat').ChatSelection>;
