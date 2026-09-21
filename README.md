@@ -235,6 +235,18 @@ npm run serve                     # API ассистента и раздача �
 npm test && npm run test:e2e && npm run typecheck && npm run lint && npm run build
 ```
 
+### Windows PowerShell
+
+Если PowerShell сообщает, что выполнение `npm.ps1` запрещено, не меняйте системную
+политику выполнения сценариев. Запускайте те же команды через `npm.cmd`:
+
+```powershell
+npm.cmd run dev                    # редактор: http://127.0.0.1:5173
+npm.cmd run serve                  # API ассистента: http://127.0.0.1:8080
+```
+
+Для остановки редактора нажмите `Ctrl+C` в том же окне PowerShell.
+
 Браузерным тестам хватает того самого Chromium из `npx playwright install chromium`:
 системный Google Chrome ставить не нужно (D-125). Это относится и к нагрузочному
 набору `npm run test:perf`, и к скрипту снимков презентации

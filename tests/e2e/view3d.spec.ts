@@ -110,6 +110,7 @@ test.describe('3D-вид: обычный запуск', () => {
     // объект и открывает общую карточку свойств, без отдельного состояния 3D.
     await objects.getByRole('button').click();
     await expect(objects).toHaveAttribute('data-selected', 'true');
+    await expect(page.getByTestId('view3d-selection')).toContainText(placed);
     await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText(/^eq_/);
 
     // Что покажет этот браузер — canvas или сообщение о WebGL, — но что-то одно.
