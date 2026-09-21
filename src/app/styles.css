@@ -1899,6 +1899,25 @@ span.inventory__num {
   color: var(--muted, #555);
 }
 
+.view3d__hint,
+.view3d__selection {
+  margin: 0 0 8px;
+  padding: 8px;
+  border-radius: var(--radius-s);
+  line-height: 1.4;
+}
+
+.view3d__hint {
+  color: var(--muted, #555);
+  background: var(--color-hover);
+}
+
+.view3d__selection {
+  color: var(--color-text, #202124);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning);
+}
+
 .view3d__list {
   margin: 0;
   padding-left: 20px;
