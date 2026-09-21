@@ -171,3 +171,82 @@ test('служебный id варианта в тексте отвергает�
   const candidate = [...state.recommendations.values()][0]!.candidates[0]!;
   expect(checkAgentText(`Вариант ${candidate.id} подходит.`, agentEvidence(state, [output], ''))).toEqual([{ kind: 'unknown-id', token: candidate.id }]);
 });
+
+describe('ответ без модели называет зоны, типы и правило (критерий «ИИ-ассистент»)', () => {
+  function answer(plan: PlanDocument, query: string): { text: string; problems: ReturnType<typeof checkAgentText> } {
+    const state = createAgentToolState(plan, null);
+    const outputs = routeAgentQuery(plan, query, false).map((call) => runAgentTool(state, call.name, call.args).output);
+    const result = answerWithoutModel(plan, null, query, 1, 'без LLM');
+    return { text: result.text, problems: checkAgentText(result.text, agentEvidence(state, outputs, query)) };
+  }
+
+  test('комплектование: тип, зона с id, учтённые объекты и правило команды', () => {
+    const { text, problems } = answer(before, 'Чего не хватает или что лишнее по оборудованию?');
+    expect(text).toContain('«Центральное информационное табло»');
+    expect(text).toContain('«Клиентский зал» (z_client)');
+    expect(text).toContain('eq_7');
+    expect(text).toContain('eq_8');
+    expect(text).toContain('rule_info_display_max');
+    expect(text).toContain('«Скамья / кресла для ожидания»');
+    expect(text).toContain('«Зона ожидания» (z_waiting)');
+    expect(text).toContain('eq_6');
+    expect(text).toContain('rule_bench_min');
+    expect(text).toContain('правило команды, не норматив Почты России');
+    expect(problems).toEqual([]);
+  });
+
+  test('правило из материалов организаторов не выдаётся за правило команды', () => {
+    const plan: PlanDocument = {
+      ...before,
+      catalog: {
+        ...before.catalog,
+        rules: before.catalog.rules.map((rule) => (rule.id === 'rule_bench_min' ? { ...rule, source: 'organizer-material' as const } : rule)),
+      },
+    };
+    const { text } = answer(plan, 'Чего не хватает в зоне ожидания?');
+    expect(text).toContain('rule_bench_min');
+    expect(text).toContain('материалы организаторов');
+    expect(text).not.toContain('правило команды, не норматив');
+  });
+
+  test('зона не названа: тип без правила ищется там, где такие объекты уже стоят, и зона названа', () => {
+    const calls = routeAgentQuery(before, 'куда поставить стеллаж для посылок?', false);
+    expect(calls[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_parcel_rack', zoneId: 'z_storage' } });
+    const result = answerWithoutModel(before, null, 'куда поставить стеллаж для посылок?', 1, 'без LLM');
+    expect(result.recommendations[0]?.candidates[0]?.object.zoneId).toBe('z_storage');
+    const { text, problems } = answer(before, 'куда поставить стеллаж для посылок?');
+    expect(text).toContain('«Хранение и посылки» (z_storage)');
+    expect(text).toContain('не названа');
+    expect(problems).toEqual([]);
+  });
+
+  test('поровну объектов в двух зонах — первая по порядку плана', () => {
+    const storageRacks = before.objects.filter((object) => object.typeId === 'ot_parcel_rack' && object.zoneId === 'z_storage');
+    const plan: PlanDocument = { ...before, objects: before.objects.filter((object) => !storageRacks.slice(1).includes(object)) };
+    expect(routeAgentQuery(plan, 'куда поставить стеллаж для посылок?', false)[0]?.args.zoneId).toBe('z_back');
+  });
+
+  test('зона названа в вопросе — она и используется, без пояснения о выборе', () => {
+    const calls = routeAgentQuery(before, 'куда поставить стеллаж для посылок в служебной зоне?', false);
+    expect(calls[0]).toEqual({ name: 'find_place', args: { typeId: 'ot_parcel_rack', zoneId: 'z_back' } });
+    const { text } = answer(before, 'куда поставить стеллаж для посылок в служебной зоне?');
+    expect(text).toContain('«Служебная зона» (z_back)');
+    expect(text).not.toContain('не названа');
+  });
+
+  test('тип с правилом: поиск по зонам правила, найденная зона названа', () => {
+    const { text, problems } = answer(before, 'Где поставить ещё одно кассовое окно?');
+    expect(text).toContain('(z_client)');
+    expect(text).not.toContain('не названа');
+    expect(problems).toEqual([]);
+  });
+
+  test('тип без правила и без объектов в плане: зона варианта названа по геометрии', () => {
+    expect(routeAgentQuery(before, 'Куда поставить пандус?', false)[0]).toEqual({ name: 'find_place', args: { typeId: 'ot_ramp', zoneId: null } });
+    const result = answerWithoutModel(before, null, 'Куда поставить пандус?', 1, 'без LLM');
+    const zoneId = result.recommendations[0]!.candidates[0]!.object.zoneId;
+    const { text, problems } = answer(before, 'Куда поставить пандус?');
+    expect(text).toContain(zoneId === null ? 'вне зон' : `(${zoneId})`);
+    expect(problems).toEqual([]);
+  });
+});

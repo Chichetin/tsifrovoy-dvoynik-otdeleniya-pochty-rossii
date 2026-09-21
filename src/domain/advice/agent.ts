@@ -40,8 +40,10 @@ export function answerWithoutModel(
   const state = createAgentToolState(plan, before);
   const steps: AgentStep[] = [];
   const records: AgentToolRecord[] = [];
-  const run = (calls: { name: string; args: unknown }[]): void => {
+  const notes: string[] = [];
+  const run = (calls: { name: string; args: unknown; note?: string }[]): void => {
     for (const call of calls) {
+      if (call.note !== undefined) notes.push(call.note);
       const outcome = runAgentTool(state, call.name, call.args);
       steps.push(outcome.step);
       records.push({ name: call.name, output: outcome.output });
@@ -50,5 +52,5 @@ export function answerWithoutModel(
   };
   run(routeAgentQuery(plan, query, before !== null));
   run(followUpCalls(state));
-  return finishAgentAnswer(state, revision, 'fallback', composeFallbackText(state, records), steps, reason);
+  return finishAgentAnswer(state, revision, 'fallback', composeFallbackText(state, records, notes), steps, reason);
 }

@@ -7,12 +7,15 @@
  * calculation, marked «без LLM», never an empty panel.
  */
 
+import type { Recommendation } from '../../contracts/advice';
 import type { Id, PlanDocument } from '../../contracts/model';
 import { formatArea, formatShort } from '../number-format';
 import type { AgentToolState } from './agent-tools';
+import { zoneFit } from './placement';
 import { fallbackExplanation } from './templates';
 
-export type AgentToolCall = { name: string; args: Record<string, unknown> };
+/** `note` — why the router chose an argument the question did not name; it goes into the answer. */
+export type AgentToolCall = { name: string; args: Record<string, unknown>; note?: string };
 export type AgentToolRecord = { name: string; output: unknown };
 
 const STOP_WORDS = new Set(['для', 'при', 'под', 'над', 'или', 'без', 'как', 'где', 'что', 'это']);
@@ -51,6 +54,22 @@ function matchZone(plan: PlanDocument, queryWords: readonly string[]): Id | null
   return best?.id ?? null;
 }
 
+/**
+ * A zone for a type the question gave no zone for. Only when the catalog has no
+ * count rule for the type (then the search is not narrowed at all): the zone
+ * where most objects of the type already stand, first in plan order on a tie.
+ * With a rule the search already keeps to the rule's zones.
+ */
+function preferredZone(plan: PlanDocument, typeId: Id): Id | null {
+  if (zoneFit(plan, typeId, null).mode !== 'no-rule') return null;
+  let best: { id: Id; count: number } | null = null;
+  for (const zone of plan.zones) {
+    const count = plan.objects.filter((object) => object.typeId === typeId && object.zoneId === zone.id).length;
+    if (count > 0 && (best === null || count > best.count)) best = { id: zone.id, count };
+  }
+  return best?.id ?? null;
+}
+
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
@@ -68,7 +87,14 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
     return [{ name: 'check_equipment', args: { zoneId } }];
   }
   if (typeId !== null) {
-    return [{ name: 'find_place', args: { typeId, zoneId } }];
+    const preferred = zoneId === null ? preferredZone(plan, typeId) : null;
+    if (preferred === null) return [{ name: 'find_place', args: { typeId, zoneId } }];
+    const zoneName = plan.zones.find((zone) => zone.id === preferred)?.name ?? preferred;
+    const typeLabel = plan.catalog.objectTypes.find((type) => type.id === typeId)?.label ?? typeId;
+    const note =
+      `Зона в вопросе не названа — место ищется в зоне «${zoneName}» (${preferred}): там уже стоят объекты типа «${typeLabel}», ` +
+      'а правила комплектования с зоной для этого типа в справочнике нет.';
+    return [{ name: 'find_place', args: { typeId, zoneId: preferred }, note }];
   }
   if (zoneId !== null) {
     return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
@@ -119,9 +145,33 @@ function validationText(output: ValidationView): string {
   return `Проверка нашла ошибок: ${output.errors}, предупреждений: ${output.warnings}. ${first}`;
 }
 
+function zoneLabel(state: AgentToolState, zoneId: Id | null): string {
+  if (zoneId === null) return 'вне зон';
+  return `в зоне «${state.names.zoneName(zoneId) ?? zoneId}» (${zoneId})`;
+}
+
+/** Type, zone, counted objects and whose rule it is — all from the recommendation and the catalog. */
+function equipmentDetails(state: AgentToolState, recommendation: Recommendation): { head: string; tail: string } {
+  const rule = state.plan.catalog.rules.find((entry) => entry.id === recommendation.ruleIds[0]);
+  const zoneId = recommendation.refs.find((ref) => ref.kind === 'zone')?.id ?? null;
+  const objects = recommendation.refs
+    .filter((ref) => ref.kind === 'object')
+    .map((ref) => `${ref.id} «${state.names.nameOf(ref) ?? ref.id}»`);
+  const typeId = rule?.kind === 'count' ? rule.objectTypeId : null;
+  const typeLabel = typeId === null ? null : (state.names.objectTypeLabel(typeId) ?? typeId);
+  const source = rule?.source === 'organizer-material' ? 'материалы организаторов' : 'правило команды, не норматив Почты России';
+  return {
+    head: `${typeLabel === null ? 'Оборудование' : `«${typeLabel}»`} ${zoneLabel(state, zoneId)}:`,
+    tail: [
+      objects.length === 0 ? 'Таких объектов в зоне нет.' : `Учтены: ${objects.join(', ')}.`,
+      rule === undefined ? '' : `${rule.rationale.replace(/\.$/, '')} (${rule.id}; ${source}).`,
+    ].filter(Boolean).join(' '),
+  };
+}
+
 /** The answer text written by code from what the tools returned. */
-export function composeFallbackText(state: AgentToolState, records: readonly AgentToolRecord[]): string {
-  const parts: string[] = [];
+export function composeFallbackText(state: AgentToolState, records: readonly AgentToolRecord[], notes: readonly string[] = []): string {
+  const parts: string[] = [...notes];
   for (const record of records) {
     const output = record.output as Record<string, unknown> | null;
     if (output === null || typeof output !== 'object' || 'error' in output) continue;
@@ -137,7 +187,12 @@ export function composeFallbackText(state: AgentToolState, records: readonly Age
   const recommendations = [...state.recommendations.values()];
   for (const recommendation of recommendations.slice(0, 3)) {
     const sentence = fallbackExplanation(recommendation);
+    const details = recommendation.scenario === 'equipment' ? equipmentDetails(state, recommendation) : null;
+    if (details !== null) parts.push(details.head);
     if (sentence !== null) parts.push(sentence);
+    if (details !== null) parts.push(details.tail);
+    const candidate = recommendation.candidates[0];
+    if (recommendation.scenario === 'place' && candidate !== undefined) parts.push(`Место ${zoneLabel(state, candidate.object.zoneId)}.`);
   }
   if (recommendations.length > 3) parts.push(`Ещё рекомендаций: ${recommendations.length - 3} — в панелях справа.`);
   if (records.some((record) => record.name === 'check_equipment') && recommendations.every((entry) => entry.scenario !== 'equipment')) {
