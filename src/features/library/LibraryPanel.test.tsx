@@ -50,3 +50,17 @@ test('вооружённый тип заметно выделен и сообщ�
   fireEvent.click(item);
   expect(onTool).toHaveBeenCalledWith({ kind: 'select' });
 });
+
+test('перетаскивание типа вооружает тот же инструмент и передаёт его id', () => {
+  const sized = withSize(1, 1);
+  const onTool = vi.fn();
+  render(<LibraryPanel catalog={sized} activeTypeId={null} onTool={onTool} />);
+
+  const setData = vi.fn();
+  const item = screen.getByRole('button', { name: /Проверочный тип/ });
+  fireEvent.dragStart(item, { dataTransfer: { effectAllowed: '', setData } });
+
+  expect(onTool).toHaveBeenCalledWith({ kind: 'object.place', typeId: 'ot_sized' });
+  expect(setData).toHaveBeenCalledWith('text/plain', 'ot_sized');
+  expect(item.getAttribute('draggable')).toBe('true');
+});

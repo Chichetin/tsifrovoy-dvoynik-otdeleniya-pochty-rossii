@@ -43,13 +43,15 @@ function answer(reason: string): AdviceResult {
 
 test('поздний ответ старого плана не заменяет ответ нового плана', async () => {
   render(<App />);
+  // D-249: the assistant is a tab of the right column, not open by default.
+  fireEvent.click(screen.getByRole('tab', { name: 'Ассистент' }));
 
   fireEvent.click(screen.getByRole('button', { name: 'Спросить' }));
   expect(mocked.pending).toHaveLength(1);
 
   // A new store also starts at revision 0. The request sequence, rather than
   // the revision alone, must distinguish its answer from the old document.
-  fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
   fireEvent.click(screen.getByRole('button', { name: 'Спросить' }));
   expect(mocked.pending).toHaveLength(2);
 

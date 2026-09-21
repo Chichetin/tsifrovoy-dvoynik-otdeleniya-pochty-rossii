@@ -3,7 +3,7 @@
  *
  * Сценарий D-058 — открыть готовый структурированный план — здесь проверяется
  * на том самом файле, который выложили организаторы: `example_plan.json` из
- * корня репозитория подаётся в кнопку «Открыть» как есть, без конвертации в
+ * корня репозитория подаётся в кнопку «Открыть существующий» как есть, без конвертации в
  * тесте. Дальше — скачать, открыть заново и получить тот же документ.
  *
  * Отдельно проверяется, что редактор не теряет работу и не подменяет открытый
@@ -13,6 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
@@ -26,7 +27,7 @@ const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
 /**
  * Черновик в localStorage держит план с нужным числом объектов. Подпись времени
  * у «черновик в браузере» появляется уже от стартового пустого плана, поэтому
- * ждать её после «Открыть» недостаточно: под нагрузкой перезагрузка успевала
+ * ждать её после «Открыть существующий» недостаточно: под нагрузкой перезагрузка успевала
  * раньше записи открытого файла, и предложение показывало прежний план.
  */
 async function draftHolds(page: Page, objects: number): Promise<void> {
@@ -57,6 +58,7 @@ async function openFile(page: Page, file: string): Promise<void> {
 
 /** Ставит первый тип из библиотеки в точку холста. */
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item').first().click();
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
 }
@@ -91,7 +93,7 @@ async function download(page: Page): Promise<string> {
 }
 
 test.describe('файлы плана', () => {
-  test('«Новый» не пугает на пустом старте, но защищает поставленный объект', async ({ page }) => {
+  test('«Создать новый» не пугает на пустом старте, но защищает поставленный объект', async ({ page }) => {
     const dialogs: string[] = [];
     let accept = false;
     page.on('dialog', (dialog) => {
@@ -101,22 +103,22 @@ test.describe('файлы плана', () => {
     await page.goto('/');
     await expect(page.getByText('новый план не сохранён')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     expect(dialogs).toEqual([]);
     await placeFirstLibraryItem(page, 300, 260);
     await expect(inventoryRows(page)).toHaveCount(1);
 
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     expect(dialogs).toHaveLength(1);
     expect(dialogs[0]).toContain('Создать новый план?');
     await expect(inventoryRows(page)).toHaveCount(1);
 
     accept = true;
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(inventoryRows(page)).toHaveCount(0);
   });
 
-  test('кнопка «Открыть» принимает сырой пример организаторов', async ({ page }) => {
+  test('кнопка «Открыть существующий» принимает сырой пример организаторов', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
@@ -130,8 +132,14 @@ test.describe('файлы плана', () => {
     await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
     await expect(page.locator('.table__link', { hasText: 'z_back' }).first()).toBeVisible();
 
-    // Объект примера открывается карточкой по своему идентификатору.
-    await page.locator('.table__link', { hasText: 'Терминал электронной очереди' }).first().click();
+    // Объект примера открывается карточкой по своему идентификатору. Ссылку
+    // берём в перечне: тот же объект назван и в находках проверки, а её панель
+    // на соседней вкладке и скрыта (D-249).
+    await page
+      .getByLabel('Инвентаризация')
+      .locator('.table__link', { hasText: 'Терминал электронной очереди' })
+      .first()
+      .click();
     await expect(page.getByTestId('props-id')).toHaveText('eq_kiosk');
 
     // Пользователю сказано, откуда план и что будет при сохранении.
@@ -144,7 +152,9 @@ test.describe('файлы плана', () => {
 
     // Правила команды сомкнулись с примером: ловушка «терминал в ~7 м от входа
     // при норме 3 м» видна в проверке, а не только в unit-тесте.
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).toContainText('от главного входа');
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).toContainText('не более 3 м');
     expect(errors).toEqual([]);
   });
@@ -171,7 +181,7 @@ test.describe('файлы плана', () => {
 
     // Чистый лист, затем открываем скачанный файл.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     await openFile(page, first);
@@ -205,9 +215,9 @@ test.describe('файлы плана', () => {
     await details.locator('summary').click();
     await expect(details).toContainText('futureField');
     await expect(details).toContainText('futureAttr');
-    // «Новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
+    // «Создать новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
@@ -223,7 +233,9 @@ test.describe('файлы плана', () => {
       mimeType: 'application/json',
       buffer: Buffer.from('{"hello": "world"}'),
     });
-    await expect(page.getByRole('alert')).toContainText('example_plan.json');
+    await expect(page.getByRole('alert')).toContainText('План не открыт');
+    await expect(page.getByRole('alert')).not.toContainText('DOCUMENT_UNREADABLE');
+    await expect(page.getByTestId('file-error-details')).toContainText('DOCUMENT_UNREADABLE');
     await expect(inventoryRows(page)).toHaveCount(12);
 
     await page.getByTestId('plan-file-input').setInputFiles({
@@ -231,7 +243,9 @@ test.describe('файлы плана', () => {
       mimeType: 'application/json',
       buffer: Buffer.from('{"schemaVersion": 1, "zones": ['),
     });
-    await expect(page.getByRole('alert')).toContainText('DOCUMENT_UNREADABLE');
+    await expect(page.getByRole('alert')).toContainText('План не открыт');
+    await expect(page.getByRole('alert')).not.toContainText('DOCUMENT_UNREADABLE');
+    await expect(page.getByTestId('file-error-details')).toContainText('DOCUMENT_UNREADABLE');
     await expect(inventoryRows(page)).toHaveCount(12);
   });
 
@@ -273,7 +287,7 @@ test.describe('файлы плана', () => {
     await expect(inventoryRows(page)).toHaveCount(12);
   });
 
-  test('после «Открыть» и правки черновик снова пишется: предлагают новый, а не старый', async ({
+  test('после «Открыть существующий» и правки черновик снова пишется: предлагают новый, а не старый', async ({
     page,
   }) => {
     await page.goto('/');
@@ -370,6 +384,7 @@ test.describe('файлы плана', () => {
     // Находка operator №6: руководителю нечем показать план, кроме скриншота.
     await page.goto('/');
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Инвентаризация');
     const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
     await expect(rows).toHaveCount(53);
 

@@ -19,6 +19,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page, type TestInfo } from './fixtures';
+import { showTab } from './side-tabs';
 
 type Point = [number, number];
 type Pixel = { x: number; y: number };
@@ -127,10 +128,12 @@ async function snapMarker(page: Page): Promise<{ caption: string; lines: string[
 const areas = (page: Page): Locator => page.getByLabel('Площади');
 
 async function roomArea(page: Page): Promise<string> {
+  await showTab(page, 'Площади');
   return ((await areas(page).locator('dd').first().textContent()) ?? '').trim();
 }
 
 async function zoneArea(page: Page, name: string): Promise<string> {
+  await showTab(page, 'Площади');
   const row = areas(page).locator('tbody tr', { hasText: name }).first();
   return ((await row.locator('td').nth(1).textContent()) ?? '').trim();
 }
@@ -280,6 +283,44 @@ test.describe('инструменты плана', () => {
     expect(vertex[0]).not.toBe(corner[0] + half);
   });
 
+  test('Ctrl: протяжка ребра вытягивает выступ, клик по вершине её удаляет (D-247)', async ({ page }) => {
+    const size = await openEditor(page);
+    await drawPlan(page, size);
+    const start = await savePlan(page);
+    const before = start.room.boundary;
+    const [first, second] = [before[0], before[1]];
+    if (first === undefined || second === undefined) throw new Error('у помещения нет контура');
+
+    // Выбрать помещение: пол между его контуром и внешней зоной.
+    await clickAt(page, px(size, 0.12, 0.12));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+
+    // Середина первого ребра — и тянем её наружу на метр с зажатым Ctrl.
+    const middle: Point = [(first[0] + second[0]) / 2, (first[1] + second[1]) / 2];
+    const outward: Point = [middle[0], middle[1] - 1];
+    await page.keyboard.down('Control');
+    await dragAt(page, await worldPixel(page, middle[0], middle[1]), await worldPixel(page, outward[0], outward[1]));
+    await page.keyboard.up('Control');
+
+    await expect.poll(async () => (await savePlan(page)).room.boundary.length).toBe(before.length + 1);
+    const pulled = (await savePlan(page)).room.boundary;
+    const added = pulled.find((vertex) => !before.some((old) => old[0] === vertex[0] && old[1] === vertex[1]));
+    if (added === undefined) throw new Error('новой вершины в контуре нет');
+    expect(Math.abs(added[0] - outward[0])).toBeLessThan(0.6);
+    expect(Math.abs(added[1] - outward[1])).toBeLessThan(0.6);
+
+    // Ctrl + клик по этой же вершине убирает её, и контур возвращается к прежнему.
+    await clickAt(page, px(size, 0.12, 0.12));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    const handle = await worldPixel(page, added[0], added[1]);
+    const onStage = await onPage(page, handle);
+    await page.keyboard.down('Control');
+    await page.mouse.click(onStage.x, onStage.y);
+    await page.keyboard.up('Control');
+
+    await expect.poll(async () => (await savePlan(page)).room.boundary.length).toBe(before.length);
+  });
+
   test('ручка вершины притягивается к вершине соседней зоны; с Alt — нет (D-210)', async ({ page }) => {
     const size = await openEditor(page);
     await drawPlan(page, size);
@@ -389,7 +430,8 @@ test.describe('инструменты плана', () => {
     expect(saved.zones[1]?.polygon).toHaveLength(4);
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await showTab(page, 'Площади');
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
 
     await page.getByTestId('plan-file-input').setInputFiles(file);
@@ -397,6 +439,44 @@ test.describe('инструменты плана', () => {
     expect(await roomArea(page)).not.toBe('108,00\u00a0м²');
 
     expect(errors).toEqual([]);
+  });
+
+  test('зона поверх соседней: вложенная — тихо, наполовину вышедшая — одна находка (D-223)', async ({
+    page,
+  }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const checks = page.getByLabel('Проверка плана');
+    // Наполовину вышла из внешней зоны: слева 0,1 против её 0,2.
+    const HALF = [
+      [0.1, 0.3],
+      [0.5, 0.3],
+      [0.5, 0.6],
+      [0.1, 0.6],
+    ] as const;
+
+    await drawRing(page, 'Помещение', ring(size, ROOM), { alt: true });
+    await page.keyboard.press('Escape');
+    await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
+    await page.keyboard.press('Escape');
+
+    await drawRing(page, 'Зона', ring(size, HALF), { alt: true });
+    await page.keyboard.press('Escape');
+    // Левый край новой зоны лежит вне внешней: клик по нему выбирает только её.
+    await clickAt(page, px(size, 0.15, 0.45));
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByLabel('Внутри зоны')).toHaveValue('');
+    await expect(checks).toContainText('пересекаются, не вкладываясь');
+
+    // Та же зона, обведённая целиком внутри: вложенность, а не находка.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await drawRing(page, 'Зона', ring(size, INNER), { alt: true });
+    await page.keyboard.press('Escape');
+    await clickAt(page, px(size, 0.45, 0.45));
+    // Отмена вернула id: это снова z_2, но уже вложенная зона, а не находка.
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByLabel('Внутри зоны')).toHaveValue('z_1');
+    await expect(checks).not.toContainText('пересекаются, не вкладываясь');
   });
 
   test('самопересечение отклоняется, а зона удаляется и возвращается отменой', async ({
@@ -428,11 +508,8 @@ test.describe('инструменты плана', () => {
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    // Выбор снят вместе с зоной, и карточка свойств свернулась (D-236):
-    // объяснение осталось в DOM, но места в колонке не занимает.
-    await expect(
-      card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
-    ).not.toBeVisible();
+    // Выбор снят вместе с зоной — карточки свойств в колонке нет вовсе (D-249).
+    await expect(card).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -510,11 +587,8 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    // Выбор снят вместе с зоной, и карточка свойств свернулась (D-236):
-    // объяснение осталось в DOM, но места в колонке не занимает.
-    await expect(
-      card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
-    ).not.toBeVisible();
+    // Выбор снят вместе с зоной — карточки свойств в колонке нет вовсе (D-249).
+    await expect(card).toHaveCount(0);
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));
@@ -523,7 +597,8 @@ test.describe('инструменты плана', () => {
     await expect(notice).toContainText('вершин');
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await showTab(page, 'Площади');
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
     await expect(notice).toHaveCount(0);
   });
@@ -536,6 +611,7 @@ test.describe('инструменты плана', () => {
     // Масштаб измеряется, а не вычисляется: два объекта в известных пикселях.
     const probe = async (fx: number, fy: number): Promise<{ pixel: Pixel; world: Point }> => {
       const pixel = px(size, fx, fy);
+      await showTab(page, 'Библиотека');
       await page.locator('.library__item').first().click();
       await clickAt(page, pixel);
       await page.getByRole('button', { name: 'Выбор', exact: true }).click();

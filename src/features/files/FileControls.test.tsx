@@ -122,10 +122,10 @@ describe('FileControls: замена текущего плана', () => {
     };
   }
 
-  test('закончившееся после «Новый» чтение не заменяет новый план', async () => {
+  test('закончившееся после «Создать новый» чтение не заменяет новый план', async () => {
     const { onReplace } = renderControls({ storage: null });
     const pending = delayedFile();
-    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
     await pending.finish();
     expect(onReplace).not.toHaveBeenCalled();
     expect(screen.queryByTestId('files-notice')).toBeNull();
@@ -165,12 +165,12 @@ describe('FileControls: замена текущего плана', () => {
     expect(onReplace).toHaveBeenCalledWith(filled, 'draft');
   });
 
-  test('«Новый» на нетронутом пустом плане не спрашивает о несуществующих правках', () => {
+  test('«Создать новый» на нетронутом пустом плане не спрашивает о несуществующих правках', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 0 });
     expect(screen.getByText('новый план не сохранён')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
 
     expect(confirm).not.toHaveBeenCalled();
     expect(onNew).toHaveBeenCalledTimes(1);
@@ -181,7 +181,7 @@ describe('FileControls: замена текущего плана', () => {
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 1 });
     expect(screen.getByText('есть несохранённые правки')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Создать новый план?'));
     expect(onNew).not.toHaveBeenCalled();
@@ -191,11 +191,29 @@ describe('FileControls: замена текущего плана', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderControls({ storage: null, document: filled, dirty: false, revision: 1 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть существующий' }));
 
     expect(confirm).toHaveBeenCalledWith(
       'Текущий план будет заменён. Открыть другой файл?',
     );
+  });
+
+  test('код ошибки файла не попадает в основное сообщение, но остаётся в раскрытии', async () => {
+    const invalid = {
+      ok: false as const,
+      issues: [{ code: 'DOCUMENT_UNREADABLE', severity: 'error' as const, message: 'JSON оборван.', refs: [] }],
+    };
+    renderControls({ storage: null, read: () => invalid });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), {
+        target: { files: [new File(['{}'], 'broken.json', { type: 'application/json' })] },
+      });
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain('План не открыт');
+    expect(screen.getByRole('alert').textContent).not.toContain('DOCUMENT_UNREADABLE');
+    expect(screen.getByTestId('file-error-details').textContent).toContain('DOCUMENT_UNREADABLE: JSON оборван.');
   });
 });
 
@@ -278,11 +296,11 @@ describe('FileControls: предложение восстановить черн
     expect(screen.queryByTestId('draft-restore')).not.toBeNull();
   });
 
-  test('«Новый» снимает предложение и возвращает запись черновика', () => {
+  test('«Создать новый» снимает предложение и возвращает запись черновика', () => {
     const storage = fakeStorage(draftOf(filled));
     const { onNew, rerender } = renderControls({ storage, dirty: false });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Новый' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
 
     expect(onNew).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('draft-restore')).toBeNull();
@@ -298,7 +316,7 @@ describe('FileControls: предложение восстановить черн
     expect(storage.setItem).toHaveBeenCalledTimes(2);
   });
 
-  test('«Открыть» снимает предложение и возвращает запись черновика', async () => {
+  test('«Открыть существующий» снимает предложение и возвращает запись черновика', async () => {
     const storage = fakeStorage(draftOf(filled));
     const { onReplace } = renderControls({ storage });
     const file = new File([JSON.stringify(filled)], 'plan.json', { type: 'application/json' });

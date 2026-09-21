@@ -213,6 +213,168 @@ describe('applyCommand: зоны и связи', () => {
   });
 });
 
+describe('applyCommand: вложенность новой зоны (D-223)', () => {
+  const drawn = (id: string, polygon: Zone['polygon'], parentId: string | null = null): Zone => ({
+    id,
+    typeId: 'zt_client',
+    name: id,
+    polygon,
+    parentId,
+    layerId: 'l_base',
+    attributes: {},
+  });
+
+  test('зона, нарисованная целиком внутри другой, становится вложенной', () => {
+    const plan = minimalPlan();
+
+    const added = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn('z_corner', [
+          [1, 1],
+          [3, 1],
+          [3, 3],
+          [1, 3],
+        ]),
+      }),
+    );
+
+    expect(added.zones.find((zone) => zone.id === 'z_corner')!.parentId).toBe('z_client');
+    // Объект внутри уходит в самую глубокую зону, а не теряет её на двойной принадлежности.
+    expect(added.objects[0]!.zoneId).toBe('z_corner');
+  });
+
+  test('из нескольких подходящих родителей берётся самый глубокий', () => {
+    const plan = minimalPlan();
+    const middle = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn(
+          'z_middle',
+          [
+            [0.5, 0.5],
+            [5, 0.5],
+            [5, 5],
+            [0.5, 5],
+          ],
+          'z_client',
+        ),
+      }),
+    );
+
+    const added = expectOk(
+      applyCommand(middle, {
+        type: 'zone.put',
+        zone: drawn('z_corner', [
+          [1, 1],
+          [3, 1],
+          [3, 3],
+          [1, 3],
+        ]),
+      }),
+    );
+
+    expect(added.zones.find((zone) => zone.id === 'z_corner')!.parentId).toBe('z_middle');
+  });
+
+  test('зона, пересекающая соседнюю лишь частично, остаётся без родителя', () => {
+    const plan = minimalPlan();
+
+    // z_client — 0..7 по X, зона уходит за неё до 9: это не вложение.
+    const added = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn('z_half', [
+          [6, 1],
+          [9, 1],
+          [9, 3],
+          [6, 3],
+        ]),
+      }),
+    );
+
+    expect(added.zones.find((zone) => zone.id === 'z_half')!.parentId).toBeNull();
+  });
+
+  test('зона, совпавшая с существующей по границе, остаётся без родителя', () => {
+    const plan = minimalPlan();
+
+    const added = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn('z_same', [...plan.zones[0]!.polygon]),
+      }),
+    );
+
+    expect(added.zones.find((zone) => zone.id === 'z_same')!.parentId).toBeNull();
+  });
+
+  test('зона в пустом месте остаётся без родителя', () => {
+    const plan = minimalPlan();
+
+    const added = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn('z_free', [
+          [7.5, 1],
+          [9.5, 1],
+          [9.5, 3],
+          [7.5, 3],
+        ]),
+      }),
+    );
+
+    expect(added.zones.find((zone) => zone.id === 'z_free')!.parentId).toBeNull();
+  });
+
+  test('заявленный родитель не переписывается геометрией', () => {
+    const plan = minimalPlan();
+
+    // Родитель указан руками, а геометрия его не подтверждает: команда
+    // сохраняет выбор человека, о расхождении говорит «Проверка».
+    const added = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn(
+          'z_far',
+          [
+            [7.5, 1],
+            [9.5, 1],
+            [9.5, 3],
+            [7.5, 3],
+          ],
+          'z_client',
+        ),
+      }),
+    );
+
+    expect(added.zones.find((zone) => zone.id === 'z_far')!.parentId).toBe('z_client');
+  });
+
+  test('у существующей зоны снятый родитель не возвращается сам', () => {
+    const plan = minimalPlan();
+    const added = expectOk(
+      applyCommand(plan, {
+        type: 'zone.put',
+        zone: drawn('z_corner', [
+          [1, 1],
+          [3, 1],
+          [3, 3],
+          [1, 3],
+        ]),
+      }),
+    );
+    const child = added.zones.find((zone) => zone.id === 'z_corner')!;
+
+    // Карточка свойств: «без родителя» у уже существующей зоны — выбор человека.
+    const detached = expectOk(
+      applyCommand(added, { type: 'zone.put', zone: { ...child, parentId: null } }),
+    );
+
+    expect(detached.zones.find((zone) => zone.id === 'z_corner')!.parentId).toBeNull();
+  });
+});
+
 describe('applyCommand: атрибуты по типу объекта', () => {
   function catalogWithShift(plan: PlanDocument, withDefault: boolean) {
     return {

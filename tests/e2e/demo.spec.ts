@@ -2,7 +2,7 @@
  * E01 в браузере: комплект сдачи проверяется так, как его откроет жюри.
  *
  * Архив здесь настоящий: он собирается `package-demo`, распаковывается во
- * временный каталог, и в кнопку «Открыть» подаются именно распакованные файлы.
+ * временный каталог, и в кнопку «Открыть существующий» подаются именно распакованные файлы.
  * Проверка «после распаковки оба плана открываются» иначе остаётся рассуждением.
  *
  * Второй сценарий — та же рекомендация, применённая руками в редакторе:
@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
 import { DEMO_FILES, packageDemo, readZip } from '../../scripts/package-demo';
+import { showTab } from './side-tabs';
 
 /** Каталог с распакованным архивом; наполняется один раз на файл спеки. */
 let unpacked = '';
@@ -114,6 +115,7 @@ test.describe('демо-комплект из ZIP', () => {
 
     // 1. Скамья из библиотеки. Куда попал клик — неважно: точные координаты
     // рекомендации ставятся в карточке, как это делает человек.
+    await showTab(page, 'Библиотека');
     await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
     await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 300 } });
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();

@@ -133,12 +133,23 @@ describe('панель инструментов плана', () => {
 
   it('подсказка панорамирования называет тачпад и среднюю кнопку', () => {
     const { onTool } = show(null);
-    fireEvent.click(screen.getByRole('button', { name: 'Рука' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Обзор' }));
 
     expect(onTool).toHaveBeenCalledWith({ kind: 'pan' });
-    expect(screen.getByRole('button', { name: 'Рука' }).getAttribute('title')).toContain(
+    expect(screen.getByRole('button', { name: 'Обзор' }).getAttribute('title')).toContain(
       'свайп двумя пальцами на тачпаде',
     );
+  });
+
+  it('разделитель групп один, он декоративный и не мешает клавиатуре (D-248)', () => {
+    show(null);
+    const gaps = window.document.querySelectorAll('.toolbar__group-gap');
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0]!.getAttribute('aria-hidden')).toBe('true');
+    expect(gaps[0]!.hasAttribute('tabindex')).toBe(false);
+    // Он стоит между группой вида и инструментами создания геометрии.
+    expect(gaps[0]!.previousElementSibling?.textContent).toBe('Обзор');
+    expect(gaps[0]!.nextElementSibling?.textContent).toBe('Помещение');
   });
 
   it('без выбора удалять нечего', () => {

@@ -10,6 +10,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 
@@ -61,7 +62,7 @@ for (const size of [
       expect(reference.bar).toBeLessThanOrEqual(80);
       await expectOneRow(page, reference, 'новый план');
 
-      for (const name of ['Рука', 'Помещение', 'Зона', 'Перегородка', 'Проём', 'Выбор']) {
+      for (const name of ['Обзор', 'Помещение', 'Зона', 'Перегородка', 'Проём', 'Выбор']) {
         await page.getByRole('button', { name, exact: true }).click();
         await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expectOneRow(page, reference, `инструмент «${name}»`);
@@ -96,6 +97,7 @@ for (const size of [
       const reference = await layout(page);
 
       // Выбор типа в библиотеке включает установку — у неё своя подсказка.
+      await showTab(page, 'Библиотека');
       await page.locator('.library__item').first().click();
       const note = page.getByText('Клик по плану ставит объект');
       await expect(note).toBeVisible();

@@ -1,6 +1,7 @@
 /** Q01: a custom catalog type and layer survive the full browser/file cycle. */
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 async function save(page: Page): Promise<string> {
   const download = await Promise.all([
@@ -34,10 +35,12 @@ test('новый тип в каталоге → атрибут и слой → �
     buffer: Buffer.from(JSON.stringify(plan)),
   });
 
+  await showTab(page, 'Библиотека');
   const item = page.locator('.library__item', { hasText: 'Стойка Q01' });
   await expect(item).toBeVisible();
   await item.click();
   await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 260 } });
+  await showTab(page, 'Инвентаризация');
   const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
   await expect(rows).toHaveCount(1);
   await rows.first().getByRole('button').first().click();
@@ -45,6 +48,7 @@ test('новый тип в каталоге → атрибут и слой → �
   const card = page.getByLabel('Свойства');
   await card.getByLabel('Номер окна').fill('4');
   await card.getByLabel('Самообслуживание').check();
+  await showTab(page, 'Слои');
   await page.getByLabel('Слои').getByRole('button', { name: 'Добавить слой' }).click();
   await card.getByLabel('Слой').selectOption({ label: 'Слой 6' });
 
@@ -66,6 +70,7 @@ test('новый тип в каталоге → атрибут и слой → �
   await expect(card.getByLabel('Номер окна')).toHaveValue('4');
   await expect(card.getByLabel('Самообслуживание')).toBeChecked();
   await expect(card.getByLabel('Слой')).toHaveValue(before.objects[0].layerId);
+  await showTab(page, 'Библиотека');
   await expect(page.locator('.library__item', { hasText: 'Стойка Q01' })).toBeVisible();
   expect(JSON.parse(await save(page))).toEqual(before);
   expect(errors).toEqual([]);

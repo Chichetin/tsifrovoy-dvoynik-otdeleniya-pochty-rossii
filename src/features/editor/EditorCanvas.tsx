@@ -13,7 +13,7 @@
  * after that the view belongs to the user until they ask for «Вписать».
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Circle, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
 import type { Point, Polygon } from '../../contracts/model';
@@ -246,6 +246,45 @@ export function EditorCanvas({
     [onViewport, session.viewport],
   );
 
+  // A library drag becomes the same `down` event as a click on the canvas.
+  // The equipment controller therefore remains the single path for catalog
+  // defaults, snapping, layer checks, selection and one-shot placement.
+  const handleDragOver = useCallback(
+    (event: DragEvent<HTMLDivElement>): void => {
+      if (session.tool.kind !== 'object.place') return;
+      if (!event.dataTransfer.types.includes('text/plain')) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'copy';
+    },
+    [session.tool],
+  );
+
+  const handleDrop = useCallback(
+    (event: DragEvent<HTMLDivElement>): void => {
+      if (session.tool.kind !== 'object.place') return;
+      if (event.dataTransfer.getData('text/plain') !== session.tool.typeId) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      const screen: Point = [event.clientX - bounds.left, event.clientY - bounds.top];
+      if (screen[0] < 0 || screen[1] < 0 || screen[0] > bounds.width || screen[1] > bounds.height) return;
+      event.preventDefault();
+      const pointer = {
+        point: screenToModel(screen, session.viewport),
+        shift: event.shiftKey,
+        alt: event.altKey,
+        button: 0,
+      };
+      onPointer({
+        phase: 'down',
+        ...pointer,
+      });
+      // Native HTML drop has no pointer-up for the Konva stage. Completing
+      // this tiny synthetic gesture lets App disarm one-shot object.place in
+      // exactly the same way as a real canvas click.
+      onPointer({ phase: 'up', ...pointer });
+    },
+    [onPointer, session.tool, session.viewport],
+  );
+
   useEffect(() => {
     const element = host.current;
     if (element === null) return;
@@ -361,6 +400,8 @@ export function EditorCanvas({
       className="editor-canvas"
       ref={host}
       data-testid="editor-canvas"
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       data-visible={
         visible === null
           ? undefined
