@@ -268,11 +268,13 @@ test.describe('3D-вид: скрытые слои', () => {
 
     // «Глаз» в панели слоёв — то же действие, что прячет объект на холсте 2D.
     const eye = page.getByRole('button', { name: 'Показывать слой Основной' });
+    await showTab(page, 'Слои');
     await eye.click();
     await expect(prisms(page, '[data-kind="object"]')).toHaveCount(0);
     await expect(page.getByText('объектов: 0')).toBeVisible();
     await expect(page.getByText('Скрытые слои не показаны')).toBeVisible();
 
+    await showTab(page, 'Слои');
     await eye.click();
     await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
     await expect(page.getByText('объектов: 1')).toBeVisible();

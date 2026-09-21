@@ -62,7 +62,7 @@ for (const size of [
       expect(reference.bar).toBeLessThanOrEqual(80);
       await expectOneRow(page, reference, 'новый план');
 
-      for (const name of ['Рука', 'Помещение', 'Зона', 'Перегородка', 'Проём', 'Выбор']) {
+      for (const name of ['Обзор', 'Помещение', 'Зона', 'Перегородка', 'Проём', 'Выбор']) {
         await page.getByRole('button', { name, exact: true }).click();
         await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expectOneRow(page, reference, `инструмент «${name}»`);

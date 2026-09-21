@@ -402,6 +402,7 @@ test.describe('жесты над оборудованием', () => {
 
   test('отклонённая установка оставляет тип активным для повторной попытки', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
     await showTab(page, 'Библиотека');
     const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
@@ -592,6 +593,7 @@ test.describe('жесты над оборудованием', () => {
     await placeFromLibrary(page, RACK, centre.x, centre.y);
     await expect(inventoryRows(page)).toHaveCount(1);
 
+    await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
     // Клик прошёл сквозь невидимый объект и выбрал пол под ним — помещение, а не eq_1.
@@ -604,6 +606,7 @@ test.describe('жесты над оборудованием', () => {
     await page.keyboard.press('Delete');
     await expect(inventoryRows(page)).toHaveCount(1);
 
+    await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
@@ -666,6 +669,7 @@ test.describe('жесты над оборудованием', () => {
     const centre: Screen = { x: 420, y: 330 };
     await placeFromLibrary(page, RACK, centre.x, centre.y);
     await selectRow(page, 0);
+    await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
 
     await page.keyboard.press('Delete');
@@ -673,6 +677,7 @@ test.describe('жесты над оборудованием', () => {
     await expect(inventoryRows(page)).toHaveCount(1);
 
     // Замок снят той же кнопкой — и та же клавиша удаляет.
+    await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
     await selectRow(page, 0);
     await page.keyboard.press('Delete');
@@ -685,6 +690,7 @@ test.describe('жесты над оборудованием', () => {
     await placeFromLibrary(page, RACK, centre.x, centre.y);
     await selectRow(page, 0);
     const x0 = await numberOf(page, 'X, м');
+    await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
 
     await drag(page, centre, { x: centre.x + 100, y: centre.y });

@@ -183,7 +183,6 @@ test.describe('групповой выбор', () => {
 
     await drag(page, [100, 380], [200, 420]);
 
-    await expect(card(page)).not.toContainText('Свойства объекта');
-    await expect(card(page)).not.toContainText('Свойства помещения');
+    await expect(card(page)).toHaveCount(0);
   });
 });

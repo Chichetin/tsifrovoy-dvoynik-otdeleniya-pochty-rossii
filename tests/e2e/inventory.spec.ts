@@ -73,20 +73,23 @@ async function widenFirstColumn(page: Page, table: Locator, pixels: number): Pro
 test.describe('перечень оборудования', () => {
   test('ширины колонок инвентаризации и площадей тянутся и переживают перезагрузку', async ({ page }) => {
     await openDemo(page);
+    // Колонки тянутся на своих вкладках: видна одна панель за раз (D-249).
+    await showTab(page, 'Инвентаризация');
     const inventoryTable = panel(page).locator('table').first();
+    const inventoryBefore = await firstColumnWidth(inventoryTable);
+    await widenFirstColumn(page, inventoryTable, 24);
+    await expect.poll(() => firstColumnWidth(inventoryTable)).toBeGreaterThan(inventoryBefore);
+    const inventorySaved = await firstColumnWidth(inventoryTable);
+
     await showTab(page, 'Площади');
     const metricsTable = page.getByLabel('Площади').getByRole('table');
-    const inventoryBefore = await firstColumnWidth(inventoryTable);
     const metricsBefore = await firstColumnWidth(metricsTable);
-
-    await widenFirstColumn(page, inventoryTable, 24);
     await widenFirstColumn(page, metricsTable, 24);
-    await expect.poll(() => firstColumnWidth(inventoryTable)).toBeGreaterThan(inventoryBefore);
     await expect.poll(() => firstColumnWidth(metricsTable)).toBeGreaterThan(metricsBefore);
-    const inventorySaved = await firstColumnWidth(inventoryTable);
     const metricsSaved = await firstColumnWidth(metricsTable);
 
     await openDemo(page);
+    await showTab(page, 'Инвентаризация');
     await expect.poll(() => firstColumnWidth(panel(page).locator('table').first())).toBe(inventorySaved);
     await showTab(page, 'Площади');
     await expect.poll(() => firstColumnWidth(page.getByLabel('Площади').getByRole('table'))).toBe(metricsSaved);

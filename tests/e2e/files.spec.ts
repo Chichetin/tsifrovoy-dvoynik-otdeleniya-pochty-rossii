@@ -132,8 +132,14 @@ test.describe('файлы плана', () => {
     await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
     await expect(page.locator('.table__link', { hasText: 'z_back' }).first()).toBeVisible();
 
-    // Объект примера открывается карточкой по своему идентификатору.
-    await page.locator('.table__link', { hasText: 'Терминал электронной очереди' }).first().click();
+    // Объект примера открывается карточкой по своему идентификатору. Ссылку
+    // берём в перечне: тот же объект назван и в находках проверки, а её панель
+    // на соседней вкладке и скрыта (D-249).
+    await page
+      .getByLabel('Инвентаризация')
+      .locator('.table__link', { hasText: 'Терминал электронной очереди' })
+      .first()
+      .click();
     await expect(page.getByTestId('props-id')).toHaveText('eq_kiosk');
 
     // Пользователю сказано, откуда план и что будет при сохранении.
