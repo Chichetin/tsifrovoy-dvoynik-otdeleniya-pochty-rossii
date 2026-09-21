@@ -1,8 +1,8 @@
 /**
- * The check between the model's prose and the screen (D-236).
+ * The check between the model's prose and the screen (D-255).
  *
  * The model may phrase the answer freely, but every identifier it writes must
- * exist in the plan or in this exchange's calculation, and every number must be
+ * exist in the plan or its catalog, and every number must be
  * one the tools returned (or its rounding). Anything else is a number the model
  * made up, and the answer falls back to text the code writes itself.
  */
@@ -60,14 +60,9 @@ function planIds(plan: PlanDocument): Id[] {
 
 /** Everything the answer may cite: the plan's ids, the tool outputs, the question. */
 export function agentEvidence(state: AgentToolState, outputs: readonly unknown[], query: string): AgentEvidence {
+  // Only the plan's own ids: a recommendation or variant id is an internal
+  // handle, meaningless to the person reading the answer.
   const ids = new Set(planIds(state.plan));
-  for (const recommendation of state.recommendations.values()) {
-    ids.add(recommendation.id);
-    for (const candidate of recommendation.candidates) {
-      ids.add(candidate.id);
-      ids.add(candidate.object.id);
-    }
-  }
   const numbers = [...ALWAYS_ALLOWED];
   for (const output of outputs) collectNumbers(output, numbers);
   collectNumbers(query, numbers);
@@ -113,7 +108,7 @@ export function describeProblems(problems: readonly AgentTextProblem[]): string 
   const ids = problems.filter((problem) => problem.kind === 'unknown-id').map((problem) => problem.token);
   const numbers = problems.filter((problem) => problem.kind === 'unknown-number').map((problem) => problem.token);
   const parts = [
-    ids.length === 0 ? null : `идентификаторы ${ids.join(', ')} не существуют в плане`,
+    ids.length === 0 ? null : `идентификаторы ${ids.join(', ')} не являются id зон, объектов или типов плана (id вариантов и рекомендаций не пиши)`,
     numbers.length === 0 ? null : `числа ${numbers.join(', ')} не встречаются в результатах инструментов`,
   ].filter(Boolean);
   return `Проверка ответа: ${parts.join('; ')}. Перепиши ответ, используя только id и числа из результатов инструментов.`;

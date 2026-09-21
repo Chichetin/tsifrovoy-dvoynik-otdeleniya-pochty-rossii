@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * D-236: the chat panel — asking, the live work log, the verified answer with
+ * D-255: the chat panel — asking, the live work log, the verified answer with
  * clickable ids, the actions and their stale state.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -109,4 +109,9 @@ describe('чат агента', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Новый диалог' }));
     expect(props.onClear).toHaveBeenCalled();
   });
+});
+
+test('после «Применить» статус подтверждает действие, а не пугает устареванием', () => {
+  renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: answer(), error: null }], { revision: 1, actionStatus: 'Применено: «Окно» поставлен на план. Отменить — Ctrl+Z.' });
+  expect(screen.getByRole('status').textContent).toContain('Применено');
 });

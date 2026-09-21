@@ -1,5 +1,5 @@
 /**
- * D-236: the agent loop and its route with a scripted model. The provider is
+ * D-255: the agent loop and its route with a scripted model. The provider is
  * replaced by a list of turns, so every branch — tools, the text check, the one
  * repair, the fallback — is exercised without a network.
  */
@@ -163,4 +163,14 @@ test('вывод, сказанный рядом с вызовами инстру
   ]);
   const { answer } = await run(chat, 'Чего не хватает?');
   expect(answer.text).toBe('Не хватает второй скамьи.\n\nВариант показан на плане.');
+});
+
+test('план изменили после прошлого ответа — модель получает об этом пометку', async () => {
+  const { chat, seen } = scripted([{ content: 'Готово.', toolCalls: [] }]);
+  await runAgent({
+    chat, plan, before: null, query: 'Сколько теперь свободно?', revision: 8, onStep: () => undefined, deadlineMs: 60_000,
+    history: [{ role: 'user', text: 'Где место?', revision: 7 }, { role: 'assistant', text: 'Вариант показан.', revision: 7 }],
+  });
+  expect(seen[0]!.at(-1)!.content).toContain('план изменили');
+  expect(seen[0]!.filter((message) => message.role === 'assistant')).toHaveLength(1);
 });

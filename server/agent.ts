@@ -1,5 +1,5 @@
 /**
- * D-236: the agent loop. The model reads the plan through tools, attaches
+ * D-255: the agent loop. The model reads the plan through tools, attaches
  * interface actions, and writes the answer; code runs every tool and checks
  * every id and number of the final text against what the tools returned.
  *
@@ -55,6 +55,13 @@ export function agentSystemPrompt(plan: PlanDocument, hasBefore: boolean): strin
   ].join('\n');
 }
 
+export const PLAN_CHANGED_NOTE =
+  'После предыдущих ответов план изменили — например, применили предложенный вариант. Прежние числа устарели: бери свежие данные инструментами и считай, что изменения уже в плане.';
+
+function changedSince(history: readonly AgentTurn[], revision: number): boolean {
+  return history.some((turn) => turn.revision !== revision);
+}
+
 function historyMessages(history: readonly AgentTurn[]): LlmMessage[] {
   return history.slice(-AGENT_LIMITS.maxTurns).map((turn) => ({ role: turn.role, content: turn.text }));
 }
@@ -68,7 +75,7 @@ export async function runAgent(run: AgentRun): Promise<AgentAnswer> {
   const messages: LlmMessage[] = [
     { role: 'system', content: agentSystemPrompt(run.plan, run.before !== null) },
     ...historyMessages(run.history),
-    { role: 'user', content: run.query },
+    { role: 'user', content: changedSince(run.history, run.revision) ? `${run.query}\n\n(${PLAN_CHANGED_NOTE})` : run.query },
   ];
   // Numbers the person already saw in verified answers about this very
   // revision may be repeated; answers about an older plan may not.

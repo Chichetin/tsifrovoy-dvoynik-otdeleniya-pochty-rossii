@@ -198,7 +198,7 @@ export type AssistantPanelProps = {
    */
   onAsk: (request: AssistantPanelRequest, query?: string) => void;
   /**
-   * D-236: the conversation with the plan agent. The app owns the transport,
+   * D-255: the conversation with the plan agent. The app owns the transport,
    * the history and the execution of actions; the panel shows and asks.
    */
   exchanges?: readonly AgentExchange[];

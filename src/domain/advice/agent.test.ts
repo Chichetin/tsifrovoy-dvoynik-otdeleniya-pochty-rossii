@@ -1,5 +1,5 @@
 /**
- * D-236: the plan agent's tools, the check of the model's text and the
+ * D-255: the plan agent's tools, the check of the model's text and the
  * model-free path, on the demo plan the jury opens first.
  */
 
@@ -163,4 +163,11 @@ describe('агент без модели', () => {
     expect(answer.actions.some((action) => action.kind === 'apply-candidate')).toBe(true);
     expect(answer.recommendations[0]?.scenario).toBe('place');
   });
+});
+
+test('служебный id варианта в тексте отвергается — человеку он ничего не говорит', () => {
+  const state = createAgentToolState(before, null);
+  const output = runAgentTool(state, 'find_place', { typeId: 'ot_cashier_window', zoneId: null }).output;
+  const candidate = [...state.recommendations.values()][0]!.candidates[0]!;
+  expect(checkAgentText(`Вариант ${candidate.id} подходит.`, agentEvidence(state, [output], ''))).toEqual([{ kind: 'unknown-id', token: candidate.id }]);
 });

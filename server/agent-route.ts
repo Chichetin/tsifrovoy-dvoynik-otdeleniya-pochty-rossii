@@ -1,5 +1,5 @@
 /**
- * D-236: POST /api/assistant/agent — the conversational plan agent.
+ * D-255: POST /api/assistant/agent — the conversational plan agent.
  *
  * The answer streams as NDJSON: every tool call is written the moment it runs,
  * so the person watches the agent work instead of a spinner, and the last line

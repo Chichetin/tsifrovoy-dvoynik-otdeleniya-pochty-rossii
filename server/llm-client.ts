@@ -139,7 +139,7 @@ export function createLlmClient(config: LlmConfig): LlmClient {
 }
 
 /**
- * D-236: one turn of the agent loop — the whole conversation so far and the
+ * D-255: one turn of the agent loop — the whole conversation so far and the
  * tools, back either the final text or the tool calls the model wants. The
  * reasoning text of a thinking model travels back with its tool calls: some
  * providers refuse the next turn without it.

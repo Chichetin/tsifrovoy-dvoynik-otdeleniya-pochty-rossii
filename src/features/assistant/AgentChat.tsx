@@ -1,5 +1,5 @@
 /**
- * D-236: the conversation with the plan agent.
+ * D-255: the conversation with the plan agent.
  *
  * Each exchange reads as a work log: the question, the tools the agent ran —
  * live while it works — and the answer, whose ids are buttons that show the
@@ -8,7 +8,7 @@
  * one that edits the plan, and only when pressed.
  */
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
 import type { PlanIndex } from '../../domain/plan-index';
@@ -111,14 +111,20 @@ function StepLog({ exchange, working }: { exchange: AgentExchange; working: bool
 
 export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAsk, onAction, onClear }: Props): React.JSX.Element {
   const [question, setQuestion] = useState('');
+  const history = useRef<HTMLOListElement>(null);
+  // New steps and answers arrive at the bottom of the log: keep them in view.
+  useEffect(() => {
+    const element = history.current;
+    if (element !== null) element.scrollTop = element.scrollHeight;
+  }, [exchanges]);
   const working = exchanges.some((exchange) => exchange.answer === null && exchange.error === null);
   const latest = exchanges.at(-1);
   const latestStale = latest?.answer != null && latest.answer.revision !== revision;
+  // The result of the button just pressed outranks the stale note: after
+  // «Применить» the plan has changed precisely because the person applied it.
   const status = working
     ? 'Ассистент работает с планом…'
-    : latestStale
-      ? 'План изменился после ответа — спросите заново, действия отключены.'
-      : actionStatus ?? '';
+    : actionStatus ?? (latestStale ? 'План изменился после ответа — спросите заново, действия отключены.' : '');
 
   function submit(text: string): void {
     const trimmed = text.trim();
@@ -141,7 +147,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
           </ul>
         </div>
       ) : (
-        <ol className="agent__history" aria-label="Диалог с ассистентом">
+        <ol ref={history} className="agent__history" aria-label="Диалог с ассистентом">
           {exchanges.map((exchange) => {
             const answer = exchange.answer;
             const stale = answer !== null && answer.revision !== revision;
@@ -184,7 +190,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
         </ol>
       )}
 
-      <p className={latestStale ? 'assistant__stale' : 'agent__status'} role="status" aria-atomic="true">{status}</p>
+      <p className={latestStale && actionStatus === null ? 'assistant__stale' : 'agent__status'} role="status" aria-atomic="true">{status}</p>
 
       <form
         className="agent__form"

@@ -1,5 +1,5 @@
 /**
- * Contract of the conversational plan agent (D-236).
+ * Contract of the conversational plan agent (D-255).
  *
  * The model talks to the plan only through the tools named here. Read tools
  * return what the deterministic calculation produced; interface tools attach

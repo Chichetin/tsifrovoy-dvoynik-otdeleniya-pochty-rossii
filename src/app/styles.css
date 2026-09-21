@@ -1312,7 +1312,7 @@ span.inventory__num {
   border-color: var(--accent);
 }
 
-/* D-236: the agent chat reads as a work log — question, the tools run (a
+/* D-255: the agent chat reads as a work log — question, the tools run (a
    monospace column on a rule, live while the agent works), then the answer
    with its check mark and actions. Colours only repeat what the words say. */
 .agent { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
@@ -1353,7 +1353,7 @@ span.inventory__num {
 .agent__mode { margin: 0; font-size: var(--text-xs); color: var(--color-success); }
 .agent__answer.is-fallback .agent__mode { color: var(--warning); }
 .agent__actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.agent__actions .files__button { max-width: 100%; white-space: normal; text-align: left; }
+.agent__actions .files__button { max-width: 100%; height: auto; padding: 5px 10px; white-space: normal; text-align: left; }
 .agent__status { margin: 0; min-height: 1em; font-size: var(--text-xs); color: var(--muted); }
 .agent__status:empty { min-height: 0; }
 .agent__form { display: grid; gap: 6px; }

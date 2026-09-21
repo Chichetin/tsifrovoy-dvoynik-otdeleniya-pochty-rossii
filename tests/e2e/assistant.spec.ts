@@ -11,48 +11,85 @@ import { expect, test, type Page } from './fixtures';
 import { calculateAdvice } from '../../src/domain/advice';
 import { showTab } from './side-tabs';
 
-test('разговорный ассистент: уточнение, действия, устаревание и сохранение', async ({ page }, testInfo) => {
+/**
+ * D-255: агент по плану. Без сервера отвечает расчёт в браузере — это сценарий
+ * проверяющего без ключа; с «моделью» поток подменён, чтобы проверить шаги,
+ * проверенный текст и действия детерминированно.
+ */
+test('агент без сервера: вопрос → шаги → «Применить» → сохранить → открыть заново', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo/before.json'));
+  await showTab(page, 'Инвентаризация');
+  const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+  await expect(rows).toHaveCount(53);
+
+  await showTab(page, 'Ассистент');
+  const assistant = panel(page);
+  await assistant.getByLabel('Вопрос ассистенту').fill('Куда добавить рабочее место оператора?');
+  await assistant.getByLabel('Вопрос ассистенту').press('Enter');
+  const answer = assistant.locator('.agent__answer');
+  await expect(answer).toContainText('Без LLM');
+  await expect(assistant.getByText(/Ход проверки: 2 шага/)).toBeVisible();
+  // Вопрос ассистенту сам по себе план не меняет.
+  await showTab(page, 'Инвентаризация');
+  await expect(rows).toHaveCount(53);
+
+  await showTab(page, 'Ассистент');
+  await assistant.getByRole('button', { name: /^Применить: Рабочее место оператора/ }).click();
+  await expect(assistant.getByRole('status')).toContainText('Применено');
+  await expect(assistant.getByRole('button', { name: /^Применить:/ })).toBeDisabled();
+  await showTab(page, 'Инвентаризация');
+  await expect(rows).toHaveCount(54);
+
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Сохранить', exact: true }).click()]);
+  const saved = testInfo.outputPath('agent-roundtrip.json');
+  await download.saveAs(saved);
+  await page.getByTestId('plan-file-input').setInputFiles(saved);
+  await expect(rows).toHaveCount(54);
+  await showTab(page, 'Ассистент');
+  await expect(assistant.locator('.agent__exchange')).toHaveCount(0);
+});
+
+test('агент с моделью: шаги потоком, id в тексте ведут на план, действие показывает вариант', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.route('**/api/advice/chat', async (route) => {
+  await page.route('**/api/assistant/agent', async (route) => {
     const input = route.request().postDataJSON();
-    if (input.query === 'Что добавить?') {
-      await route.fulfill({ json: { revision: input.revision, kind: 'clarify', question: 'Какое оборудование нужно разместить?' } });
-      return;
-    }
-    const request = { scenario: 'place' as const, typeId: 'ot_workplace', zoneId: null };
-    const calculated = calculateAdvice(input.plan, request);
+    const calculated = calculateAdvice(input.plan, { scenario: 'place', typeId: 'ot_cashier_window', zoneId: null });
     if (!calculated.ok) throw new Error('demo calculation failed');
     const recommendation = calculated.value[0]!;
     const candidate = recommendation.candidates[0]!;
-    await route.fulfill({ json: { revision: input.revision, kind: 'result', mode: 'llm', intent: { kind: 'request', request, preference: null }, recommendations: calculated.value, selection: { selections: [{ recommendationId: recommendation.id, factIds: candidate.facts.map((fact) => fact.id), actions: [{ kind: 'focus', ref: { kind: 'zone', id: candidate.object.zoneId } }, { kind: 'preview-candidate', recommendationId: recommendation.id, candidateId: candidate.id }] }] } } });
+    const events = [
+      { type: 'step', step: { tool: 'find_place', label: 'Поиск места: «Кассовое окно / операционная касса»', ok: true } },
+      {
+        type: 'answer',
+        answer: {
+          revision: input.revision,
+          mode: 'llm',
+          text: 'Четвёртое окно лучше поставить в Клиентском зале (z_client).',
+          steps: [{ tool: 'find_place', label: 'Поиск места: «Кассовое окно / операционная касса»', ok: true }],
+          recommendations: calculated.value,
+          actions: [
+            { kind: 'preview-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
+            { kind: 'apply-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
+            { kind: 'open-panel', panel: 'metrics' },
+          ],
+          refs: [{ kind: 'zone', id: 'z_client' }],
+        },
+      },
+    ];
+    await route.fulfill({ contentType: 'application/x-ndjson', body: events.map((event) => JSON.stringify(event)).join('\n') + '\n' });
   });
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo/before.json'));
+  await showTab(page, 'Ассистент');
   const assistant = panel(page);
-  const question = assistant.getByLabel('Вопрос ассистенту');
-  await question.fill('Что добавить?');
-  await page.keyboard.press('Tab');
-  await expect(assistant.getByRole('button', { name: 'Отправить' })).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(assistant.getByLabel('История диалога')).toContainText('Какое оборудование нужно разместить?');
-  await question.fill('Где добавить рабочее место?');
-  await assistant.getByRole('button', { name: 'Отправить' }).click();
-  await expect(assistant.getByRole('heading', { name: 'Основание', exact: true }).first()).toBeVisible();
-  const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
-  await expect(rows).toHaveCount(53);
-  await assistant.getByRole('button', { name: 'Показать на плане', exact: true }).click();
-  await assistant.getByRole('button', { name: 'Предпросмотр варианта', exact: true }).click();
-  await expect(rows).toHaveCount(53);
-  await rows.first().locator('.table__link').first().click();
-  await page.keyboard.press('Delete');
-  await expect(rows).toHaveCount(52);
-  await expect(assistant.getByRole('button', { name: 'Предпросмотр варианта', exact: true })).toBeDisabled();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Сохранить', exact: true }).click()]);
-  const saved = testInfo.outputPath('chat-roundtrip.json');
-  await download.saveAs(saved);
-  await page.getByTestId('plan-file-input').setInputFiles(saved);
-  await expect(rows).toHaveCount(52);
-  await expect(assistant.getByLabel('История диалога').locator('li')).toHaveCount(0);
+  await assistant.getByRole('button', { name: /кассовое окно ближе к входу/ }).click();
+  await expect(assistant.getByText(/сверен с расчётом/)).toBeVisible();
+  await assistant.getByRole('button', { name: 'z_client', exact: true }).click();
+  await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'zone:z_client');
+  await assistant.getByRole('button', { name: 'Открыть «Площади»' }).click();
+  await expect(page.getByRole('tab', { name: /^Площади/ })).toHaveAttribute('aria-selected', 'true');
 });
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
