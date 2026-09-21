@@ -53,4 +53,53 @@ describe('панель «Площади»', () => {
     expect(table.querySelector('caption')?.textContent).toBe('Площади зон, м²');
     for (const head of heads) expect(head.className).toContain('metrics__num');
   });
+
+  describe('вложенность зон видна в таблице', () => {
+    /** `nested.json`: «Зона ожидания» лежит внутри «Клиентской зоны». */
+    function table(): HTMLElement {
+      const metrics = measurePlan(plan);
+      if (!metrics.ok) throw new Error('площади не посчитались');
+      render(<MetricsPanel document={plan} metrics={metrics} onFocus={vi.fn()} />);
+      return within(screen.getByLabelText('Площади')).getByRole('table');
+    }
+
+    test('вложенная зона идёт сразу под родителем и помечена глубиной', () => {
+      const rows = within(table()).getAllByRole('row').slice(1);
+
+      expect(rows.map((row) => row.getAttribute('data-depth'))).toEqual(['0', '1', '0']);
+      expect(rows.map((row) => within(row).getByRole('button').textContent)).toEqual([
+        'Клиентская зона',
+        '└ Зона ожидания',
+        'Служебная зона',
+      ]);
+    });
+
+    test('список остаётся вертикальной таблицей: по строке на зону, колонки прежние', () => {
+      const rows = within(table()).getAllByRole('row').slice(1);
+
+      expect(rows).toHaveLength(plan.zones.length);
+      for (const row of rows) expect(within(row).getAllByRole('cell')).toHaveLength(4);
+    });
+
+    test('вложенность слышна, а не только видна', () => {
+      const nestedRow = within(table())
+        .getAllByRole('row')
+        .find((row) => row.getAttribute('data-depth') === '1');
+
+      const link = within(nestedRow as HTMLElement).getByRole('button');
+      expect(link.getAttribute('aria-label')).toBe('Зона ожидания, внутри зоны Клиентская зона');
+      // Значок ветки — только для глаза: скринридер прочтёт его как мусор.
+      expect(link.querySelector('.metrics__nested')?.getAttribute('aria-hidden')).toBe('true');
+    });
+
+    test('у зоны верхнего уровня нет ни отступа, ни подписи о родителе', () => {
+      const rootRow = within(table())
+        .getAllByRole('row')
+        .find((row) => row.getAttribute('data-depth') === '0');
+
+      const link = within(rootRow as HTMLElement).getByRole('button');
+      expect(link.getAttribute('aria-label')).toBeNull();
+      expect(link.style.marginInlineStart).toBe('');
+    });
+  });
 });

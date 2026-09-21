@@ -97,6 +97,66 @@ body {
   cursor: not-allowed;
 }
 
+/* A persistent, named entry point makes the assistant discoverable without
+   creating a parallel chat surface. It sits above the editor but outside the
+   right column, whose own panel remains the sole place for a conversation. */
+.assistant-launcher {
+  position: fixed;
+  z-index: 20;
+  right: calc(var(--side-right) + var(--space-3));
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: 0 3px 12px rgb(28 40 51 / 20%);
+  text-align: left;
+}
+
+.assistant-launcher:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.assistant-launcher:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.assistant-launcher__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 36%;
+  image-rendering: pixelated;
+}
+
+.assistant-launcher__copy {
+  display: grid;
+  gap: 0;
+  line-height: 1.2;
+}
+
+.assistant-launcher__copy b {
+  font-size: var(--text-s);
+}
+
+.assistant-launcher__copy small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 900px) {
+  .assistant-launcher {
+    right: var(--space-3);
+  }
+}
+
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
   padding: 3px 6px;
   border: 1px solid var(--color-line-strong);
@@ -1056,6 +1116,13 @@ span.inventory__num {
   text-align: left;
 }
 
+/* Вложенная зона в таблице площадей: отступ задаёт разметка (он зависит от
+   глубины), здесь — только приглушённый значок ветки, чтобы вложенность была
+   видна и в узкой колонке, куда отступ уже не помещается. */
+.metrics__nested {
+  color: var(--muted);
+}
+
 /* M02: the object list. Smaller type and top-aligned rows fit more of the
    list into its scroll box; a long word breaks inside its own cell instead
    of running over the neighbour. */
@@ -1706,8 +1773,24 @@ span.inventory__num {
   margin: 2px 0;
 }
 
-.view3d__item--selected {
-  background: #fff3bf;
+.view3d__pick {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view3d__pick:hover {
+  border-color: var(--accent);
+  background: var(--color-hover);
+}
+
+.view3d__item--selected .view3d__pick {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .view3d__swatch {
@@ -1862,4 +1945,95 @@ span.inventory__num {
 
 .onboarding__spacer {
   flex: 1;
+}
+
+/* UX-3: карта горячих клавиш по «?». */
+.hotkeys-map {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(33, 37, 41, 0.45);
+}
+
+.hotkeys-map__dialog {
+  max-width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.hotkeys-map__dialog:focus {
+  /* Фокус нужен читалке экрана, а не глазу — рамка читалась бы вторым кольцом. */
+  outline: none;
+}
+
+.hotkeys-map__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.hotkeys-map__title {
+  margin: 0;
+  font-size: var(--text-l);
+}
+
+.hotkeys-map__close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+.hotkeys-map__close:hover,
+.hotkeys-map__close:focus-visible {
+  color: var(--accent);
+}
+
+.hotkeys-map__group + .hotkeys-map__group {
+  margin-top: var(--space-3);
+}
+
+.hotkeys-map__group-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-s);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.hotkeys-map__list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.hotkeys-map__keys {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.hotkeys-map__keys kbd {
+  padding: 2px 6px;
+  background: var(--ground);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  font: var(--text-xs) var(--font-code);
+}
+
+.hotkeys-map__description {
+  margin: 0;
+  color: var(--text);
 }

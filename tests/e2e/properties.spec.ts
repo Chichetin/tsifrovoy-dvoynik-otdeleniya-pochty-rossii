@@ -55,11 +55,21 @@ async function selectPlacedObject(page: Page): Promise<void> {
 }
 
 test.describe('карточка свойств', () => {
-  test('без выбора карточка объясняет, чего ждёт', async ({ page }) => {
+  test('без выбора карточка свёрнута, но объяснение из неё никуда не делось (D-236)', async ({
+    page,
+  }) => {
     await page.goto('/');
-    await expect(
-      card(page).getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
-    ).toBeVisible();
+    const hint = card(page).getByText(
+      'Выберите помещение, зону, объект, перегородку или проём на плане',
+    );
+    // Раздел свёрнут: пустая карточка не занимает место в колонке…
+    await expect(hint).not.toBeVisible();
+    // …но остаётся в DOM, и заголовок раздела на месте — развернуть можно щелчком.
+    await expect(hint).toBeAttached();
+    await expect(page.getByRole('button', { name: /^Свойства/ })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
   });
 
   test('карточка помещения: название плана становится именем файла, потолок поднимает наружные стены', async ({

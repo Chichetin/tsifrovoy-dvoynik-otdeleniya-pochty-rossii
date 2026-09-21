@@ -25,7 +25,15 @@ import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
-import { arrowDelta, marqueeHits, moveObjects, pasteObjects } from './selection-edit';
+import {
+  arrowDelta,
+  duplicateObjects,
+  marqueeHits,
+  moveObjects,
+  pasteObjects,
+  rotateDelta,
+  rotateObjects,
+} from './selection-edit';
 import {
   RESIZE_HANDLES,
   grabOffset,
@@ -177,6 +185,14 @@ export function EquipmentLayer({
   // перенос остаются. Признак — из справочника, не список типов здесь.
   const selectedFixedSize =
     selectedObject !== null && isWallMounted(findObjectType(plan.catalog, selectedObject.typeId));
+  // On a thin or short object, 6 px handles from opposite sides overlap its
+  // centre. The top selection layer then catches a drag meant to move the
+  // object and turns it into a resize. Moving is the primary gesture; exact
+  // dimensions remain available in the properties card at every zoom.
+  const selectedHasRoomForResizeHandles =
+    selectedObject !== null &&
+    Math.min(selectedObject.size_m[0], selectedObject.size_m[1]) * viewport.scale >=
+      HANDLE_RADIUS_PX * 2 + 6;
   const clipboard = useRef<Clipboard | null>(null);
 
   // The group (marquee, Shift+click): visible members only, the primary among
@@ -319,7 +335,8 @@ export function EquipmentLayer({
   });
 
   // Клавиатурная правка выбранного: стрелки двигают на шаг, Shift+стрелка — на
-  // мелкий, Ctrl+C/Ctrl+V копируют и вставляют со смещением. Одно нажатие —
+  // мелкий, Ctrl+C/Ctrl+V копируют и вставляют со смещением, Ctrl+D дублирует
+  // без буфера, R/Shift+R поворачивают на фиксированный шаг. Одно нажатие —
   // одна команда, поэтому «Отменить» возвращает объект туда, где он был до
   // нажатия, а не отыгрывает кадры.
   //
@@ -357,6 +374,26 @@ export function EquipmentLayer({
         return;
       }
 
+      // Ctrl+D — «второй такой же предмет прямо сейчас», не второе имя для
+      // Ctrl+C/Ctrl+V: свой снимок каждый раз, без общего буфера и без его
+      // счётчика вставок подряд. `preventDefault` — раньше проверки выделения:
+      // иначе Ctrl+D без выделенного или со скрытым объектом уходит браузеру и
+      // открывает закладки вместо того, чтобы молча ничего не делать.
+      if (combo && event.code === 'KeyD') {
+        event.preventDefault();
+        if (selectedObject === null || !selectedVisible) return;
+        const taken = takenIds(plan, session.retired);
+        const copies = duplicateObjects(isGroup ? members : [selectedObject], taken);
+        if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
+        const last = copies.at(-1);
+        if (copies.length > 1 && onSelectMany !== undefined) {
+          onSelectMany(copies.map((copy) => copy.id));
+        } else if (last !== undefined) {
+          onSelect({ kind: 'object', id: last.id });
+        }
+        return;
+      }
+
       // Всё остальное правит выбранное — и только то, что видно на плане.
       if (selectedObject === null || !selectedVisible) return;
 
@@ -368,6 +405,20 @@ export function EquipmentLayer({
       }
 
       if (event.altKey) return;
+
+      // R поворачивает по часовой на фиксированный шаг, Shift+R — против; как
+      // ручка поворота на холсте, только у одиночного видимого объекта на
+      // разблокированном слое — у группы своей ручки поворота тоже нет.
+      const rotation = rotateDelta(event.code, event.shiftKey);
+      if (rotation !== null) {
+        if (!isGroup && !selectedLocked) {
+          event.preventDefault();
+          const [rotated] = rotateObjects([selectedObject], rotation);
+          if (rotated !== undefined) onCommand(put(rotated));
+        }
+        return;
+      }
+
       const delta = arrowDelta(event.key, event.shiftKey);
       if (delta === null) return;
       // Заблокированный слой не тянется мышью — не двигается и стрелками.
@@ -737,8 +788,14 @@ export function EquipmentLayer({
               <Label
                 key={`label-${object.id}`}
                 name={`label-${object.id}`}
-                x={label.x - label.width / 2}
-                y={label.y - height / 2}
+                // Поворот — вокруг центра объекта, поэтому точка задаётся
+                // центром, а смещение уводит бирку в её левый верхний угол.
+                // Так неповёрнутая подпись стоит ровно там же, где стояла.
+                x={label.x}
+                y={label.y}
+                offsetX={label.width / 2}
+                offsetY={height / 2}
+                rotation={label.rotation}
                 listening={false}
               >
                 {/* A pale tag under the text: dark letters on a red rack are
@@ -792,7 +849,7 @@ export function EquipmentLayer({
         {!picking || isGroup || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
           ? null
           : [
-              ...(selectedFixedSize
+              ...(selectedFixedSize || !selectedHasRoomForResizeHandles
                 ? []
                 : RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle))),
               renderRotationHandle(selectedObject),
