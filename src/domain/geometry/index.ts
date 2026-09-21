@@ -57,7 +57,18 @@ export {
   type PointPosition,
 } from './polygons';
 
-export { SNAP, settle, settlePoint, snapAxis, snapBox, snapHint, snapPoint, strongerSource } from './snap';
+export {
+  ROOM_GRID_MIN_PX,
+  SNAP,
+  roomGridCoordinates,
+  settle,
+  settlePoint,
+  snapAxis,
+  snapBox,
+  snapHint,
+  snapPoint,
+  strongerSource,
+} from './snap';
 export type {
   AxisHint,
   AxisSnap,
