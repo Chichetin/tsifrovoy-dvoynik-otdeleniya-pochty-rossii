@@ -1,7 +1,7 @@
 /**
  * Where a zone's name sits on the plan — duplicated from `zoneLabelAnchor`
  * (`src/features/plan-tools/zone-label.ts`, D-216) for `InformationLayer`'s
- * own obstacle map (D-231, UI-4).
+ * own obstacle map (D-241, UI-4).
  *
  * `InformationLayer` needs the *real* on-screen position of a zone's name to
  * keep its own labels ("45 %" and the like) off it. `src/features/layers`

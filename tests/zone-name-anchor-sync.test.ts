@@ -1,5 +1,5 @@
 /**
- * D-231 sentinel: catches divergence between the real zone-name rule
+ * D-241 sentinel: catches divergence between the real zone-name rule
  * (`zoneLabelAnchor`, D-216, `src/features/plan-tools/zone-label.ts`) and
  * `InformationLayer`'s intentional copy of it (`zoneNameAnchor`,
  * `src/features/layers/zone-name-anchor.ts`). Lives directly under `tests/`,
@@ -45,6 +45,11 @@ import { labelWidth } from '../src/features/layers/label-layout';
 import { zoneNameAnchor } from '../src/features/layers/zone-name-anchor';
 import { zoneNameBox } from '../src/features/layers/InformationLayer';
 import { zoneLabelAnchor } from '../src/features/plan-tools/zone-label';
+import {
+  ZONE_LABEL_BOX_WIDTH,
+  ZONE_LABEL_FONT_PX,
+  ZONE_LABEL_LETTER_SPACING,
+} from '../src/features/plan-tools/ZoneNameLayer';
 
 function demo(path: string): PlanDocument {
   const parsed = parsePlanDocument(JSON.parse(readFileSync(path, 'utf8')));
@@ -66,7 +71,7 @@ const square: Polygon = [
   [0, 6],
 ];
 
-describe('якорь имени зоны: копия в InformationLayer не расходится с оригиналом (D-216/D-231)', () => {
+describe('якорь имени зоны: копия в InformationLayer не расходится с оригиналом (D-216/D-241)', () => {
   for (const path of ['demo/before.json', 'demo/after.json']) {
     test(`совпадает с zoneLabelAnchor на ${path}`, () => {
       const plan = demo(path);
@@ -114,37 +119,46 @@ function zoneNamed(name: string): Zone {
   return { id: 'z_sync_check', typeId: 't_sync_check', name, polygon: square, parentId: null, layerId: 'l_sync_check', attributes: {} };
 }
 
-// D-216 draws the zone name with `ZONE_LABEL_FONT_PX` = 13, `ZONE_LABEL_LETTER_SPACING`
-// = 0.4 and wraps it into `ZONE_LABEL_BOX_WIDTH` = 118 px
-// (`src/features/plan-tools/PlanGeometryLayer.tsx:81-86`, not exported — `plan-tools`
-// is off limits to this package, D-231 review). `InformationLayer.zoneNameBox` keeps its
+// `ZoneNameLayer` (D-216/D-237, `src/features/plan-tools/ZoneNameLayer.tsx`)
+// draws the zone name with `ZONE_LABEL_FONT_PX`, `ZONE_LABEL_LETTER_SPACING`
+// and `ZONE_LABEL_BOX_WIDTH`, exported for this reason (D-241 review — `plan-tools`
+// is otherwise off limits to this package). `InformationLayer.zoneNameBox` keeps its
 // own copy of these three numbers; nothing forced them to stay equal to each other.
 // `InformationLayer.test.tsx`'s clash guard reuses the very `zoneNameBox` under test to
 // build its own expected boxes, so it cannot see a wrong constant — both sides of that
 // comparison move together. These three `expect`s compute the expected box directly from
-// the numbers above (not by calling `zoneNameBox` a second time), so a rewrite of any one
-// constant inside `zoneNameBox` diverges from the independently computed expectation here.
-describe('zoneNameBox: константы совпадают с PlanGeometryLayer.tsx:81-86, не с устаревшими 12 px / 120 px (D-231 review)', () => {
-  test('ширина считается по 13 px и добавке 0.4 px на букву (letterSpacing), не по 12 px без добавки', () => {
+// the real constants imported above (not by calling `zoneNameBox` a second time, and not
+// from numbers re-typed into this file), so a rewrite of any one constant inside either
+// `zoneNameBox` or `ZoneNameLayer.tsx` diverges from the independently computed
+// expectation here — the oracle is the real drawing code, not a copy of its numbers.
+describe('zoneNameBox: константы совпадают с реальными числами ZoneNameLayer.tsx, не с устаревшими 12 px / 120 px (D-241 review)', () => {
+  test('ширина считается по шрифту и letterSpacing ZoneNameLayer, не по устаревшим 12 px без добавки', () => {
     const zone = zoneNamed('короткое имя');
     const upper = zone.name.toLocaleUpperCase('ru');
-    const expectedWidth = Math.min(labelWidth(upper, 13) + upper.length * 0.4, 118);
+    const expectedWidth = Math.min(
+      labelWidth(upper, ZONE_LABEL_FONT_PX) + upper.length * ZONE_LABEL_LETTER_SPACING,
+      ZONE_LABEL_BOX_WIDTH,
+    );
     expect(zoneNameBox(zone, [0, 0]).width).toBeCloseTo(expectedWidth, 6);
   });
 
-  test('перенос строки считается по колонке 118 px, не по устаревшей 120 px', () => {
-    // 13 повторов буквы дают full = 118,2 px (labelWidth + letterSpacing): строго
-    // больше 118 (2 строки), но не больше 120 (1 строка) — колонка 118 против
-    // устаревшей 120 даёт разное число строк на одном и том же имени.
+  test('перенос строки считается по колонке ZoneNameLayer, не по устаревшей 120 px', () => {
+    // 13 повторов буквы дают full = 118,2 px при текущих ZONE_LABEL_FONT_PX/
+    // ZONE_LABEL_LETTER_SPACING: строго больше 118 (2 строки), но не больше 120
+    // (1 строка) — реальная колонка против устаревшей 120 даёт разное число строк
+    // на одном и том же имени.
     const zone = zoneNamed('а'.repeat(13));
+    const upper = zone.name.toLocaleUpperCase('ru');
+    const full = labelWidth(upper, ZONE_LABEL_FONT_PX) + upper.length * ZONE_LABEL_LETTER_SPACING;
+    const expectedLines = Math.ceil(full / ZONE_LABEL_BOX_WIDTH);
     const box = zoneNameBox(zone, [0, 0]);
-    expect(box.width).toBeCloseTo(118, 6);
-    expect(box.height).toBeCloseTo(2 * Math.round(13 * 1.25), 6);
+    expect(box.width).toBeCloseTo(Math.min(full, ZONE_LABEL_BOX_WIDTH), 6);
+    expect(box.height).toBeCloseTo(expectedLines * Math.round(ZONE_LABEL_FONT_PX * 1.25), 6);
   });
 
-  test('прямоугольник центрирован по Y на половине 13 px шрифта, не на устаревшем фиксированном y − 7', () => {
+  test('прямоугольник центрирован по Y на половине шрифта ZoneNameLayer, не на устаревшем фиксированном y − 7', () => {
     const zone = zoneNamed('короткое имя');
     const box = zoneNameBox(zone, [50, 200]);
-    expect(box.y).toBeCloseTo(200 - 13 / 2, 6);
+    expect(box.y).toBeCloseTo(200 - ZONE_LABEL_FONT_PX / 2, 6);
   });
 });

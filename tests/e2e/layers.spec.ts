@@ -43,7 +43,7 @@ async function savePlan(page: Page): Promise<string> {
   return readFileSync(path as string, 'utf8');
 }
 
-// D-231: сторож на расхождение реального zoneLabelAnchor (D-216,
+// D-241: сторож на расхождение реального zoneLabelAnchor (D-216,
 // `src/features/plan-tools/zone-label.ts`) и его копии в InformationLayer
 // (`zoneNameAnchor`, `src/features/layers/zone-name-anchor.ts`) переехал в
 // `tests/zone-name-anchor-sync.test.ts` (по ревью MR !182): он не трогает

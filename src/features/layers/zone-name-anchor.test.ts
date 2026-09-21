@@ -1,6 +1,6 @@
 /**
  * Same behaviour as `zone-label.test.ts` (`plan-tools`, D-216): this file
- * covers the duplicated rule (D-231) on its own, so a mutation in the copy
+ * covers the duplicated rule (D-241) on its own, so a mutation in the copy
  * is caught here without relying on the cross-module equivalence check in
  * `tests/e2e/layers.spec.ts`.
  */
@@ -21,7 +21,7 @@ function reservedAround([x, y]: [number, number]): BoundingBox {
   return { minX: x - 1.5, maxX: x + 1.5, minY: y - 0.25, maxY: y + 0.25 };
 }
 
-describe('якорь имени зоны для InformationLayer (D-231, копия D-216)', () => {
+describe('якорь имени зоны для InformationLayer (D-241, копия D-216)', () => {
   test('ничего не мешает — подпись в центре', () => {
     expect(zoneNameAnchor(square, [])).toEqual([3, 3]);
   });

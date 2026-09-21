@@ -32,10 +32,13 @@ const SWATCH = 8;
 const LEGEND_FONT = 12;
 const LEGEND_ROW = 18;
 /**
- * The zone name drawn by the geometry layer (D-216, `ZONE_LABEL_FONT_PX` /
- * `ZONE_LABEL_BOX_WIDTH` / `ZONE_LABEL_LETTER_SPACING` in `PlanGeometryLayer.tsx`):
- * 13 px, upper-case, letter-spaced, wrapped into a 118 px column. Mirrored
- * here as plain numbers — same duplication reasoning as `zone-name-anchor.ts`.
+ * The zone name drawn by `ZoneNameLayer` (D-216/D-237, `ZONE_LABEL_FONT_PX` /
+ * `ZONE_LABEL_BOX_WIDTH` / `ZONE_LABEL_LETTER_SPACING` in
+ * `src/features/plan-tools/ZoneNameLayer.tsx`): 13 px, upper-case,
+ * letter-spaced, wrapped into a 118 px column. Mirrored here as plain
+ * numbers — same duplication reasoning as `zone-name-anchor.ts`; kept in
+ * sync by `tests/zone-name-anchor-sync.test.ts`, which imports the real
+ * constants rather than a second hand-copied set of numbers (D-241 review).
  */
 const ZONE_NAME_FONT = 13;
 const ZONE_NAME_COLUMN = 118;
@@ -88,7 +91,7 @@ function layerColor(type: LayerType): string {
  *
  * Exported so `InformationLayer.test.tsx` can compute the same box the
  * component itself uses, rather than a hand-rolled approximation that could
- * drift from production and stop catching a regression (D-231 review).
+ * drift from production and stop catching a regression (D-241 review).
  */
 export function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
   const upper = zone.name.toLocaleUpperCase('ru');
@@ -107,9 +110,9 @@ export function InformationLayer({
   const { viewport } = session;
   const screen = (point: Point): [number, number] => modelToScreen(point, viewport);
 
-  // Footprints a zone name steers around (D-216) — same input PlanGeometryLayer
+  // Footprints a zone name steers around (D-216) — same input `ZoneNameLayer`
   // feeds its real `zoneLabelAnchor`, so this layer's copy (`zoneNameAnchor`,
-  // D-231) lands on the same point. Model metres and independent of the
+  // D-241) lands on the same point. Model metres and independent of the
   // viewport, so a pan or zoom frame does not pay for it again.
   const objectBoxes: BoundingBox[] = useMemo(() => {
     const visibleLayers = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
