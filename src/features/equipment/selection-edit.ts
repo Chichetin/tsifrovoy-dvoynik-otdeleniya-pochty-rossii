@@ -14,8 +14,18 @@
 
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import { nextFreeId } from '../../domain/commands';
-import { footprint, intersects } from '../../domain/geometry';
-import { snapPosition } from './transform';
+import { footprint, intersects, normalizeAngle } from '../../domain/geometry';
+import { ROTATION_SNAP_DEG, snapPosition } from './transform';
+
+/**
+ * Ключ атрибута «инвентарный номер» — тот же, что в
+ * `data/catalog/object-types.json` и `INVENTORY_NUMBER_KEY`
+ * (`src/features/inventory/rows.ts`). Импортировать оттуда нельзя: соседние
+ * features не берут файлы друг у друга (`no-restricted-imports`,
+ * `docs/project-structure.md`), поэтому строка продублирована здесь —
+ * единственное место в этом файле, где она нужна.
+ */
+const INVENTORY_NUMBER_KEY = 'inventoryNumber';
 
 /**
  * Шаг сдвига стрелкой и мелкий шаг с Shift. Шаг постоянный, а не «текущий шаг
@@ -61,6 +71,27 @@ export function moveObjects(objects: readonly Equipment[], delta: Point): Equipm
   }));
 }
 
+/**
+ * `R` поворачивает выделенное на `ROTATION_SNAP_DEG` по часовой, `Shift+R` —
+ * против. Шаг — тот же, что уже даёт `Shift` при поворотах указателем
+ * (`ROTATION_SNAP_DEG` в `transform.ts`, D-235): одна клавиша не должна учить
+ * пользователя второму числу для того же жеста. Не `R` — `null`.
+ */
+export function rotateDelta(code: string, shift: boolean): number | null {
+  if (code !== 'KeyR') return null;
+  return shift ? -ROTATION_SNAP_DEG : ROTATION_SNAP_DEG;
+}
+
+/** Набор, повёрнутый на `deltaDeg`; остальные поля не трогаются. */
+export function rotateObjects(objects: readonly Equipment[], deltaDeg: number): Equipment[] {
+  return objects.map((object) => ({
+    ...object,
+    // `|| 0` убирает «-0», как и в transform.ts: карточка не должна печатать
+    // минус там, где угол на самом деле нулевой.
+    rotation_deg: normalizeAngle(object.rotation_deg + deltaDeg) || 0,
+  }));
+}
+
 /** Объекты — `eq_<n>`; правило выдачи одно на весь план (`nextFreeId`, D-198). */
 export function nextObjectId(taken: Set<Id>): Id {
   return nextFreeId('eq_', taken);
@@ -90,6 +121,25 @@ export function pasteObjects(
       zoneId: null,
     };
   });
+}
+
+/**
+ * Копии набора для `Ctrl+D` — своя команда, не второе имя для `Ctrl+C`/
+ * `Ctrl+V`: без буфера, всегда от текущего выделения, шаг смещения всегда
+ * первый (`pasteObjects(…, 1)`), так что повторное «Ctrl+D» от уже
+ * выделенной копии просто уводит следующую копию туда же на `PASTE_OFFSET_M`
+ * дальше — держать свой счётчик вставок не нужно.
+ *
+ * `inventoryNumber` копия не наследует: это ярлык физического предмета, а
+ * дубликат — другой предмет, для которого специалист по инвентаризации
+ * впишет свой номер, а не унаследует чужой (в отличие от `pasteObjects`,
+ * который остальные атрибуты копирует как есть).
+ */
+export function duplicateObjects(source: readonly Equipment[], taken: ReadonlySet<Id>): Equipment[] {
+  return pasteObjects(source, taken, 1).map((object) => ({
+    ...object,
+    attributes: { ...object.attributes, [INVENTORY_NUMBER_KEY]: null },
+  }));
 }
 
 /**

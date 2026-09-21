@@ -26,7 +26,7 @@ import type {
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
-import { footprintArea, polygonArea } from '../../domain/geometry';
+import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 
 type Errors = Record<string, string>;
@@ -298,6 +298,14 @@ export function PropertiesPanel({
     // Название плана живёт здесь, а не в отдельной шапке: помещение — это и
     // есть план для сотрудника, а имя файла берётся из названия (D-152).
     const ceiling = parseNumber(shown('ceilingHeight_m', String(room.ceilingHeight_m)));
+    // null — у контура площади нет: сам себя пересекает или схлопнут. Ворота
+    // те же, что у панели площадей, поэтому две панели не спорят о числе;
+    // карточка только выбирает слова (D-242).
+    const area = ringArea(room.boundary);
+    const areaHint =
+      area === null
+        ? `Контур пересекает сам себя: площадь по нему не считается. Вершин ${room.boundary.length}`
+        : `Площадь по контуру ${formatArea(area)}, вершин ${room.boundary.length}`;
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства помещения</h2>
@@ -339,8 +347,7 @@ export function PropertiesPanel({
 
         {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии. */}
         <p className="props__hint" data-testid="props-room-area">
-          Площадь по контуру {formatArea(polygonArea(room.boundary))}, вершин {room.boundary.length}; контур тянется
-          за вершины на плане
+          {areaHint}; контур тянется за вершины на плане
         </p>
       </section>
     );
@@ -370,7 +377,19 @@ export function PropertiesPanel({
           <select
             aria-label="Тип зоны"
             value={zone.typeId}
-            onChange={(event) => commit('typeId', { ...zone, typeId: event.target.value })}
+            onChange={(event) => {
+              // Смена типа переименовывает зону в название типа — одной
+              // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
+              // связи нет: правка имени тип не трогает.
+              const typeId = event.target.value;
+              const renamed = findZoneType(plan.catalog, typeId);
+              setDraft((current) => without(current, 'name'));
+              commit('typeId', {
+                ...zone,
+                typeId,
+                name: renamed === null ? zone.name : renamed.label,
+              });
+            }}
           >
             {plan.catalog.zoneTypes.map((entry) => (
               <option key={entry.id} value={entry.id}>
