@@ -95,7 +95,7 @@ export function ValidationPanel({
 
 function TechnicalDetails({ issue }: { issue: ValidationIssue }): React.JSX.Element {
   return (
-    <dl className="issues__technical" aria-label="Технические детали находки">
+    <dl className="issues__technical" aria-label="Технические детали находки" translate="no">
       <div>
         <dt>Код</dt>
         <dd><code>{issue.code}</code></dd>

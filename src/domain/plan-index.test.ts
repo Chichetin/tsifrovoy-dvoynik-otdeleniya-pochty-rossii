@@ -32,12 +32,14 @@ describe('индекс «id → название» (D-202)', () => {
     );
   });
 
-  test('чего нет — null, а не выдуманное имя; у стен и проёмов имени нет', () => {
+  test('известные стены и проёмы получают рабочее название, отсутствующие — null', () => {
     expect(index.objectLabel('eq_ghost')).toBeNull();
     expect(index.zoneName('z_ghost')).toBeNull();
     expect(index.nameOf({ kind: 'room', id: 'room_other' })).toBeNull();
-    expect(index.nameOf({ kind: 'wall', id: plan.walls[0]?.id ?? 'w_1' })).toBeNull();
-    expect(index.nameOf({ kind: 'opening', id: 'op_1' })).toBeNull();
+    expect(index.nameOf({ kind: 'wall', id: plan.walls[0]!.id })).toBe('Стена');
+    expect(index.nameOf({ kind: 'opening', id: plan.openings[0]!.id })).toBe('Главный вход');
+    expect(index.nameOf({ kind: 'wall', id: 'w_ghost' })).toBeNull();
+    expect(index.nameOf({ kind: 'opening', id: 'op_ghost' })).toBeNull();
     // Индекс над ничем — для панели без документа.
     expect(EMPTY_INDEX.nameOf({ kind: 'zone', id: plan.zones[0]!.id })).toBeNull();
     expect(EMPTY_INDEX.objectTypeLabel(plan.objects[0]!.typeId)).toBeNull();

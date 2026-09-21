@@ -13,6 +13,7 @@ import nested from '../../contracts/fixtures/nested.json';
 import type { Issue, PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { ValidationIssue } from '../../domain/validation';
+import { RELATION_ISSUE_CODES, relationIssues } from '../../domain/relations';
 import { ValidationPanel } from './ValidationPanel';
 
 afterEach(cleanup);
@@ -68,6 +69,7 @@ describe('названия в находках', () => {
     expect(screen.getByText('zone:z_client')).not.toBeNull();
     expect(screen.getByText('rule_bench_min')).not.toBeNull();
     expect(screen.getByText('/objects/0/position')).not.toBeNull();
+    expect(screen.getByLabelText('Технические детали находки').getAttribute('translate')).toBe('no');
   });
 
   test('клик по находке ведёт к тому, о чём она', () => {
@@ -83,6 +85,42 @@ describe('названия в находках', () => {
     renderPanel([ghost], plan);
 
     expect(screen.getByRole('button', { name: 'eq_ghost' })).not.toBeNull();
+  });
+
+  test('известные стена и проём названы без raw id', () => {
+    const infrastructure: Issue = {
+      ...collision,
+      refs: [
+        { kind: 'wall', id: 'w_north' },
+        { kind: 'opening', id: 'op_entrance' },
+      ],
+    };
+    renderPanel([infrastructure], plan);
+
+    expect(screen.getByRole('button', { name: 'Стена' })).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Главный вход' })).not.toBeNull();
+    expect(screen.queryByText('w_north')).toBeNull();
+    expect(screen.queryByText('op_entrance')).toBeNull();
+  });
+
+  test('реальная находка связи называет объект, а не его id', () => {
+    const relocated: PlanDocument = {
+      ...plan,
+      objects: plan.objects.map((object) =>
+        object.id === 'eq_bench_1'
+          ? { ...object, position: [9.5, 7.9], zoneId: null }
+          : object,
+      ),
+    };
+    const finding = relationIssues(relocated).find(
+      (issue) => issue.code === RELATION_ISSUE_CODES.ZONE_UNASSIGNED,
+    );
+    if (finding === undefined) throw new Error('Ожидалась находка неназначенного объекта');
+
+    renderPanel([finding], relocated);
+
+    expect(screen.getByText('Объект «Скамья 1» не лежит целиком ни в одной зоне.')).not.toBeNull();
+    expect(screen.queryByText(/eq_bench_1/)).toBeNull();
   });
 
   test('без документа панель показывает id и не ломается', () => {
