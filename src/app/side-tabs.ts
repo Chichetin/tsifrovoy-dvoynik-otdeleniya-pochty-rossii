@@ -14,8 +14,8 @@ export type RightTab = 'assistant' | 'metrics' | 'validation' | 'inventory' | 'c
 export type TabDef<T extends string> = { id: T; title: string };
 
 export const LEFT_TABS: readonly TabDef<LeftTab>[] = [
-  { id: 'layers', title: 'Слои' },
   { id: 'library', title: 'Библиотека' },
+  { id: 'layers', title: 'Слои' },
 ];
 
 export const RIGHT_TABS: readonly TabDef<RightTab>[] = [
