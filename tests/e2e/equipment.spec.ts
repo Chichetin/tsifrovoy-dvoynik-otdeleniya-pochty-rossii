@@ -335,6 +335,27 @@ test.describe('жесты над оборудованием', () => {
     await expect(inventoryRows(page)).toHaveCount(2);
   });
 
+  test('сразу после установки выбранный объект можно перетащить', async ({ page }) => {
+    await page.goto('/');
+    const centre: Screen = { x: 420, y: 330 };
+    await page.locator('.library__item', { hasText: RACK }).first().click();
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    const x0 = await numberOf(page, 'X, м');
+    const width0 = await numberOf(page, 'Ширина, м');
+    const depth0 = await numberOf(page, 'Глубина, м');
+
+    // Никакого дополнительного клика «Выбор»: успешная постановка сама
+    // возвращает инструмент в режим редактирования. У стеллажа глубина на
+    // экране меньше диаметра обычных ручек: центральный захват обязан всё
+    // равно переносить объект, а не менять его размер.
+    await drag(page, centre, { x: centre.x + 120, y: centre.y });
+    await expect.poll(() => numberOf(page, 'X, м')).toBeGreaterThan(x0 + 0.5);
+    expect(await numberOf(page, 'Ширина, м')).toBe(width0);
+    expect(await numberOf(page, 'Глубина, м')).toBe(depth0);
+    await expect(inventoryRows(page)).toHaveCount(1);
+  });
+
   test('отклонённая установка оставляет тип активным для повторной попытки', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
