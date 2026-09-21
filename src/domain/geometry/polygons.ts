@@ -256,7 +256,7 @@ export function isSimplePolygon(polygon: Polygon): boolean {
 
 /**
  * Area of a ring for human eyes: a number only when the ring actually has an
- * area, `null` otherwise (D-234).
+ * area, `null` otherwise (D-242).
  *
  * `polygonArea` does not fail on a self-crossing ring, it measures something
  * else: the halves of a bow tie come with opposite signs and cancel out to

@@ -152,7 +152,7 @@ describe('простой контур', () => {
 });
 
 /**
- * An honest area or none at all (D-234). `polygonArea` is the absolute value of
+ * An honest area or none at all (D-242). `polygonArea` is the absolute value of
  * the shoelace sum: on a self-crossing ring its halves carry opposite signs and
  * cancel out, so a 4 m bow tie reports a flat 0 m². Showing that number to a
  * clerk is lying with a figure, so the area meant for the interface answers the
