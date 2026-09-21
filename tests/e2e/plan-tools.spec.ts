@@ -399,6 +399,44 @@ test.describe('инструменты плана', () => {
     expect(errors).toEqual([]);
   });
 
+  test('зона поверх соседней: вложенная — тихо, наполовину вышедшая — одна находка (D-223)', async ({
+    page,
+  }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const checks = page.getByLabel('Проверка плана');
+    // Наполовину вышла из внешней зоны: слева 0,1 против её 0,2.
+    const HALF = [
+      [0.1, 0.3],
+      [0.5, 0.3],
+      [0.5, 0.6],
+      [0.1, 0.6],
+    ] as const;
+
+    await drawRing(page, 'Помещение', ring(size, ROOM), { alt: true });
+    await page.keyboard.press('Escape');
+    await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
+    await page.keyboard.press('Escape');
+
+    await drawRing(page, 'Зона', ring(size, HALF), { alt: true });
+    await page.keyboard.press('Escape');
+    // Левый край новой зоны лежит вне внешней: клик по нему выбирает только её.
+    await clickAt(page, px(size, 0.15, 0.45));
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByLabel('Внутри зоны')).toHaveValue('');
+    await expect(checks).toContainText('пересекаются, не вкладываясь');
+
+    // Та же зона, обведённая целиком внутри: вложенность, а не находка.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await drawRing(page, 'Зона', ring(size, INNER), { alt: true });
+    await page.keyboard.press('Escape');
+    await clickAt(page, px(size, 0.45, 0.45));
+    // Отмена вернула id: это снова z_2, но уже вложенная зона, а не находка.
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card.getByLabel('Внутри зоны')).toHaveValue('z_1');
+    await expect(checks).not.toContainText('пересекаются, не вкладываясь');
+  });
+
   test('самопересечение отклоняется, а зона удаляется и возвращается отменой', async ({
     page,
   }, testInfo: TestInfo) => {
