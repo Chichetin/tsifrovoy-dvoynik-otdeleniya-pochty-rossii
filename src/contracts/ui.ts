@@ -201,6 +201,7 @@ export type AssistantPanelProps = {
 export type View3DProps = {
   document: PlanDocument;
   selection: Ref | null;
+  onSelect: SelectSink;
 };
 
 /** Tool controllers exported by U03 and U04. */
