@@ -133,10 +133,10 @@ describe('панель инструментов плана', () => {
 
   it('подсказка панорамирования называет тачпад и среднюю кнопку', () => {
     const { onTool } = show(null);
-    fireEvent.click(screen.getByRole('button', { name: 'Рука' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Обзор' }));
 
     expect(onTool).toHaveBeenCalledWith({ kind: 'pan' });
-    expect(screen.getByRole('button', { name: 'Рука' }).getAttribute('title')).toContain(
+    expect(screen.getByRole('button', { name: 'Обзор' }).getAttribute('title')).toContain(
       'свайп двумя пальцами на тачпаде',
     );
   });
