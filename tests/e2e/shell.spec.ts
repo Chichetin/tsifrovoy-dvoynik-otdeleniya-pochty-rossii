@@ -23,7 +23,7 @@ async function layout(page: Page): Promise<Layout> {
     const canvas = document.querySelector<HTMLElement>('.shell__canvas');
     if (bar === null || canvas === null) throw new Error('оболочка не смонтирована');
     const buttons = Array.from(
-      bar.querySelectorAll<HTMLElement>('.toolbar > button, .shell__view button, .shell__history button, .files > button, .files__export > button'),
+      bar.querySelectorAll<HTMLElement>('.toolbar > button, .shell__view button, .shell__history button, .shell__help, .files > button, .files__export > button'),
     );
     return {
       bar: Math.round(bar.getBoundingClientRect().height),
@@ -41,9 +41,13 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
   expect(now.overflow, `шапка не шире окна: ${label}`).toBeLessThanOrEqual(0);
   expect(new Set(now.rowTops).size, `кнопки шапки в одну строку: ${label}`).toBe(1);
   const viewport = page.viewportSize();
+  // D-259: кнопка карты горячих клавиш — в шапке, на экране, левее «Экспорт».
+  const help = await page.locator('.shell__bar').getByRole('button', { name: 'Горячие клавиши', exact: true }).boundingBox();
+  expect(help, `кнопка «Горячие клавиши» в шапке: ${label}`).not.toBeNull();
   const right = await page.getByRole('button', { name: 'Экспорт' }).boundingBox();
   expect(right, 'кнопка «Экспорт» на экране').not.toBeNull();
   expect(right!.x + right!.width, `«Экспорт» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
+  expect(help!.x + help!.width, `«Горячие клавиши» левее «Экспорт»: ${label}`).toBeLessThanOrEqual(right!.x);
 }
 
 for (const size of [
