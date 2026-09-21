@@ -101,7 +101,6 @@ for (const size of [
       await expect(page.locator('.files > .files__status')).toHaveText('есть несохранённые правки');
       await expectOneRow(page, reference, 'выбрана перегородка, есть правки');
       const worst = await layout(page);
-      console.log(`D-261 slack ${size.width}px: ${worst.slack.toFixed(1)}`);
       expect(worst.slack, `запас шапки в худшем состоянии на ${size.width} px`).toBeGreaterThanOrEqual(MIN_SLACK_PX);
 
       // Открытый демо-план: подпись файла и черновика в строке статуса, не в строке кнопок.
