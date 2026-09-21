@@ -9,7 +9,15 @@ afterEach(() => {
   cleanup();
 });
 
-function Harness({ start = 'assistant' as RightTab }: { start?: RightTab }): React.JSX.Element {
+function Harness({
+  start = 'assistant' as RightTab,
+  collapsed = false,
+  onSelect,
+}: {
+  start?: RightTab;
+  collapsed?: boolean;
+  onSelect?: (id: RightTab) => void;
+}): React.JSX.Element {
   const [active, setActive] = useState<RightTab>(start);
   return (
     <SideTabs
@@ -17,7 +25,11 @@ function Harness({ start = 'assistant' as RightTab }: { start?: RightTab }): Rea
       idPrefix="right"
       tabs={RIGHT_TABS}
       active={active}
-      onSelect={setActive}
+      onSelect={(id) => {
+        setActive(id);
+        onSelect?.(id);
+      }}
+      collapsed={collapsed}
       badges={{ validation: { text: '3', tone: 'error' } }}
       panels={{
         assistant: <p>панель ассистента</p>,
@@ -68,4 +80,17 @@ test('the badge is part of the tab name and carries the error tone', () => {
   const tab = screen.getByRole('tab', { name: 'Проверка 3' });
   expect(tab.querySelector('.side-tabs__badge.is-error')?.textContent).toBe('3');
   expect(tab.getAttribute('aria-controls')).toBe('right-panel-validation');
+});
+
+test('collapsed hides every panel but keeps the tab row, and a click on a tab restores it', () => {
+  const selected: RightTab[] = [];
+  render(<Harness collapsed onSelect={(id) => selected.push(id)} />);
+  expect(screen.getByRole('tablist', { name: 'Панели справа' })).toBeTruthy();
+  for (const name of ['панель ассистента', 'панель площадей', 'панель проверки', 'панель инвентаризации', 'панель справочника']) {
+    expect(screen.getByText(name).closest('[hidden]')).not.toBeNull();
+  }
+  // A collapsed panel is not "the active one" for assistive tech either.
+  expect(screen.getByRole('tab', { name: 'Ассистент' }).getAttribute('aria-selected')).toBe('false');
+  fireEvent.click(screen.getByRole('tab', { name: /Проверка/ }));
+  expect(selected).toEqual(['validation']);
 });

@@ -60,6 +60,9 @@ async function dragFromLibrary(page: Page, label: string, x: number, y: number):
 
 /** Выбор по строке перечня: не зависит от попадания мышью в фигуру. */
 async function selectRow(page: Page, index: number): Promise<void> {
+  // После выбора на плане справа только «Свойства»: вкладка возвращает перечень.
+  const tab = page.getByRole('tab', { name: /^Инвентаризация/ });
+  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
   await inventoryRows(page).nth(index).getByRole('button').first().click();
 }
 

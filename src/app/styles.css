@@ -1013,6 +1013,17 @@ body {
   margin-bottom: 0;
 }
 
+/* A pick on the plan shows «Свойства» over the column; only the row of tabs stays below. */
+.side-tabs.is-collapsed {
+  flex: 0 0 auto;
+}
+
+.shell__props:has(+ .side-tabs.is-collapsed) {
+  flex: 1 1 auto;
+  max-height: none;
+  border-bottom: none;
+}
+
 /* Sits on the card's own heading line; the heading keeps room for it. */
 .shell__props > .panel > .panel__title {
   padding-right: 32px;

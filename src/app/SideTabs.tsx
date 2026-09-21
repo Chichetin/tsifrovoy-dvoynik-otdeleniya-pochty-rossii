@@ -27,6 +27,11 @@ export type SideTabsProps<T extends string> = {
   /** Short live counters next to a tab title, e.g. the number of findings. */
   badges?: Partial<Record<T, TabBadge>>;
   panels: Record<T, ReactNode>;
+  /**
+   * Hides the panels but keeps the row of tabs (e.g. while «Свойства» take the
+   * column): panels stay mounted, and a click on any tab brings them back.
+   */
+  collapsed?: boolean;
 };
 
 export function SideTabs<T extends string>({
@@ -37,6 +42,7 @@ export function SideTabs<T extends string>({
   onSelect,
   badges,
   panels,
+  collapsed = false,
 }: SideTabsProps<T>): React.JSX.Element {
   const list = useRef<HTMLDivElement>(null);
 
@@ -50,7 +56,7 @@ export function SideTabs<T extends string>({
   };
 
   return (
-    <div className="side-tabs">
+    <div className={collapsed ? 'side-tabs is-collapsed' : 'side-tabs'}>
       <div ref={list} className="side-tabs__list" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
         {tabs.map((tab) => {
           const selected = tab.id === active;
@@ -62,7 +68,7 @@ export function SideTabs<T extends string>({
               type="button"
               role="tab"
               className="side-tabs__tab"
-              aria-selected={selected}
+              aria-selected={selected && !collapsed}
               aria-controls={`${idPrefix}-panel-${tab.id}`}
               tabIndex={selected ? 0 : -1}
               onClick={() => onSelect(tab.id)}
@@ -84,7 +90,7 @@ export function SideTabs<T extends string>({
           id={`${idPrefix}-panel-${tab.id}`}
           className="side-tabs__panel"
           role="tabpanel"
-          hidden={tab.id !== active}
+          hidden={collapsed || tab.id !== active}
         >
           {panels[tab.id]}
         </div>
