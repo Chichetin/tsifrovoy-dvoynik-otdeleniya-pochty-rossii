@@ -43,6 +43,14 @@ async function savePlan(page: Page): Promise<string> {
   return readFileSync(path as string, 'utf8');
 }
 
+// D-241: сторож на расхождение реального zoneLabelAnchor (D-216,
+// `src/features/plan-tools/zone-label.ts`) и его копии в InformationLayer
+// (`zoneNameAnchor`, `src/features/layers/zone-name-anchor.ts`) переехал в
+// `tests/zone-name-anchor-sync.test.ts` (по ревью MR !182): он не трогает
+// браузер, а `vitest.config.ts` уже включает `tests/**/*.test.ts` в обычный
+// `npm test`, так что расхождение ловится за секунды, а не за десять минут
+// полного `test:e2e`.
+
 test.describe('слои в браузере', () => {
   test('создать, переименовать, скрыть, запереть и удалить с переносом', async ({ page }) => {
     const errors: string[] = [];

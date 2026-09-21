@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import { type HotkeyEvent, historyHotkey, isFitHotkey, isTypingTarget } from './hotkeys';
+import {
+  type HotkeyEvent,
+  historyHotkey,
+  isFitHotkey,
+  isHotkeysMapHotkey,
+  isTypingTarget,
+} from './hotkeys';
 
 function event(patch: Partial<HotkeyEvent> = {}): HotkeyEvent {
   return {
@@ -79,5 +85,33 @@ describe('история правок с клавиатуры', () => {
 
   it('в поле ввода отменяется текст, а не план', () => {
     expect(historyHotkey(event({ code: 'KeyZ', ...ctrl, target: document.createElement('input') }))).toBeNull();
+  });
+});
+
+describe('карта горячих клавиш по ?', () => {
+  it('Shift+Slash открывает карту — так же на русской раскладке (D-128 держит код, не букву)', () => {
+    expect(isHotkeysMapHotkey(event({ code: 'Slash', shiftKey: true }))).toBe(true);
+  });
+
+  it('Slash без Shift — не то же самое, что «?»', () => {
+    expect(isHotkeysMapHotkey(event({ code: 'Slash', shiftKey: false }))).toBe(false);
+  });
+
+  it.each([
+    ['Ctrl', { ctrlKey: true }],
+    ['Meta', { metaKey: true }],
+    ['Alt', { altKey: true }],
+  ])('не срабатывает с модификатором %s', (_name, patch) => {
+    expect(isHotkeysMapHotkey(event({ code: 'Slash', shiftKey: true, ...patch }))).toBe(false);
+  });
+
+  it('молчит, пока пользователь печатает', () => {
+    expect(
+      isHotkeysMapHotkey(event({ code: 'Slash', shiftKey: true, target: document.createElement('textarea') })),
+    ).toBe(false);
+  });
+
+  it('другая клавиша — не карта клавиш', () => {
+    expect(isHotkeysMapHotkey(event({ code: 'KeyR', shiftKey: true }))).toBe(false);
   });
 });

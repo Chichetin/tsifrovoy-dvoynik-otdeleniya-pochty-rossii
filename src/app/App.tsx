@@ -60,6 +60,8 @@ import {
   type SectionState,
 } from './right-column';
 import { Section } from './Section';
+import { HotkeysMapDialog } from './HotkeysMapDialog';
+import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
@@ -86,6 +88,9 @@ export function App(): React.JSX.Element {
     rememberTour(tourStorage(), outcome);
     setTourOpen(false);
   }, []);
+  // UX-3: карта горячих клавиш по «?» — открытие, закрытие и возврат фокуса
+  // живут в самом хуке (hotkeys-map.ts), здесь только кнопка и накладка.
+  const hotkeysMap = useHotkeysMapDialog();
 
   // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
   // store, поэтому слушатель один, здесь, а не в каждом слое холста.
@@ -455,6 +460,9 @@ export function App(): React.JSX.Element {
           >
             Обучение
           </button>
+          <button type="button" className="shell__tour" title="Список всех горячих клавиш" onClick={hotkeysMap.show}>
+            Горячие клавиши (?)
+          </button>
         </aside>
 
         <main className="shell__canvas">
@@ -606,6 +614,7 @@ export function App(): React.JSX.Element {
 
       <Onboarding open={tourOpen} onClose={closeTour} />
       <AssistantLauncher onOpen={openAssistant} />
+      <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
     </div>
   );
 }
