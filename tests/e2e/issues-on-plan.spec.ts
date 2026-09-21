@@ -8,8 +8,8 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
-import { showTab } from './side-tabs';
+import { expect, test, type Locator, type Page } from './fixtures';
+import { showTab, sideTab } from './side-tabs';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -34,6 +34,46 @@ async function markers(page: Page): Promise<MarkerView[]> {
       radius: node.findOne('Circle')?.radius() ?? 0,
     }));
   });
+}
+
+type ScreenPoint = { x: number; y: number };
+
+/** Центр фигуры Konva с этим именем, в пикселях холста (без смещения страницы). */
+async function nodeCentre(page: Page, selector: string): Promise<ScreenPoint | null> {
+  return page.evaluate((sel) => {
+    type Rect = { x: number; y: number; width: number; height: number };
+    type KonvaNode = { getClientRect: () => Rect };
+    type KonvaGlobal = { stages: { findOne(selector: string): KonvaNode | undefined }[] };
+    const konva = (window as unknown as { Konva?: KonvaGlobal }).Konva;
+    const rect = konva?.stages[0]?.findOne(sel)?.getClientRect();
+    return rect === undefined ? null : { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  }, selector);
+}
+
+/** Тот же центр, но клик по маркеру ищется среди всех `.issue-marker` по его `id`. */
+async function markerCentre(page: Page, markerId: string): Promise<ScreenPoint | null> {
+  return page.evaluate((id) => {
+    type Rect = { x: number; y: number; width: number; height: number };
+    type KonvaNode = { id(): string; getClientRect: () => Rect };
+    type KonvaGlobal = { stages: { find(selector: string): KonvaNode[] }[] };
+    const konva = (window as unknown as { Konva?: KonvaGlobal }).Konva;
+    const node = konva?.stages[0]?.find('.issue-marker').find((entry) => entry.id() === id);
+    const rect = node?.getClientRect();
+    return rect === undefined ? null : { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  }, markerId);
+}
+
+/** Клик по точке холста в его собственных пикселях (см. `nodeCentre`/`markerCentre`). */
+async function clickOnCanvas(page: Page, point: ScreenPoint): Promise<void> {
+  const box = await page.getByTestId('editor-canvas').boundingBox();
+  if (box === null) throw new Error('холст не виден');
+  await page.mouse.click(box.x + point.x, box.y + point.y);
+}
+
+const card = (page: Page): Locator => page.getByLabel('Свойства');
+
+async function numberOf(page: Page, label: string): Promise<number> {
+  return Number(await card(page).getByLabel(label).inputValue());
 }
 
 /**
@@ -117,6 +157,75 @@ test('находки примера помечены на плане без кл
   await expect.poll(async () => (await markers(page)).some((m) => m.focused)).toBe(false);
   expect(await markers(page)).toHaveLength(listed.size);
   await expect.poll(() => whitePixels(page)).toBe(whiteBefore);
+
+  expect(errors).toEqual([]);
+});
+
+test('клик по кружочку маркера открывает находку в списке проверки', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
+
+  // Координаты стеллажа записаны безопасным путём — строкой списка, ещё до
+  // клика по маркеру, чтобы ниже проверить, что клик по маркеру не толкнул
+  // объект под собой (не начал перетаскивание).
+  await showTab(page, 'Проверка');
+  const validation = page.getByLabel('Проверка плана');
+  await validation.locator('button[data-ref-id="eq_rack_1"]').first().click();
+  const baselineX = await numberOf(page, 'X, м');
+  const baselineY = await numberOf(page, 'Y, м');
+  const markerPoint = await markerCentre(page, 'issue-marker:object:eq_rack_1');
+  expect(markerPoint).not.toBeNull();
+
+  // Выбор другого объекта прямо на плане — тем же путём, каким жюри выберет
+  // мышью — сворачивает правую колонку до «Свойств» (D-260).
+  const otherPoint = await nodeCentre(page, '.equipment-eq_back_wp');
+  expect(otherPoint).not.toBeNull();
+  await clickOnCanvas(page, otherPoint as { x: number; y: number });
+  await expect(card(page).getByTestId('props-id')).toHaveText('eq_back_wp');
+  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'false');
+
+  // Во время рисования клик по тому же месту остаётся клик инструмента:
+  // список не открывается и выбор на плане не меняется. Escape здесь не
+  // нажимаем — он всегда снимает выделение вместе с черновиком контура
+  // (комментарий EditorCanvas), а тут проверяется именно судьба выделения.
+  await showTab(page, 'Инвентаризация');
+  await page.getByRole('button', { name: 'Помещение', exact: true }).click();
+  await clickOnCanvas(page, markerPoint as { x: number; y: number });
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'false');
+  await expect(card(page).getByTestId('props-id')).toHaveText('eq_back_wp');
+  await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+  // Клик по кружочку маркера в «Выбор»: открывает «Проверку» развёрнутой, а
+  // не сворачивает до «Свойств» (путь focusOn, не selectOnPlan), сущность
+  // выбрана на плане, и клик не провалился в объект под маркером.
+  await clickOnCanvas(page, markerPoint as { x: number; y: number });
+  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
+  await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
+  expect(await numberOf(page, 'X, м')).toBeCloseTo(baselineX, 3);
+  expect(await numberOf(page, 'Y, м')).toBeCloseTo(baselineY, 3);
+  await expect
+    .poll(async () => (await markers(page)).find((m) => m.focused)?.id)
+    .toBe('issue-marker:object:eq_rack_1');
+
+  // Находки стеллажа в списке выделены и первая — в зоне видимости.
+  const highlighted = validation.locator('.issues__item.is-focused');
+  await expect(highlighted.first()).toBeInViewport();
+  const highlightedCount = await highlighted.count();
+  expect(highlightedCount).toBeGreaterThan(0);
+  const allAboutRack = await highlighted.evaluateAll((nodes) =>
+    nodes.every((node) =>
+      Array.from(node.querySelectorAll('button')).some(
+        (button) => button.getAttribute('data-ref-id') === 'eq_rack_1',
+      ),
+    ),
+  );
+  expect(allAboutRack).toBe(true);
+  const ariaCurrentCount = await validation.locator('.issues__item[aria-current="true"]').count();
+  expect(ariaCurrentCount).toBe(highlightedCount);
 
   expect(errors).toEqual([]);
 });

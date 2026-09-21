@@ -1349,6 +1349,12 @@ span.inventory__num {
   border-left-color: var(--warning);
 }
 
+/* V02-marker-click: клик по маркеру на плане прокручивает список сюда. */
+.issues__item.is-focused {
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .issues__message {
   margin: 0 0 2px;
 }

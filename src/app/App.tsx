@@ -251,6 +251,19 @@ export function App(): React.JSX.Element {
     pickedOnPlan.kind === selection.kind &&
     pickedOnPlan.id === selection.id;
 
+  // A click on an issue marker (V02-marker-click) is a request for the list,
+  // not a plain pick: it takes the panel path of a row click, not
+  // `selectOnPlan`, so the tabs stay open (D-260's collapse is for a plain
+  // pick on the plan) with «Проверка» in front.
+  const focusFromMarker = useCallback(
+    (ref: Ref) => {
+      setPickedOnPlan(null);
+      focusOn(ref);
+      showRightTab('validation');
+    },
+    [focusOn, showRightTab],
+  );
+
   const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
   const placedType = useRef<Id | null>(null);
   const dispatchEquipmentCommand = useCallback(
@@ -652,7 +665,14 @@ export function App(): React.JSX.Element {
             <MeasureLayer viewport={viewport} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
-            <IssueLayer issues={issues} focus={selection} viewport={viewport} />
+            <IssueLayer
+              issues={issues}
+              focus={selection}
+              viewport={viewport}
+              // Маркер ловит клик только в «Выбор»/«Обзор»: во время рисования
+              // клик должен по-прежнему идти инструменту, ставящему точки.
+              onMarkerClick={tool.kind === 'select' || tool.kind === 'pan' ? focusFromMarker : undefined}
+            />
           </EditorCanvas>
           {view === '3d' ? (
             <View3D document={document} selection={selection} onSelect={selectOnPlan} />
@@ -711,7 +731,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} />,
               inventory: <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />,
               catalog: <CatalogPanel document={document} onCommand={dispatch} />,
             }}
