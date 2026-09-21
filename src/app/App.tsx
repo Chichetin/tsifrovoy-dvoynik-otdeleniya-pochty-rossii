@@ -19,6 +19,7 @@ import { formatArea } from '../domain/number-format';
 import { planIndex } from '../domain/plan-index';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
@@ -37,6 +38,7 @@ import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourO
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
@@ -55,8 +57,11 @@ import {
   saveSectionState,
   toggleSection,
   type SectionId,
+  type SectionState,
 } from './right-column';
 import { Section } from './Section';
+import { HotkeysMapDialog } from './HotkeysMapDialog';
+import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
@@ -83,6 +88,9 @@ export function App(): React.JSX.Element {
     rememberTour(tourStorage(), outcome);
     setTourOpen(false);
   }, []);
+  // UX-3: карта горячих клавиш по «?» — открытие, закрытие и возврат фокуса
+  // живут в самом хуке (hotkeys-map.ts), здесь только кнопка и накладка.
+  const hotkeysMap = useHotkeysMapDialog();
 
   // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
   // store, поэтому слушатель один, здесь, а не в каждом слое холста.
@@ -133,8 +141,46 @@ export function App(): React.JSX.Element {
     if (sections === initialSections.current) return;
     saveSectionState(rightColumnStorage(), sections);
   }, [sections]);
-  const toggleSectionState = useCallback((id: SectionId) => {
-    setSections((prev) => toggleSection(prev, id));
+  /**
+   * D-236: «Свойства» следуют за выбором — раскрыты, когда есть что показать,
+   * и свёрнуты, когда выбора нет: пустая карточка «ничего не выбрано» не
+   * занимает место в колонке. Остальные разделы живут своим состоянием и при
+   * выборе не прячутся: поставленный объект сразу выбран (D-147), поэтому
+   * скрытый при выборе обзор был бы скрыт почти всегда.
+   *
+   * Это не состояние, а вывод из выбора: в localStorage не пишется и чужую
+   * сохранённую раскладку не затирает.
+   */
+  const autoCollapsed = (id: SectionId): boolean =>
+    id === 'properties' ? selection === null : sections[id] === true;
+  /**
+   * Разделы, которые человек сам свернул или раскрыл при нынешнем выборе:
+   * щелчок по заголовку сильнее автоматики и живёт до смены выбора — иначе
+   * заглянуть в «Площади», не бросая выбранный объект, было бы нечем.
+   */
+  const [manualSections, setManualSections] = useState<SectionState>({});
+  const collapsedOf = (id: SectionId): boolean => manualSections[id] ?? autoCollapsed(id);
+  const toggleSectionState = useCallback(
+    (id: SectionId) => {
+      setSections((prev) => toggleSection(prev, id));
+      setManualSections((prev) => ({ ...prev, [id]: !collapsedOf(id) }));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapsedOf зависит от выбора и читается в момент щелчка
+    [selection, sections, manualSections],
+  );
+  // The launcher is deliberately only an entry point: the right-column panel
+  // remains the one place where assistant state and future chat history live.
+  // Ручную отметку «свёрнут» с него тоже снимаем: иначе кнопка прокрутит к
+  // заголовку, под которым по-прежнему пусто.
+  const openAssistant = useCallback(() => {
+    setSections((prev) => expandSection(prev, 'assistant'));
+    setManualSections((prev) => ({ ...prev, assistant: false }));
+    window.requestAnimationFrame(() => {
+      globalThis.document.getElementById('right-section-assistant')?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
   }, []);
 
   const retired = useStore(store, (state) => state.retired);
@@ -144,22 +190,21 @@ export function App(): React.JSX.Element {
     [tool, viewport, selection, selected, preview, focus, retired],
   );
 
-  // A selection just made — on the canvas or from a panel's «показать на
-  // плане» — is why the person needs the card that shows it: it opens even if
-  // its header was collapsed earlier. `expandSection` returns the same
-  // reference when it is already open, so an already-selected object does
-  // not re-render this on every store update.
+  // Смена выбора возвращает колонку к автоматике (D-236): ручные щелчки по
+  // заголовкам относились к прошлому выбранному объекту, а не к новому.
+  // Раскрывать «Свойства» отдельной командой больше не нужно — при выборе
+  // они раскрыты по определению.
   const select = useCallback(
     (ref: Ref | null) => {
       store.getState().select(ref);
-      if (ref !== null) setSections((prev) => expandSection(prev, 'properties'));
+      setManualSections({});
     },
     [store],
   );
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
       store.getState().selectMany(ids);
-      if (ids.length > 0) setSections((prev) => expandSection(prev, 'properties'));
+      setManualSections({});
     },
     [store],
   );
@@ -415,6 +460,9 @@ export function App(): React.JSX.Element {
           >
             Обучение
           </button>
+          <button type="button" className="shell__tour" title="Список всех горячих клавиш" onClick={hotkeysMap.show}>
+            Горячие клавиши (?)
+          </button>
         </aside>
 
         <main className="shell__canvas">
@@ -478,6 +526,10 @@ export function App(): React.JSX.Element {
               preview={preview}
               onGesturePreview={gesturePreview.publish}
             />
+            {/* После оборудования — иначе объект, вставший на подпись, закрывает
+                название зоны целиком; полупрозрачность не даёт подписи закрыть
+                сам объект. */}
+            <ZoneNameLayer document={document} viewport={viewport} />
             <InformationLayer document={document} session={session} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
@@ -493,7 +545,7 @@ export function App(): React.JSX.Element {
             id="properties"
             title="Свойства"
             summary={sectionSummaries.properties}
-            collapsed={sections.properties === true}
+            collapsed={collapsedOf('properties')}
             onToggle={() => toggleSectionState('properties')}
           >
             <PropertiesPanel
@@ -507,7 +559,7 @@ export function App(): React.JSX.Element {
             id="assistant"
             title="Ассистент"
             summary={sectionSummaries.assistant}
-            collapsed={sections.assistant === true}
+            collapsed={collapsedOf('assistant')}
             onToggle={() => toggleSectionState('assistant')}
           >
             <AssistantPanel
@@ -524,7 +576,7 @@ export function App(): React.JSX.Element {
             id="metrics"
             title="Площади"
             summary={sectionSummaries.metrics}
-            collapsed={sections.metrics === true}
+            collapsed={collapsedOf('metrics')}
             onToggle={() => toggleSectionState('metrics')}
           >
             <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
@@ -534,7 +586,7 @@ export function App(): React.JSX.Element {
             title="Проверка"
             summary={sectionSummaries.validation}
             summaryTone={validationHasErrors ? 'error' : undefined}
-            collapsed={sections.validation === true}
+            collapsed={collapsedOf('validation')}
             onToggle={() => toggleSectionState('validation')}
           >
             <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
@@ -543,7 +595,7 @@ export function App(): React.JSX.Element {
             id="inventory"
             title="Инвентаризация"
             summary={sectionSummaries.inventory}
-            collapsed={sections.inventory === true}
+            collapsed={collapsedOf('inventory')}
             onToggle={() => toggleSectionState('inventory')}
           >
             <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
@@ -552,7 +604,7 @@ export function App(): React.JSX.Element {
             id="catalog"
             title="Справочник"
             summary={sectionSummaries.catalog}
-            collapsed={sections.catalog === true}
+            collapsed={collapsedOf('catalog')}
             onToggle={() => toggleSectionState('catalog')}
           >
             <CatalogPanel document={document} onCommand={dispatch} />
@@ -561,6 +613,8 @@ export function App(): React.JSX.Element {
       </div>
 
       <Onboarding open={tourOpen} onClose={closeTour} />
+      <AssistantLauncher onOpen={openAssistant} />
+      <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
     </div>
   );
 }

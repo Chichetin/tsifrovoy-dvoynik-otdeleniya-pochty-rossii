@@ -14,12 +14,16 @@ import {
   NUDGE_STEP_M,
   PASTE_OFFSET_M,
   arrowDelta,
+  duplicateObjects,
   marqueeHits,
   marqueeRect,
   moveObjects,
   nextObjectId,
   pasteObjects,
+  rotateDelta,
+  rotateObjects,
 } from './selection-edit';
+import { ROTATION_SNAP_DEG } from './transform';
 
 function object(overrides: Partial<Equipment> = {}): Equipment {
   return {
@@ -93,6 +97,90 @@ describe('moveObjects', () => {
 
   test('пустой набор — пустой результат', () => {
     expect(moveObjects([], [1, 1])).toEqual([]);
+  });
+});
+
+describe('rotateDelta', () => {
+  test('R поворачивает по часовой на ROTATION_SNAP_DEG', () => {
+    expect(rotateDelta('KeyR', false)).toBe(ROTATION_SNAP_DEG);
+  });
+
+  test('Shift+R — та же величина, но против часовой', () => {
+    expect(rotateDelta('KeyR', true)).toBe(-ROTATION_SNAP_DEG);
+  });
+
+  test('не R — не поворот', () => {
+    expect(rotateDelta('KeyT', false)).toBeNull();
+    expect(rotateDelta('Enter', true)).toBeNull();
+  });
+});
+
+describe('rotateObjects', () => {
+  test('угол прибавляется и остаётся в [0, 360)', () => {
+    const [rotated] = rotateObjects([object({ rotation_deg: 350 })], ROTATION_SNAP_DEG);
+    expect(rotated?.rotation_deg).toBe(5);
+  });
+
+  test('отрицательный шаг уходит через ноль назад в положительную сторону', () => {
+    const [rotated] = rotateObjects([object({ rotation_deg: 10 })], -ROTATION_SNAP_DEG);
+    expect(rotated?.rotation_deg).toBe(360 - ROTATION_SNAP_DEG + 10);
+  });
+
+  test('поворот на полный оборот назад — ровно 0, не «-0»', () => {
+    const [rotated] = rotateObjects([object({ rotation_deg: 0 })], -360);
+    expect(rotated?.rotation_deg).toBe(0);
+    expect(Object.is(rotated?.rotation_deg, -0)).toBe(false);
+  });
+
+  test('кроме угла ничего не меняется', () => {
+    const source = object({ rotation_deg: 40 });
+    const [rotated] = rotateObjects([source], ROTATION_SNAP_DEG);
+    expect(rotated).toEqual({ ...source, rotation_deg: 55 });
+  });
+
+  test('весь набор поворачивается на один и тот же шаг', () => {
+    const rotated = rotateObjects(
+      [object({ id: 'eq_1', rotation_deg: 0 }), object({ id: 'eq_2', rotation_deg: 90 })],
+      ROTATION_SNAP_DEG,
+    );
+    expect(rotated.map((item) => item.rotation_deg)).toEqual([ROTATION_SNAP_DEG, 90 + ROTATION_SNAP_DEG]);
+  });
+});
+
+describe('duplicateObjects', () => {
+  test('копия получает свежий id и смещение, как первая вставка Ctrl+V', () => {
+    const [copy] = duplicateObjects([object({ id: 'eq_1', position: [3, 3] })], new Set<Id>(['eq_1']));
+    expect(copy?.id).toBe('eq_2');
+    expect(copy?.position).toEqual([3 + PASTE_OFFSET_M[0], 3 + PASTE_OFFSET_M[1]]);
+  });
+
+  test('инвентарный номер не наследуется, остальные атрибуты — да', () => {
+    const source = object({ attributes: { condition: 'исправно', inventoryNumber: 'INV-042' } });
+    const [copy] = duplicateObjects([source], new Set<Id>(['eq_1']));
+    expect(copy?.attributes.inventoryNumber).toBeNull();
+    expect(copy?.attributes.condition).toBe('исправно');
+  });
+
+  test('без инвентарного номера у источника копия его тоже не получает', () => {
+    const [copy] = duplicateObjects([object({ attributes: { condition: 'исправно' } })], new Set<Id>(['eq_1']));
+    expect(copy?.attributes.inventoryNumber).toBeNull();
+  });
+
+  test('группа дублируется одним и тем же шагом смещения, без общего счётчика', () => {
+    const source = [
+      object({ id: 'eq_1', position: [1, 1] }),
+      object({ id: 'eq_2', position: [2, 2] }),
+    ];
+    const copies = duplicateObjects(source, new Set<Id>(['eq_1', 'eq_2']));
+    expect(copies.map((item) => item.position)).toEqual([
+      [1 + PASTE_OFFSET_M[0], 1 + PASTE_OFFSET_M[1]],
+      [2 + PASTE_OFFSET_M[0], 2 + PASTE_OFFSET_M[1]],
+    ]);
+  });
+
+  test('копия не наследует зону, как и вставка из буфера', () => {
+    const [copy] = duplicateObjects([object({ zoneId: 'z_client' })], new Set<Id>(['eq_1']));
+    expect(copy?.zoneId).toBeNull();
   });
 });
 
