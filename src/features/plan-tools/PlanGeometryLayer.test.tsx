@@ -13,7 +13,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import type Konva from 'konva';
 import { createRef } from 'react';
 import { Stage } from 'react-konva';
@@ -44,6 +44,31 @@ function demo(): PlanDocument {
   const parsed = parsePlanDocument(JSON.parse(readFileSync('demo/before.json', 'utf8')));
   if (!parsed.ok) throw new Error('demo/before.json не разобрался');
   return parsed.value;
+}
+
+/** Смонтированный слой с выбранной фигурой: тесту нужна сама сцена, а не её фигуры. */
+function mounted(plan: PlanDocument, selection: Ref | null): Konva.Stage {
+  const stage = createRef<Konva.Stage>();
+  const session: EditorSession = {
+    tool: { kind: 'select' },
+    viewport: { origin: [0, 0], scale: 48 },
+    selection,
+    preview: null,
+    focus: null,
+  };
+  render(
+    <Stage ref={stage} width={800} height={600}>
+      <PlanGeometryLayer
+        document={plan}
+        session={session}
+        draft={null}
+        onCommand={() => ({ ok: true, value: plan })}
+        onSelect={() => undefined}
+      />
+    </Stage>,
+  );
+  if (stage.current === null) throw new Error('Stage не смонтировался');
+  return stage.current;
 }
 
 function drawnShapes(plan: PlanDocument, selection: Ref | null): Konva.Shape[] {
@@ -94,5 +119,47 @@ describe('геометрия плана рисуется без буферног
       (shape) => shape.getAbsoluteOpacity() < 1 && shape.hasFill() && shape.hasStroke(),
     );
     expect(translucentFilled.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * D-233: выступ тянется только с Ctrl. Ребро контура — широкая полоса захвата
+ * поверх плана, и сделай её перетаскиваемой всегда, она отбирала бы нажатие у
+ * рамки выделения и панорамы. Тест смотрит сам флаг Konva, а не картинку:
+ * жест мышью проверяется в браузере (`tests/e2e/plan-tools.spec.ts`).
+ */
+describe('рёбра выбранного контура тянутся только с Ctrl', () => {
+  const plan = demo();
+
+  function edges(stage: Konva.Stage): Konva.Node[] {
+    return stage.find('.ring-edge');
+  }
+
+  test('без Ctrl рёбра не перетаскиваются, с Ctrl — перетаскиваются, после отпускания снова нет', () => {
+    const stage = mounted(plan, { kind: 'room', id: plan.room.id });
+    expect(edges(stage).length).toBe(plan.room.boundary.length);
+    expect(edges(stage).every((edge) => edge.draggable())).toBe(false);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+    });
+    expect(edges(stage).every((edge) => edge.draggable())).toBe(true);
+
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', ctrlKey: false }));
+    });
+    expect(edges(stage).some((edge) => edge.draggable())).toBe(false);
+  });
+
+  test('уход из окна снимает «залипший» Ctrl', () => {
+    const stage = mounted(plan, { kind: 'room', id: plan.room.id });
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
+    });
+    expect(edges(stage).every((edge) => edge.draggable())).toBe(true);
+    act(() => {
+      window.dispatchEvent(new Event('blur'));
+    });
+    expect(edges(stage).some((edge) => edge.draggable())).toBe(false);
   });
 });

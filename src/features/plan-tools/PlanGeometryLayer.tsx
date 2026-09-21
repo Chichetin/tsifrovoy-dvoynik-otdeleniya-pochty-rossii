@@ -13,6 +13,11 @@
  * follows the pointer locally and only the release dispatches `zone.put`,
  * `room.set`, `wall.put` or `opening.put`, so undo returns the whole gesture.
  * A ring dragged into a self-intersection is drawn red and never committed.
+ *
+ * Ctrl отдаёт контуру два жеста сверх этого (D-233): протяжка ребра вставляет
+ * вершину под курсором и тянет из ребра выступ, клик по вершине её убирает.
+ * Рёбра становятся перетаскиваемыми только пока клавиша нажата — без неё
+ * жесты соседей по сцене (рамка выделения, панорама) остаются прежними.
  */
 
 import { useEffect, useMemo, useState } from 'react';
@@ -40,6 +45,7 @@ import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import {
+  DEGENERATE_RING_NOTICE,
   MIN_VERTICES_NOTICE,
   NEAR_VERTEX_NOTICE,
   SELF_INTERSECTION_NOTICE,
@@ -54,8 +60,9 @@ import {
   moveOpeningTo,
   moveVertex,
   moveWallEnd,
-  removeVertex,
+  removeVertexChecked,
   roundPoint,
+  startEdgePull,
 } from './vertex-edit';
 import { zoneLabelAnchor } from './zone-label';
 
@@ -81,6 +88,37 @@ const ZONE_LABEL_LETTER_SPACING = 0.4;
 // client hall, say) do not bleed into each other's name at the plan's usual
 // zoom; a name too long for this wraps onto a second line on its own.
 const ZONE_LABEL_BOX_WIDTH = 118;
+
+/**
+ * Жест выступа между `dragstart` и `dragend`: с какого кольца он начат, какая
+ * вершина в него вставлена и каким кольцо стало к последнему движению. Живёт в
+ * ref, а не в состоянии: Escape приходит посреди жеста, и решение «жест
+ * отменён» должно пережить любой порядок событий Konva (тот же приём, что у
+ * `gesture-guard` оборудования, D-101).
+ */
+type Pull = {
+  ref: Ref;
+  index: number;
+  /** Кольцо со вставленной вершиной — основа всех движений жеста. */
+  base: Polygon;
+  polygon: Polygon;
+  node: Konva.Node;
+};
+
+/**
+ * Кадр жеста выступа и решение «жест отменён» — модульные переменные, а не
+ * `useRef`: `draggable` ребра читается при отрисовке, а ref во время отрисовки
+ * читать нельзя (`react-hooks/refs`). Тот же приём, что у `notice.ts` и
+ * `snap-marker.ts` рядом. В документ, историю и файл отсюда не попадает
+ * ничего: жест живёт ровно от нажатия до отпускания.
+ *
+ * Отмену держит эта переменная, а не узел: `stopDrag()` может позвать
+ * `dragend` сразу, кадром позже или никогда, и поздний `dragend` не должен
+ * превратить отменённый жест в команду (тот же урок, что у `gesture-guard`,
+ * D-101).
+ */
+let pullGesture: Pull | null = null;
+let pullCancelled = false;
 
 type Editing =
   | { kind: 'ring'; ref: Ref; polygon: Polygon; snapOff?: boolean }
@@ -178,6 +216,50 @@ export function PlanGeometryLayer({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCommand, onSelect, plan, selection]);
 
+  // Ctrl в руках. Рёбра выбранного контура становятся перетаскиваемыми только
+  // пока клавиша нажата (D-233): вне Ctrl нажатие на ребро остаётся тем же
+  // кликом, что и раньше, и жесты соседей по сцене ничего не теряют. Клавишу
+  // отпустили посреди выступа — жест всё равно свой, его держит `pull`.
+  const [ctrlHeld, setCtrlHeld] = useState(false);
+  useEffect(() => {
+    const sync = (event: KeyboardEvent): void => setCtrlHeld(event.ctrlKey || event.metaKey);
+    const drop = (): void => setCtrlHeld(false);
+    window.addEventListener('keydown', sync);
+    window.addEventListener('keyup', sync);
+    // Уход из окна (Alt+Tab) съедает keyup: иначе Ctrl остался бы «нажатым».
+    window.addEventListener('blur', drop);
+    return () => {
+      window.removeEventListener('keydown', sync);
+      window.removeEventListener('keyup', sync);
+      window.removeEventListener('blur', drop);
+    };
+  }, []);
+
+  // Тянут ли сейчас выступ — состоянием, потому что от этого зависит
+  // отрисовка: начатый жест держит ребро перетаскиваемым и после того, как
+  // Ctrl отпустили. Сам кадр жеста лежит в `pullGesture` выше.
+  const [pulling, setPulling] = useState<Id | null>(null);
+
+  // Escape посреди выступа отменяет его целиком: вставленная вершина уходит
+  // вместе с жестом, документ и история его не видели. Обычную протяжку
+  // вершины клавиша по-прежнему не трогает — там Escape принадлежит рисованию
+  // (D-102), и обрывать на полпути нечего: вершина уже есть в контуре.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      const started = pullGesture;
+      if (started === null) return;
+      pullGesture = null;
+      pullCancelled = true;
+      setPulling(null);
+      setEditing(null);
+      started.node.position({ x: 0, y: 0 });
+      started.node.stopDrag();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   const pointerWorld = (event: Konva.KonvaEventObject<unknown>): Point | null => {
     const position = event.target.getStage()?.getPointerPosition();
     if (position === undefined || position === null) return null;
@@ -194,11 +276,17 @@ export function PlanGeometryLayer({
    */
   const altOf = (evt: unknown): boolean =>
     typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
-  const handleWorld = (node: Konva.Node, snapOff: boolean, without: PlanDocument): Point => {
-    const raw = nodeWorld(node);
+  /** Ctrl жеста правки контура; на Mac ту же роль играет Cmd (D-233). */
+  const isCtrl = (evt: unknown): boolean =>
+    typeof evt === 'object' &&
+    evt !== null &&
+    (('ctrlKey' in evt && evt.ctrlKey === true) || ('metaKey' in evt && evt.metaKey === true));
+  const settleWorld = (raw: Point, snapOff: boolean, without: PlanDocument): Point => {
     if (snapOff) return roundPoint(raw);
     return settlePoint(snapPoint(raw, pointGuides(without), SNAP.grid_m, SNAP.tolerance_px / viewport.scale));
   };
+  const handleWorld = (node: Konva.Node, snapOff: boolean, without: PlanDocument): Point =>
+    settleWorld(nodeWorld(node), snapOff, without);
   const withoutVertex = (ref: Ref, polygon: Polygon, index: number): PlanDocument => {
     const rest = polygon.filter((_, at) => at !== index);
     if (ref.kind !== 'room') {
@@ -237,6 +325,16 @@ export function PlanGeometryLayer({
     return result?.ok === true;
   };
 
+  /** Убрать вершину или объяснить, почему нельзя (D-233): одно правило на Ctrl+клик и двойной клик. */
+  const removeRingVertex = (ref: Ref, polygon: Polygon, index: number): void => {
+    const edit = removeVertexChecked(polygon, index);
+    if (!edit.ok) {
+      setNotice(edit.reason === 'min-vertices' ? MIN_VERTICES_NOTICE : DEGENERATE_RING_NOTICE);
+      return;
+    }
+    commitRing(ref, edit.polygon);
+  };
+
   /** Handles of the selected ring: drag moves, double click removes, edge click inserts. */
   const ringHandles = (ref: Ref, polygon: Polygon, editable: boolean): React.JSX.Element[] => {
     if (!editable) return [];
@@ -247,10 +345,67 @@ export function PlanGeometryLayer({
       return (
         <Line
           key={`edge-${ref.id}-${index}`}
+          name="ring-edge"
           points={flatten([from, to], viewport)}
           stroke="transparent"
           strokeWidth={1}
           hitStrokeWidth={HANDLE_RADIUS_PX * 2}
+          // Тянуть ребро можно только с Ctrl; начатый выступ тянется и после
+          // того, как клавишу отпустили, — иначе Konva оборвала бы свой же
+          // жест на полпути (D-233).
+          draggable={ctrlHeld || pulling === ref.id}
+          onDragStart={(event) => {
+            const point = pointerWorld(event);
+            // Клавиша спрашивается у самого события, а не только у `ctrlHeld`:
+            // keyup теряется при уходе из окна, и «залипший» Ctrl не должен
+            // превращать чужую протяжку в выступ.
+            const started = point === null || !isCtrl(event.evt) ? null : startEdgePull(polygon, point);
+            if (started === null) {
+              // Не с Ctrl и не по ребру: тянуть нечего, а уехавшая линия была
+              // бы обманом — контур целиком этим жестом не двигается.
+              event.target.stopDrag();
+              event.target.position({ x: 0, y: 0 });
+              return;
+            }
+            setNotice(null);
+            pullCancelled = false;
+            setPulling(ref.id);
+            pullGesture = {
+              ref,
+              index: started.index,
+              base: started.polygon,
+              polygon: started.polygon,
+              node: event.target,
+            };
+            setEditing({ kind: 'ring', ref, polygon: started.polygon });
+          }}
+          onDragMove={(event) => {
+            const started = pullGesture;
+            const raw = pointerWorld(event);
+            if (started === null || raw === null) return;
+            const snapOff = altOf(event.evt);
+            // Привязка та же, что у ручки вершины (D-210): направляющие плана
+            // без самой вытягиваемой вершины, Alt держит её под курсором.
+            const point = settleWorld(raw, snapOff, withoutVertex(ref, started.base, started.index));
+            const polygonNow = moveVertex(started.base, started.index, point);
+            started.polygon = polygonNow;
+            setEditing({ kind: 'ring', ref, polygon: polygonNow, snapOff });
+          }}
+          onDragEnd={(event) => {
+            const started = pullGesture;
+            pullGesture = null;
+            setPulling(null);
+            // Узел ребра возвращается на своё место: контур перерисует сам
+            // документ, а отклонённый жест не должен оставлять линию сдвинутой.
+            event.target.position({ x: 0, y: 0 });
+            setEditing(null);
+            if (started === null) return;
+            if (pullCancelled) {
+              pullCancelled = false;
+              return;
+            }
+            commitRing(ref, started.polygon);
+          }}
           onPointerClick={(event) => {
             const point = pointerWorld(event);
             if (point === null) return;
@@ -297,14 +452,13 @@ export function PlanGeometryLayer({
             event.target.position({ x, y });
             commitRing(ref, moved);
           }}
-          onDblClick={() => {
-            const shrunk = removeVertex(polygon, index);
-            if (shrunk === null) {
-              setNotice(MIN_VERTICES_NOTICE);
-              return;
-            }
-            commitRing(ref, shrunk);
+          // Ctrl + клик по вершине убирает её (D-233); двойной клик делает то
+          // же самое и остаётся для тех, кто уже к нему привык.
+          onPointerClick={(event) => {
+            if (!isCtrl(event.evt)) return;
+            removeRingVertex(ref, polygon, index);
           }}
+          onDblClick={() => removeRingVertex(ref, polygon, index)}
         />
       );
     });

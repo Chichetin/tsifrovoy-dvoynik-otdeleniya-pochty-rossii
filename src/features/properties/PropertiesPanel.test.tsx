@@ -89,6 +89,26 @@ describe('карточка помещения', () => {
     );
   });
 
+  test('самопересечённый контур площади не получает — вместо числа сказано, почему (D-233)', () => {
+    // «Бабочка»: половинки контура в формуле площади гасят друг друга, и
+    // `polygonArea` отдала бы ровный 0,00 м² — число, которого нет.
+    const bowtie: PlanDocument = {
+      ...plan,
+      room: { ...plan.room, boundary: [[0, 0], [4, 0], [0, 4], [4, 4]] },
+    };
+    render(
+      <PropertiesPanel
+        document={bowtie}
+        session={session({ kind: 'room', id: plan.room.id })}
+        onCommand={sink().spy}
+      />,
+    );
+    const text = screen.getByTestId('props-room-area').textContent ?? '';
+    expect(text).toContain('Площадь не вычисляется: контур пересекает сам себя');
+    expect(text).toContain('вершин 4');
+    expect(text).not.toContain('м²');
+  });
+
   test('название плана набирается посимвольно, пробел между словами не пропадает', () => {
     render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
     const input = screen.getByLabelText('Название плана') as HTMLInputElement;

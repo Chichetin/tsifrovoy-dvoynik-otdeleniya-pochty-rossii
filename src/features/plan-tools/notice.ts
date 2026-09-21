@@ -45,6 +45,13 @@ export function useNotice(): string | null {
 export const SELF_INTERSECTION_NOTICE =
   'Контур самопересекается — правка отклонена, план не изменён';
 export const MIN_VERTICES_NOTICE = 'В контуре должно остаться не меньше трёх вершин';
+/**
+ * Вершин хватает, а контура не осталось: три точки на одной прямой, нулевая
+ * площадь или самокасание. Причину называем словами сотрудника — «вырожденный
+ * контур» ему ничего не говорит (D-233).
+ */
+export const DEGENERATE_RING_NOTICE =
+  'Без этой вершины контур перестаёт быть контуром — вершина оставлена на месте';
 export const DRAFT_SELF_INTERSECTION_NOTICE =
   'Контур самопересекается — добавьте точки или отмените рисование клавишей Esc';
 export const HIDDEN_ZONE_NOTICE =

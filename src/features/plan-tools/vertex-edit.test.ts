@@ -10,7 +10,9 @@ import {
   nearestEdge,
   parentForRing,
   removeVertex,
+  removeVertexChecked,
   roundPoint,
+  startEdgePull,
 } from './vertex-edit';
 
 const square: Polygon = [
@@ -218,5 +220,117 @@ describe('родитель новой зоны', () => {
         zones,
       ),
     ).toBeNull();
+  });
+});
+
+/**
+ * Ctrl + протяжка ребра (D-233): жест начинается со вставки вершины в точку
+ * нажатия, дальше эта вершина едет за указателем. Здесь — только вставка и её
+ * адрес: куда она едет, решает тот же `moveVertex`, что и у обычной ручки.
+ */
+describe('выступ протяжкой ребра', () => {
+  it('нажатие на ребро вставляет вершину в точку нажатия и называет её номер', () => {
+    const started = startEdgePull(square, [2.02, 0.07]);
+    expect(started).not.toBeNull();
+    expect(started?.index).toBe(1);
+    expect(started?.polygon).toEqual([
+      [0, 0],
+      [2.02, 0],
+      [4, 0],
+      [4, 4],
+      [0, 4],
+    ]);
+    // Вершина стоит ровно на ребре: отпустить жест сразу — контур тот же.
+    expect(canCommitRing(started?.polygon ?? [])).toBe(true);
+  });
+
+  it('вершина едет за указателем и даёт выступ, а не новый контур', () => {
+    const started = startEdgePull(square, [2, 0.05]);
+    const pulled = moveVertex(started?.polygon ?? [], started?.index ?? 0, [2, -2]);
+    expect(pulled).toEqual([
+      [0, 0],
+      [2, -2],
+      [4, 0],
+      [4, 4],
+      [0, 4],
+    ]);
+    expect(canCommitRing(pulled)).toBe(true);
+    // Выступ, протянутый через противоположное ребро, — уже самопересечение.
+    expect(canCommitRing(moveVertex(started?.polygon ?? [], started?.index ?? 0, [2, 6]))).toBe(false);
+  });
+
+  it('жест начинается и у самой вершины — в отличие от клика (D-099)', () => {
+    // Клик у угла вершину не добавляет: там он метил в ручку.
+    expect(insertionOnEdge(square, [0.1, 0.02])).toBeNull();
+    // Протяжка — метила в ребро: вершина вставляется и тут же уезжает.
+    expect(startEdgePull(square, [0.1, 0.02])?.index).toBe(1);
+  });
+
+  it('последнее ребро замыкает кольцо: вершина уходит в конец', () => {
+    expect(startEdgePull(square, [0.03, 2])?.index).toBe(4);
+  });
+
+  it('контуру меньше двух вершин тянуть нечего', () => {
+    expect(startEdgePull([], [1, 1])).toBeNull();
+    expect(startEdgePull([[0, 0]], [1, 1])).toBeNull();
+  });
+});
+
+/**
+ * Ctrl + клик по вершине (D-233): отказ объясняется, а не молчит. Причин
+ * ровно две — в контуре не останется трёх вершин, и контур после удаления
+ * перестал бы быть контуром.
+ */
+describe('удаление вершины с объяснением', () => {
+  it('из четырёх вершин остаётся треугольник', () => {
+    expect(removeVertexChecked(square, 1)).toEqual({
+      ok: true,
+      polygon: [
+        [0, 0],
+        [4, 4],
+        [0, 4],
+      ],
+    });
+  });
+
+  it('треугольник вершину не отдаёт: меньше трёх не бывает', () => {
+    const triangle: Polygon = [
+      [0, 0],
+      [4, 0],
+      [0, 3],
+    ];
+    expect(removeVertexChecked(triangle, 0)).toEqual({ ok: false, reason: 'min-vertices' });
+    // И то же самое у `removeVertex`, на котором это правило и держится.
+    expect(removeVertex(triangle, 0)).toBeNull();
+  });
+
+  it('вершины с таким номером нет — контур не трогаем', () => {
+    expect(removeVertexChecked(square, 4).ok).toBe(false);
+    expect(removeVertexChecked(square, -1).ok).toBe(false);
+  });
+
+  it('остаток с нулевой площадью отклоняется: три точки на одной прямой', () => {
+    const spike: Polygon = [
+      [0, 0],
+      [4, 0],
+      [8, 0],
+      [4, 4],
+    ];
+    expect(canCommitRing(spike)).toBe(true);
+    expect(removeVertexChecked(spike, 3)).toEqual({ ok: false, reason: 'degenerate-ring' });
+  });
+
+  it('остаток с касанием рёбер в одной точке отклоняется', () => {
+    // Убрать пик — и вершина [2, 4] ляжет ровно на новое ребро [0, 4] → [4, 4].
+    const withSpike: Polygon = [
+      [0, 4],
+      [1, 6],
+      [4, 4],
+      [4, 0],
+      [2, 4],
+      [0, 0],
+    ];
+    expect(canCommitRing(withSpike)).toBe(true);
+    expect(removeVertexChecked(withSpike, 1)).toEqual({ ok: false, reason: 'degenerate-ring' });
   });
 });

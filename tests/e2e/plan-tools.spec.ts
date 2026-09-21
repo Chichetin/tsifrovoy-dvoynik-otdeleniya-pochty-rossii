@@ -17,7 +17,7 @@
  * сдвигает его по странице, хотя план в сцене остаётся на месте.
  */
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page, type TestInfo } from './fixtures';
 
 type Point = [number, number];
@@ -83,6 +83,27 @@ async function dragAt(
   await page.mouse.move(rect.x + to.x, rect.y + to.y, { steps: 4 });
   if (mid !== undefined) await mid(page);
   await page.mouse.up();
+}
+
+/**
+ * Тот же жест с зажатым Ctrl: протяжка ребра тянет из него выступ, а клик по
+ * вершине её убирает (D-233). Клавиша отпускается всегда, иначе она осталась
+ * бы нажатой для следующего шага теста.
+ */
+async function withCtrl(page: Page, gesture: () => Promise<void>): Promise<void> {
+  await page.keyboard.down('Control');
+  try {
+    await gesture();
+  } finally {
+    await page.keyboard.up('Control');
+  }
+}
+
+/** Снимок-доказательство пакета: только нужная область, только состояние «после». */
+async function shot(target: Locator, name: string): Promise<void> {
+  const dir = 'docs/verification/outline-edit';
+  mkdirSync(dir, { recursive: true });
+  await target.screenshot({ path: `${dir}/${name}.png` });
 }
 
 /**
@@ -809,6 +830,117 @@ test.describe('инструменты плана', () => {
     // Вход остался на северной стене, а не уехал на восточную.
     expect(hostAfter?.from[1]).toBe(y);
     expect(hostAfter?.to[1]).toBe(y);
+
+    expect(errors).toEqual([]);
+  });
+
+  test('Ctrl тянет из ребра выступ, убирает вершину и отменяется Escape (D-233)', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    // Стартовое помещение 12 × 9 м: его рёбра и вершины адресуются метрами.
+    await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, await worldPixel(page, 6, 4.5));
+    await expect(card.getByTestId('props-room-area')).toContainText('вершин 4');
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
+
+    // Ctrl + протяжка южного ребра наружу: в ребре появляется вершина и едет
+    // за курсором. Выступ — треугольник 12 × 1,5 м, это ровно +9 м².
+    const south = await worldPixel(page, 6, 0);
+    const pulled = await worldPixel(page, 6, -1.5);
+    await withCtrl(page, () => dragAt(page, south, pulled));
+    await expect(card.getByTestId('props-room-area')).toContainText('вершин 5');
+    expect(await roomArea(page)).toBe('117,00\u00a0м²');
+    await shot(page.getByTestId('editor-canvas'), 'vystup');
+
+    // Выступ пережил сохранение и повторное открытие: геометрия та же.
+    const file = await savePlanFile(page);
+    const saved = JSON.parse(readFileSync(file, 'utf8')) as SavedPlan;
+    expect(saved.room.boundary).toHaveLength(5);
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: 'Новый' }).click();
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
+    await page.getByTestId('plan-file-input').setInputFiles(file);
+    await expect.poll(() => roomArea(page)).toBe('117,00\u00a0м²');
+
+    // Ctrl + клик по вершине выступа убирает её: контур снова прямоугольник.
+    // Где именно села вершина по X, решила привязка (D-210) — адрес берём из
+    // файла, а не из пикселя, куда её тянули.
+    const apex = saved.room.boundary.find((vertex) => vertex[1] < 0);
+    if (apex === undefined) throw new Error('выступ не сохранился');
+    await clickAt(page, await worldPixel(page, 6, 4.5));
+    const apexPixel = await worldPixel(page, apex[0], apex[1]);
+    await withCtrl(page, () => clickAt(page, apexPixel));
+    await expect(card.getByTestId('props-room-area')).toContainText('вершин 4');
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
+
+    // Escape посреди выступа отменяет жест целиком: вставленная вершина
+    // уходит вместе с ним, документ и история её не видели. Пиксели ребра
+    // пересчитываются: открытый файл подогнал вид под свой план.
+    const southNow = await worldPixel(page, 6, 0);
+    const pulledNow = await worldPixel(page, 6, -1.5);
+    await withCtrl(page, () =>
+      dragAt(page, southNow, pulledNow, async (active) => {
+        await active.keyboard.press('Escape');
+      }),
+    );
+    await expect(card.getByTestId('props-room-area')).toContainText('вершин 4');
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
+    // Выделение не снято: Escape принадлежал жесту, а не выбору.
+    await expect(card.getByRole('heading', { name: 'Свойства помещения' })).toBeVisible();
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    expect(await roomArea(page)).toBe('117,00\u00a0м²');
+
+    expect(errors).toEqual([]);
+  });
+
+  test('самопересечение не отпускает выступ, а площадь честно не считается (D-233)', async ({
+    page,
+  }, testInfo: TestInfo) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, await worldPixel(page, 6, 4.5));
+
+    // Выступ, протянутый за противоположное ребро, — «бабочка»: пока кнопка
+    // нажата, контур красный, а отпускание жест отклоняет.
+    const south = await worldPixel(page, 6, 0);
+    const across = await worldPixel(page, 6, 10.5);
+    await withCtrl(page, () =>
+      dragAt(page, south, across, async (active) => {
+        await shot(active.getByTestId('editor-canvas'), 'samopersechenie');
+      }),
+    );
+    await expect(page.getByTestId('plan-tools-notice')).toContainText('самопересекается');
+    await expect(card.getByTestId('props-room-area')).toContainText('вершин 4');
+    expect(await roomArea(page)).toBe('108,00\u00a0м²');
+
+    // Самопересечённый контур в файле открыть можно — это состояние, о котором
+    // редактор говорит, а не прячет. Но площади у него нет: ни в панели
+    // «Площади», ни в карточке помещения числа не будет.
+    const before = JSON.parse(readFileSync(await savePlanFile(page), 'utf8')) as SavedPlan;
+    const [first, second, third, fourth] = before.room.boundary;
+    if (first === undefined || second === undefined || third === undefined || fourth === undefined) {
+      throw new Error('в сохранённом плане не четырёхугольник');
+    }
+    const bowtie = { ...before, room: { ...before.room, boundary: [first, third, second, fourth] } };
+    const broken = testInfo.outputPath('bowtie.json');
+    writeFileSync(broken, JSON.stringify(bowtie), 'utf8');
+
+    await page.getByTestId('plan-file-input').setInputFiles(broken);
+    await expect(page.getByLabel('Площади')).toContainText('площадь по нему не считается');
+    // Карточка помещения — второе место, где площадь видна сотруднику.
+    await clickAt(page, await worldPixel(page, 1.5, 4.5));
+    await expect(card.getByTestId('props-room-area')).toContainText('Площадь не вычисляется');
+    await expect(card.getByTestId('props-room-area')).not.toContainText('м²');
+    await shot(card, 'ploshchad-ne-vychislyaetsya');
 
     expect(errors).toEqual([]);
   });

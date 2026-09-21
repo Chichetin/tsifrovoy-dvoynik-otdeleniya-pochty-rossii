@@ -46,6 +46,30 @@ export function removeVertex(polygon: Polygon, index: number): Polygon | null {
   return polygon.filter((_, at) => at !== index);
 }
 
+/**
+ * Почему правка кольца отклонена. Причина, а не текст: слой берёт по ней
+ * строку из `notice.ts`, тест — сравнивает с константой (D-233).
+ *
+ * `min-vertices` — в контуре не осталось бы трёх вершин; `degenerate-ring` —
+ * вершин хватает, но контур перестал бы быть контуром: нулевая площадь, точки
+ * на одной прямой, самокасание или самопересечение.
+ */
+export type RingRefusal = 'min-vertices' | 'degenerate-ring';
+
+export type RingEdit = { ok: true; polygon: Polygon } | { ok: false; reason: RingRefusal };
+
+/**
+ * Ctrl + клик по вершине (D-233): убрать её, если после этого остаётся контур.
+ * Оба отказа названы причиной, потому что клик, после которого ничего не
+ * произошло, читается сотрудником как поломка редактора.
+ */
+export function removeVertexChecked(polygon: Polygon, index: number): RingEdit {
+  const shrunk = removeVertex(polygon, index);
+  if (shrunk === null) return { ok: false, reason: 'min-vertices' };
+  if (!canCommitRing(shrunk)) return { ok: false, reason: 'degenerate-ring' };
+  return { ok: true, polygon: shrunk };
+}
+
 export type EdgeHit = { index: number; point: Point; distance: number };
 
 /** Closest edge of the ring to a point, with the foot of the perpendicular. */
@@ -80,6 +104,24 @@ export function insertionOnEdge(polygon: Polygon, point: Point): EdgeHit | null 
   const away = (target: Point): number => segmentLength(point, target);
   const toVertex = Math.min(away(from), away(to));
   return toVertex < away(middle) ? null : hit;
+}
+
+/**
+ * Начало выступа (D-233): Ctrl + нажатие на ребро вставляет вершину в точку
+ * нажатия и отдаёт её номер — дальше она едет за указателем обычным
+ * `moveVertex`, так что выступ и перенос вершины — один и тот же жест.
+ *
+ * В отличие от клика по ребру (D-099), у вершины жест не отказывает: клик там
+ * метил в ручку, а протяжка — в ребро, и вставленная вплотную к углу вершина
+ * тут же уезжает за курсором, а не остаётся лишней точкой в контуре.
+ */
+export function startEdgePull(
+  polygon: Polygon,
+  point: Point,
+): { polygon: Polygon; index: number } | null {
+  if (polygon.length < 2) return null;
+  const hit = nearestEdge(polygon, point);
+  return { polygon: insertVertex(polygon, hit.index, hit.point), index: hit.index + 1 };
 }
 
 /**

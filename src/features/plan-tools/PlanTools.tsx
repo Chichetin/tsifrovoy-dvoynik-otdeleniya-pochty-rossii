@@ -49,7 +49,10 @@ function selectionKey(selection: Ref | null): string {
 function editingHint(selection: Ref | null): string | null {
   if (selection === null) return null;
   if (selection.kind === 'zone' || selection.kind === 'room') {
-    return 'Контур: тяните вершину; Alt — без привязки; клик по ребру добавит вершину';
+    return (
+      'Контур: тяните вершину; Alt — без привязки; клик по ребру добавит вершину; ' +
+      'Ctrl+протяжка ребра — выступ, Ctrl+клик по вершине — убрать'
+    );
   }
   if (selection.kind === 'wall') return 'Перегородка: тяните концы; Alt — без привязки';
   if (selection.kind === 'opening') return 'Проём: тяните вдоль стены';

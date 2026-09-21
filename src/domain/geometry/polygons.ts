@@ -254,6 +254,20 @@ export function isSimplePolygon(polygon: Polygon): boolean {
   return true;
 }
 
+/**
+ * Площадь кольца для показа человеку: число только тогда, когда кольцо вообще
+ * имеет площадь, иначе null (D-233).
+ *
+ * `polygonArea` — модуль формулы Гаусса, и на самопересекающемся кольце она не
+ * ошибается, а считает другое: половинки «бабочки» идут с разным знаком и
+ * гасят друг друга в ноль. Такое число в карточке или в сводке читается как
+ * измеренный факт, поэтому всё, что показывает площадь пользователю,
+ * спрашивает её здесь, а не у `polygonArea`.
+ */
+export function ringArea(polygon: Polygon): number | null {
+  return isSimplePolygon(polygon) ? polygonArea(polygon) : null;
+}
+
 /** Euclidean length of the segment `from → to`. */
 export function segmentLength(from: Point, to: Point): number {
   return Math.hypot(to[0] - from[0], to[1] - from[1]);

@@ -26,7 +26,7 @@ import type {
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
-import { footprintArea, polygonArea } from '../../domain/geometry';
+import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 
 type Errors = Record<string, string>;
@@ -298,6 +298,9 @@ export function PropertiesPanel({
     // Название плана живёт здесь, а не в отдельной шапке: помещение — это и
     // есть план для сотрудника, а имя файла берётся из названия (D-152).
     const ceiling = parseNumber(shown('ceilingHeight_m', String(room.ceilingHeight_m)));
+    // null — контур не даёт площади: самопересечение, нулевая площадь, меньше
+    // трёх вершин. Считает `ringArea`, карточка только выбирает слова (D-233).
+    const roomArea = ringArea(room.boundary);
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
         <h2 className="panel__title">Свойства помещения</h2>
@@ -337,10 +340,15 @@ export function PropertiesPanel({
           ceiling === null ? undefined : 'наружные стены поднимаются вместе с потолком; перегородки — по своей карточке',
         )}
 
-        {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии. */}
+        {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии.
+            Самопересечённый контур площади не имеет, и вместо числа карточка
+            говорит об этом словами: формула площади отдала бы на «бабочке»
+            ровный ноль, который читается как измеренный факт (D-233). */}
         <p className="props__hint" data-testid="props-room-area">
-          Площадь по контуру {formatArea(polygonArea(room.boundary))}, вершин {room.boundary.length}; контур тянется
-          за вершины на плане
+          {roomArea === null
+            ? 'Площадь не вычисляется: контур пересекает сам себя'
+            : `Площадь по контуру ${formatArea(roomArea)}`}
+          , вершин {room.boundary.length}; контур тянется за вершины на плане
         </p>
       </section>
     );
