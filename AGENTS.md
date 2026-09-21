@@ -29,5 +29,11 @@
     `bash .claude/hooks/check-upstream.sh` и `bash .claude/hooks/check-secrets.sh`:
     первый показывает чужие коммиты в `origin/main`, которые трогают твои файлы или
     общие правила. Противоречат твоей задаче — остановиться и сказать человеку.
+11. Для каждой UI-фичи обязателен UI/UX skill gate из `CLAUDE.md`: до кода
+    `ui-ux-pro-max` + `frontend-design`, затем `playwright-interactive`,
+    `webapp-testing` + `playwright`, снимок «после», `accessibility-scan` +
+    `accessibility-inspect` и `web-design-guidelines`; условные `diff`/`fix`/
+    `audit`/`trace` запускаются по области риска. Записать команды и артефакты в
+    `HANDOFF.md`.
 
 Если правило здесь и в `CLAUDE.md` трактуется по-разному, действует более строгое.
