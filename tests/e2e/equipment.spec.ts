@@ -284,6 +284,22 @@ test.describe('жесты над оборудованием', () => {
     await expect.poll(() => captionPixels(page, box)).toBeGreaterThan(30);
   });
 
+  test('повторный клик по активному типу отменяет установку', async ({ page }) => {
+    await page.goto('/');
+    const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
+    await libraryItem.click();
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
+
+    await libraryItem.click();
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.getByRole('button', { name: 'Выбор', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await clickCanvas(page, 420, 330);
+    await expect(inventoryRows(page)).toHaveCount(0);
+  });
   test('установка из библиотеки одноразовая: объект выбран, следующий клик не создаёт дубль', async ({
     page,
   }) => {

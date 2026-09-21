@@ -55,7 +55,13 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                   className={`library__item${activeTypeId === type.id ? ' is-selected' : ''}`}
                   aria-pressed={activeTypeId === type.id}
                   title={type.provenance}
-                  onClick={() => onTool({ kind: 'object.place', typeId: type.id })}
+                  onClick={() =>
+                    onTool(
+                      activeTypeId === type.id
+                        ? { kind: 'select' }
+                        : { kind: 'object.place', typeId: type.id },
+                    )
+                  }
                 >
                   <span className="library__swatch" style={{ background: type.color }} aria-hidden="true" />
                   <span className="library__label">{type.label}</span>
