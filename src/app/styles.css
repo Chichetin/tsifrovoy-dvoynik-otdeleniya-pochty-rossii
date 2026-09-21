@@ -1946,3 +1946,94 @@ span.inventory__num {
 .onboarding__spacer {
   flex: 1;
 }
+
+/* UX-3: карта горячих клавиш по «?». */
+.hotkeys-map {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(33, 37, 41, 0.45);
+}
+
+.hotkeys-map__dialog {
+  max-width: min(560px, calc(100vw - 24px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.hotkeys-map__dialog:focus {
+  /* Фокус нужен читалке экрана, а не глазу — рамка читалась бы вторым кольцом. */
+  outline: none;
+}
+
+.hotkeys-map__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.hotkeys-map__title {
+  margin: 0;
+  font-size: var(--text-l);
+}
+
+.hotkeys-map__close {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+.hotkeys-map__close:hover,
+.hotkeys-map__close:focus-visible {
+  color: var(--accent);
+}
+
+.hotkeys-map__group + .hotkeys-map__group {
+  margin-top: var(--space-3);
+}
+
+.hotkeys-map__group-title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-s);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.hotkeys-map__list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+}
+
+.hotkeys-map__keys {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.hotkeys-map__keys kbd {
+  padding: 2px 6px;
+  background: var(--ground);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  font: var(--text-xs) var(--font-code);
+}
+
+.hotkeys-map__description {
+  margin: 0;
+  color: var(--text);
+}
