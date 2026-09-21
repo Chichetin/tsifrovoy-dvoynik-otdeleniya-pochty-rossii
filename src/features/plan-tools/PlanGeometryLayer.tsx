@@ -40,6 +40,7 @@ import {
 import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
 import { deleteIntent, isDeleteKey } from './delete-key';
+import { currentExtrusion, endExtrusion, startExtrusion } from './extrude';
 import {
   MIN_VERTICES_NOTICE,
   NEAR_VERTEX_NOTICE,
@@ -50,6 +51,7 @@ import {
 import {
   HANDLE_RADIUS_PX,
   canCommitRing,
+  extrudeEdge,
   insertVertex,
   insertionOnEdge,
   moveOpeningTo,
@@ -197,6 +199,11 @@ export function PlanGeometryLayer({
    */
   const altOf = (evt: unknown): boolean =>
     typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
+  // Ctrl на Windows и Linux, Cmd на Mac: одна и та же правка контура.
+  const ctrlOf = (evt: unknown): boolean =>
+    typeof evt === 'object' &&
+    evt !== null &&
+    (('ctrlKey' in evt && evt.ctrlKey === true) || ('metaKey' in evt && evt.metaKey === true));
   const handleWorld = (node: Konva.Node, snapOff: boolean, without: PlanDocument): Point => {
     const raw = nodeWorld(node);
     if (snapOff) return roundPoint(raw);
@@ -240,7 +247,20 @@ export function PlanGeometryLayer({
     return result?.ok === true;
   };
 
-  /** Handles of the selected ring: drag moves, double click removes, edge click inserts. */
+  const dropVertex = (ref: Ref, polygon: Polygon, index: number): void => {
+    const shrunk = removeVertex(polygon, index);
+    if (shrunk === null) {
+      setNotice(MIN_VERTICES_NOTICE);
+      return;
+    }
+    commitRing(ref, shrunk);
+  };
+
+  /**
+   * Handles of the selected ring: drag moves a vertex, Ctrl + click (or a
+   * double click) removes it, a click on an edge inserts one, and Ctrl + drag
+   * of an edge inserts and pulls it out in a single gesture (D-232).
+   */
   const ringHandles = (ref: Ref, polygon: Polygon, editable: boolean): React.JSX.Element[] => {
     if (!editable) return [];
     // Handles sit on the document's vertices: the dragged one is moved by
@@ -254,6 +274,7 @@ export function PlanGeometryLayer({
           stroke="transparent"
           strokeWidth={1}
           hitStrokeWidth={HANDLE_RADIUS_PX * 2}
+          draggable
           onPointerClick={(event) => {
             const point = pointerWorld(event);
             if (point === null) return;
@@ -265,6 +286,52 @@ export function PlanGeometryLayer({
               return;
             }
             commitRing(ref, insertVertex(polygon, hit.index, hit.point));
+          }}
+          onDragStart={(event) => {
+            // Тянуть ребро можно только с Ctrl: без него протяжка по холсту
+            // остаётся панорамой и выделением, как была.
+            const point = pointerWorld(event);
+            const hit = point === null ? null : extrudeEdge(polygon, point);
+            if (!ctrlOf(event.evt) || hit === null) {
+              event.target.stopDrag();
+              event.target.position({ x: 0, y: 0 });
+              if (hit === null && ctrlOf(event.evt)) setNotice(NEAR_VERTEX_NOTICE);
+              return;
+            }
+            setNotice(null);
+            startExtrusion({ ref, index: hit.index, base: hit.polygon });
+            setEditing({ kind: 'ring', ref, polygon: hit.polygon });
+          }}
+          onDragMove={(event) => {
+            const pulled = currentExtrusion();
+            if (pulled === null) return;
+            const snapOff = altOf(event.evt);
+            const raw = pointerWorld(event);
+            if (raw === null) return;
+            const point = snapOff
+              ? roundPoint(raw)
+              : settlePoint(
+                  snapPoint(
+                    raw,
+                    pointGuides(withoutVertex(pulled.ref, pulled.base, pulled.index)),
+                    SNAP.grid_m,
+                    SNAP.tolerance_px / viewport.scale,
+                  ),
+                );
+            setEditing({
+              kind: 'ring',
+              ref: pulled.ref,
+              polygon: moveVertex(pulled.base, pulled.index, point),
+              snapOff,
+            });
+          }}
+          onDragEnd={(event) => {
+            event.target.position({ x: 0, y: 0 });
+            const pulled = endExtrusion();
+            if (pulled === null) return;
+            const shaped = editing?.kind === 'ring' ? editing.polygon : pulled.base;
+            setEditing(null);
+            commitRing(pulled.ref, shaped);
           }}
         />
       );
@@ -300,14 +367,14 @@ export function PlanGeometryLayer({
             event.target.position({ x, y });
             commitRing(ref, moved);
           }}
-          onDblClick={() => {
-            const shrunk = removeVertex(polygon, index);
-            if (shrunk === null) {
-              setNotice(MIN_VERTICES_NOTICE);
-              return;
-            }
-            commitRing(ref, shrunk);
+          onPointerClick={(event) => {
+            // Ctrl + клик — то же, что двойной щелчок, но об этом написано в
+            // подсказке инструмента: двойной щелчок сам себя не объясняет.
+            if (!ctrlOf(event.evt)) return;
+            event.cancelBubble = true;
+            dropVertex(ref, polygon, index);
           }}
+          onDblClick={() => dropVertex(ref, polygon, index)}
         />
       );
     });
