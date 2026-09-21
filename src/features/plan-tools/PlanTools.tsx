@@ -48,8 +48,16 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: str
     label: 'Линейка',
     hint: 'Два клика: измерить расстояние; Esc убирает, Alt — без привязки. В план не попадает',
   },
-  { kind: 'room.draw', label: 'Помещение', hint: 'Обвести границу по точкам; Alt — без привязки' },
-  { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; Alt — без привязки' },
+  {
+    kind: 'room.draw',
+    label: 'Помещение',
+    hint: 'Граница помещения. Клик — точка; замкнуть — клик по первой точке, Enter или двойной клик; Esc — отмена; Alt — без привязки',
+  },
+  {
+    kind: 'zone.draw',
+    label: 'Зона',
+    hint: 'Контур зоны. Клик — точка; замкнуть — клик по первой точке, Enter или двойной клик; Esc — отмена; Alt — без привязки',
+  },
   {
     kind: 'wall.draw',
     label: 'Перегородка',

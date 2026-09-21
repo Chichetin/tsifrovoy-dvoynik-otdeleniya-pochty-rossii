@@ -131,6 +131,17 @@ describe('панель инструментов плана', () => {
     }
   });
 
+  it('подсказки контура говорят, как его закончить: первая точка, Enter, двойной клик (D-262)', () => {
+    show(null);
+    for (const name of ['Помещение', 'Зона']) {
+      const title = screen.getByRole('button', { name }).getAttribute('title') ?? '';
+      expect(title).toContain('клик по первой точке');
+      expect(title).toContain('Enter');
+      expect(title).toContain('двойной клик');
+      expect(title).toContain('Esc');
+    }
+  });
+
   it('подсказка панорамирования называет тачпад и среднюю кнопку', () => {
     const { onTool } = show(null);
     fireEvent.click(screen.getByRole('button', { name: 'Обзор' }));
