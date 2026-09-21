@@ -98,6 +98,78 @@ describe('границы', () => {
   });
 });
 
+describe('зоны, налезающие друг на друга (D-223)', () => {
+  const zoneAt = (plan: PlanDocument, id: string, polygon: Point[]) => ({
+    ...plan.zones[0]!,
+    id,
+    name: id,
+    parentId: null,
+    polygon,
+  });
+
+  test('зона, наполовину вышедшая из соседней, объясняется одной находкой', () => {
+    const plan = loadPlan('minimal.json');
+    // z_client — 0..7 по X; новая зона выходит за неё до 9.
+    const overlapping: PlanDocument = {
+      ...plan,
+      zones: [...plan.zones, zoneAt(plan, 'z_half', [[6, 1], [9, 1], [9, 3], [6, 3]])],
+    };
+
+    const issues = validatePlan(overlapping).filter(
+      (entry) => entry.code === VALIDATION_ISSUE_CODES.ZONE_OVERLAPS_ZONE,
+    );
+    expect(issues).toHaveLength(1);
+    expect(issues[0]?.refs.map((ref) => ref.id)).toEqual(['z_client', 'z_half']);
+    expect(issues[0]?.severity).toBe('warning');
+    // Подсвечивается меньшая из двух: обычно это та, которую только что обвели.
+    expect(issues[0]?.polygon).toEqual([[6, 1], [9, 1], [9, 3], [6, 3]]);
+  });
+
+  test('зона, совпавшая с соседней по границе, тоже находка', () => {
+    const plan = loadPlan('minimal.json');
+    const doubled: PlanDocument = {
+      ...plan,
+      zones: [...plan.zones, zoneAt(plan, 'z_same', [...plan.zones[0]!.polygon])],
+    };
+
+    expect(
+      validatePlan(doubled).filter(
+        (entry) => entry.code === VALIDATION_ISSUE_CODES.ZONE_OVERLAPS_ZONE,
+      ),
+    ).toHaveLength(1);
+  });
+
+  test('вложенная зона и зоны встык находкой не считаются', () => {
+    const nested = loadPlan('nested.json');
+    expect(codesOf(validatePlan(nested))).not.toContain(
+      VALIDATION_ISSUE_CODES.ZONE_OVERLAPS_ZONE,
+    );
+
+    const plan = loadPlan('minimal.json');
+    // Встык к z_client по грани x = 7: общей площади нет.
+    const side: PlanDocument = {
+      ...plan,
+      zones: [...plan.zones, zoneAt(plan, 'z_side', [[7, 0], [10, 0], [10, 8], [7, 8]])],
+    };
+    expect(codesOf(validatePlan(side))).not.toContain(
+      VALIDATION_ISSUE_CODES.ZONE_OVERLAPS_ZONE,
+    );
+
+    // Два треугольника по разные стороны диагонали: охваты налезают, общей
+    // площади нет. Дешёвая проверка охватов одна такую пару не отсеет.
+    const diagonal: PlanDocument = {
+      ...plan,
+      zones: [
+        zoneAt(plan, 'z_lower', [[0, 0], [3, 0], [0, 3]]),
+        zoneAt(plan, 'z_upper', [[4, 1], [4, 4], [1, 4]]),
+      ],
+    };
+    expect(codesOf(validatePlan(diagonal))).not.toContain(
+      VALIDATION_ISSUE_CODES.ZONE_OVERLAPS_ZONE,
+    );
+  });
+});
+
 describe('коллизии считают только физические объекты', () => {
   test('два стола на одном месте — коллизия', () => {
     const plan = loadPlan('minimal.json');
