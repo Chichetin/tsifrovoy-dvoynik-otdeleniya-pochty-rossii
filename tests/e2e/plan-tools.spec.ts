@@ -102,6 +102,28 @@ async function worldPixel(page: Page, x: number, y: number): Promise<Pixel> {
   };
 }
 
+/** Курсор в точку плана, без клика: маркер цели показывают до нажатия (D-224). */
+async function hoverWorld(page: Page, x: number, y: number): Promise<void> {
+  const target = await onPage(page, await worldPixel(page, x, y));
+  await page.mouse.move(target.x, target.y);
+}
+
+/**
+ * Маркер цели привязки, как его видно на сцене: имена линий говорят ось и цель
+ * (`snap-marker-x-zone`), подпись — то же словами. Пусто — маркера нет.
+ */
+async function snapMarker(page: Page): Promise<{ caption: string; lines: string[] }> {
+  return page.evaluate(() => {
+    type Node = { name(): string; find(selector: string): Node[]; findOne(selector: string): Node | undefined };
+    type TextNode = Node & { text(): string };
+    const stage = (window as unknown as { Konva?: { stages: Node[] } }).Konva?.stages[0];
+    const layer = stage?.findOne('.snap-marker');
+    const lines = layer === undefined ? [] : layer.find('Line').map((node) => node.name());
+    const caption = layer?.findOne('.snap-marker-caption')?.findOne('Text') as TextNode | undefined;
+    return { caption: caption === undefined ? '' : caption.text(), lines };
+  });
+}
+
 const areas = (page: Page): Locator => page.getByLabel('Площади');
 
 async function roomArea(page: Page): Promise<string> {
@@ -578,7 +600,11 @@ test.describe('инструменты плана', () => {
     // Подсказка инструмента обещает правку в карточке свойств — она открыта и
     // толщина уходит в модель, а не только в поле ввода.
     const props = page.getByLabel('Свойства');
-    await expect(props.getByText('Свойства перегородки')).toBeVisible();
+    // Заголовок панели скрыт визуально внутри правой колонки (D-226,
+    // дубль имени раздела) — в DOM для доступности, поэтому проверка
+    // присутствия, а не видимости; какая именно карточка показана,
+    // человек и так видит по полям ниже («Толщина, м» — только у стены).
+    await expect(props.getByText('Свойства перегородки')).toBeAttached();
     await expect(props.getByTestId('props-id')).toHaveText(free.id);
     await props.getByLabel('Толщина, м').fill('0.35');
     const thicker = await savePlan(page);
@@ -789,5 +815,73 @@ test.describe('инструменты плана', () => {
     expect(hostAfter?.to[1]).toBe(y);
 
     expect(errors).toEqual([]);
+  });
+
+  test('маркер называет цель привязки до клика: зона, стена, сетка (D-224)', async ({ page }) => {
+    await openEditor(page);
+
+    // Зона в середине помещения, с Alt: её вершины ложатся туда, куда кликнули,
+    // и не совпадают ни с гранями стен, ни с контуром.
+    const corners: Point[] = [
+      [2, 2],
+      [5, 2],
+      [5, 5],
+      [2, 5],
+    ];
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.keyboard.down('Alt');
+    for (const [x, y] of corners) await clickAt(page, await worldPixel(page, x, y));
+    await clickAt(page, await worldPixel(page, corners[0]![0], corners[0]![1]));
+    await page.keyboard.up('Alt');
+    await page.keyboard.press('Escape');
+
+    const drawn = await savePlan(page);
+    const vertex = drawn.zones[0]?.polygon[0];
+    if (vertex === undefined) throw new Error('зона не нарисована');
+
+    // Инструмент рисования снова в руках — и под курсором видно, за что
+    // зацепится следующая точка (находка operator 20.09 №5).
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+
+    await hoverWorld(page, vertex[0] + 0.05, vertex[1] + 0.05);
+    expect(await snapMarker(page)).toEqual({
+      caption: 'X: зона · Y: зона',
+      lines: ['snap-marker-x-zone', 'snap-marker-y-zone'],
+    });
+
+    // Тот же жест у стены: обводящий комнату видит «стена», а не «зона».
+    await hoverWorld(page, 0.1, 0.1);
+    expect(await snapMarker(page)).toEqual({
+      caption: 'X: стена · Y: стена',
+      lines: ['snap-marker-x-wall', 'snap-marker-y-wall'],
+    });
+
+    // Вдали от плана тянет только сетка — и линия у неё другая, пунктирная.
+    await hoverWorld(page, 8.5, 7);
+    expect(await snapMarker(page)).toEqual({
+      caption: 'X: сетка 0,5 м · Y: сетка 0,5 м',
+      lines: ['snap-marker-x-grid', 'snap-marker-y-grid'],
+    });
+
+    // Alt выключает привязку — значит и обещать нечего (D-208/D-215).
+    await page.keyboard.down('Alt');
+    await hoverWorld(page, vertex[0] + 0.05, vertex[1] + 0.05);
+    await page.keyboard.up('Alt');
+    expect(await snapMarker(page)).toEqual({ caption: '', lines: [] });
+
+    // Escape бросает рисование вместе с маркером; смена инструмента — тоже.
+    await hoverWorld(page, vertex[0] + 0.05, vertex[1] + 0.05);
+    expect((await snapMarker(page)).lines).not.toEqual([]);
+    await page.keyboard.press('Escape');
+    expect(await snapMarker(page)).toEqual({ caption: '', lines: [] });
+
+    await hoverWorld(page, vertex[0] + 0.05, vertex[1] + 0.05);
+    expect((await snapMarker(page)).lines).not.toEqual([]);
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    expect(await snapMarker(page)).toEqual({ caption: '', lines: [] });
+
+    // Маркер — подсказка: ни один его кадр не попал ни в документ, ни в файл,
+    // ни в историю (кнопка «Вернуть» гаснет только после новой правки).
+    expect(await savePlan(page)).toEqual(drawn);
   });
 });

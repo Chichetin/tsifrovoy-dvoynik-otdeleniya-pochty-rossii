@@ -8,6 +8,7 @@
  * «Свойства»; заголовки прилипают к верху колонки при прокрутке.
  */
 
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
 
@@ -53,6 +54,70 @@ test('заголовок несёт сводку, взятую из уже по�
   await expect(header(page, 'Свойства')).toContainText('ничего не выбрано');
 });
 
+test('переименование выбранного объекта сразу видно в сводке «Свойства» (D-226: индекс имён строится по документу, а не пересобирается заново кэшированным)', async ({
+  page,
+}) => {
+  await openDemo(page);
+  await page
+    .getByLabel('Инвентаризация')
+    .locator('tbody tr')
+    .first()
+    .locator('.table__link')
+    .first()
+    .click();
+
+  const nameField = page.getByLabel('Свойства').first().getByLabel('Название');
+  await nameField.fill('Переименованный объект D-226');
+  await nameField.blur();
+
+  await expect(header(page, 'Свойства')).toContainText('Переименованный объект D-226');
+});
+
+test('сводка «Проверка» красится в цвет ошибки только когда среди находок есть severity: error, не от одних только warning (D-226, по ревью MR !177)', async ({
+  page,
+}) => {
+  const summary = () => header(page, 'Проверка').locator('.section__summary');
+
+  // Пример организаторов даёт находки обеих серьёзностей сразу (геометрия —
+  // error, правило команды у клиентской зоны — warning), поэтому сам по
+  // себе не отличает «есть error» от «есть хоть один warning» — оба мутанта
+  // на условии `severity === 'error'` красили бы сводку и здесь.
+  await page.goto('/');
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'example_plan.json'));
+  await expect(page.getByLabel('Проверка плана').locator('.issues__item.is-error').first()).toBeVisible();
+  await header(page, 'Проверка').click();
+  await expect(header(page, 'Проверка')).toHaveAttribute('aria-expanded', 'false');
+  await expect(summary()).toHaveClass(/is-error/);
+
+  // demo/after.json без единой находки, той же формы, что и «есть error» —
+  // мутант «сравнить с 'warning'» тоже красит эту сводку неверно только на
+  // третьем случае ниже, а не здесь (пустой список даёт `false` в обоих
+  // прочтениях условия).
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'after.json'));
+  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+  await expect(page.getByLabel('Проверка плана').locator('.issues__item')).toHaveCount(0);
+  await expect(summary()).not.toHaveClass(/is-error/);
+
+  // Тот же чистый план без единого рабочего места в клиентской зоне: только
+  // правило команды `rule_workplace_min` (team-assumption → warning),
+  // геометрия не задета — ни одной находки с severity: 'error'. Красная
+  // сводка здесь убивает мутанта «сравнить с 'warning'», а её отсутствие —
+  // мутанта «не передавать проп вовсе».
+  const clean = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'after.json'), 'utf8')) as {
+    objects: { typeId: string }[];
+  };
+  clean.objects = clean.objects.filter((entry) => entry.typeId !== 'ot_workplace');
+  await page.getByTestId('plan-file-input').setInputFiles({
+    name: 'warning-only.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(clean)),
+  });
+  await expect(page.getByLabel('Проверка плана').locator('.issues__item')).toHaveCount(1);
+  await expect(page.getByLabel('Проверка плана').locator('.issues__item.is-error')).toHaveCount(0);
+  await expect(summary()).not.toHaveClass(/is-error/);
+});
+
 test('клик по заголовку сворачивает раздел: aria-expanded="false", содержимое остаётся в DOM, но скрыто', async ({
   page,
 }) => {
@@ -85,6 +150,18 @@ test('заголовок — кнопка: Enter и Space переключают
   await expect(button).toHaveAttribute('aria-expanded', 'true');
 });
 
+test('до первого щелчка по заголовку ключ в localStorage не появляется (D-226)', async ({ page }) => {
+  await openDemo(page);
+  // Все шесть разделов уже открыты и видимы (значит, эффект уже отработал
+  // хотя бы раз) — но раз человек ещё не тронул ни один заголовок, писать в
+  // хранилище нечего.
+  for (const title of SECTIONS) {
+    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
+  }
+  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
+  expect(stored).toBeNull();
+});
+
 test('состояние сворачивания живёт в localStorage и переживает перезагрузку', async ({ page }) => {
   await openDemo(page);
   await header(page, 'Справочник').click();
@@ -98,6 +175,26 @@ test('состояние сворачивания живёт в localStorage и 
   await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
   // Остальные разделы не пострадали от чужой отметки.
   await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+});
+
+test('разворачивание раздела, свёрнутого ещё до открытия страницы, тоже сохраняется — не только сворачивание (D-226)', async ({
+  page,
+}) => {
+  // Страница стартует с уже свёрнутым разделом (как после прошлой сессии),
+  // а не с пустой записи — иначе тумблер «сравнить sections по ссылке на
+  // исходное значение» и тумблер «сохранять, пока объект не пуст» ведут себя
+  // одинаково и второй незаметно остаётся дырой в покрытии.
+  await openDemo(page);
+  await header(page, 'Справочник').click();
+  await page.reload();
+  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
+
+  await header(page, 'Справочник').click();
+  await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'true');
+
+  const stored = await page.evaluate(() => window.localStorage.getItem('ops-twin.right-column.v1'));
+  expect(stored).not.toBeNull();
+  expect(JSON.parse(stored!)).toEqual({});
 });
 
 test('выбор объекта на плане разворачивает «Свойства», если раздел был свёрнут — без рывка прокрутки страницы', async ({

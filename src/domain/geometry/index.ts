@@ -12,7 +12,15 @@
 import type { Equipment, Id, Opening, PlanDocument, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import { toWorld } from './coordinates';
-import { settle, snapBox, type BoxSnap, type SnapGuides } from './snap';
+import {
+  settle,
+  snapBox,
+  strongerSource,
+  type BoxSnap,
+  type GuideSource,
+  type LabelledGuides,
+  type SnapGuides,
+} from './snap';
 import {
   boundingBox,
   boxesOverlap,
@@ -48,8 +56,31 @@ export {
   type PointPosition,
 } from './polygons';
 
-export { SNAP, settle, settlePoint, snapAxis, snapBox, snapPoint } from './snap';
-export type { AxisSnap, BoxSnap, PointSnap, SnapGuides, SnapKind } from './snap';
+export {
+  ROOM_GRID_MIN_PX,
+  SNAP,
+  roomGridCoordinates,
+  settle,
+  settlePoint,
+  snapAxis,
+  snapBox,
+  snapHint,
+  snapPoint,
+  strongerSource,
+} from './snap';
+export type {
+  AxisHint,
+  AxisSnap,
+  BoxSnap,
+  GuideSource,
+  GuideSources,
+  LabelledGuides,
+  PointSnap,
+  SnapGuides,
+  SnapHint,
+  SnapKind,
+  SnapTarget,
+} from './snap';
 
 /**
  * Guides of a plan for moving an object (D-208): the room outline's vertices,
@@ -94,27 +125,31 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
  * room outline, the zones, the walls' axes and faces — so a new zone meets the
  * contour and a partition ends where another begins. Unlike an object, a
  * vertex may sit on a wall's axis: that is where the contour's own vertices are.
+ *
+ * Every coordinate carries what it belongs to (D-224), so the marker under the
+ * cursor can say «стена» or «зона» before the click instead of leaving the
+ * answer to the saved file.
  */
-export function pointGuides(plan: PlanDocument): SnapGuides {
-  const xs = new Set<number>();
-  const ys = new Set<number>();
-  const add = (point: Point): void => {
-    xs.add(point[0]);
-    ys.add(point[1]);
+export function pointGuides(plan: PlanDocument): LabelledGuides {
+  const xs = new Map<number, GuideSource>();
+  const ys = new Map<number, GuideSource>();
+  const add = (point: Point, source: GuideSource): void => {
+    xs.set(point[0], strongerSource(xs.get(point[0]), source));
+    ys.set(point[1], strongerSource(ys.get(point[1]), source));
   };
   // A zone on a hidden layer is not on screen: nothing to aim at (as for objects).
   const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
-  for (const vertex of plan.room.boundary) add(vertex);
+  for (const vertex of plan.room.boundary) add(vertex, 'room');
   for (const zone of plan.zones) {
     if (hidden.has(zone.layerId)) continue;
-    for (const vertex of zone.polygon) add(vertex);
+    for (const vertex of zone.polygon) add(vertex, 'zone');
   }
   for (const wall of plan.walls) {
-    add(wall.from);
-    add(wall.to);
-    for (const vertex of wallPolygon(wall)) add(vertex);
+    add(wall.from, 'wall');
+    add(wall.to, 'wall');
+    for (const vertex of wallPolygon(wall)) add(vertex, 'wall');
   }
-  return { xs: [...xs], ys: [...ys] };
+  return { xs: [...xs.keys()], ys: [...ys.keys()], sources: { xs, ys } };
 }
 
 /**

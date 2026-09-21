@@ -94,6 +94,131 @@ export function snapPoint(
 }
 
 /**
+ * How far apart the snapping grid's lines have to be on screen before it is
+ * worth drawing. Below this it reads as a grey wash over a plan already full of
+ * objects — noise, not guidance — and it is not drawn at all instead.
+ *
+ * The threshold also bounds what the canvas pays for it: a grid appears only
+ * when the plan is zoomed in for precise work, so a 100 × 50 m plan viewed
+ * whole never builds hundreds of lines nobody can tell apart (D-187, D-190 —
+ * the zoom frame is a measured budget).
+ */
+export const ROOM_GRID_MIN_PX = 14;
+
+/**
+ * Coordinates of the snapping step inside a room (D-230), in metres.
+ *
+ * The canvas already has a background grid whose step follows the zoom and says
+ * how big the plan is. This one is the other question — where a point will
+ * land — so its step is always the snapping step, and it exists only where
+ * snapping to it does: inside the room.
+ *
+ * Returned as bare coordinates over the room's extent. Cutting them to the
+ * outline is the caller's job: a room may be L-shaped, and clipping to a
+ * polygon is what a canvas does in one operation and arithmetic does badly.
+ */
+export function roomGridCoordinates(
+  boundary: readonly (readonly [number, number])[],
+  step_m: number,
+  scale: number,
+): { xs: number[]; ys: number[] } | null {
+  if (boundary.length < 3) return null;
+  // Нулевой, отрицательный шаг и нулевой масштаб отсекает этот же порог:
+  // отдельной проверки для них нет, потому что она никогда не срабатывает.
+  if (!(step_m * scale >= ROOM_GRID_MIN_PX)) return null;
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of boundary) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+
+  const xs: number[] = [];
+  for (let x = Math.ceil(minX / step_m) * step_m; x <= maxX; x += step_m) xs.push(x);
+  const ys: number[] = [];
+  for (let y = Math.ceil(minY / step_m) * step_m; y <= maxY; y += step_m) ys.push(y);
+
+  return { xs, ys };
+}
+
+/**
+ * What a guide coordinate is on the plan (D-224). A guide is a bare number, and
+ * a number cannot answer the one question the person drawing has: «к чему
+ * прилипнет точка». The layer that draws the marker needs the answer before the
+ * click, not the file after it.
+ */
+export type GuideSource = 'wall' | 'room' | 'zone';
+
+/** The same, plus the fallback every axis has when no guide is near. */
+export type SnapTarget = GuideSource | 'grid';
+
+/** Guide coordinates with what each of them belongs to, per axis. */
+export type GuideSources = {
+  xs: ReadonlyMap<number, GuideSource>;
+  ys: ReadonlyMap<number, GuideSource>;
+};
+
+/** Guides that can name themselves; `xs`/`ys` stay the plain arithmetic input. */
+export type LabelledGuides = SnapGuides & { sources: GuideSources };
+
+export type AxisHint = AxisSnap & { target: SnapTarget };
+
+/** Where the next click would land and what each coordinate would catch. */
+export type SnapHint = { point: [number, number]; x: AxisHint | null; y: AxisHint | null };
+
+/**
+ * Which description wins when one coordinate is several things at once — a zone
+ * drawn flush to a wall shares that wall's face, and a room's corner is the end
+ * of two walls. The wall is the physical thing the eye aims at, and the room's
+ * outline is more definite than one of the many zones drawn on it.
+ */
+const SOURCE_RANK: Record<GuideSource, number> = { wall: 0, room: 1, zone: 2 };
+
+export function strongerSource(known: GuideSource | undefined, found: GuideSource): GuideSource {
+  return known !== undefined && SOURCE_RANK[known] <= SOURCE_RANK[found] ? known : found;
+}
+
+/**
+ * The same landing point `snapPoint` gives, plus what each axis caught — the
+ * marker under the cursor and the click that follows it must never disagree, so
+ * both come from here (D-224). Each axis answers on its own: x may sit on a
+ * wall's face while y goes to a grid node, and showing that honestly is the
+ * whole point (D-209 pulls the coordinates independently).
+ *
+ * `Alt` is the caller's business: with snapping off there is no target, so no
+ * hint is asked for.
+ */
+export function snapHint(
+  point: readonly [number, number],
+  guides: LabelledGuides,
+  step: number | null,
+  tolerance: number,
+): SnapHint {
+  const snap = snapPoint(point, guides, step, tolerance);
+  return {
+    point: settlePoint(snap),
+    x: axisHint(snap.x, guides.sources.xs),
+    y: axisHint(snap.y, guides.sources.ys),
+  };
+}
+
+function axisHint(snap: AxisSnap | null, sources: ReadonlyMap<number, GuideSource>): AxisHint | null {
+  if (snap === null) return null;
+  if (snap.kind === 'grid') return { ...snap, target: 'grid' };
+  const source = sources.get(snap.value);
+  // A guide nobody can name is not shown: the marker either says what the point
+  // will catch or says nothing. The coordinate still snaps — silence here costs
+  // the hint, never the geometry.
+  return source === undefined ? null : { ...snap, target: source };
+}
+
+/**
  * How far to shift a box so that one of its sides lands on a target. People
  * align furniture by its edges, so the centre is offered to guides only (a
  * neighbour's axis, a wall's face) and never to the grid; and the grid pulls

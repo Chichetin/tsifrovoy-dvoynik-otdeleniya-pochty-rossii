@@ -50,6 +50,23 @@ test('the header is a real button: click and Enter/Space call onToggle', () => {
   expect(header.tagName).toBe('BUTTON');
 });
 
+test('summaryTone="error" marks the summary; omitted keeps the neutral class (D-226)', () => {
+  const { rerender } = render(
+    <Section id="validation" title="Проверка" summary="2 находки" collapsed={false} onToggle={() => {}}>
+      <p>содержимое</p>
+    </Section>,
+  );
+  const summary = () => screen.getByText('2 находки');
+  expect(summary().className).toBe('section__summary');
+
+  rerender(
+    <Section id="validation" title="Проверка" summary="2 находки" summaryTone="error" collapsed={false} onToggle={() => {}}>
+      <p>содержимое</p>
+    </Section>,
+  );
+  expect(summary().className).toBe('section__summary is-error');
+});
+
 test('aria-controls points at the content element that carries the same id', () => {
   render(
     <Section id="inventory" title="Инвентаризация" summary="53 объекта" collapsed={false} onToggle={() => {}}>

@@ -20,12 +20,28 @@ export type SectionProps = {
   id: string;
   title: string;
   summary: string;
+  /**
+   * UI-2В (D-226, по ревью MR !177): a collapsed section only shows its
+   * summary line — for «Проверка» that line used to lose the one signal a
+   * red `panel__count` gave inside the panel (has an error, not just a
+   * warning). `'error'` colours the summary the same way; omitted keeps the
+   * neutral tone every other section already has.
+   */
+  summaryTone?: 'error';
   collapsed: boolean;
   onToggle: () => void;
   children: ReactNode;
 };
 
-export function Section({ id, title, summary, collapsed, onToggle, children }: SectionProps): React.JSX.Element {
+export function Section({
+  id,
+  title,
+  summary,
+  summaryTone,
+  collapsed,
+  onToggle,
+  children,
+}: SectionProps): React.JSX.Element {
   const contentId = `right-section-${id}`;
   return (
     <div className={collapsed ? 'section is-collapsed' : 'section'}>
@@ -34,7 +50,7 @@ export function Section({ id, title, summary, collapsed, onToggle, children }: S
           <path d="M4 6l4 4 4-4" />
         </svg>
         <span className="section__title">{title}</span>
-        <span className="section__summary">{summary}</span>
+        <span className={summaryTone === 'error' ? 'section__summary is-error' : 'section__summary'}>{summary}</span>
       </button>
       <div id={contentId} className="section__body" hidden={collapsed}>
         {children}
