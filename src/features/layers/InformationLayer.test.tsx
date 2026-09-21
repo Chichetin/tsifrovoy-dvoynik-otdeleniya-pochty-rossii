@@ -22,7 +22,10 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vite
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { EditorSession } from '../../contracts/ui';
-import { InformationLayer } from './InformationLayer';
+import { boundingBox, footprint, modelToScreen } from '../../domain/geometry';
+import { InformationLayer, zoneNameBox } from './InformationLayer';
+import { boxesOverlap } from './label-layout';
+import { zoneNameAnchor } from './zone-name-anchor';
 
 afterEach(cleanup);
 
@@ -52,22 +55,29 @@ function demoWithLayersOn(): PlanDocument {
   return { ...plan, layers: plan.layers.map((layer) => ({ ...layer, visible: true })) };
 }
 
-function drawnShapes(plan: PlanDocument): Konva.Shape[] {
+const SESSION: EditorSession = {
+  tool: { kind: 'select' },
+  viewport: { origin: [0, 0], scale: 48 },
+  selection: null,
+  preview: null,
+  focus: null,
+};
+
+function renderStage(plan: PlanDocument): Konva.Stage {
   const stage = createRef<Konva.Stage>();
-  const session: EditorSession = {
-    tool: { kind: 'select' },
-    viewport: { origin: [0, 0], scale: 48 },
-    selection: null,
-    preview: null,
-    focus: null,
-  };
   render(
     <Stage ref={stage} width={800} height={600}>
-      <InformationLayer document={plan} session={session} />
+      <InformationLayer document={plan} session={SESSION} />
     </Stage>,
   );
   if (stage.current === null) throw new Error('Stage не смонтировался');
-  return stage.current.find((node: Konva.Node) => node instanceof Object && 'hasFill' in node) as Konva.Shape[];
+  return stage.current;
+}
+
+function drawnShapes(plan: PlanDocument): Konva.Shape[] {
+  return renderStage(plan).find(
+    (node: Konva.Node) => node instanceof Object && 'hasFill' in node,
+  ) as Konva.Shape[];
 }
 
 describe('информационные слои рисуются без буферного холста', () => {
@@ -88,5 +98,36 @@ describe('информационные слои рисуются без буфе
       (shape) => shape.getAbsoluteOpacity() < 1 && shape.hasFill() && shape.hasStroke(),
     );
     expect(translucentFilled.length).toBeGreaterThan(0);
+  });
+});
+
+describe('значение информационного слоя не садится на реальное положение имени зоны (D-241)', () => {
+  test('ни один прямоугольник info-label не пересекает zoneNameBox ни одной зоны демо-плана', () => {
+    // Регрессия на operator №9: до D-241 обстоятельство строилось по центру
+    // bounding box зоны, а не по якорю D-216 (`zoneNameAnchor`), сдвинутому
+    // объектом в обычном месте имени. На demo/before.json это расходится
+    // с реальной позицией у 7 из 8 зон (до 0,95 м — `z_staff`).
+    const plan = demoWithLayersOn();
+    const stage = renderStage(plan);
+
+    const visibleLayers = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+    const objectBoxes = plan.objects
+      .filter((object) => visibleLayers.has(object.layerId))
+      .map((object) => boundingBox(footprint(object)));
+    // Та же пара вызовов, что делает сам InformationLayer.tsx (:109-115,
+    // :226-228) — тест проверяет реальную проводку, а не свою копию правила.
+    const nameBoxes = plan.zones.map((zone) => {
+      const anchor = zoneNameAnchor(zone.polygon, objectBoxes);
+      const screenAnchor = modelToScreen(anchor, SESSION.viewport);
+      return zoneNameBox(zone, screenAnchor);
+    });
+
+    const infoLabels = stage
+      .find((node: Konva.Node) => node.name() === 'info-label')
+      .map((node) => node.getClientRect());
+    expect(infoLabels.length).toBeGreaterThan(0);
+
+    const clashes = infoLabels.flatMap((label) => nameBoxes.filter((box) => boxesOverlap(label, box)));
+    expect(clashes).toEqual([]);
   });
 });
