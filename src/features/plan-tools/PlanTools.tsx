@@ -66,7 +66,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: str
   {
     kind: 'opening.place',
     label: 'Проём',
-    hint: 'Клик по стене ставит дверь; вид и размер правятся в карточке свойств',
+    hint: 'Клик по стене ставит дверь; вид и размер правятся в карточке свойств; Enter — готово',
   },
 ];
 
@@ -82,7 +82,7 @@ function editingHint(selection: Ref | null): string | null {
     return 'Контур: тяните вершину; клик по ребру добавит вершину; Ctrl — протяжкой ребра вытянуть выступ, кликом по вершине удалить её; Alt — без привязки';
   }
   if (selection.kind === 'wall') return 'Перегородка: тяните концы; Alt — без привязки';
-  if (selection.kind === 'opening') return 'Проём: тяните вдоль стены';
+  if (selection.kind === 'opening') return 'Проём: тяните вдоль стены; Enter — готово';
   return null;
 }
 
