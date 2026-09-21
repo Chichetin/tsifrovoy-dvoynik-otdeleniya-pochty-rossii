@@ -32,7 +32,9 @@ test('без выбора открыты разделы обзора, «Свой
   for (const title of SECTIONS.filter((name) => name !== 'Свойства')) {
     await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
   }
-  await expect(page.getByLabel('Ассистент')).toBeVisible();
+  // `exact`: плавающая кнопка «Открыть ассистента» (MR !197) иначе попадает
+  // в тот же локатор и делает его неоднозначным.
+  await expect(page.getByLabel('Ассистент', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Проверка плана')).toBeVisible();
   await expect(page.getByLabel('Инвентаризация')).toBeVisible();
   await expect(page.getByLabel('Справочник')).toBeVisible();
@@ -40,34 +42,45 @@ test('без выбора открыты разделы обзора, «Свой
   await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('выбор сворачивает обзор и раскрывает «Свойства», заголовки остаются (D-236)', async ({
-  page,
-}) => {
+test('выбор раскрывает «Свойства», обзор плана остаётся на месте (D-236)', async ({ page }) => {
   await openDemo(page);
   await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
 
   await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Свойства').first()).toBeVisible();
+  // Обзор не прячется: поставленный объект сразу выбран (D-147), и скрытые при
+  // выборе площади с перечнем были бы скрыты почти всё время работы.
   for (const title of SECTIONS.filter((name) => name !== 'Свойства')) {
-    // Свёрнут, но виден и доступен одним щелчком — не убран из колонки.
-    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'false');
-    await expect(header(page, title)).toBeVisible();
+    await expect(header(page, title)).toHaveAttribute('aria-expanded', 'true');
   }
+  await expect(page.getByLabel('Площади').locator('tbody tr').first()).toBeVisible();
+  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
 });
 
-test('свёрнутый при выборе раздел открывается щелчком, выбор не теряется (D-236)', async ({
+test('снятие выбора снова сворачивает «Свойства» (D-236)', async ({ page }) => {
+  await openDemo(page);
+  await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
+  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+
+  await page.keyboard.press('Escape');
+
+  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+});
+
+test('щелчок по заголовку сильнее автоматики: свёрнутые вручную «Свойства» не раскрываются выбором (D-236)', async ({
   page,
 }) => {
   await openDemo(page);
   await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
-  await expect(header(page, 'Площади')).toHaveAttribute('aria-expanded', 'false');
+  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
 
-  await header(page, 'Площади').click();
+  await header(page, 'Свойства').click();
 
-  await expect(header(page, 'Площади')).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByLabel('Площади').locator('tbody tr').first()).toBeVisible();
-  // Ручной щелчок сильнее автоматики: карточка выбранного никуда не делась.
-  await expect(page.getByLabel('Свойства').first()).toBeVisible();
+  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
+  // Отметка живёт до смены выбора: другой объект снова раскрывает карточку.
+  await page.getByLabel('Инвентаризация').locator('tbody tr').nth(1).getByRole('button').first().click();
+  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('заголовок несёт сводку, взятую из уже посчитанных данных панели', async ({ page }) => {
