@@ -57,7 +57,8 @@ function pick<T extends string>(tabs: readonly TabDef<T>[], value: unknown, fall
 
 /**
  * The saved tabs, each column checked on its own: a foreign or stale value in
- * one column falls back to that column's first tab and leaves the other alone.
+ * one column falls back to that column's default tab (DEFAULT_SIDE_TABS) and
+ * leaves the other alone.
  */
 export function loadSideTabs(storage: TabStorage | null): SideTabs {
   if (storage === null) return DEFAULT_SIDE_TABS;
