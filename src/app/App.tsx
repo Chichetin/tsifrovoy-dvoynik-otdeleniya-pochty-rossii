@@ -15,8 +15,6 @@ import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
-import { formatArea } from '../domain/number-format';
-import { planIndex } from '../domain/plan-index';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
@@ -50,16 +48,15 @@ import { createPlanStore } from '../state/plan-store';
 import { catalog, createEmptyPlan } from './default-plan';
 import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
-  browserStorage as rightColumnStorage,
-  expandSection,
-  loadSectionState,
-  pluralRu,
-  saveSectionState,
-  toggleSection,
-  type SectionId,
-  type SectionState,
-} from './right-column';
-import { Section } from './Section';
+  LEFT_TABS,
+  RIGHT_TABS,
+  browserStorage as sideTabsStorage,
+  loadSideTabs,
+  saveSideTabs,
+  type LeftTab,
+  type RightTab,
+} from './side-tabs';
+import { SideTabs } from './SideTabs';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
 import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
@@ -122,66 +119,30 @@ export function App(): React.JSX.Element {
   const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
-  // UI-2Б: which right-column sections are collapsed — a fact about this
-  // browser, kept in localStorage exactly like the tour (D-217), never in the
-  // plan. Every section is open on the first visit.
-  const [sections, setSections] = useState(() => loadSectionState(rightColumnStorage()));
-  // UI-2В: the value `sections` starts with is just what `loadSectionState`
-  // returned — writing it straight back would put a `{}` key in localStorage
-  // before the person ever touched a header (D-226). A "have we run before"
-  // ref flag looked like the fix, but `StrictMode` (`src/main.tsx`) invokes
-  // this effect twice on mount without resetting refs in between, so the
-  // second invocation saw the flag already set and wrote anyway. Comparing
-  // `sections` by reference to the exact object the initializer produced
-  // sidesteps that: every real toggle (`toggleSection`, `expandSection`,
-  // `without`) returns a new object, so identity only holds while nothing
-  // has been touched yet, StrictMode's extra pass included.
-  const initialSections = useRef(sections);
+  // D-249: which tab each side column shows — a fact about this browser,
+  // kept in localStorage like the tour (D-195), never in the plan. The value
+  // the initializer returned is not written straight back: comparing by
+  // reference skips the mount (StrictMode included, see D-226), so nothing
+  // lands in localStorage before the person touches a tab.
+  const [tabs, setTabs] = useState(() => loadSideTabs(sideTabsStorage()));
+  const initialTabs = useRef(tabs);
   useEffect(() => {
-    if (sections === initialSections.current) return;
-    saveSectionState(rightColumnStorage(), sections);
-  }, [sections]);
-  /**
-   * D-236: «Свойства» следуют за выбором — раскрыты, когда есть что показать,
-   * и свёрнуты, когда выбора нет: пустая карточка «ничего не выбрано» не
-   * занимает место в колонке. Остальные разделы живут своим состоянием и при
-   * выборе не прячутся: поставленный объект сразу выбран (D-147), поэтому
-   * скрытый при выборе обзор был бы скрыт почти всегда.
-   *
-   * Это не состояние, а вывод из выбора: в localStorage не пишется и чужую
-   * сохранённую раскладку не затирает.
-   */
-  const autoCollapsed = (id: SectionId): boolean =>
-    id === 'properties' ? selection === null : sections[id] === true;
-  /**
-   * Разделы, которые человек сам свернул или раскрыл при нынешнем выборе:
-   * щелчок по заголовку сильнее автоматики и живёт до смены выбора — иначе
-   * заглянуть в «Площади», не бросая выбранный объект, было бы нечем.
-   */
-  const [manualSections, setManualSections] = useState<SectionState>({});
-  const collapsedOf = (id: SectionId): boolean => manualSections[id] ?? autoCollapsed(id);
-  const toggleSectionState = useCallback(
-    (id: SectionId) => {
-      setSections((prev) => toggleSection(prev, id));
-      setManualSections((prev) => ({ ...prev, [id]: !collapsedOf(id) }));
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapsedOf зависит от выбора и читается в момент щелчка
-    [selection, sections, manualSections],
-  );
+    if (tabs === initialTabs.current) return;
+    saveSideTabs(sideTabsStorage(), tabs);
+  }, [tabs]);
+  const showLeftTab = useCallback((left: LeftTab) => {
+    setTabs((prev) => (prev.left === left ? prev : { ...prev, left }));
+  }, []);
+  const showRightTab = useCallback((right: RightTab) => {
+    setTabs((prev) => (prev.right === right ? prev : { ...prev, right }));
+  }, []);
   // The launcher is deliberately only an entry point: the right-column panel
   // remains the one place where assistant state and future chat history live.
-  // Ручную отметку «свёрнут» с него тоже снимаем: иначе кнопка прокрутит к
-  // заголовку, под которым по-прежнему пусто.
+  // It switches the column to the assistant tab — a hidden panel is not
+  // "opened" by scrolling to it.
   const openAssistant = useCallback(() => {
-    setSections((prev) => expandSection(prev, 'assistant'));
-    setManualSections((prev) => ({ ...prev, assistant: false }));
-    window.requestAnimationFrame(() => {
-      globalThis.document.getElementById('right-section-assistant')?.scrollIntoView?.({
-        behavior: 'smooth',
-        block: 'start',
-      });
-    });
-  }, []);
+    showRightTab('assistant');
+  }, [showRightTab]);
 
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
@@ -190,21 +151,15 @@ export function App(): React.JSX.Element {
     [tool, viewport, selection, selected, preview, focus, retired],
   );
 
-  // Смена выбора возвращает колонку к автоматике (D-236): ручные щелчки по
-  // заголовкам относились к прошлому выбранному объекту, а не к новому.
-  // Раскрывать «Свойства» отдельной командой больше не нужно — при выборе
-  // они раскрыты по определению.
   const select = useCallback(
     (ref: Ref | null) => {
       store.getState().select(ref);
-      setManualSections({});
     },
     [store],
   );
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
       store.getState().selectMany(ids);
-      setManualSections({});
     },
     [store],
   );
@@ -276,40 +231,19 @@ export function App(): React.JSX.Element {
   const issues = useMemo(() => validatePlan(document), [document]);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
-  // UI-2В (D-226): `planIndex(document)` only depends on the plan, not on
-  // the assistant's own state — building it here keeps `sectionSummaries`
-  // below from rebuilding the whole index on every advice request or object
-  // pick, the way the other consumers of `planIndex` already memoize it by
-  // `[plan]` alone (`EquipmentLayer`, `AssistantPanel`, `ValidationPanel`,
-  // `InventoryPanel`).
-  const names = useMemo(() => planIndex(document), [document]);
-
-  // UI-2Б: a line for each section's collapsed header, so it stays useful
-  // closed. Every number here already exists — `metrics`, `issues` and
-  // `inventory` above, `advice` below — this only picks words around it.
-  const sectionSummaries = useMemo<Record<SectionId, string>>(() => {
-    const properties = selection === null ? 'ничего не выбрано' : (names.nameOf(selection) ?? selection.id);
-    const assistant =
-      adviceState.status === 'loading'
-        ? 'запрос отправлен'
-        : adviceState.status === 'error'
-          ? 'ошибка запроса'
-          : advice === null
-            ? 'без рекомендации'
-            : `${advice.recommendations.length} ${pluralRu(advice.recommendations.length, 'рекомендация', 'рекомендации', 'рекомендаций')}`;
-    const areas = metrics.ok ? formatArea(metrics.value.room.total_m2) : 'ошибка расчёта';
-    const found = `${issues.length} ${pluralRu(issues.length, 'находка', 'находки', 'находок')}`;
-    const placed = `${inventory.rows.length} ${pluralRu(inventory.rows.length, 'объект', 'объекта', 'объектов')}`;
-    const types = document.catalog.objectTypes.length;
-    const catalogSummary = `${types} ${pluralRu(types, 'тип', 'типа', 'типов')}`;
-    return { properties, assistant, metrics: areas, validation: found, inventory: placed, catalog: catalogSummary };
-  }, [selection, names, document, adviceState, advice, metrics, issues, inventory]);
-
-  // UI-2В (D-226, по ревью MR !177): the same test `ValidationPanel` uses for
-  // its own red `panel__count` (`issue.severity === 'error'`) — a collapsed
-  // «Проверка» section must not read as calm when the plan has real errors,
-  // not just team warnings.
-  const validationHasErrors = useMemo(() => issues.some((issue) => issue.severity === 'error'), [issues]);
+  // D-249: the one live signal a tab keeps while its panel is hidden — how
+  // many findings «Проверка» has, red when any of them is a real error (the
+  // same test `ValidationPanel` uses for its own red `panel__count`).
+  const validationBadge = useMemo(
+    () =>
+      issues.length === 0
+        ? undefined
+        : {
+            text: String(issues.length),
+            tone: issues.some((issue) => issue.severity === 'error') ? ('error' as const) : undefined,
+          },
+    [issues],
+  );
 
   const askAssistant = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
@@ -407,7 +341,6 @@ export function App(): React.JSX.Element {
             3D
           </button>
         </div>
-        <div className="shell__right">
         <div className="shell__history" role="group" aria-label="История правок">
           <button type="button" className="shell__quiet" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -423,21 +356,6 @@ export function App(): React.JSX.Element {
             </svg>
             <span className="shell__label">Вернуть</span>
           </button>
-        </div>
-        {/* D-254: карта клавиш — иконка в шапке, без подписи: текстовая кнопка
-            возвращала перенос шапки на вторую строку при 1280 px. */}
-        <button
-          type="button"
-          className="shell__quiet shell__keys"
-          title="Горячие клавиши (?)"
-          aria-label="Горячие клавиши (?)"
-          onClick={hotkeysMap.show}
-        >
-          <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
-            <path d="M4 6h.01M7 6h.01M10 6h.01M12.5 6h.01M4 8.5h.01M6.5 8.5h.01M9 8.5h.01M12 8.5h.01M5 10.8h6" />
-          </svg>
-        </button>
         </div>
         <div className="shell__anchor" data-tour="files">
         <FileControls
@@ -457,25 +375,38 @@ export function App(): React.JSX.Element {
 
       <div className="shell__body">
         <aside className="shell__side" data-tour="side-left">
-          <LayersPanel
-            document={document}
-            session={session}
-            onCommand={dispatch}
-            onSelect={select}
+          <SideTabs
+            label="Панели слева"
+            idPrefix="side-left"
+            tabs={LEFT_TABS}
+            active={tabs.left}
+            onSelect={showLeftTab}
+            panels={{
+              layers: (
+                <LayersPanel document={document} session={session} onCommand={dispatch} onSelect={select} />
+              ),
+              library: (
+                <LibraryPanel
+                  catalog={document.catalog}
+                  activeTypeId={tool.kind === 'object.place' ? tool.typeId : null}
+                  onTool={setTool}
+                />
+              ),
+            }}
           />
-          <LibraryPanel
-            catalog={document.catalog}
-            activeTypeId={tool.kind === 'object.place' ? tool.typeId : null}
-            onTool={setTool}
-          />
-          <button
-            type="button"
-            className="shell__tour"
-            title="Четыре шага: открыть план, изменить, проверить, сохранить"
-            onClick={() => setTourOpen(true)}
-          >
-            Обучение
-          </button>
+          <div className="shell__side-foot">
+            <button
+              type="button"
+              className="shell__tour"
+              title="Четыре шага: открыть план, изменить, проверить, сохранить"
+              onClick={() => setTourOpen(true)}
+            >
+              Обучение
+            </button>
+            <button type="button" className="shell__tour" title="Список всех горячих клавиш" onClick={hotkeysMap.show}>
+              Горячие клавиши (?)
+            </button>
+          </div>
         </aside>
 
         <main className="shell__canvas">
@@ -554,74 +485,56 @@ export function App(): React.JSX.Element {
         </main>
 
         <aside className="shell__side shell__side--wide" data-tour="side-right">
-          <Section
-            id="properties"
-            title="Свойства"
-            summary={sectionSummaries.properties}
-            collapsed={collapsedOf('properties')}
-            onToggle={() => toggleSectionState('properties')}
-          >
-            <PropertiesPanel
-              document={document}
-              session={session}
-              onCommand={dispatch}
-              gesturePreview={gesturePreview}
-            />
-          </Section>
-          <Section
-            id="assistant"
-            title="Ассистент"
-            summary={sectionSummaries.assistant}
-            collapsed={collapsedOf('assistant')}
-            onToggle={() => toggleSectionState('assistant')}
-          >
-            <AssistantPanel
-              document={document}
-              revision={revision}
-              response={advice}
-              state={adviceState}
-              onPreview={setPreview}
-              onFocus={focusOn}
-              onAsk={askAssistant}
-            />
-          </Section>
-          <Section
-            id="metrics"
-            title="Площади"
-            summary={sectionSummaries.metrics}
-            collapsed={collapsedOf('metrics')}
-            onToggle={() => toggleSectionState('metrics')}
-          >
-            <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
-          </Section>
-          <Section
-            id="validation"
-            title="Проверка"
-            summary={sectionSummaries.validation}
-            summaryTone={validationHasErrors ? 'error' : undefined}
-            collapsed={collapsedOf('validation')}
-            onToggle={() => toggleSectionState('validation')}
-          >
-            <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
-          </Section>
-          <Section
-            id="inventory"
-            title="Инвентаризация"
-            summary={sectionSummaries.inventory}
-            collapsed={collapsedOf('inventory')}
-            onToggle={() => toggleSectionState('inventory')}
-          >
-            <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
-          </Section>
-          <Section
-            id="catalog"
-            title="Справочник"
-            summary={sectionSummaries.catalog}
-            collapsed={collapsedOf('catalog')}
-            onToggle={() => toggleSectionState('catalog')}
-          >
-            <CatalogPanel document={document} onCommand={dispatch} />
-          </Section>
+          {/* D-249: «Свойства» are not a tab and have no collapsed state —
+              without a selection there is nothing to show, so the card is not
+              rendered at all; with one it sits above the tabs, and «×» drops
+              the selection (the same as Escape on the canvas). */}
+          {selection === null ? null : (
+            <div className="shell__props">
+              <button
+                type="button"
+                className="shell__props-close"
+                aria-label="Снять выделение"
+                title="Снять выделение (Esc)"
+                onClick={() => select(null)}
+              >
+                <svg viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+              <PropertiesPanel
+                document={document}
+                session={session}
+                onCommand={dispatch}
+                gesturePreview={gesturePreview}
+              />
+            </div>
+          )}
+          <SideTabs
+            label="Панели справа"
+            idPrefix="side-right"
+            tabs={RIGHT_TABS}
+            active={tabs.right}
+            onSelect={showRightTab}
+            badges={{ validation: validationBadge }}
+            panels={{
+              assistant: (
+                <AssistantPanel
+                  document={document}
+                  revision={revision}
+                  response={advice}
+                  state={adviceState}
+                  onPreview={setPreview}
+                  onFocus={focusOn}
+                  onAsk={askAssistant}
+                />
+              ),
+              metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} />,
+              inventory: <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />,
+              catalog: <CatalogPanel document={document} onCommand={dispatch} />,
+            }}
+          />
         </aside>
       </div>
 

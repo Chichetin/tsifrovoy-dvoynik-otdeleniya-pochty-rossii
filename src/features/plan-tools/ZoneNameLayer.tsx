@@ -23,10 +23,9 @@ import { Layer, Text } from 'react-konva';
 import type { PlanDocument, Viewport, Zone } from '../../contracts/model';
 import type { BoundingBox } from '../../domain/geometry';
 import { boundingBox, footprint, modelToScreen } from '../../domain/geometry';
+import { zoneDepth } from '../../domain/relations';
 import { zoneLabelAnchor } from './zone-label';
-
-/** Начертание — то же, что было у подписи в `PlanGeometryLayer`. */
-const ZONE_LABEL_FILL = '#56626E';
+import { zoneNameFill } from './zone-name-color';
 /**
  * Экспортированы, а не только локальные: `InformationLayer` (D-241) держит
  * свою копию этих трёх чисел для расчёта места под значение слоя рядом с
@@ -72,6 +71,13 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
     [plan.zones, objectBoxes],
   );
 
+  // Цвет по уровню вложенности (D-250); глубина — по всем зонам плана, а не
+  // только видимым: скрытый родитель не делает вложенную зону корнем.
+  const fills = useMemo(
+    () => new Map(plan.zones.map((zone) => [zone.id, zoneNameFill(zoneDepth(zone.id, plan.zones))])),
+    [plan.zones],
+  );
+
   const zones: Zone[] = plan.zones.filter((zone) => visibleLayers.has(zone.layerId));
 
   return (
@@ -83,6 +89,8 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
         return (
           <Text
             key={`label-${zone.id}`}
+            name="zone-name"
+            id={`zone-name-${zone.id}`}
             x={x - ZONE_LABEL_BOX_WIDTH / 2}
             y={y - ZONE_LABEL_FONT_PX / 2}
             width={ZONE_LABEL_BOX_WIDTH}
@@ -91,7 +99,7 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
             fontSize={ZONE_LABEL_FONT_PX}
             fontStyle="500"
             letterSpacing={ZONE_LABEL_LETTER_SPACING}
-            fill={ZONE_LABEL_FILL}
+            fill={fills.get(zone.id) ?? zoneNameFill(0)}
             opacity={ZONE_LABEL_OPACITY}
             listening={false}
           />

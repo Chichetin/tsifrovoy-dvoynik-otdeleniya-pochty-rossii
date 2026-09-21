@@ -11,6 +11,7 @@
  */
 
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 
@@ -19,6 +20,7 @@ const inventoryRows = (page: Page) =>
   page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
 
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
@@ -77,6 +79,7 @@ test.describe('карта горячих клавиш', () => {
   test('? в поле карточки правит текст, накладка не открывается', async ({ page }) => {
     await page.goto('/');
     await placeFromLibrary(page, RACK, 420, 330);
+    await showTab(page, 'Инвентаризация');
     await page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr').first().getByRole('button').first().click();
 
     const name = page.getByLabel('Свойства').getByLabel('Название');

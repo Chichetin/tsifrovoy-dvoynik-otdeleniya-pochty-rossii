@@ -10,7 +10,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page, exportPlan } from './fixtures';
+import { expect, test, type Page , exportPlan } from './fixtures';
+import { showTab } from './side-tabs';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 /** Шаг стрелки из src/features/equipment/selection-edit.ts. */
@@ -32,6 +33,7 @@ async function settle(page: Page): Promise<void> {
 }
 
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await settle(page);
   await canvas(page).click({ position: { x, y } });
@@ -181,7 +183,6 @@ test.describe('групповой выбор', () => {
 
     await drag(page, [100, 380], [200, 420]);
 
-    await expect(card(page)).not.toContainText('Свойства объекта');
-    await expect(card(page)).not.toContainText('Свойства помещения');
+    await expect(card(page)).toHaveCount(0);
   });
 });

@@ -595,4 +595,49 @@ describe('FileControls: меню «Экспорт»', () => {
     // Картинка — не сохранение.
     expect(onExported).not.toHaveBeenCalled();
   });
+  test('стрелка вниз на кнопке открывает меню на первом пункте, вверх — на последнем', () => {
+    renderControls({ storage: null });
+    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(screen.getAllByRole('menuitem')[0]);
+
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    fireEvent.keyDown(trigger, { key: 'ArrowUp' });
+    const items = screen.getAllByRole('menuitem');
+    expect(document.activeElement).toBe(items[items.length - 1]);
+  });
+
+  test('после PNG чтение файла подписано как чтение файла, а не как картинка', async () => {
+    stubDownload();
+    pngRenderer.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+    renderControls({ storage: null, document: filled, dirty: false });
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
+    await act(async () => {});
+
+    const file = new File([], 'slow.json');
+    vi.spyOn(file, 'text').mockReturnValue(new Promise<string>(() => undefined));
+    fireEvent.change(screen.getByTestId('plan-file-input'), { target: { files: [file] } });
+
+    expect(screen.getByTestId('files-loading').textContent).toBe('читаем файл…');
+  });
+
+  test('поздний ответ растеризации не перетирает начатое открытие файла', async () => {
+    stubDownload();
+    let finishPng!: (blob: Blob) => void;
+    pngRenderer.mockReturnValue(new Promise<Blob>((done) => { finishPng = done; }));
+    renderControls({ storage: null, document: filled, dirty: false });
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
+
+    const file = new File([], 'slow.json');
+    vi.spyOn(file, 'text').mockReturnValue(new Promise<string>(() => undefined));
+    fireEvent.change(screen.getByTestId('plan-file-input'), { target: { files: [file] } });
+    await act(async () => { finishPng(new Blob(['png'], { type: 'image/png' })); });
+
+    expect(screen.getByTestId('files-loading').textContent).toBe('читаем файл…');
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+  });
 });

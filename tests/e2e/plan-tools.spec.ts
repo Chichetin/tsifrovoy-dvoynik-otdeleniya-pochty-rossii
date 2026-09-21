@@ -18,7 +18,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type Page, type TestInfo, exportPlan } from './fixtures';
+import { expect, test, type Locator, type Page, type TestInfo , exportPlan } from './fixtures';
+import { showTab } from './side-tabs';
 
 type Point = [number, number];
 type Pixel = { x: number; y: number };
@@ -127,10 +128,12 @@ async function snapMarker(page: Page): Promise<{ caption: string; lines: string[
 const areas = (page: Page): Locator => page.getByLabel('Площади');
 
 async function roomArea(page: Page): Promise<string> {
+  await showTab(page, 'Площади');
   return ((await areas(page).locator('dd').first().textContent()) ?? '').trim();
 }
 
 async function zoneArea(page: Page, name: string): Promise<string> {
+  await showTab(page, 'Площади');
   const row = areas(page).locator('tbody tr', { hasText: name }).first();
   return ((await row.locator('td').nth(1).textContent()) ?? '').trim();
 }
@@ -428,6 +431,7 @@ test.describe('инструменты плана', () => {
 
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Создать новый' }).click();
+    await showTab(page, 'Площади');
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
 
     await page.getByTestId('plan-file-input').setInputFiles(file);
@@ -504,11 +508,8 @@ test.describe('инструменты плана', () => {
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    // Выбор снят вместе с зоной, и карточка свойств свернулась (D-236):
-    // объяснение осталось в DOM, но места в колонке не занимает.
-    await expect(
-      card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
-    ).not.toBeVisible();
+    // Выбор снят вместе с зоной — карточки свойств в колонке нет вовсе (D-249).
+    await expect(card).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -586,11 +587,8 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    // Выбор снят вместе с зоной, и карточка свойств свернулась (D-236):
-    // объяснение осталось в DOM, но места в колонке не занимает.
-    await expect(
-      card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
-    ).not.toBeVisible();
+    // Выбор снят вместе с зоной — карточки свойств в колонке нет вовсе (D-249).
+    await expect(card).toHaveCount(0);
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));
@@ -600,6 +598,7 @@ test.describe('инструменты плана', () => {
 
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Создать новый' }).click();
+    await showTab(page, 'Площади');
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
     await expect(notice).toHaveCount(0);
   });
@@ -612,6 +611,7 @@ test.describe('инструменты плана', () => {
     // Масштаб измеряется, а не вычисляется: два объекта в известных пикселях.
     const probe = async (fx: number, fy: number): Promise<{ pixel: Pixel; world: Point }> => {
       const pixel = px(size, fx, fy);
+      await showTab(page, 'Библиотека');
       await page.locator('.library__item').first().click();
       await clickAt(page, pixel);
       await page.getByRole('button', { name: 'Выбор', exact: true }).click();

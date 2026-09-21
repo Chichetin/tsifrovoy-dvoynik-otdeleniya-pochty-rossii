@@ -8,7 +8,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page, exportPlan } from './fixtures';
+import { expect, test, type Page , exportPlan } from './fixtures';
+import { showTab, sideTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Слои');
 const layerItem = (page: Page, name: string) =>
@@ -28,9 +29,17 @@ async function drawZone(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
+/**
+ * Ставит объект из библиотеки и возвращает левую колонку на прежнюю вкладку:
+ * «Слои» и «Библиотека» делят одну колонку (D-249), а спека продолжает
+ * работать со списком слоёв сразу после расстановки.
+ */
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  const before = await sideTab(page, 'Слои').getAttribute('aria-selected');
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, x, y);
+  if (before === 'true') await showTab(page, 'Слои');
 }
 
 async function savePlan(page: Page): Promise<string> {
@@ -57,6 +66,8 @@ test.describe('слои в браузере', () => {
     page.on('pageerror', (error) => errors.push(error.message));
 
     await page.goto('/');
+
+    await showTab(page, 'Слои');
     await drawZone(page);
     await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
 
@@ -161,6 +172,7 @@ test.describe('слои в браузере', () => {
 
   test('последний слой удалить нельзя', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Слои');
 
     // Информационные слои — тоже слои: удаляем все, кроме одного.
     for (const name of ['Камеры и зоны обзора', 'Тепловая нагрузка зон', 'Сотрудники по зонам']) {
@@ -186,6 +198,7 @@ test.describe('слои в браузере', () => {
 
   test('информационные слои: числа синтетические, план не меняется', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Слои');
     await drawZone(page);
 
     const heat = layerItem(page, 'Тепловая нагрузка зон');
@@ -226,6 +239,7 @@ test.describe('слои в браузере', () => {
 
   test('слой камер: сектор обзора рисуется по атрибутам объекта', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Слои');
     await placeFromLibrary(page, 'Камера видеонаблюдения', 300, 220);
 
     const canvas = page.getByTestId('editor-canvas');
@@ -258,6 +272,7 @@ test.describe('слои в браузере', () => {
 
   test('сотрудники по зонам: счётчик и его единица из справочника', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Слои');
     await drawZone(page);
 
     const staff = layerItem(page, 'Сотрудники по зонам');

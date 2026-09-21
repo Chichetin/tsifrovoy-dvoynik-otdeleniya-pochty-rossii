@@ -154,6 +154,8 @@ export function FileControls({
   /** Что именно делает редактор прямо сейчас: читает файл или собирает картинку. */
   const [busy, setBusy] = useState<string>('читаем файл…');
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Which item gets focus when the menu opens: ArrowUp on the button starts from the end. */
+  const menuStart = useRef<'first' | 'last'>('first');
   const exportTrigger = useRef<HTMLButtonElement>(null);
   const exportMenu = useRef<HTMLDivElement>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
@@ -254,6 +256,7 @@ export function FileControls({
       }
       return true;
     };
+    setBusy('читаем файл…');
     setState({ status: 'loading' });
     setNotice(null);
     setErrorDetails([]);
@@ -344,23 +347,28 @@ export function FileControls({
   };
 
   /**
-   * PNG — тот же SVG, растеризованный браузером (D-254). Растеризация
+   * PNG — тот же SVG, растеризованный браузером (D-255). Растеризация
    * асинхронная, поэтому у пункта есть все три состояния: «готовим», файл
    * передан браузеру, и отказ с причиной вместо пустого файла.
    */
   const exportPng = (): void => {
     const name = pngFileName(plan);
+    // Opening a file, «Создать новый» or a draft restore bump the sequence:
+    // a late raster must not overwrite their state with its own.
+    const sequence = openSequence.current;
     setBusy('готовим картинку PNG…');
     setNotice(null);
     setState({ status: 'loading' });
     renderPlanPng(plan).then(
       (blob) => {
+        if (sequence !== openSequence.current) return;
         handToBrowser(blob, name);
         setErrorDetails([]);
         setNotice(`Картинка ${name} передана браузеру на скачивание.`);
         setState({ status: 'done' });
       },
       (error: unknown) => {
+        if (sequence !== openSequence.current) return;
         const reason = error instanceof Error ? error.message : String(error);
         setErrorDetails([]);
         setState({ status: 'error', message: `Картинка PNG не выгружена. ${reason}` });
@@ -373,24 +381,21 @@ export function FileControls({
    * трёх кнопок — шапка обязана оставаться одной строкой на 1280 px
    * (`tests/e2e/shell.spec.ts`), а выгрузки редки по сравнению с «Открыть».
    */
-  const exportItems: { key: string; label: string; hint: string; run: () => void }[] = [
+  const exportItems: { key: 'json' | 'png' | 'svg'; label: string; hint: string }[] = [
     {
       key: 'json',
       label: 'JSON — файл плана',
       hint: 'Сохранить план файлом .json: зоны, оборудование, идентификаторы и атрибуты',
-      run: save,
     },
     {
       key: 'png',
       label: 'PNG — картинка',
       hint: 'Растровая картинка плана для презентации и переписки',
-      run: exportPng,
     },
     {
       key: 'svg',
       label: 'SVG — векторная картинка',
       hint: 'Векторная картинка плана для согласования и печати',
-      run: exportSvg,
     },
   ];
 
@@ -402,7 +407,8 @@ export function FileControls({
   /** Открытое меню забирает фокус на первый пункт: дальше — стрелками. */
   useEffect(() => {
     if (!menuOpen) return;
-    exportMenu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const items = exportMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+    items?.[menuStart.current === 'last' ? items.length - 1 : 0]?.focus();
     const outside = (event: PointerEvent): void => {
       const target = event.target as Node | null;
       if (exportMenu.current?.contains(target ?? null) === true) return;
@@ -460,10 +466,8 @@ export function FileControls({
           setErrorDetails([]);
           setState({ status: 'idle' });
         }}
-        aria-label="Создать новый"
-        title="Создать новый пустой план"
       >
-        Создать<span className="files__word">&nbsp;новый</span>
+        Создать новый
       </button>
 
       <button
@@ -474,10 +478,8 @@ export function FileControls({
               !window.confirm(replacementWarning('Открыть', dirty))) return;
           input.current?.click();
         }}
-        aria-label="Открыть существующий"
-        title="Открыть готовый план из файла"
       >
-        Открыть<span className="files__word">&nbsp;существующий</span>
+        Открыть существующий
       </button>
 
       <div className="files__export">
@@ -488,7 +490,16 @@ export function FileControls({
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           title="Скачать план: файл JSON или картинку"
-          onClick={() => setMenuOpen((open) => !open)}
+          onClick={() => {
+            menuStart.current = 'first';
+            setMenuOpen((open) => !open);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+            event.preventDefault();
+            menuStart.current = event.key === 'ArrowUp' ? 'last' : 'first';
+            setMenuOpen(true);
+          }}
         >
           Экспорт
         </button>
@@ -511,7 +522,9 @@ export function FileControls({
                 data-testid={`export-${item.key}`}
                 onClick={() => {
                   closeMenu(true);
-                  item.run();
+                  if (item.key === 'json') save();
+                  else if (item.key === 'png') exportPng();
+                  else exportSvg();
                 }}
               >
                 {item.label}
