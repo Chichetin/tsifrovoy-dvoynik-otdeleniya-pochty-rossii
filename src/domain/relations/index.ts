@@ -141,7 +141,7 @@ export function resolveZone(
       issues: unusable.map((zone) =>
         issue(
           RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE,
-          `Геометрия зоны «${zone.id}» не позволяет проверить вложение.`,
+          `Геометрия зоны «${zone.name}» не позволяет проверить вложение.`,
           [{ kind: 'zone', id: zone.id }],
         ),
       ),
@@ -155,7 +155,7 @@ export function resolveZone(
     const issues = [
       issue(
         RELATION_ISSUE_CODES.ZONE_UNASSIGNED,
-        `Объект «${object.id}» не лежит целиком ни в одной зоне.`,
+        `Объект «${object.label}» не лежит целиком ни в одной зоне.`,
         [ref],
         shape,
       ),
@@ -164,7 +164,7 @@ export function resolveZone(
       issues.push(
         issue(
           RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE,
-          `Геометрия зоны «${zone.id}» не позволяет проверить вложение.`,
+          `Геометрия зоны «${zone.name}» не позволяет проверить вложение.`,
           [{ kind: 'zone', id: zone.id }],
         ),
       );
@@ -181,8 +181,8 @@ export function resolveZone(
       issues: [
         issue(
           CONTRACT_ISSUE_CODES.ZONE_AMBIGUOUS,
-          `Объект «${object.id}» одинаково глубоко лежит в зонах: ${deepest
-            .map((entry) => entry.zone.id)
+          `Объект «${object.label}» одинаково глубоко лежит в зонах: ${deepest
+            .map((entry) => `«${entry.zone.name}»`)
             .join(', ')}.`,
           [ref, ...deepest.map((entry): Ref => ({ kind: 'zone', id: entry.zone.id }))],
           shape,
@@ -259,7 +259,7 @@ export function relationIssues(plan: PlanDocument): Issue[] {
     return brokenZones.map((zone) =>
       issue(
         CONTRACT_ISSUE_CODES.RELATIONS_STALE,
-        `Геометрия зоны «${zone.id}» невычислима: связи объектов с зонами требуют пересчёта.`,
+        `Геометрия зоны «${zone.name}» невычислима: связи объектов с зонами требуют пересчёта.`,
         [{ kind: 'zone', id: zone.id }],
         zone.polygon,
       ),

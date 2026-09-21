@@ -300,7 +300,7 @@ test.describe('жесты над оборудованием', () => {
     await clickCanvas(page, 420, 330);
     await expect(inventoryRows(page)).toHaveCount(0);
   });
-  test('установка из библиотеки одноразовая: объект выбран, следующий клик не создаёт дубль', async ({
+  test('установка одноразовая, а повторный клик по такому же выбирает без дубля', async ({
     page,
   }) => {
     await page.goto('/');
@@ -333,6 +333,27 @@ test.describe('жесты над оборудованием', () => {
     await clickCanvas(page, 300, 260);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
     await expect(inventoryRows(page)).toHaveCount(2);
+    await libraryItem.click();
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
+    // Тот же тип уже стоит под указателем: выбираем существующий, не кладём дубль.
+    await clickCanvas(page, centre.x, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // В 7 px за левой гранью — всё ещё тот же объект. Сначала уводим выбор,
+    // затем снова берём тот же тип из библиотеки, чтобы результат был наблюдаем.
+    await selectRow(page, 1);
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
+    const width = await numberOf(page, 'Ширина, м');
+    const nearLeft = centre.x - (width * scale) / 2 - 7;
+    await clickCanvas(page, nearLeft, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // За пределами допуска постановка продолжается тем же активным инструментом.
+    await clickCanvas(page, nearLeft - 4, centre.y);
+    await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
+    await expect(inventoryRows(page)).toHaveCount(3);
   });
 
   test('сразу после установки выбранный объект можно перетащить', async ({ page }) => {
