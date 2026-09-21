@@ -41,7 +41,7 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
   expect(now.overflow, `шапка не шире окна: ${label}`).toBeLessThanOrEqual(0);
   expect(new Set(now.rowTops).size, `кнопки шапки в одну строку: ${label}`).toBe(1);
   const viewport = page.viewportSize();
-  // D-259: кнопка карты горячих клавиш — в шапке, на экране, левее «Экспорт».
+  // D-260: кнопка карты горячих клавиш — в шапке, на экране, левее «Экспорт».
   const help = await page.locator('.shell__bar').getByRole('button', { name: 'Горячие клавиши', exact: true }).boundingBox();
   expect(help, `кнопка «Горячие клавиши» в шапке: ${label}`).not.toBeNull();
   const right = await page.getByRole('button', { name: 'Экспорт' }).boundingBox();

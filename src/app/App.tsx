@@ -451,7 +451,7 @@ export function App(): React.JSX.Element {
   return (
     <div className="shell">
       <header className="shell__bar">
-        {/* D-259: two spans so the title can take two lines below 1600 px. */}
+        {/* D-260: two spans so the title can take two lines below 1600 px. */}
         <h1 className="shell__title">
           <span className="shell__title-line">Цифровой двойник</span> <span className="shell__title-line">ОПС</span>
         </h1>
@@ -483,7 +483,7 @@ export function App(): React.JSX.Element {
             <span className="shell__label">Вернуть</span>
           </button>
         </div>
-        {/* D-259: the hotkeys map lives in the header, icon only — the row has
+        {/* D-260: the hotkeys map lives in the header, icon only — the row has
             little slack left at 1280 px (tests/e2e/shell.spec.ts). */}
         <button
           type="button"

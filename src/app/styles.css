@@ -227,7 +227,7 @@ body {
   grid-column: 5;
 }
 
-/* D-259: the hotkeys map button sits between history and files, «Экспорт»
+/* D-260: the hotkeys map button sits between history and files, «Экспорт»
    stays last. */
 .shell__bar > .shell__help {
   grid-row: 1;
@@ -829,7 +829,7 @@ body {
     font-size: var(--text-s);
   }
 
-  /* D-259: the title takes two lines («Цифровой двойник» / «ОПС») — it
+  /* D-260: the title takes two lines («Цифровой двойник» / «ОПС») — it
      gives the row back the width of the header hotkeys button with room to
      spare, and two 16 px lines fit the 48 px row. */
   .shell__title {
@@ -874,7 +874,7 @@ body {
     padding: 0 var(--space-2);
   }
 
-  /* D-259: the header hotkeys button costs one more grid column. */
+  /* D-260: the header hotkeys button costs one more grid column. */
   .shell__title {
     font-size: var(--text-xs);
   }
@@ -1050,7 +1050,7 @@ body {
 }
 
 /* «Обучение» stays at the bottom of the left column, under whichever tab
-   is open; «Горячие клавиши» moved to the header (D-259). */
+   is open; «Горячие клавиши» moved to the header (D-260). */
 .shell__side-foot {
   flex: none;
   padding: 0 var(--space-3) var(--space-3);

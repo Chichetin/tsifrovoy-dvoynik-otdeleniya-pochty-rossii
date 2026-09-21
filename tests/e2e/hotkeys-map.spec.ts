@@ -16,7 +16,7 @@ import { showTab } from './side-tabs';
 const RACK = 'Шкаф / стеллаж для посылок';
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Горячие клавиши' });
-// D-259: кнопка — иконка в шапке, имя без «(?)», клавиша — в подсказке.
+// D-260: кнопка — иконка в шапке, имя без «(?)», клавиша — в подсказке.
 const hotkeysButton = (page: Page) => page.locator('.shell__bar').getByRole('button', { name: 'Горячие клавиши', exact: true });
 const inventoryRows = (page: Page) =>
   page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
