@@ -589,7 +589,9 @@ export function EquipmentLayer({
         // Konva rotates clockwise on a Y-down canvas, which matches the model's
         // clockwise convention without a sign flip here.
         rotation={current.rotation_deg}
-        draggable={!ghost && !lockedLayers.has(object.layerId)}
+        // The ruler only reads the plan: a press-and-drag there must not move
+        // the object under it (D-256).
+        draggable={!ghost && session.tool.kind !== 'measure' && !lockedLayers.has(object.layerId)}
         listening={!ghost}
         onPointerClick={
           picking

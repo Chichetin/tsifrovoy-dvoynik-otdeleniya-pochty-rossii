@@ -141,14 +141,25 @@ describe('панель инструментов плана', () => {
     );
   });
 
+  it('линейка включается кнопкой и обещает то, что делает (D-256)', () => {
+    const { onTool } = show(null);
+    const ruler = screen.getByRole('button', { name: 'Линейка' });
+    fireEvent.click(ruler);
+    expect(onTool).toHaveBeenCalledWith({ kind: 'measure' });
+    const title = ruler.getAttribute('title') ?? '';
+    expect(title).toContain('Esc');
+    expect(title).toContain('В план не попадает');
+  });
+
   it('разделитель групп один, он декоративный и не мешает клавиатуре (D-248)', () => {
     show(null);
     const gaps = window.document.querySelectorAll('.toolbar__group-gap');
     expect(gaps).toHaveLength(1);
     expect(gaps[0]!.getAttribute('aria-hidden')).toBe('true');
     expect(gaps[0]!.hasAttribute('tabindex')).toBe(false);
-    // Он стоит между группой вида и инструментами создания геометрии.
-    expect(gaps[0]!.previousElementSibling?.textContent).toBe('Обзор');
+    // Он стоит между инструментами, которые план не меняют («Выбор», «Обзор»,
+    // «Линейка»), и теми, что создают геометрию (D-256).
+    expect(gaps[0]!.previousElementSibling?.textContent).toBe('Линейка');
     expect(gaps[0]!.nextElementSibling?.textContent).toBe('Помещение');
   });
 
