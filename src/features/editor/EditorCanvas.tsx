@@ -27,6 +27,7 @@ import {
   gridLines,
   panBy,
   visibleExtent,
+  wheelIntent,
   zoomByWheel,
 } from './viewport';
 
@@ -74,6 +75,10 @@ export function EditorCanvas({
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const panning = useRef<Point | null>(null);
+  // Browsers may not deliver pointermove for a middle-button drag after the
+  // canvas captures the pointer. Keep a DOM mouse fallback for that button.
+  const middleMousePanning = useRef<Point | null>(null);
+  const userInteracted = useRef(false);
   /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
   const fitted = useRef<string | null>(null);
   /** Номер последнего запроса, подсветка которого уже погасла. */
@@ -111,9 +116,10 @@ export function EditorCanvas({
   // Каждый новый документ открывается вписанным — открытый файл, «Новый»,
   // восстановленный черновик и пример организаторов одинаково. Дальше вид
   // принадлежит пользователю: правка плана масштаб не сбрасывает.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (size.width === 0 || size.height === 0) return;
     if (fitted.current === documentKey) return;
+    if (userInteracted.current) return;
     fitted.current = documentKey;
     fitPlan();
   }, [documentKey, fitPlan, size]);
@@ -182,6 +188,7 @@ export function EditorCanvas({
   const handleDown = useCallback(
     (event: Konva.KonvaEventObject<PointerEvent>): void => {
       if (PAN_BUTTONS.has(event.evt.button) || session.tool.kind === 'pan') {
+        userInteracted.current = true;
         panning.current = [event.evt.clientX, event.evt.clientY];
         return;
       }
@@ -219,13 +226,79 @@ export function EditorCanvas({
   const handleWheel = useCallback(
     (event: Konva.KonvaEventObject<WheelEvent>): void => {
       event.evt.preventDefault();
+      userInteracted.current = true;
       const stage = event.target.getStage();
       const position = stage?.getPointerPosition();
       if (position === undefined || position === null) return;
+      if (
+        wheelIntent({
+          deltaX: event.evt.deltaX,
+          deltaY: event.evt.deltaY,
+          deltaMode: event.evt.deltaMode,
+          ctrlKey: event.evt.ctrlKey,
+        }) === 'pan'
+      ) {
+        onViewport(panBy(session.viewport, [event.evt.deltaX, event.evt.deltaY]));
+        return;
+      }
       onViewport(zoomByWheel(session.viewport, [position.x, position.y], event.evt.deltaY));
     },
     [onViewport, session.viewport],
   );
+
+  useEffect(() => {
+    const element = host.current;
+    if (element === null) return;
+    const onMouseDown = (event: MouseEvent): void => {
+      if (event.button !== 1) return;
+      event.preventDefault();
+      userInteracted.current = true;
+      middleMousePanning.current = [event.clientX, event.clientY];
+    };
+    const onMouseMove = (event: MouseEvent): void => {
+      const from = middleMousePanning.current;
+      if (from === null) return;
+      middleMousePanning.current = [event.clientX, event.clientY];
+      onViewport(panBy(session.viewport, [event.clientX - from[0], event.clientY - from[1]]));
+    };
+    const onMouseUp = (event: MouseEvent): void => {
+      if (event.button === 1 || middleMousePanning.current !== null) {
+        event.preventDefault();
+        middleMousePanning.current = null;
+      }
+    };
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.button !== 1) return;
+      event.preventDefault();
+      middleMousePanning.current = [event.clientX, event.clientY];
+    };
+    const onPointerMove = (event: PointerEvent): void => {
+      const from = middleMousePanning.current;
+      if (from === null) return;
+      middleMousePanning.current = [event.clientX, event.clientY];
+      onViewport(panBy(session.viewport, [event.clientX - from[0], event.clientY - from[1]]));
+    };
+    const onPointerUp = (event: PointerEvent): void => {
+      if (event.button === 1 || middleMousePanning.current !== null) {
+        event.preventDefault();
+        middleMousePanning.current = null;
+      }
+    };
+    window.addEventListener('mousedown', onMouseDown, true);
+    window.addEventListener('mousemove', onMouseMove, true);
+    window.addEventListener('mouseup', onMouseUp, true);
+    window.addEventListener('pointerdown', onPointerDown, true);
+    window.addEventListener('pointermove', onPointerMove, true);
+    window.addEventListener('pointerup', onPointerUp, true);
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown, true);
+      window.removeEventListener('mousemove', onMouseMove, true);
+      window.removeEventListener('mouseup', onMouseUp, true);
+      window.removeEventListener('pointerdown', onPointerDown, true);
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+    };
+  }, [onViewport, session.viewport]);
 
   // Escape cancels the drawing in progress; with nothing in progress it clears
   // the selection. Both are what a drawing tool is expected to do.

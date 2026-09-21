@@ -25,7 +25,11 @@ import { setNotice, useNotice } from './notice';
 
 const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: string }[] = [
   { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
-  { kind: 'pan', label: 'Рука', hint: 'Двигать план; то же делает средняя кнопка мыши' },
+  {
+    kind: 'pan',
+    label: 'Рука',
+    hint: 'Двигать план: средняя кнопка или свайп двумя пальцами на тачпаде; колесо и Ctrl+колесо — масштаб',
+  },
   { kind: 'room.draw', label: 'Помещение', hint: 'Обвести границу по точкам; Alt — без привязки' },
   { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; Alt — без привязки' },
   {
