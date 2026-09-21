@@ -37,6 +37,7 @@ import {
   wallPolygon,
 } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
+import { SnapMarkerLayer } from './SnapMarkerLayer';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import {
   MIN_VERTICES_NOTICE,
@@ -401,6 +402,7 @@ export function PlanGeometryLayer({
       : plan.walls.find((wall) => wall.id === selectedOpening.wallId);
 
   return (
+    <>
     <Layer>
       <Line
         points={flatten(room.polygon, viewport)}
@@ -525,5 +527,9 @@ export function PlanGeometryLayer({
         ? null
         : openingHandle(selectedOpening, selectedOpeningWall)}
     </Layer>
+    {/* Маркер цели привязки — на своём слое: кадр жеста не должен
+        перерисовывать зоны, стены и подписи (D-177, D-224). */}
+    <SnapMarkerLayer viewport={viewport} />
+    </>
   );
 }

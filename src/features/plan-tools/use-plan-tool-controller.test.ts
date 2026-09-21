@@ -14,6 +14,7 @@ import type { Catalog, PlanDocument, Point, Result } from '../../contracts/model
 import type { EditorSession, Tool, WorldPointer } from '../../contracts/ui';
 import { applyCommand } from '../../domain/commands';
 import { OUTER_OPENING_DROPPED_NOTICE, getNotice, setNotice } from './notice';
+import { getSnapHint, setSnapHint } from './snap-marker';
 import { usePlanToolController } from './use-plan-tool-controller';
 
 const catalog: Catalog = {
@@ -310,5 +311,110 @@ describe('рисование контура', () => {
     click([1, 1]);
     expect(hook.result.current.draft).toBeNull();
     expect(commands).toEqual([]);
+  });
+});
+
+/**
+ * D-224: маркер цели привязки. Проверяется то, что видит рисующий: под
+ * курсором названа цель каждой оси, `Alt` её убирает, а в документ и историю
+ * маркер не попадает ни одним кадром.
+ */
+describe('маркер цели привязки', () => {
+  function move(point: Point, alt = false): WorldPointer {
+    return { phase: 'move', point, shift: false, alt, button: 0 };
+  }
+
+  function hover(hook: ReturnType<typeof setup>['hook'], point: Point, alt = false): void {
+    act(() => hook.result.current.handlePointer(move(point, alt)));
+  }
+
+  beforeEach(() => setSnapHint(null));
+
+  it('цель называется по осям порознь: по X вершина зоны, по Y узел сетки', () => {
+    const { hook, commands } = setup({ kind: 'zone.draw' }, planWith([hall]));
+    // Масштаб 50 px/м: допуск 8 px = 0,16 м. X = 7,9 в 0,1 от правой границы
+    // зоны (8), Y = 3,1 в 0,1 от узла сетки 3,0 и далеко от границ зоны.
+    hover(hook, [7.9, 3.1]);
+
+    expect(getSnapHint()?.x?.target).toBe('zone');
+    expect(getSnapHint()?.y?.target).toBe('grid');
+    expect(getSnapHint()?.point).toEqual([8, 3]);
+    // Ни один кадр движения не стал командой: маркер — подсказка, не правка.
+    expect(commands).toEqual([]);
+    expect(hook.result.current.draft).toBeNull();
+  });
+
+  it('точка, обещанная маркером, и точка клика — одна и та же', () => {
+    const { hook, commands } = setup({ kind: 'zone.draw' }, planWith([hall]));
+    hover(hook, [7.9, 3.1]);
+    const promised = getSnapHint()?.point;
+
+    act(() => hook.result.current.handlePointer(down([7.9, 3.1])));
+    expect(hook.result.current.draft).toEqual([promised]);
+    expect(commands).toEqual([]);
+  });
+
+  it('с Alt маркера нет — как нет и привязки', () => {
+    const { hook } = setup({ kind: 'zone.draw' }, planWith([hall]));
+    hover(hook, [7.9, 3.1]);
+    expect(getSnapHint()).not.toBeNull();
+
+    hover(hook, [7.9, 3.1], true);
+    expect(getSnapHint()).toBeNull();
+  });
+
+  it('вдали от всего маркера нет', () => {
+    const { hook } = setup({ kind: 'zone.draw' }, planWith([hall]));
+    // 2,25 — между узлами сетки 2,0 и 2,5, до границ зоны метры.
+    hover(hook, [2.25, 2.25]);
+    expect(getSnapHint()).toBeNull();
+  });
+
+  it('проём привязке не подлежит — и маркера ему не показывают', () => {
+    const { hook } = setup({ kind: 'opening.place' }, planWithEntrance());
+    hover(hook, [4, 7.9]);
+    expect(getSnapHint()).toBeNull();
+  });
+
+  it('инструмент «Выбор» маркера не показывает', () => {
+    const { hook } = setup({ kind: 'select' }, planWith([hall]));
+    hover(hook, [7.9, 3.1]);
+    expect(getSnapHint()).toBeNull();
+  });
+
+  it('сменили инструмент — маркер снят', () => {
+    const plan = planWith([hall]);
+    const session = (tool: Tool): EditorSession => ({
+      tool,
+      viewport: { origin: [0, 0], scale: 50 },
+      selection: null,
+      preview: null,
+      focus: null,
+    });
+    const hook = renderHook(
+      (tool: Tool) =>
+        usePlanToolController({ document: plan, session: session(tool), onCommand: () => ({ ok: true, value: plan }) }),
+      { initialProps: { kind: 'zone.draw' } as Tool },
+    );
+    act(() => hook.result.current.handlePointer(move([7.9, 3.1])));
+    expect(getSnapHint()).not.toBeNull();
+
+    hook.rerender({ kind: 'select' });
+    expect(getSnapHint()).toBeNull();
+  });
+
+  it('Escape и замкнутый контур снимают маркер', () => {
+    const { hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    hover(hook, [7.9, 3.1]);
+    act(() => hook.result.current.handlePointer({ ...down([0, 0]), phase: 'cancel' }));
+    expect(getSnapHint()).toBeNull();
+
+    click([1, 1]);
+    click([3, 1]);
+    click([3, 3]);
+    hover(hook, [1.05, 1.05]);
+    expect(getSnapHint()).not.toBeNull();
+    click([1.05, 1.05]);
+    expect(getSnapHint()).toBeNull();
   });
 });
