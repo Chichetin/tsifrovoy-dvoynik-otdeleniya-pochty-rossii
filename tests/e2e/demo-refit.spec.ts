@@ -27,18 +27,23 @@ test('второй демо-план открывается вписанным, 
   const fitted = await scale(page).textContent();
   expect(fitted).not.toBeNull();
 
-  // Уводим масштаб от вписанного: колесо над холстом.
+  // Уводим масштаб от вписанного: Ctrl+колесо над холстом.
   const canvas = page.getByTestId('editor-canvas');
   const box = await canvas.boundingBox();
   if (box === null) throw new Error('холст без размеров');
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  for (let step = 0; step < 5; step += 1) await page.mouse.wheel(0, -240);
+  await page.keyboard.down('Control');
+  try {
+    for (let step = 0; step < 5; step += 1) await page.mouse.wheel(0, -240);
+  } finally {
+    await page.keyboard.up('Control');
+  }
   await expect.poll(() => scale(page).textContent()).not.toBe(fitted);
   const zoomed = await scale(page).textContent();
 
   // Открытие второго файла — это замена документа, даже если его id и имя те
   // же: вид считается заново.
   await open(page, 'after.json');
-  await expect.poll(() => scale(page).textContent()).not.toBe(zoomed);
-  expect(await scale(page).textContent()).toBe(fitted);
+  await expect.poll(() => scale(page).textContent()).toBe(fitted);
+  expect(await scale(page).textContent()).not.toBe(zoomed);
 });

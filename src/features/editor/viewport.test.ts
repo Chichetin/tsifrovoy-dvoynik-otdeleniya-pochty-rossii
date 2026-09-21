@@ -83,13 +83,14 @@ describe('жесты колеса', () => {
     expect(wheelIntent({ deltaX: 0, deltaY: 16, deltaMode: 0, ctrlKey: false })).toBe('pan');
   });
 
-  test('дискретное вращение колеса означает zoom', () => {
-    expect(wheelIntent({ deltaX: 0, deltaY: -120, deltaMode: 0, ctrlKey: false })).toBe('zoom');
-    expect(wheelIntent({ deltaX: 0, deltaY: -1, deltaMode: 1, ctrlKey: false })).toBe('zoom');
+  test('обычное колесо всегда двигает план, включая дискретный шаг мыши', () => {
+    expect(wheelIntent({ deltaX: 0, deltaY: -120, deltaMode: 0, ctrlKey: false })).toBe('pan');
+    expect(wheelIntent({ deltaX: 0, deltaY: -1, deltaMode: 1, ctrlKey: false })).toBe('pan');
   });
 
-  test('Ctrl принудительно оставляет zoom даже у плавной дельты', () => {
+  test('Ctrl принудительно включает zoom у колеса и pinch тачпада', () => {
     expect(wheelIntent({ deltaX: 0, deltaY: -12, deltaMode: 0, ctrlKey: true })).toBe('zoom');
+    expect(wheelIntent({ deltaX: 0, deltaY: -120, deltaMode: 0, ctrlKey: true })).toBe('zoom');
   });
 });
 

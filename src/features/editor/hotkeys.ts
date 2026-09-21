@@ -37,6 +37,18 @@ export function isFitHotkey(event: HotkeyEvent): boolean {
 }
 
 /**
+ * Ctrl+plus/minus changes the canvas scale around its centre. `Equal` and
+ * `Minus` are physical keys, so the shortcut works on a Russian layout too;
+ * the numpad codes cover a full-size keyboard.
+ */
+export function zoomHotkey(event: HotkeyEvent): 'in' | 'out' | null {
+  if (!event.ctrlKey || event.metaKey || event.altKey || isTypingTarget(event.target)) return null;
+  if (event.code === 'Equal' || event.code === 'NumpadAdd') return 'in';
+  if (event.code === 'Minus' || event.code === 'NumpadSubtract') return 'out';
+  return null;
+}
+
+/**
  * История правок с клавиатуры: Ctrl+Z — отменить, Ctrl+Y и Ctrl+Shift+Z —
  * вернуть (второе — привычка macOS, там же вместо Ctrl работает Cmd).
  * Alt в сочетании — не наше; в поле ввода Ctrl+Z принадлежит тексту, а не

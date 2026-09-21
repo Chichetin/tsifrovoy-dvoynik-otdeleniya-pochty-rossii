@@ -139,6 +139,9 @@ describe('панель инструментов плана', () => {
     expect(screen.getByRole('button', { name: 'Рука' }).getAttribute('title')).toContain(
       'свайп двумя пальцами на тачпаде',
     );
+    expect(screen.getByRole('button', { name: 'Рука' }).getAttribute('title')).toContain(
+      'Ctrl+колесо',
+    );
   });
 
   it('без выбора удалять нечего', () => {

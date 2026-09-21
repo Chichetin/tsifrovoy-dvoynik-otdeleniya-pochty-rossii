@@ -32,6 +32,7 @@ async function openBefore(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(BEFORE);
   await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
+  await expect(canvas(page)).toHaveAttribute('data-visible', /,/);
 }
 
 /** Видимый кусок мира в метрах — то, что сейчас реально на экране. */
@@ -89,6 +90,15 @@ async function panAway(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
+async function ctrlWheel(page: Page, deltaY: number, steps: number): Promise<void> {
+  await page.keyboard.down('Control');
+  try {
+    for (let step = 0; step < steps; step += 1) await page.mouse.wheel(0, deltaY);
+  } finally {
+    await page.keyboard.up('Control');
+  }
+}
+
 test.describe('холст показывает то, о чём спрашивают', () => {
   test('открытый план виден целиком, «Вписать» возвращает его после зума', async ({ page }) => {
     const errors: string[] = [];
@@ -102,10 +112,10 @@ test.describe('холст показывает то, о чём спрашива�
       .poll(async () => holdsWholeRoom(await visibleBox(page)))
       .toBe(true);
 
-    // Пользователь приблизил план колесом — вид больше не показывает всё.
+    // Пользователь приблизил план через Ctrl+колесо — вид больше не показывает всё.
     const box = await canvas(page).boundingBox();
     await page.mouse.move((box?.x ?? 0) + 200, (box?.y ?? 0) + 200);
-    for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, -240);
+    await ctrlWheel(page, -240, 6);
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
     const zoomed = await scale(page);
 
@@ -116,7 +126,7 @@ test.describe('холст показывает то, о чём спрашива�
 
     // …и то же делает клавиша F.
     await page.mouse.move((box?.x ?? 0) + 200, (box?.y ?? 0) + 200);
-    for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, -240);
+    await ctrlWheel(page, -240, 6);
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
     await page.keyboard.press('KeyF');
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(true);
@@ -136,7 +146,7 @@ test.describe('холст показывает то, о чём спрашива�
     // Ревью MR !59: модификатор не проверялся, и заглавная «F» в любом месте
     // страницы молча возвращала масштаб к вписанному плану.
     await page.mouse.move(x + 200, y + 200);
-    for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, -240);
+    await ctrlWheel(page, -240, 6);
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
     const zoomed = await scale(page);
 
@@ -163,7 +173,7 @@ test.describe('холст показывает то, о чём спрашива�
     expect(errors).toEqual([]);
   });
 
-  test('тачпадный свайп и средняя кнопка двигают план, колесо масштабирует', async ({ page }) => {
+  test('свайпы и средняя кнопка двигают план, Ctrl-жесты масштабируют', async ({ page }) => {
     await openBefore(page);
     const target = canvas(page);
     const box = await target.boundingBox();
@@ -180,14 +190,22 @@ test.describe('холст показывает то, о чём спрашива�
     await expect.poll(() => target.getAttribute('data-visible')).not.toBe(beforeSwipe);
 
     const beforeMouseWheel = await scale(page);
+    const beforePlainWheel = await target.getAttribute('data-visible');
     await page.mouse.wheel(0, -120);
-    await expect.poll(() => scale(page)).toBeGreaterThan(beforeMouseWheel);
+    await expect.poll(() => scale(page)).toBe(beforeMouseWheel);
+    await expect.poll(() => target.getAttribute('data-visible')).not.toBe(beforePlainWheel);
 
     const beforeCtrlWheel = await scale(page);
-    await page.keyboard.down('Control');
-    await page.mouse.wheel(0, -60);
-    await page.keyboard.up('Control');
+    await ctrlWheel(page, -60, 1);
     await expect.poll(() => scale(page)).toBeGreaterThan(beforeCtrlWheel);
+
+    const beforePlus = await scale(page);
+    await page.keyboard.press('Control+Equal');
+    await expect.poll(() => scale(page)).toBeGreaterThan(beforePlus);
+
+    const beforeMinus = await scale(page);
+    await page.keyboard.press('Control+Minus');
+    await expect.poll(() => scale(page)).toBeLessThan(beforeMinus);
 
     await page.getByTestId('canvas-fit').click();
     const beforeMiddleDrag = await target.getAttribute('data-visible');

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
 
-import { type HotkeyEvent, historyHotkey, isFitHotkey, isTypingTarget } from './hotkeys';
+import { type HotkeyEvent, historyHotkey, isFitHotkey, isTypingTarget, zoomHotkey } from './hotkeys';
 
 function event(patch: Partial<HotkeyEvent> = {}): HotkeyEvent {
   return {
@@ -79,5 +79,20 @@ describe('история правок с клавиатуры', () => {
 
   it('в поле ввода отменяется текст, а не план', () => {
     expect(historyHotkey(event({ code: 'KeyZ', ...ctrl, target: document.createElement('input') }))).toBeNull();
+  });
+});
+
+describe('масштаб с клавиатуры', () => {
+  it('Ctrl+плюс приближает, Ctrl+минус отдаляет', () => {
+    expect(zoomHotkey(event({ code: 'Equal', ctrlKey: true }))).toBe('in');
+    expect(zoomHotkey(event({ code: 'NumpadAdd', ctrlKey: true }))).toBe('in');
+    expect(zoomHotkey(event({ code: 'Minus', ctrlKey: true }))).toBe('out');
+    expect(zoomHotkey(event({ code: 'NumpadSubtract', ctrlKey: true }))).toBe('out');
+  });
+
+  it('без Ctrl, с Alt и в поле ввода масштаб не меняется', () => {
+    expect(zoomHotkey(event({ code: 'Equal' }))).toBeNull();
+    expect(zoomHotkey(event({ code: 'Minus', ctrlKey: true, altKey: true }))).toBeNull();
+    expect(zoomHotkey(event({ code: 'Equal', ctrlKey: true, target: document.createElement('input') }))).toBeNull();
   });
 });

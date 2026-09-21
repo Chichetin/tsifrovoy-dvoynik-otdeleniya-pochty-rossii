@@ -33,17 +33,11 @@ export type WheelInput = {
 
 export type WheelIntent = 'pan' | 'zoom';
 
-/**
- * Browser wheel events do not expose whether their source is a mouse or a
- * trackpad. Smooth pixel deltas are the useful signal for a two-finger swipe;
- * line-based and large pixel steps are the discrete rotation of a wheel.
- */
-const TRACKPAD_DELTA_LIMIT_PX = 50;
-
 export function wheelIntent(input: WheelInput): WheelIntent {
-  if (input.ctrlKey || input.deltaMode !== 0) return 'zoom';
-  if (input.deltaX !== 0) return 'pan';
-  return Math.abs(input.deltaY) < TRACKPAD_DELTA_LIMIT_PX ? 'pan' : 'zoom';
+  // Chrome reports a trackpad pinch as a wheel event with ctrlKey=true. Every
+  // other wheel gesture is navigation: this keeps both a two-finger swipe and
+  // a regular mouse wheel from unexpectedly changing the scale.
+  return input.ctrlKey ? 'zoom' : 'pan';
 }
 
 export function clampScale(scale: number): number {

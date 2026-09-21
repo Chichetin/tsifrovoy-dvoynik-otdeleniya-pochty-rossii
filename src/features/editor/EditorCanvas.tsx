@@ -20,7 +20,7 @@ import type { Point, Polygon } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
 import { focusViewport, planExtent, refExtent } from './focus';
-import { isFitHotkey } from './hotkeys';
+import { isFitHotkey, zoomHotkey } from './hotkeys';
 import {
   type CanvasSize,
   fitToExtent,
@@ -28,6 +28,7 @@ import {
   panBy,
   visibleExtent,
   wheelIntent,
+  zoomAt,
   zoomByWheel,
 } from './viewport';
 
@@ -43,6 +44,7 @@ const HIGHLIGHT_MS = 1600;
 /** The ring is never smaller than this, or a 40 cm object stays invisible. */
 const MIN_RING_PX = 28;
 const RING_GAP_PX = 14;
+const KEYBOARD_ZOOM_FACTOR = 1.2;
 
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
@@ -148,13 +150,22 @@ export function EditorCanvas({
   // клавиша даёт «а», и hotkey не должен от этого пропадать.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
+      const zoom = zoomHotkey(event);
+      if (zoom !== null) {
+        if (size.width === 0 || size.height === 0) return;
+        event.preventDefault();
+        const anchor: Point = [size.width / 2, size.height / 2];
+        const factor = zoom === 'in' ? KEYBOARD_ZOOM_FACTOR : 1 / KEYBOARD_ZOOM_FACTOR;
+        onViewport(zoomAt(session.viewport, anchor, factor));
+        return;
+      }
       if (!isFitHotkey(event)) return;
       event.preventDefault();
       fitPlan();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [fitPlan]);
+  }, [fitPlan, onViewport, session.viewport, size]);
 
   const toWorld = useCallback(
     (stage: Konva.Stage): Point | null => {

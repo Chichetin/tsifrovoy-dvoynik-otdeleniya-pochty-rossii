@@ -425,10 +425,15 @@ test.describe('жесты над оборудованием', () => {
     const y0 = await numberOf(page, 'Y, м');
     const before = await shownScale(page);
 
-    // Колесо над центром объекта: точка под курсором остаётся под курсором.
+    // Ctrl+колесо над центром объекта: точка под курсором остаётся под курсором.
     const at = await onPage(page, centre);
     await page.mouse.move(at.x, at.y);
-    await page.mouse.wheel(0, -400);
+    await page.keyboard.down('Control');
+    try {
+      await page.mouse.wheel(0, -400);
+    } finally {
+      await page.keyboard.up('Control');
+    }
     await expect
       .poll(async () => shownScale(page), { message: 'масштаб после колеса' })
       .toBeGreaterThan(before * 2);

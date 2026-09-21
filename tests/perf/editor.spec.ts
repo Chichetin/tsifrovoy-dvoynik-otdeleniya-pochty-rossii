@@ -126,17 +126,22 @@ for (const config of CASES) {
         if (!canvas) throw new Error('Холст не найден');
         await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height / 2);
         const zoomSteps: number[] = [];
-        for (let step = 0; step < 5; step += 1) {
-          await page.evaluate(() => {
-            (window as unknown as Probe).q02 = new Promise<number>((resolve) => {
-              window.addEventListener('wheel', () => {
-                const started = performance.now();
-                requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now() - started)));
-              }, { capture: true, once: true });
+        await page.keyboard.down('Control');
+        try {
+          for (let step = 0; step < 5; step += 1) {
+            await page.evaluate(() => {
+              (window as unknown as Probe).q02 = new Promise<number>((resolve) => {
+                window.addEventListener('wheel', () => {
+                  const started = performance.now();
+                  requestAnimationFrame(() => requestAnimationFrame(() => resolve(performance.now() - started)));
+                }, { capture: true, once: true });
+              });
             });
-          });
-          await page.mouse.wheel(0, step % 2 === 0 ? -120 : 120);
-          zoomSteps.push(await page.evaluate(() => (window as unknown as Probe).q02));
+            await page.mouse.wheel(0, step % 2 === 0 ? -120 : 120);
+            zoomSteps.push(await page.evaluate(() => (window as unknown as Probe).q02));
+          }
+        } finally {
+          await page.keyboard.up('Control');
         }
         const zoomMs = median(zoomSteps);
 
