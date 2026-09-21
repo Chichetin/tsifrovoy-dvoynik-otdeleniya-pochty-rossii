@@ -204,8 +204,13 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
     expect(await zones.count()).toBeGreaterThanOrEqual(3);
     // Один объект — одна призма: список 3D совпадает с инвентаризацией.
     await expect(objects).toHaveCount(inventoryCount);
-    await expect(prisms(page, '[data-id="z_client"]')).toHaveCount(1);
-    await expect(prisms(page, '[data-id="eq_kiosk"]')).toHaveCount(1);
+    const clientZone = prisms(page, '[data-id="z_client"]');
+    const kiosk = prisms(page, '[data-id="eq_kiosk"]');
+    await expect(clientZone).toHaveCount(1);
+    await expect(kiosk).toHaveCount(1);
+    // Технические id остаются связью в data-атрибутах, но не торчат в подписи.
+    await expect(clientZone).not.toContainText('z_client');
+    await expect(kiosk).not.toContainText('eq_kiosk');
     // Подпись повторяет числа документа: сцена и план — одно состояние.
     await expect(page.getByText(`объектов: ${inventoryCount}`)).toBeVisible();
 
