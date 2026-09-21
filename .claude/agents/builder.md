@@ -56,7 +56,8 @@ git -C <worktree> status -sb        # ветка worktree-<поток>-<тема
    менялась раскладка целиком. Снимки — в `docs/verification/<тема>/`, без дублей
    по ширинам без причины.
 5. **Проверки** в worktree, все четыре плюс e2e для UI. Пока пакет не готов к push,
-   гонять только затронутые спеки; полный `npm run test:e2e` — один раз, перед
+   запускать `npm run test:affected -- --base origin/main`: он выбирает связанные
+   unit-тесты и e2e по изменённым файлам; полный `npm run test:e2e` — один раз, перед
    финальным push, после `git merge origin/main` из шага 7 (integrator всё равно
    повторяет полный прогон перед вливанием — не дублировать его раньше времени). Если
    после этого полного прогона код ещё менялся (например, правки по ревью) — прогнать
@@ -65,6 +66,7 @@ git -C <worktree> status -sb        # ветка worktree-<поток>-<тема
 
    ```bash
    npm run typecheck && npm run lint && npm test && npm run build
+   npm run test:affected -- --base origin/main  # итерационные проверки до финального gate
    npx playwright test tests/e2e/<spec>          # затронутые спеки по ходу работы
    npm run test:e2e                              # один раз, перед финальным push
    DEV_PORT=5174 npm run test:e2e                # свой порт, например 5174/5175, если 5173 занят

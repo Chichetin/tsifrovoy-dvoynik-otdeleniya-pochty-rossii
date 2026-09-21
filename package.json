@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
+    "test:affected": "tsx scripts/test-affected.ts",
     "test:e2e": "playwright test",
     "test:perf": "playwright test -c playwright.perf.config.ts",
     "serve": "tsx server/main.ts",
