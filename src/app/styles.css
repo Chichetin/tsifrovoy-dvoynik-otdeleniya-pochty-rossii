@@ -815,8 +815,8 @@ body {
 }
 
 /* Below 1600 px the header tightens so it still fits one row with the
-   longest «Удалить перегородку»; below 1400 px the history keeps only its
-   icons, the names stay for screen readers and in the tooltip. */
+   longest «Удалить перегородку»; below 1460 px (D-261) the history keeps only
+   its icons, the names stay for screen readers and in the tooltip. */
 @media (max-width: 1599px) {
   .shell__bar {
     column-gap: var(--space-3);
@@ -880,7 +880,17 @@ body {
   }
 }
 
-@media (max-width: 1399px) {
+/* D-261: the history goes icon-only below 1460 px (was 1400): at 1400–1459 px
+   the named buttons left the free column at 0–12 px in the worst state. The
+   icon buttons are square like the hotkeys button, the names stay in the
+   visually hidden label (accessible name) and in the tooltip. */
+@media (max-width: 1459px) {
+  .shell__history .shell__quiet {
+    justify-content: center;
+    width: var(--control-h);
+    padding: 0;
+  }
+
   .shell__quiet .shell__label {
     position: absolute;
     width: 1px;

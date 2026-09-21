@@ -4,8 +4,11 @@
  * Шапка — одна строка кнопок и строка статуса под ней, и её высота не зависит
  * от того, что в ней написано: ни длинный статус сохранения, ни подсказка
  * инструмента, ни кнопка «Удалить перегородку» не переносят кнопки на вторую
- * строку и не сдвигают холст (находка operator №16). Проверяется на двух
- * ширинах, под которые рассчитана шапка, и в худшем её состоянии.
+ * строку и не сдвигают холст (находка operator №16). Проверяется на ширинах
+ * от 1280 до 1536 (D-261: на 1400 шапка раньше вылезала за окно, на 1280 и
+ * 1440 запас был меньше 20 px; 1460 — первая ширина с подписями истории)
+ * и в худшем её состоянии; в худшем состоянии свободная колонка шапки
+ * не уже 20 px.
  */
 
 import { join } from 'node:path';
@@ -14,9 +17,15 @@ import { showTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 
-type Layout = { bar: number; canvasTop: number; overflow: number; rowTops: number[] };
+type Layout = { bar: number; canvasTop: number; overflow: number; slack: number; rowTops: number[] };
 
-/** Высота шапки, верх холста, вылет шапки вправо и верх каждой кнопки первой строки. */
+/** D-261: the free header column must keep at least this much in the worst state. */
+const MIN_SLACK_PX = 20;
+
+/**
+ * Высота шапки, верх холста, вылет шапки вправо, ширина свободной колонки
+ * (третья колонка сетки, minmax(0, 1fr)) и верх каждой кнопки первой строки.
+ */
 async function layout(page: Page): Promise<Layout> {
   return page.evaluate(() => {
     const bar = document.querySelector<HTMLElement>('.shell__bar');
@@ -29,6 +38,7 @@ async function layout(page: Page): Promise<Layout> {
       bar: Math.round(bar.getBoundingClientRect().height),
       canvasTop: Math.round(canvas.getBoundingClientRect().top),
       overflow: bar.scrollWidth - bar.clientWidth,
+      slack: Number.parseFloat(getComputedStyle(bar).gridTemplateColumns.split(' ')[2] ?? 'NaN'),
       rowTops: buttons.map((button) => Math.round(button.getBoundingClientRect().top)),
     };
   });
@@ -52,7 +62,11 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
 
 for (const size of [
   { width: 1280, height: 800 },
+  { width: 1366, height: 768 },
+  { width: 1400, height: 900 },
   { width: 1440, height: 900 },
+  { width: 1460, height: 900 },
+  { width: 1536, height: 864 },
 ]) {
   test.describe(`шапка ${size.width}×${size.height}`, () => {
     test.use({ viewport: size });
@@ -86,6 +100,8 @@ for (const size of [
       await expect(page.getByText('Перегородка: тяните концы')).toBeVisible();
       await expect(page.locator('.files > .files__status')).toHaveText('есть несохранённые правки');
       await expectOneRow(page, reference, 'выбрана перегородка, есть правки');
+      const worst = await layout(page);
+      expect(worst.slack, `запас шапки в худшем состоянии на ${size.width} px`).toBeGreaterThanOrEqual(MIN_SLACK_PX);
 
       // Открытый демо-план: подпись файла и черновика в строке статуса, не в строке кнопок.
       page.on('dialog', (dialog) => void dialog.accept());
