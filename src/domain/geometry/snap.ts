@@ -94,10 +94,16 @@ export function snapPoint(
 }
 
 /**
- * Below this many pixels apart the snapping grid reads as a grey fill rather
- * than as a grid, and stops helping: it is not drawn at all instead.
+ * How far apart the snapping grid's lines have to be on screen before it is
+ * worth drawing. Below this it reads as a grey wash over a plan already full of
+ * objects — noise, not guidance — and it is not drawn at all instead.
+ *
+ * The threshold also bounds what the canvas pays for it: a grid appears only
+ * when the plan is zoomed in for precise work, so a 100 × 50 m plan viewed
+ * whole never builds hundreds of lines nobody can tell apart (D-187, D-190 —
+ * the zoom frame is a measured budget).
  */
-export const ROOM_GRID_MIN_PX = 7;
+export const ROOM_GRID_MIN_PX = 14;
 
 /**
  * Coordinates of the snapping step inside a room (D-230), in metres.
