@@ -155,9 +155,9 @@ export function renderPlanSvg(plan: PlanDocument): string {
 
 /**
  * Имя файла из названия плана: буквы и цифры остаются, остальное — дефис.
- * Одно правило для `.json`, `.svg` и `.png`, чтобы план и его картинки лежали рядом.
+ * Одно правило для `.json` и `.svg`, чтобы план и его картинка лежали рядом.
  */
-export function planFileName(plan: PlanDocument, extension: 'json' | 'svg' | 'png'): string {
+export function planFileName(plan: PlanDocument, extension: 'json' | 'svg'): string {
   const stem = plan.name.trim().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '');
   return `${stem === '' ? 'plan' : stem}.${extension}`;
 }
