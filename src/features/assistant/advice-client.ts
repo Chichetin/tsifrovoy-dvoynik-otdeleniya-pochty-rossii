@@ -14,6 +14,7 @@ import type {
   AdviceResponse,
   Recommendation,
 } from '../../contracts/advice';
+import { verifyChatIntent, verifyChatSelection, type ChatIntent, type ChatSelection, type ChatTurn } from '../../contracts/advice-chat';
 import type { Issue, PlanDocument, Result } from '../../contracts/model';
 import { calculateAdvice, defaultExplanation } from '../../domain/advice';
 
@@ -21,6 +22,34 @@ export const ADVICE_CLIENT_ISSUE_CODES = {
   /** The server answered, but not with an advice response. */
   ADVICE_RESPONSE_UNEXPECTED: 'ADVICE_RESPONSE_UNEXPECTED',
 } as const;
+
+export type ChatAdviceResponse =
+  | { revision: number; kind: 'clarify'; question: string }
+  | {
+      revision: number;
+      kind: 'fallback';
+      mode: 'fallback';
+      recommendations: Recommendation[];
+      selection: null;
+      fallbackReason: string;
+    }
+  | {
+      revision: number;
+      kind: 'result';
+      mode: 'llm' | 'fallback';
+      intent: ChatIntent;
+      recommendations: Recommendation[];
+      selection: ChatSelection | null;
+      fallbackReason?: string;
+    };
+
+export type ChatAdviceInput = {
+  plan: PlanDocument;
+  revision: number;
+  query: string;
+  history: readonly ChatTurn[];
+  before?: PlanDocument;
+};
 
 /** Локальный расчёт: те же функции, что и на сервере, тот же режим ответа. */
 function localAdvice(
@@ -60,6 +89,49 @@ function looksLikeResponse(body: unknown): body is AdviceResponse {
     Array.isArray(candidate.explanations) &&
     (candidate.mode === 'llm' || candidate.mode === 'fallback')
   );
+}
+
+function isChatIntent(value: unknown): value is ChatIntent {
+  if (typeof value !== 'object' || value === null) return false;
+  const intent = value as { kind?: unknown; question?: unknown; request?: unknown; preference?: unknown };
+  if (intent.kind === 'clarify') return typeof intent.question === 'string' && intent.question.length > 0;
+  return intent.kind === 'request' && typeof intent.request === 'object' && intent.request !== null && (typeof intent.preference === 'string' || intent.preference === null);
+}
+
+function isSelection(value: unknown): value is ChatSelection | null {
+  if (value === null) return true;
+  return typeof value === 'object' && value !== null && Array.isArray((value as { selections?: unknown }).selections);
+}
+
+function looksLikeChatResponse(body: unknown): body is ChatAdviceResponse {
+  if (typeof body !== 'object' || body === null) return false;
+  const response = body as Partial<ChatAdviceResponse>;
+  if (typeof response.revision !== 'number' || !Number.isInteger(response.revision) || response.revision < 0) return false;
+  if (response.kind === 'clarify') return typeof response.question === 'string' && response.question.length > 0;
+  if (
+    (response.kind !== 'fallback' && response.kind !== 'result') ||
+    !Array.isArray(response.recommendations) ||
+    !isSelection(response.selection)
+  ) {
+    return false;
+  }
+  if (response.kind === 'fallback') return response.mode === 'fallback' && typeof response.fallbackReason === 'string';
+  return (response.mode === 'llm' || response.mode === 'fallback') && isChatIntent((response as { intent?: unknown }).intent);
+}
+
+/** The server validates too; checking again keeps a malformed proxy response out of action callbacks. */
+function verifiedChatResponse(input: ChatAdviceInput, response: ChatAdviceResponse): Result<ChatAdviceResponse> {
+  if (response.kind === 'fallback') return { ok: true, value: response };
+  const intent = verifyChatIntent(
+    response.kind === 'clarify'
+      ? { kind: 'clarify', question: response.question }
+      : response.intent,
+    input.plan,
+  );
+  if (!intent.ok) return intent;
+  if (response.kind === 'clarify' || response.selection === null) return { ok: true, value: response };
+  const selection = verifyChatSelection(response.selection, response.recommendations, input.plan);
+  return selection.ok ? { ok: true, value: response } : selection;
 }
 
 /**
@@ -130,6 +202,59 @@ export async function requestAdvice(
         code: ADVICE_CLIENT_ISSUE_CODES.ADVICE_RESPONSE_UNEXPECTED,
         severity: 'error',
         message: `Сервер ассистента прислал непонятный ответ. Повторите запрос; если не поможет — сообщите разработчикам (код ${response.status}).`,
+        refs: [],
+      },
+    ],
+  };
+}
+
+/**
+ * Browser transport for the constrained conversational endpoint. The server
+ * receives a compact normalized history and remains responsible for provider
+ * fallback; malformed answers are never promoted into a UI action.
+ */
+export async function requestChatAdvice(
+  input: ChatAdviceInput,
+  fetchImpl: typeof fetch = fetch,
+): Promise<Result<ChatAdviceResponse>> {
+  let response: Response;
+  try {
+    response = await fetchImpl('/api/advice/chat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    return {
+      ok: false,
+      issues: [
+        {
+          code: ADVICE_CLIENT_ISSUE_CODES.ADVICE_RESPONSE_UNEXPECTED,
+          severity: 'error',
+          message: 'Сервер разговорного ассистента не отвечает. Используйте быстрый сценарий расчёта.',
+          refs: [],
+        },
+      ],
+    };
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    body = null;
+  }
+  if (response.ok && looksLikeChatResponse(body)) return verifiedChatResponse(input, body);
+
+  const issues = issuesOf(body);
+  if (issues.length > 0) return { ok: false, issues };
+  return {
+    ok: false,
+    issues: [
+      {
+        code: ADVICE_CLIENT_ISSUE_CODES.ADVICE_RESPONSE_UNEXPECTED,
+        severity: 'error',
+        message: `Сервер разговорного ассистента прислал непонятный ответ (код ${response.status}). Используйте быстрый сценарий расчёта.`,
         refs: [],
       },
     ],
