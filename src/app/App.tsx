@@ -218,7 +218,7 @@ export function App(): React.JSX.Element {
       }
       return result;
     },
-    [dispatchAndSelect, tool.kind],
+    [dispatchAndSelect, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
