@@ -6,7 +6,7 @@
  * обучение проверяет `onboarding.spec.ts` — он берёт голый `@playwright/test`.
  */
 
-import { test as base, type BrowserContext } from '@playwright/test';
+import { test as base, type BrowserContext, type Page } from '@playwright/test';
 import { ONBOARDING_KEY } from '../../src/features/onboarding/tour';
 
 export * from '@playwright/test';
@@ -28,3 +28,13 @@ export const test = base.extend({
     await provide(context);
   },
 });
+
+/**
+ * Выгрузка через меню «Экспорт» (D-255): кнопки «Сохранить» и «Картинка» в
+ * шапке больше нет, их пункты живут в одном меню. Помощник нужен многим
+ * спекам, поэтому он здесь, а не копией в каждой.
+ */
+export async function exportPlan(page: Page, item: 'JSON' | 'PNG' | 'SVG'): Promise<void> {
+  await page.getByRole('button', { name: 'Экспорт' }).click();
+  await page.getByRole('menuitem', { name: new RegExp(item) }).click();
+}

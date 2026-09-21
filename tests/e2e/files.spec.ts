@@ -12,7 +12,8 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
@@ -57,6 +58,7 @@ async function openFile(page: Page, file: string): Promise<void> {
 
 /** Ставит первый тип из библиотеки в точку холста. */
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item').first().click();
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
 }
@@ -83,7 +85,7 @@ function secondPlanFile(): { name: string; mimeType: string; buffer: Buffer } {
 async function download(page: Page): Promise<string> {
   const event = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([download]) => download);
   const path = await event.path();
   expect(path).not.toBeNull();
@@ -130,8 +132,14 @@ test.describe('файлы плана', () => {
     await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
     await expect(page.locator('.table__link', { hasText: 'z_back' }).first()).toBeVisible();
 
-    // Объект примера открывается карточкой по своему идентификатору.
-    await page.locator('.table__link', { hasText: 'Терминал электронной очереди' }).first().click();
+    // Объект примера открывается карточкой по своему идентификатору. Ссылку
+    // берём в перечне: тот же объект назван и в находках проверки, а её панель
+    // на соседней вкладке и скрыта (D-249).
+    await page
+      .getByLabel('Инвентаризация')
+      .locator('.table__link', { hasText: 'Терминал электронной очереди' })
+      .first()
+      .click();
     await expect(page.getByTestId('props-id')).toHaveText('eq_kiosk');
 
     // Пользователю сказано, откуда план и что будет при сохранении.
@@ -144,7 +152,9 @@ test.describe('файлы плана', () => {
 
     // Правила команды сомкнулись с примером: ловушка «терминал в ~7 м от входа
     // при норме 3 м» видна в проверке, а не только в unit-тесте.
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).toContainText('от главного входа');
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).toContainText('не более 3 м');
     expect(errors).toEqual([]);
   });
@@ -370,10 +380,11 @@ test.describe('файлы плана', () => {
     expect(errors).toEqual([]);
   });
 
-  test('«Картинка» скачивает SVG плана и не выдаёт это за сохранение', async ({ page }) => {
+  test('«Экспорт → SVG» скачивает картинку плана и не выдаёт это за сохранение', async ({ page }) => {
     // Находка operator №6: руководителю нечем показать план, кроме скриншота.
     await page.goto('/');
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Инвентаризация');
     const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
     await expect(rows).toHaveCount(53);
 
@@ -385,7 +396,7 @@ test.describe('файлы плана', () => {
 
     const event = await Promise.all([
       page.waitForEvent('download'),
-      page.getByTestId('export-svg').click(),
+      exportPlan(page, 'SVG'),
     ]).then(([download]) => download);
     expect(event.suggestedFilename()).toMatch(/\.svg$/);
     const path = await event.path();
@@ -406,7 +417,7 @@ test.describe('файлы плана', () => {
     await expect(page.getByText('есть несохранённые правки')).toBeVisible();
   });
 
-  test('«Картинка» не возвращает содержимое скрытого слоя', async ({ page }) => {
+  test('«Экспорт → SVG» не возвращает содержимое скрытого слоя', async ({ page }) => {
     const source = JSON.parse(
       readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'),
     ) as {
@@ -425,7 +436,7 @@ test.describe('файлы плана', () => {
 
     const event = await Promise.all([
       page.waitForEvent('download'),
-      page.getByTestId('export-svg').click(),
+      exportPlan(page, 'SVG'),
     ]).then(([download]) => download);
     const path = await event.path();
     const svg = readFileSync(path as string, 'utf8');
@@ -433,5 +444,52 @@ test.describe('файлы плана', () => {
     expect(svg).toContain(`data-id="${source.room.id}"`);
     for (const zone of source.zones) expect(svg).not.toContain(`data-id="${zone.id}"`);
     for (const object of source.objects) expect(svg).not.toContain(`data-id="${object.id}"`);
+  });
+
+  test('«Экспорт → PNG» скачивает картинку, а меню слушается клавиатуры (D-255)', async ({ page }) => {
+    await page.goto('/');
+    await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Инвентаризация');
+    const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+    await expect(rows).toHaveCount(53);
+
+    // Правка, чтобы план стал «несохранённым», — картинка этого не снимает.
+    await rows.first().locator('.table__link').first().click();
+    await page.keyboard.press('Delete');
+    await expect(rows).toHaveCount(52);
+    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+
+    // Меню открывается с клавиатуры и закрывается Escape, не выгружая ничего.
+    const trigger = page.getByRole('button', { name: 'Экспорт' });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menu', { name: 'Экспорт' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: /JSON/ })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: /PNG/ })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Экспорт' })).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    // Стрелка вверх на кнопке — меню открыто на последнем пункте.
+    await page.keyboard.press('ArrowUp');
+    await expect(page.getByRole('menuitem', { name: /SVG/ })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(trigger).toBeFocused();
+
+    const event = await Promise.all([
+      page.waitForEvent('download'),
+      exportPlan(page, 'PNG'),
+    ]).then(([download]) => download);
+    expect(event.suggestedFilename()).toMatch(/\.png$/);
+    const path = await event.path();
+    const png = readFileSync(path as string);
+    // Настоящий PNG: сигнатура файла и непустой растр.
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(png.byteLength).toBeGreaterThan(1000);
+
+    await expect(page.getByTestId('files-notice')).toContainText('.png');
+
+    // Картинка — не сохранение: правки по-прежнему несохранённые.
+    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
   });
 });

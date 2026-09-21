@@ -9,6 +9,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -61,6 +62,7 @@ test('находки примера помечены на плане без кл
 
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
+  await showTab(page, 'Проверка');
   const validation = page.getByLabel('Проверка плана');
   const items = validation.locator('.issues__item');
   // Восемь геометрических проблем примера — восемь строк: повтор «ни в одной зоне»

@@ -11,7 +11,8 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page , exportPlan } from './fixtures';
+import { showTab } from './side-tabs';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 
@@ -35,6 +36,7 @@ async function settle(page: Page): Promise<void> {
 }
 
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await settle(page);
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
@@ -75,7 +77,7 @@ async function rotationOf(page: Page): Promise<number> {
 async function savedPlan(page: Page): Promise<{ objects: { id: string; position: number[] }[] }> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();

@@ -20,6 +20,7 @@ import {
 } from './fixtures';
 import { encodePlan } from '../../src/persistence/codec';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
+import { showTab } from './side-tabs';
 
 const SWIFTSHADER_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const NO_WEBGL_ARGS = ['--disable-webgl', '--disable-3d-apis'];
@@ -54,6 +55,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<string> {
+  await showTab(page, 'Библиотека');
   const item = page.locator('.library__item').first();
   const label = ((await item.locator('.library__label').textContent()) ?? '').trim();
   await item.click();
@@ -152,6 +154,7 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
   test('клик по объёму выбирает объект и открывает его карточку', async ({ playwright, browserName, baseURL }) => {
     await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
       await page.goto('/');
+      await showTab(page, 'Библиотека');
       await page.locator('.library__item').first().click();
       await page.getByTestId('editor-canvas').click();
       // Сначала выбираем фон, чтобы последующий выбор точно пришёл из 3D.
@@ -265,11 +268,13 @@ test.describe('3D-вид: скрытые слои', () => {
 
     // «Глаз» в панели слоёв — то же действие, что прячет объект на холсте 2D.
     const eye = page.getByRole('button', { name: 'Показывать слой Основной' });
+    await showTab(page, 'Слои');
     await eye.click();
     await expect(prisms(page, '[data-kind="object"]')).toHaveCount(0);
     await expect(page.getByText('объектов: 0')).toBeVisible();
     await expect(page.getByText('Скрытые слои не показаны')).toBeVisible();
 
+    await showTab(page, 'Слои');
     await eye.click();
     await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
     await expect(page.getByText('объектов: 1')).toBeVisible();

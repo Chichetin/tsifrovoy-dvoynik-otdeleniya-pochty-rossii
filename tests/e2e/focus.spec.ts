@@ -15,6 +15,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Демо-план сдачи: помещение 15 × 10 м, 53 объекта, 8 зон. */
 const BEFORE = join(process.cwd(), 'demo', 'before.json');
@@ -31,6 +32,7 @@ const card = (page: Page): Locator => page.getByLabel('Свойства');
 async function openBefore(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(BEFORE);
+  await showTab(page, 'Инвентаризация');
   await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
 }
 
@@ -217,6 +219,7 @@ test.describe('холст показывает то, о чём спрашива�
 
     // Проверка нашла его: сотрудник видит название, а стабильный `id` остаётся
     // в структурном атрибуте ссылки и не загромождает подпись (D-235).
+    await showTab(page, 'Проверка');
     const finding = page
       .getByLabel('Проверка плана')
       .locator(`button[data-ref-id="${id}"]`)
@@ -236,6 +239,7 @@ test.describe('холст показывает то, о чём спрашива�
     await panAway(page);
     expect(await sees(page, OUTSIDE.x, OUTSIDE.y)).toBe(false);
 
+    await showTab(page, 'Инвентаризация');
     await page
       .getByLabel('Инвентаризация')
       .getByRole('button', { name: MOVED_LABEL, exact: true })

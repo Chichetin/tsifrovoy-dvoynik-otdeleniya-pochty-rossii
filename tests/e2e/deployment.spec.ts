@@ -22,7 +22,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 /** Пусто — адрес деплоя не назвали, проверять нечего. */
 const DEPLOY_URL = (process.env.DEPLOY_URL ?? '').trim().replace(/\/+$/, '');
@@ -138,7 +138,7 @@ test.describe('развёрнутый сервис', () => {
 
     const download = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Сохранить' }).click(),
+      exportPlan(page, 'JSON'),
     ]).then(([event]) => event);
 
     const saved = await download.path();
