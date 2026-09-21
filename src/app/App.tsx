@@ -50,12 +50,12 @@ import { catalog, createEmptyPlan } from './default-plan';
 import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
   browserStorage as rightColumnStorage,
-  expandSection,
   loadSectionState,
   pluralRu,
   saveSectionState,
   toggleSection,
   type SectionId,
+  type SectionState,
 } from './right-column';
 import { Section } from './Section';
 import './styles.css';
@@ -134,9 +134,33 @@ export function App(): React.JSX.Element {
     if (sections === initialSections.current) return;
     saveSectionState(rightColumnStorage(), sections);
   }, [sections]);
-  const toggleSectionState = useCallback((id: SectionId) => {
-    setSections((prev) => toggleSection(prev, id));
-  }, []);
+  /**
+   * D-236: выбор переводит колонку в режим карточки — «Свойства» раскрыты,
+   * остальные разделы свёрнуты в заголовки. Заголовки остаются на месте и
+   * открываются одним щелчком: числа площадей и перечня не исчезают, просто
+   * уступают место тому, что человек сейчас правит. Без выбора наоборот —
+   * свёрнуты «Свойства», которым нечего показать.
+   *
+   * Это не состояние, а вывод из выбора: в localStorage не пишется и чужую
+   * сохранённую раскладку не затирает.
+   */
+  const autoCollapsed = (id: SectionId): boolean =>
+    id === 'properties' ? selection === null : sections[id] === true;
+  /**
+   * Разделы, которые человек сам свернул или раскрыл при нынешнем выборе:
+   * щелчок по заголовку сильнее автоматики и живёт до смены выбора — иначе
+   * заглянуть в «Площади», не бросая выбранный объект, было бы нечем.
+   */
+  const [manualSections, setManualSections] = useState<SectionState>({});
+  const collapsedOf = (id: SectionId): boolean => manualSections[id] ?? autoCollapsed(id);
+  const toggleSectionState = useCallback(
+    (id: SectionId) => {
+      setSections((prev) => toggleSection(prev, id));
+      setManualSections((prev) => ({ ...prev, [id]: !collapsedOf(id) }));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapsedOf зависит от выбора и читается в момент щелчка
+    [selection, sections, manualSections],
+  );
 
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
@@ -145,22 +169,21 @@ export function App(): React.JSX.Element {
     [tool, viewport, selection, selected, preview, focus, retired],
   );
 
-  // A selection just made — on the canvas or from a panel's «показать на
-  // плане» — is why the person needs the card that shows it: it opens even if
-  // its header was collapsed earlier. `expandSection` returns the same
-  // reference when it is already open, so an already-selected object does
-  // not re-render this on every store update.
+  // Смена выбора возвращает колонку к автоматике (D-236): ручные щелчки по
+  // заголовкам относились к прошлому выбранному объекту, а не к новому.
+  // Раскрывать «Свойства» отдельной командой больше не нужно — при выборе
+  // они раскрыты по определению.
   const select = useCallback(
     (ref: Ref | null) => {
       store.getState().select(ref);
-      if (ref !== null) setSections((prev) => expandSection(prev, 'properties'));
+      setManualSections({});
     },
     [store],
   );
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
       store.getState().selectMany(ids);
-      if (ids.length > 0) setSections((prev) => expandSection(prev, 'properties'));
+      setManualSections({});
     },
     [store],
   );
@@ -493,18 +516,12 @@ export function App(): React.JSX.Element {
           ) : null}
         </main>
 
-        {/* Правая колонка работает в двух состояниях, а не показывает всё
-            сразу: выбран объект — на месте только его «Свойства», чтобы
-            карточка не тонула среди пяти других разделов и не приходилось
-            прокручивать до неё; выбора нет — «Свойства» не занимают место
-            строкой «ничего не выбрано», и колонка отдана обзору плана. */}
         <aside className="shell__side shell__side--wide" data-tour="side-right">
-          {selection === null ? null : (
           <Section
             id="properties"
             title="Свойства"
             summary={sectionSummaries.properties}
-            collapsed={sections.properties === true}
+            collapsed={collapsedOf('properties')}
             onToggle={() => toggleSectionState('properties')}
           >
             <PropertiesPanel
@@ -514,14 +531,11 @@ export function App(): React.JSX.Element {
               gesturePreview={gesturePreview}
             />
           </Section>
-          )}
-          {selection !== null ? null : (
-          <>
           <Section
             id="assistant"
             title="Ассистент"
             summary={sectionSummaries.assistant}
-            collapsed={sections.assistant === true}
+            collapsed={collapsedOf('assistant')}
             onToggle={() => toggleSectionState('assistant')}
           >
             <AssistantPanel
@@ -538,7 +552,7 @@ export function App(): React.JSX.Element {
             id="metrics"
             title="Площади"
             summary={sectionSummaries.metrics}
-            collapsed={sections.metrics === true}
+            collapsed={collapsedOf('metrics')}
             onToggle={() => toggleSectionState('metrics')}
           >
             <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
@@ -548,7 +562,7 @@ export function App(): React.JSX.Element {
             title="Проверка"
             summary={sectionSummaries.validation}
             summaryTone={validationHasErrors ? 'error' : undefined}
-            collapsed={sections.validation === true}
+            collapsed={collapsedOf('validation')}
             onToggle={() => toggleSectionState('validation')}
           >
             <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
@@ -557,7 +571,7 @@ export function App(): React.JSX.Element {
             id="inventory"
             title="Инвентаризация"
             summary={sectionSummaries.inventory}
-            collapsed={sections.inventory === true}
+            collapsed={collapsedOf('inventory')}
             onToggle={() => toggleSectionState('inventory')}
           >
             <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
@@ -566,13 +580,11 @@ export function App(): React.JSX.Element {
             id="catalog"
             title="Справочник"
             summary={sectionSummaries.catalog}
-            collapsed={sections.catalog === true}
+            collapsed={collapsedOf('catalog')}
             onToggle={() => toggleSectionState('catalog')}
           >
             <CatalogPanel document={document} onCommand={dispatch} />
           </Section>
-          </>
-          )}
         </aside>
       </div>
 
