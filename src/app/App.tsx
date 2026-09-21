@@ -241,6 +241,12 @@ export function App(): React.JSX.Element {
     return { properties, assistant, metrics: areas, validation: found, inventory: placed, catalog: catalogSummary };
   }, [selection, names, document, adviceState, advice, metrics, issues, inventory]);
 
+  // UI-2В (D-226, по ревью MR !177): the same test `ValidationPanel` uses for
+  // its own red `panel__count` (`issue.severity === 'error'`) — a collapsed
+  // «Проверка» section must not read as calm when the plan has real errors,
+  // not just team warnings.
+  const validationHasErrors = useMemo(() => issues.some((issue) => issue.severity === 'error'), [issues]);
+
   const askAssistant = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
       const sequence = ++adviceRequestSequence.current;
@@ -477,6 +483,7 @@ export function App(): React.JSX.Element {
             id="validation"
             title="Проверка"
             summary={sectionSummaries.validation}
+            summaryTone={validationHasErrors ? 'error' : undefined}
             collapsed={sections.validation === true}
             onToggle={() => toggleSectionState('validation')}
           >

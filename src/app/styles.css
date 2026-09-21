@@ -49,9 +49,12 @@
   --control-h: 30px;
   --side-left: 260px;
   --side-right: 340px;
-  /* UI-2В (D-226): the sticky section header's own height, measured in the
-     browser at 1280×800 (37.3px) with a little slack — a scrolled-to card
-     uses it as `scroll-margin-top` so the header does not cover its top. */
+  /* UI-2В (D-226): the sticky section header's minimum height (measured in
+     the browser at 1280×800, ~37.3px, with a little slack) — `.section__header`
+     enforces this as its own `min-height`, so it is the one number driving
+     both the header and every scrolled-to card's `scroll-margin-top`, not a
+     copy of a measurement that padding/font tokens could quietly drift away
+     from (by ревью MR !177). */
   --section-header-h: 40px;
 
   /* Aliases kept for module blocks. */
@@ -717,6 +720,13 @@ body {
   font-weight: 600;
   text-align: left;
   appearance: none;
+  /* UI-2В (D-226, по ревью MR !177): `--section-header-h` below is used
+     elsewhere as `scroll-margin-top`, so it has to be a lower bound on the
+     header's own rendered height, not a note that happens to match it —
+     padding, font size or the border changing here must not silently pull
+     the two numbers apart. */
+  min-height: var(--section-header-h);
+  box-sizing: border-box;
 }
 
 .section__header:hover {
@@ -755,11 +765,34 @@ body {
   white-space: nowrap;
 }
 
+/* UI-2В (D-226, по ревью MR !177): same tone as `.panel__count.is-error`
+   inside «Проверка» — a collapsed section keeps telling the difference
+   between «has errors» and «warnings only» without reopening it. */
+.section__summary.is-error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
 .section__body .panel {
   margin-bottom: 0;
   /* UI-2В: `scrollIntoView({ block: 'nearest' })` (PropertiesPanel) and Tab
      focus must not let the sticky section header above cover the card's own
      top edge (D-226). */
+  scroll-margin-top: var(--section-header-h);
+}
+
+/* UI-2В (D-226, по ревью MR !177): the card-level `scroll-margin-top` above
+   only helps when the whole card is the thing the browser scrolls to. Tab
+   into a field that is already inside a scrolled-past panel — the browser
+   brings that one field to the top instead, and the sticky header covers
+   it just the same. Every focusable element in an open section needs its
+   own margin, not only the card. */
+.section__body input,
+.section__body select,
+.section__body textarea,
+.section__body button,
+.section__body a,
+.section__body [tabindex] {
   scroll-margin-top: var(--section-header-h);
 }
 
@@ -775,15 +808,24 @@ body {
    - `h2.panel__title` only, not the bare class — `InventoryPanel` reuses
      `panel__title` on an inner `<h3>` ("Объекты по типам N"), which is not a
      duplicate of the section name and must stay visible.
-   - `.panel:not(.catalog)` — `CatalogPanel`'s own `<h2>` is the only one
-     that nests an interactive control, the «править»/«свернуть» toggle
-     (`data-testid="catalog-toggle"`); the clip technique below shrinks the
-     whole subtree to nothing, taking a real, focused, clickable button down
-     with it (`catalog-editor.spec.ts` caught this as a `<html>… intercepts
-     pointer events` timeout). That one heading — name, counts and toggle
-     together — is left visible as-is; it still reads one name twice for
-     that single section, a smaller cost than losing the control. */
-.section__body .panel:not(.catalog) > h2.panel__title {
+   - `:not(:has(button))` — a positive rule about the heading's own content,
+     not a name borrowed from a neighbouring module: `CatalogPanel`'s `<h2>`
+     is the one panel title that nests an interactive control, the
+     «править»/«свернуть» toggle (`data-testid="catalog-toggle"`); the clip
+     technique below shrinks the whole subtree to nothing, taking a real,
+     focused, clickable button down with it (`catalog-editor.spec.ts` caught
+     this as a `<html>… intercepts pointer events` timeout). An earlier draft
+     named `CatalogPanel`'s own `.catalog` class instead — a rename over
+     there would have silently unhidden the button-losing bug again; this
+     version instead asks the one question that actually matters, "does this
+     heading contain a control", so a future panel that puts a button in its
+     title is protected by the same rule without anyone remembering to list
+     it here. `:has()` needs Chromium 105+ (D-125 pins the e2e browser to a
+     current Playwright-managed Chromium, well past that). That one heading —
+     name, counts and toggle together — is left visible as-is; it still
+     reads one name twice for that single section, a smaller cost than
+     losing the control. */
+.section__body .panel > h2.panel__title:not(:has(button)) {
   position: absolute;
   width: 1px;
   height: 1px;
