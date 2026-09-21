@@ -445,3 +445,67 @@ describe('одна проблема — одна находка (operator №19,
     expect(codesOf(placementIssuesOf(two, 'eq_loose'))).toEqual(['ZONE_UNASSIGNED']);
   });
 });
+
+describe('инвентарные номера', () => {
+  function withObjects(numbers: Array<string | number | boolean | null | undefined>): PlanDocument {
+    const plan = loadPlan('minimal.json');
+    const object = firstObject(plan);
+    // Разнесены по X, чтобы коллизии не мешали читать находки.
+    return {
+      ...plan,
+      objects: numbers.map((inventoryNumber, index) => ({
+        ...object,
+        id: `eq_${index + 1}`,
+        label: `Окно ${index + 1}`,
+        position: [1 + index * 0.1, 1 + index * 1.5] as Point,
+        size_m: [0.5, 0.5] as Point,
+        attributes: (inventoryNumber === undefined ? {} : { inventoryNumber }) as Equipment['attributes'],
+      })),
+    };
+  }
+
+  function duplicates(plan: PlanDocument): Issue[] {
+    return validatePlan(plan).filter(
+      (entry) => entry.code === VALIDATION_ISSUE_CODES.OBJECT_DUPLICATE_INVENTORY_NUMBER,
+    );
+  }
+
+  test('одинаковый номер у двух объектов — находка с обоими id и подсветкой копии', () => {
+    const plan = withObjects(['ИНВ-ДЕМО-010', 'ИНВ-ДЕМО-011', 'ИНВ-ДЕМО-010']);
+    const found = duplicates(plan);
+    expect(found).toHaveLength(1);
+    // Первой идёт ссылка на повтор: маркер на плане ставится по первой ссылке.
+    expect(found[0]?.refs).toEqual([
+      { kind: 'object', id: 'eq_3' },
+      { kind: 'object', id: 'eq_1' },
+    ]);
+    expect(found[0]?.severity).toBe('warning');
+    expect(found[0]?.message).toContain('«ИНВ-ДЕМО-010»');
+    expect(found[0]?.message).toContain('«Окно 3»');
+    expect(found[0]?.message).toContain('«Окно 1»');
+    const third = plan.objects[2];
+    expect(found[0]?.polygon).toHaveLength(4);
+    expect(found[0]?.polygon?.[0]?.[1]).toBeCloseTo((third?.position[1] ?? 0) - 0.25);
+  });
+
+  test('три объекта с одним номером — две находки, обе про первый', () => {
+    const found = duplicates(withObjects(['A-1', 'A-1', 'A-1']));
+    expect(found.map((entry) => entry.refs.map((ref) => ref.id))).toEqual([
+      ['eq_2', 'eq_1'],
+      ['eq_3', 'eq_1'],
+    ]);
+  });
+
+  test('пробелы по краям не делают номер другим; число равно строке', () => {
+    expect(duplicates(withObjects(['  A-1 ', 'A-1']))).toHaveLength(1);
+    expect(duplicates(withObjects([1024, '1024']))).toHaveLength(1);
+  });
+
+  test('пустые и отсутствующие номера дублями не считаются', () => {
+    expect(duplicates(withObjects([null, null, '', '  ', undefined, true, true]))).toEqual([]);
+  });
+
+  test('разные номера — тишина', () => {
+    expect(duplicates(withObjects(['A-1', 'A-2', 'a-1']))).toEqual([]);
+  });
+});

@@ -104,6 +104,12 @@ export function nextObjectId(taken: Set<Id>): Id {
  * дальше, иначе две копии легли бы одна на другую. `zoneId` копия не наследует
  * — зону пересчитает `object.put` (`withRelations`), и копия, уехавшая в
  * соседнюю зону, числится там, где лежит.
+ *
+ * `inventoryNumber` копия не наследует — ни при вставке, ни при `Ctrl+D`:
+ * это ярлык физического предмета, а копия — другой предмет, и одинаковый
+ * номер у двух объектов проверка считает дублем. Номер пуст, а не «следующий
+ * свободный»: формат номеров в плане задаёт человек, и угаданный код выглядел
+ * бы настоящим, хотя на предмете его нет (D-265).
  */
 export function pasteObjects(
   source: readonly Equipment[],
@@ -119,6 +125,7 @@ export function pasteObjects(
       id,
       position: snapPosition([object.position[0] + dx * step, object.position[1] + dy * step]),
       zoneId: null,
+      attributes: { ...object.attributes, [INVENTORY_NUMBER_KEY]: null },
     };
   });
 }
@@ -128,18 +135,11 @@ export function pasteObjects(
  * `Ctrl+V`: без буфера, всегда от текущего выделения, шаг смещения всегда
  * первый (`pasteObjects(…, 1)`), так что повторное «Ctrl+D» от уже
  * выделенной копии просто уводит следующую копию туда же на `PASTE_OFFSET_M`
- * дальше — держать свой счётчик вставок не нужно.
- *
- * `inventoryNumber` копия не наследует: это ярлык физического предмета, а
- * дубликат — другой предмет, для которого специалист по инвентаризации
- * впишет свой номер, а не унаследует чужой (в отличие от `pasteObjects`,
- * который остальные атрибуты копирует как есть).
+ * дальше — держать свой счётчик вставок не нужно. `inventoryNumber` у копии
+ * пуст, как и при вставке (D-243, D-265).
  */
 export function duplicateObjects(source: readonly Equipment[], taken: ReadonlySet<Id>): Equipment[] {
-  return pasteObjects(source, taken, 1).map((object) => ({
-    ...object,
-    attributes: { ...object.attributes, [INVENTORY_NUMBER_KEY]: null },
-  }));
+  return pasteObjects(source, taken, 1);
 }
 
 /**

@@ -236,8 +236,17 @@ describe('pasteObjects', () => {
     expect(copy?.label).toBe('Стеллаж №3');
     expect(copy?.size_m).toEqual([1.2, 0.6]);
     expect(copy?.rotation_deg).toBe(37);
-    expect(copy?.attributes).toEqual(source.attributes);
+    expect(copy?.attributes).toEqual({ ...source.attributes, inventoryNumber: null });
     expect(copy?.layerId).toBe(source.layerId);
+  });
+
+  test('инвентарный номер не переносится на копию, остальные атрибуты — да', () => {
+    const source = object({ attributes: { condition: 'исправно', inventoryNumber: 'ИНВ-ДЕМО-010' } });
+    const copies = pasteObjects([source, { ...source, id: 'eq_2' }], new Set<Id>(['eq_1', 'eq_2']), 2);
+    expect(copies.map((copy) => copy.attributes.inventoryNumber)).toEqual([null, null]);
+    expect(copies.map((copy) => copy.attributes.condition)).toEqual(['исправно', 'исправно']);
+    // Буфер — снимок: источник не теряет номер оттого, что его вставили.
+    expect(source.attributes.inventoryNumber).toBe('ИНВ-ДЕМО-010');
   });
 });
 
