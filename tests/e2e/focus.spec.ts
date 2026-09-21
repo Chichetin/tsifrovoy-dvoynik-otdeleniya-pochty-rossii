@@ -163,6 +163,43 @@ test.describe('холст показывает то, о чём спрашива�
     expect(errors).toEqual([]);
   });
 
+  test('тачпадный свайп и средняя кнопка двигают план, колесо масштабирует', async ({ page }) => {
+    await openBefore(page);
+    const target = canvas(page);
+    const box = await target.boundingBox();
+    expect(box).not.toBeNull();
+    const { x, y, width, height } = box as { x: number; y: number; width: number; height: number };
+    const centre = { x: x + width / 2, y: y + height / 2 };
+
+    const beforeSwipe = await target.getAttribute('data-visible');
+    const fittedScale = await scale(page);
+    await page.mouse.move(centre.x, centre.y);
+    // Playwright's small pixel wheel event models a smooth two-finger swipe.
+    await page.mouse.wheel(18, 16);
+    await expect.poll(() => scale(page)).toBe(fittedScale);
+    await expect.poll(() => target.getAttribute('data-visible')).not.toBe(beforeSwipe);
+
+    const beforeMouseWheel = await scale(page);
+    await page.mouse.wheel(0, -120);
+    await expect.poll(() => scale(page)).toBeGreaterThan(beforeMouseWheel);
+
+    const beforeCtrlWheel = await scale(page);
+    await page.keyboard.down('Control');
+    await page.mouse.wheel(0, -60);
+    await page.keyboard.up('Control');
+    await expect.poll(() => scale(page)).toBeGreaterThan(beforeCtrlWheel);
+
+    await page.getByTestId('canvas-fit').click();
+    const beforeMiddleDrag = await target.getAttribute('data-visible');
+    const middleScale = await scale(page);
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(centre.x + 90, centre.y + 50, { steps: 5 });
+    await page.mouse.up({ button: 'middle' });
+    await expect.poll(() => scale(page)).toBe(middleScale);
+    await expect.poll(() => target.getAttribute('data-visible')).not.toBe(beforeMiddleDrag);
+  });
+
   test('находка проверки и строка перечня приводят к объекту за стеной', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));

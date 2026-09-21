@@ -131,6 +131,16 @@ describe('панель инструментов плана', () => {
     }
   });
 
+  it('подсказка панорамирования называет тачпад и среднюю кнопку', () => {
+    const { onTool } = show(null);
+    fireEvent.click(screen.getByRole('button', { name: 'Рука' }));
+
+    expect(onTool).toHaveBeenCalledWith({ kind: 'pan' });
+    expect(screen.getByRole('button', { name: 'Рука' }).getAttribute('title')).toContain(
+      'свайп двумя пальцами на тачпаде',
+    );
+  });
+
   it('без выбора удалять нечего', () => {
     show(null);
     expect(screen.queryByRole('button', { name: /Удалить/ })).toBeNull();
