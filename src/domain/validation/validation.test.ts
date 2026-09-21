@@ -170,11 +170,19 @@ describe('правила комплектования', () => {
     );
     if (!parsed.ok) throw new Error('demo/before.json не разобрался');
 
-    const messages = validatePlan(parsed.value).map((entry) => entry.message).join('\n');
+    const findings = validatePlan(parsed.value);
+    const messages = findings.map((entry) => entry.message).join('\n');
     expect(messages).toContain('Скамья / кресла для ожидания');
     expect(messages).toContain('Центральное информационное табло');
     expect(messages).toContain('от главного входа');
     expect(messages).not.toMatch(/«(?:ot_|op_)/);
+
+    const rules = findings.filter((entry) => entry.code.startsWith('RULE_'));
+    expect(rules.length).toBeGreaterThan(0);
+    for (const entry of rules) {
+      expect(entry.ruleIds).toHaveLength(1);
+      expect(entry.message).not.toContain(entry.ruleIds?.[0]);
+    }
   });
 
   test('верхняя граница правила срабатывает и остаётся предупреждением команды', () => {
@@ -206,6 +214,8 @@ describe('правила комплектования', () => {
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('warning');
     expect(issues[0]?.message).toContain('допущение команды, не норматив Почты');
+    expect(issues[0]?.message).not.toContain('rule_test_max');
+    expect(issues[0]?.ruleIds).toEqual(['rule_test_max']);
     // Тип назван как в библиотеке, а не внутренним кодом (operator №8).
     const label = plan.catalog.objectTypes.find((type) => type.id === object.typeId)?.label;
     expect(issues[0]?.message).toContain(`«${label}»`);
@@ -239,6 +249,9 @@ describe('правила комплектования', () => {
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('error');
+    expect(issues[0]?.message).toContain('материалы организаторов');
+    expect(issues[0]?.message).not.toContain('rule_test_distance');
+    expect(issues[0]?.ruleIds).toEqual(['rule_test_distance']);
   });
 });
 

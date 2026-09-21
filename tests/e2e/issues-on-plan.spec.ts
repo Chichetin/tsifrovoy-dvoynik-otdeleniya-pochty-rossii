@@ -71,7 +71,7 @@ test('находки примера помечены на плане без кл
   // Каждая сущность, которую находка называет первой, помечена на плане.
   const listed = new Set(
     await items.evaluateAll((nodes) =>
-      nodes.map((node) => node.querySelector('button')?.getAttribute('title') ?? ''),
+      nodes.map((node) => node.querySelector('button')?.getAttribute('data-ref-id') ?? ''),
     ),
   );
   await expect.poll(async () => (await markers(page)).length).toBe(listed.size);
@@ -94,7 +94,7 @@ test('находки примера помечены на плане без кл
   const whiteBefore = await whitePixels(page);
 
   // Клик по находке выделяет её маркер крупнее, остальные остаются как были.
-  await validation.getByRole('button', { name: 'eq_rack_1' }).first().click();
+  await validation.locator('button[data-ref-id="eq_rack_1"]').first().click();
   await expect
     .poll(async () => (await markers(page)).filter((m) => m.focused).map((m) => m.id))
     .toEqual(['issue-marker:object:eq_rack_1']);
