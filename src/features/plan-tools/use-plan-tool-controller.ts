@@ -2,8 +2,8 @@
  * U03 (gesture): drawing a room boundary, a zone polygon, a partition or an
  * opening.
  *
- * A click adds a vertex, a click near the first vertex closes the ring, and
- * Escape throws the draft away. The document is only touched on closing — one
+ * A click adds a vertex; a click near the first vertex, Enter or a double click
+ * closes the ring (D-262), and Escape throws the draft away. The document is only touched on closing — one
  * gesture, one command, one undo step.
  *
  * A ring that crosses itself is refused here, before the command: the store
@@ -27,16 +27,48 @@ import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
   OPENING_WIDER_THAN_WALL_NOTICE,
+  RING_TOO_FEW_POINTS_NOTICE,
   WALL_TOO_SHORT_NOTICE,
   droppedOpeningNotice,
   setNotice,
 } from './notice';
 import { setSnapHint } from './snap-marker';
+import { isTextTarget } from './text-target';
 import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
 import { createOpening, createWall, nearestWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
+
+/** Tools whose draft is a ring: Enter and a double click close it. */
+const RING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>(['room.draw', 'zone.draw']);
+
+/** Konva puts its canvases into this container; a double click counts only there. */
+const CANVAS_SELECTOR = '.konvajs-content';
+
+/**
+ * The draft without repeated vertices: a vertex within `tolerance` of the one
+ * before it, and trailing vertices within `tolerance` of the first, are dropped.
+ *
+ * A double click arrives after two plain clicks, and each of them has already
+ * added a vertex at almost the same place; without this the ring would carry a
+ * zero-length edge. The earlier vertex of a pair is kept: that is the one the
+ * user aimed and saw snap.
+ */
+export function withoutRepeatedVertices(vertices: readonly Point[], tolerance: number): Point[] {
+  const near = (a: Point, b: Point): boolean => Math.hypot(a[0] - b[0], a[1] - b[1]) <= tolerance;
+  const kept: Point[] = [];
+  for (const vertex of vertices) {
+    const previous = kept[kept.length - 1];
+    if (previous !== undefined && near(previous, vertex)) continue;
+    kept.push(vertex);
+  }
+  const first = kept[0];
+  while (kept.length > 1 && first !== undefined && near(kept[kept.length - 1] as Point, first)) {
+    kept.pop();
+  }
+  return kept;
+}
 
 /**
  * Tools that put a vertex where the pointer is, and therefore show what that
@@ -151,6 +183,55 @@ export const usePlanToolController: UsePlanToolController = ({
     },
     [kind, onCommand, plan, session.retired],
   );
+
+  /**
+   * Замыкание контура — один путь на все три жеста: клик по первой точке,
+   * Enter и двойной клик (D-262). Повторы вершин снимаются, меньше трёх точек —
+   * объяснение и черновик на месте, отказ `commit` — тоже черновик на месте.
+   */
+  const closeRing = useCallback(
+    (vertices: readonly Point[]): void => {
+      const ring = withoutRepeatedVertices(vertices, tolerance);
+      if (ring.length < 3) {
+        setDraft(ring.length === 0 ? null : ring);
+        setNotice(RING_TOO_FEW_POINTS_NOTICE);
+        return;
+      }
+      if (commit(ring)) {
+        setDraft(null);
+        setSnapHint(null);
+        return;
+      }
+      setDraft(ring);
+    },
+    [commit, tolerance],
+  );
+
+  // Enter и двойной клик слушаются только пока контур рисуется: без черновика
+  // Enter остаётся кнопке в фокусе, а двойной клик — холсту.
+  const ringDraft = RING_TOOLS.has(kind) ? draft : null;
+  useEffect(() => {
+    if (ringDraft === null) return undefined;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter' || event.repeat) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTextTarget(event.target)) return;
+      // Иначе тот же Enter нажал бы кнопку инструмента, оставшуюся в фокусе.
+      event.preventDefault();
+      closeRing(ringDraft);
+    };
+    const onDoubleClick = (event: MouseEvent): void => {
+      if (!(event.target instanceof Element) || event.target.closest(CANVAS_SELECTOR) === null) return;
+      // Последнюю точку уже поставили два клика двойного клика; дубль снимет closeRing.
+      closeRing(ringDraft);
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('dblclick', onDoubleClick);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('dblclick', onDoubleClick);
+    };
+  }, [closeRing, ringDraft]);
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
   const drawWall = useCallback(
@@ -306,15 +387,12 @@ export const usePlanToolController: UsePlanToolController = ({
       if (closes) {
         // Отклонённый контур остаётся черновиком: пользователь дорисовывает
         // или отменяет его Escape, но нарисованное не пропадает молча.
-        if (commit(current)) {
-          setDraft(null);
-          setSnapHint(null);
-        }
+        closeRing(current);
         return;
       }
       setDraft([...current, point]);
     },
-    [commit, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
+    [closeRing, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
   );
 
   return { handlePointer, cancel, draft };

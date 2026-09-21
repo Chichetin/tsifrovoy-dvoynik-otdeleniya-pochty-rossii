@@ -7,13 +7,19 @@
  * без обращения к Konva и без DOM плана.
  */
 
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Command } from '../../contracts/commands';
 import type { Catalog, PlanDocument, Point, Result } from '../../contracts/model';
 import type { EditorSession, Tool, WorldPointer } from '../../contracts/ui';
 import { applyCommand } from '../../domain/commands';
-import { OUTER_OPENING_DROPPED_NOTICE, getNotice, setNotice } from './notice';
+import {
+  DRAFT_SELF_INTERSECTION_NOTICE,
+  OUTER_OPENING_DROPPED_NOTICE,
+  RING_TOO_FEW_POINTS_NOTICE,
+  getNotice,
+  setNotice,
+} from './notice';
 import { getMeasurement, setMeasurement } from './measure';
 import { getSnapHint, setSnapHint } from './snap-marker';
 import { usePlanToolController } from './use-plan-tool-controller';
@@ -551,5 +557,174 @@ describe('линейка', () => {
     click([5, 5]);
     click([2, 2]);
     expect(commands).toEqual([]);
+  });
+});
+
+describe('замыкание контура с клавиатуры и двойным кликом', () => {
+  const square: Point[] = [
+    [1, 1],
+    [3, 1],
+    [3, 3],
+  ];
+
+  function pressEnter(target: EventTarget = window, init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...init });
+    act(() => {
+      target.dispatchEvent(event);
+    });
+    return event;
+  }
+
+  /** Холст Konva в DOM — контейнер `.konvajs-content`: двойной клик считается только по нему. */
+  function canvasNode(): HTMLElement {
+    const content = document.createElement('div');
+    content.className = 'konvajs-content';
+    const canvas = document.createElement('canvas');
+    content.append(canvas);
+    document.body.append(content);
+    return canvas;
+  }
+
+  function doubleClick(target: EventTarget): void {
+    act(() => {
+      target.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    });
+  }
+
+  // Хуки прежних тестов остаются смонтированными со своими черновиками и
+  // слушали бы тот же window: Enter здесь адресован только своему стенду.
+  beforeEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    document.body.replaceChildren();
+  });
+
+  it('Enter при трёх точках шлёт ту же команду, что клик по первой точке', () => {
+    const byClick = setup({ kind: 'zone.draw' }, planWith([]));
+    for (const point of square) byClick.click(point);
+    byClick.click([1.1, 1.1]);
+    byClick.hook.unmount();
+
+    const byEnter = setup({ kind: 'zone.draw' }, planWith([]));
+    for (const point of square) byEnter.click(point);
+    const event = pressEnter();
+
+    expect(byEnter.commands).toEqual(byClick.commands);
+    expect(byEnter.commands).toHaveLength(1);
+    expect(event.defaultPrevented).toBe(true);
+    expect(byEnter.hook.result.current.draft).toBeNull();
+    // Второй Enter ничего не шлёт: черновика больше нет.
+    pressEnter();
+    expect(byEnter.commands).toHaveLength(1);
+  });
+
+  it('Enter замыкает и границу помещения одной командой room.set', () => {
+    const { commands, click } = setup({ kind: 'room.draw' }, planWith([]));
+    for (const point of square) click(point);
+    pressEnter();
+    expect(commands).toEqual([{ type: 'room.set', boundary: square }]);
+  });
+
+  it('Enter при двух точках ничего не шлёт и объясняет почему', () => {
+    const { commands, hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    click([1, 1]);
+    click([3, 1]);
+    pressEnter();
+
+    expect(commands).toEqual([]);
+    expect(getNotice()).toBe(RING_TOO_FEW_POINTS_NOTICE);
+    expect(hook.result.current.draft).toHaveLength(2);
+  });
+
+  it('Enter без черновика не перехватывается', () => {
+    const { commands } = setup({ kind: 'zone.draw' }, planWith([]));
+    const event = pressEnter();
+    expect(commands).toEqual([]);
+    expect(event.defaultPrevented).toBe(false);
+    expect(getNotice()).toBeNull();
+  });
+
+  it('самопересекающийся контур по Enter отклоняется тем же отказом', () => {
+    const { commands, hook, click } = setup({ kind: 'room.draw' }, planWith([]));
+    click([0, 0]);
+    click([4, 0]);
+    click([0, 4]);
+    click([4, 4]);
+    pressEnter();
+
+    expect(commands).toHaveLength(0);
+    expect(getNotice()).toBe(DRAFT_SELF_INTERSECTION_NOTICE);
+    expect(hook.result.current.draft).toHaveLength(4);
+  });
+
+  it('Enter в поле ввода остаётся полю', () => {
+    const { commands, hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    for (const point of square) click(point);
+    const input = document.createElement('input');
+    document.body.append(input);
+    const event = pressEnter(input);
+
+    expect(commands).toEqual([]);
+    expect(event.defaultPrevented).toBe(false);
+    expect(hook.result.current.draft).toHaveLength(3);
+  });
+
+  it('Enter у перегородки ничего не делает', () => {
+    const { commands, hook, click } = setup({ kind: 'wall.draw' }, planWith([]));
+    click([1, 1]);
+    pressEnter();
+    expect(commands).toEqual([]);
+    expect(hook.result.current.draft).toHaveLength(1);
+  });
+
+  it('двойной клик ставит последнюю точку и замыкает без дубля вершины', () => {
+    const { commands, hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    const canvas = canvasNode();
+    click([1, 1]);
+    click([3, 1]);
+    // Двойной клик: два обычных клика уже добавили по вершине, второй — почти там же.
+    click([3, 3]);
+    click([3.04, 3.03]);
+    doubleClick(canvas);
+
+    expect(commands).toHaveLength(1);
+    const command = commands[0];
+    if (command?.type !== 'zone.put') throw new Error('ожидалась zone.put');
+    expect(command.zone.polygon).toEqual(square);
+    expect(hook.result.current.draft).toBeNull();
+  });
+
+  it('двойной клик при недостатке точек оставляет черновик без дубля и объясняет', () => {
+    const { commands, hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    const canvas = canvasNode();
+    click([1, 1]);
+    click([3, 1]);
+    click([3, 1]);
+    doubleClick(canvas);
+
+    expect(commands).toEqual([]);
+    expect(getNotice()).toBe(RING_TOO_FEW_POINTS_NOTICE);
+    expect(hook.result.current.draft).toEqual([
+      [1, 1],
+      [3, 1],
+    ]);
+  });
+
+  it('двойной клик вне холста контур не замыкает', () => {
+    const { commands, hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    for (const point of square) click(point);
+    const button = document.createElement('button');
+    document.body.append(button);
+    doubleClick(button);
+
+    expect(commands).toEqual([]);
+    expect(hook.result.current.draft).toHaveLength(3);
+  });
+
+  it('двойной клик в режиме выбора ничего не рисует', () => {
+    const { commands, hook } = setup({ kind: 'select' }, planWith([]));
+    doubleClick(canvasNode());
+    expect(commands).toEqual([]);
+    expect(hook.result.current.draft).toBeNull();
   });
 });
