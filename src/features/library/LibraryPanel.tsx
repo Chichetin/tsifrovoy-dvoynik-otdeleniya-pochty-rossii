@@ -54,7 +54,15 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                   type="button"
                   className={`library__item${activeTypeId === type.id ? ' is-selected' : ''}`}
                   aria-pressed={activeTypeId === type.id}
-                  title={type.provenance}
+                  draggable
+                  title={`Перетащите на план или нажмите для установки. ${type.provenance}`}
+                  onDragStart={(event) => {
+                    // A regular click and a native drag choose the same tool.
+                    // EditorCanvas accepts only the id of that armed type.
+                    event.dataTransfer.effectAllowed = 'copy';
+                    event.dataTransfer.setData('text/plain', type.id);
+                    onTool({ kind: 'object.place', typeId: type.id });
+                  }}
                   onClick={() =>
                     onTool(
                       activeTypeId === type.id
