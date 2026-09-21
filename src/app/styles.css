@@ -1236,7 +1236,8 @@ span.inventory__num {
 }
 
 .assistant__field select,
-.assistant__field input {
+.assistant__field input,
+.assistant__field textarea {
   padding: 5px 6px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1247,11 +1248,26 @@ span.inventory__num {
 }
 
 .assistant__field select:focus-visible,
-.assistant__field input:focus-visible {
+.assistant__field input:focus-visible,
+.assistant__field textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 0;
   border-color: var(--accent);
 }
+
+.assistant__field textarea { width: 100%; min-height: 58px; resize: vertical; }
+.assistant__history { margin: 0 0 8px; padding: 0; list-style: none; max-height: 112px; overflow: auto; font-size: var(--text-xs); }
+.assistant__history li { padding: 4px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.assistant__history-note { display: block; color: var(--warning); }
+.assistant__status { margin: 0 0 8px; font-size: var(--text-xs); color: var(--muted); }
+.assistant__status:empty { margin: 0; }
+.assistant__subheading, .assistant__actions h3 { margin: 8px 0; font-size: var(--text-s); }
+.assistant__actions { display: grid; gap: 4px; margin-bottom: 12px; border-left: 3px solid var(--accent); padding-left: 8px; }
+.assistant__actions h3, .assistant__actions p { margin: 0; }
+.assistant__actions p { font-size: var(--text-xs); color: var(--muted); }
+.assistant__route { text-align: left; min-height: 30px; white-space: normal; }
+.assistant__quick { margin-bottom: 8px; }
+.assistant__quick summary { cursor: pointer; padding: 6px 0; font-size: var(--text-xs); color: var(--muted); }
 
 /* The mode is read, not decoded from a colour: dark text on a tint, the kind
    of answer said in words, the colour only repeats it on the left edge. */

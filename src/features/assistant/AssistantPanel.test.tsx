@@ -6,11 +6,43 @@ import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import { calculateAdvice, defaultExplanation } from '../../domain/advice';
 import { AssistantPanel } from './AssistantPanel';
+import type { ChatTurn } from '../../contracts/advice-chat';
 
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 
 afterEach(cleanup);
+
+test('разговорный вопрос отправляется формой; пустой запрос и повтор при загрузке запрещены', () => {
+  const onAskChat = vi.fn();
+  const props = { document: parsed.value, revision: 0, response: null, state: { status: 'idle' as const }, onAsk: vi.fn(), onFocus: vi.fn(), onPreview: vi.fn(), onAskChat };
+  const { rerender } = render(<AssistantPanel {...props} />);
+  const send = screen.getByRole('button', { name: 'Отправить' }) as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText('Вопрос ассистенту'), { target: { value: ' Где добавить окно? ' } });
+  fireEvent.submit(send.closest('form')!);
+  expect(onAskChat).toHaveBeenCalledWith('Где добавить окно?');
+  rerender(<AssistantPanel {...props} state={{ status: 'loading' }} />);
+  expect(send.disabled).toBe(true);
+  expect(screen.getAllByRole('status')).toHaveLength(1);
+  expect(screen.getByRole('status').getAttribute('aria-atomic')).toBe('true');
+});
+
+test('история показывает уточнение и проверенные действия; новая ревизия отключает действие', () => {
+  const onAssistantAction = vi.fn();
+  const turns: ChatTurn[] = [{ id: 't1', revision: 0, intent: { kind: 'clarify', question: 'Какое оборудование нужно?' }, selection: null, refs: [] }, { id: 't2', revision: 0, intent: { kind: 'request', request: { scenario: 'equipment', zoneId: null }, preference: null }, selection: { selections: [{ recommendationId: 'r1', factIds: ['f1'], actions: [{ kind: 'focus', ref: { kind: 'zone', id: 'z_client' } }] }] }, refs: [] }];
+  const props = { document: parsed.value, revision: 0, response: null, state: { status: 'done' as const }, onAsk: vi.fn(), onAskChat: vi.fn(), onFocus: vi.fn(), onPreview: vi.fn(), chatTurns: turns, onAssistantAction };
+  const { rerender } = render(<AssistantPanel {...props} />);
+  expect(screen.getByLabelText('История диалога').textContent).toContain('Какое оборудование нужно?');
+  const action = screen.getByRole('button', { name: 'Показать на плане' }) as HTMLButtonElement;
+  fireEvent.click(action);
+  expect(onAssistantAction).toHaveBeenCalledWith({ kind: 'focus', ref: { kind: 'zone', id: 'z_client' } });
+  rerender(<AssistantPanel {...props} revision={1} />);
+  expect(action.disabled).toBe(true);
+  fireEvent.click(action);
+  expect(onAssistantAction).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole('status').textContent).toContain('План изменился');
+});
 
 function changedCatalog(plan: PlanDocument): PlanDocument {
   const source = plan.catalog.objectTypes[0];

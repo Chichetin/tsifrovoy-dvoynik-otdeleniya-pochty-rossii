@@ -15,6 +15,7 @@ import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
+import { defaultExplanation } from '../domain/advice';
 import { measurePlan } from '../domain/metrics';
 import { formatArea } from '../domain/number-format';
 import { planIndex } from '../domain/plan-index';
@@ -468,14 +469,27 @@ export function App(): React.JSX.Element {
     (query: string) => {
       const sequence = ++adviceRequestSequence.current;
       setAssistantActionStatus(null);
+      setAdviceState({ status: 'loading' });
+      setPreview(null);
       const asked = { plan: document, revision, query, history: chatTurns, before: baseline };
       void requestChatAdvice(asked).then((result) => {
         if (sequence !== adviceRequestSequence.current) return;
         if (!result.ok) {
-          setAssistantActionStatus(result.issues.map((issue) => issue.message).join('; '));
+          setAdviceState({ status: 'error', message: result.issues.map((issue) => issue.message).join('; ') });
           return;
         }
         setChatResponse(result.value);
+        setAdviceState({ status: 'done' });
+        const answer = result.value;
+        if (answer.kind === 'clarify') {
+          setAdvice(null);
+        } else {
+          const recommendations = answer.selection === null ? answer.recommendations
+            : answer.selection.selections.flatMap((selection) => answer.recommendations.filter((entry) => entry.id === selection.recommendationId));
+          setAdvice({ revision: answer.revision, mode: answer.mode, recommendations,
+            explanations: recommendations.map(defaultExplanation).filter((entry) => entry !== null),
+            ...(answer.fallbackReason === undefined ? {} : { fallbackReason: answer.fallbackReason }) });
+        }
         const turn = turnFromChatResponse(result.value);
         if (turn === null) return;
         setChatTurns((previous) => {
@@ -743,7 +757,7 @@ export function App(): React.JSX.Element {
               chatTurns={chatTurns}
               chatStatus={assistantActionStatus}
               onAskChat={askChatAssistant}
-              onAssistantAction={runAssistantAction}
+              onAssistantAction={chatResponse?.kind === 'result' ? runAssistantAction : undefined}
             />
           </Section>
           <Section

@@ -8,6 +8,51 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { calculateAdvice } from '../../src/domain/advice';
+
+test('разговорный ассистент: уточнение, действия, устаревание и сохранение', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route('**/api/advice/chat', async (route) => {
+    const input = route.request().postDataJSON();
+    if (input.query === 'Что добавить?') {
+      await route.fulfill({ json: { revision: input.revision, kind: 'clarify', question: 'Какое оборудование нужно разместить?' } });
+      return;
+    }
+    const request = { scenario: 'place' as const, typeId: 'ot_workplace', zoneId: null };
+    const calculated = calculateAdvice(input.plan, request);
+    if (!calculated.ok) throw new Error('demo calculation failed');
+    const recommendation = calculated.value[0]!;
+    const candidate = recommendation.candidates[0]!;
+    await route.fulfill({ json: { revision: input.revision, kind: 'result', mode: 'llm', intent: { kind: 'request', request, preference: null }, recommendations: calculated.value, selection: { selections: [{ recommendationId: recommendation.id, factIds: candidate.facts.map((fact) => fact.id), actions: [{ kind: 'focus', ref: { kind: 'zone', id: candidate.object.zoneId } }, { kind: 'preview-candidate', recommendationId: recommendation.id, candidateId: candidate.id }] }] } } });
+  });
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo/before.json'));
+  const assistant = panel(page);
+  const question = assistant.getByLabel('Вопрос ассистенту');
+  await question.fill('Что добавить?');
+  await page.keyboard.press('Tab');
+  await expect(assistant.getByRole('button', { name: 'Отправить' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(assistant.getByLabel('История диалога')).toContainText('Какое оборудование нужно разместить?');
+  await question.fill('Где добавить рабочее место?');
+  await assistant.getByRole('button', { name: 'Отправить' }).click();
+  await expect(assistant.getByRole('heading', { name: 'Основание', exact: true }).first()).toBeVisible();
+  const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+  await expect(rows).toHaveCount(53);
+  await assistant.getByRole('button', { name: 'Показать на плане', exact: true }).click();
+  await assistant.getByRole('button', { name: 'Предпросмотр варианта', exact: true }).click();
+  await expect(rows).toHaveCount(53);
+  await rows.first().locator('.table__link').first().click();
+  await page.keyboard.press('Delete');
+  await expect(rows).toHaveCount(52);
+  await expect(assistant.getByRole('button', { name: 'Предпросмотр варианта', exact: true })).toBeDisabled();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Сохранить', exact: true }).click()]);
+  const saved = testInfo.outputPath('chat-roundtrip.json');
+  await download.saveAs(saved);
+  await page.getByTestId('plan-file-input').setInputFiles(saved);
+  await expect(rows).toHaveCount(52);
+  await expect(assistant.getByLabel('История диалога').locator('li')).toHaveCount(0);
+});
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
