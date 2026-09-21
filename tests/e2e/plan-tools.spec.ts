@@ -600,7 +600,11 @@ test.describe('инструменты плана', () => {
     // Подсказка инструмента обещает правку в карточке свойств — она открыта и
     // толщина уходит в модель, а не только в поле ввода.
     const props = page.getByLabel('Свойства');
-    await expect(props.getByText('Свойства перегородки')).toBeVisible();
+    // Заголовок панели скрыт визуально внутри правой колонки (D-226,
+    // дубль имени раздела) — в DOM для доступности, поэтому проверка
+    // присутствия, а не видимости; какая именно карточка показана,
+    // человек и так видит по полям ниже («Толщина, м» — только у стены).
+    await expect(props.getByText('Свойства перегородки')).toBeAttached();
     await expect(props.getByTestId('props-id')).toHaveText(free.id);
     await props.getByLabel('Толщина, м').fill('0.35');
     const thicker = await savePlan(page);
