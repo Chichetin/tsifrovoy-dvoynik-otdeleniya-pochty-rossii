@@ -38,10 +38,12 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
-import type { PlanDocument, Polygon } from '../src/contracts/model';
+import type { PlanDocument, Polygon, Zone } from '../src/contracts/model';
 import { parsePlanDocument } from '../src/contracts/schema';
 import { type BoundingBox, boundingBox, footprint } from '../src/domain/geometry';
+import { labelWidth } from '../src/features/layers/label-layout';
 import { zoneNameAnchor } from '../src/features/layers/zone-name-anchor';
+import { zoneNameBox } from '../src/features/layers/InformationLayer';
 import { zoneLabelAnchor } from '../src/features/plan-tools/zone-label';
 
 function demo(path: string): PlanDocument {
@@ -105,5 +107,44 @@ describe('якорь имени зоны: копия в InformationLayer не р
     ];
     const atCentre: BoundingBox = { minX: 1, maxX: 3, minY: 0, maxY: 0.5 };
     expect(zoneNameAnchor(strip, [atCentre])).toEqual(zoneLabelAnchor(strip, [atCentre]));
+  });
+});
+
+function zoneNamed(name: string): Zone {
+  return { id: 'z_sync_check', typeId: 't_sync_check', name, polygon: square, parentId: null, layerId: 'l_sync_check', attributes: {} };
+}
+
+// D-216 draws the zone name with `ZONE_LABEL_FONT_PX` = 13, `ZONE_LABEL_LETTER_SPACING`
+// = 0.4 and wraps it into `ZONE_LABEL_BOX_WIDTH` = 118 px
+// (`src/features/plan-tools/PlanGeometryLayer.tsx:81-86`, not exported — `plan-tools`
+// is off limits to this package, D-231 review). `InformationLayer.zoneNameBox` keeps its
+// own copy of these three numbers; nothing forced them to stay equal to each other.
+// `InformationLayer.test.tsx`'s clash guard reuses the very `zoneNameBox` under test to
+// build its own expected boxes, so it cannot see a wrong constant — both sides of that
+// comparison move together. These three `expect`s compute the expected box directly from
+// the numbers above (not by calling `zoneNameBox` a second time), so a rewrite of any one
+// constant inside `zoneNameBox` diverges from the independently computed expectation here.
+describe('zoneNameBox: константы совпадают с PlanGeometryLayer.tsx:81-86, не с устаревшими 12 px / 120 px (D-231 review)', () => {
+  test('ширина считается по 13 px и добавке 0.4 px на букву (letterSpacing), не по 12 px без добавки', () => {
+    const zone = zoneNamed('короткое имя');
+    const upper = zone.name.toLocaleUpperCase('ru');
+    const expectedWidth = Math.min(labelWidth(upper, 13) + upper.length * 0.4, 118);
+    expect(zoneNameBox(zone, [0, 0]).width).toBeCloseTo(expectedWidth, 6);
+  });
+
+  test('перенос строки считается по колонке 118 px, не по устаревшей 120 px', () => {
+    // 13 повторов буквы дают full = 118,2 px (labelWidth + letterSpacing): строго
+    // больше 118 (2 строки), но не больше 120 (1 строка) — колонка 118 против
+    // устаревшей 120 даёт разное число строк на одном и том же имени.
+    const zone = zoneNamed('а'.repeat(13));
+    const box = zoneNameBox(zone, [0, 0]);
+    expect(box.width).toBeCloseTo(118, 6);
+    expect(box.height).toBeCloseTo(2 * Math.round(13 * 1.25), 6);
+  });
+
+  test('прямоугольник центрирован по Y на половине 13 px шрифта, не на устаревшем фиксированном y − 7', () => {
+    const zone = zoneNamed('короткое имя');
+    const box = zoneNameBox(zone, [50, 200]);
+    expect(box.y).toBeCloseTo(200 - 13 / 2, 6);
   });
 });

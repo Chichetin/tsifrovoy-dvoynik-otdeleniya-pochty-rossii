@@ -9,7 +9,7 @@
  */
 
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -33,18 +33,32 @@ afterEach(cleanup);
 
 describe('View3D: подпись под сценой', () => {
   test('видимый слой: счётчики совпадают со списком примитивов, о скрытом молчим', () => {
-    render(<View3D document={plan} selection={null} />);
+    render(<View3D document={plan} selection={null} onSelect={vi.fn()} />);
 
     expect(caption()).toContain('Зон: 1, объектов: 1');
     expect(caption()).not.toContain('Скрытые слои');
-    expect(screen.getByTestId('view3d-primitives').children).toHaveLength(2);
+    const list = screen.getByTestId('view3d-primitives');
+    expect(list.children).toHaveLength(2);
+    expect(list.textContent).toContain('Клиентская зона');
+    expect(list.textContent).toContain('Рабочее место 1');
+    expect(list.textContent).not.toContain('z_client');
+    expect(list.textContent).not.toContain('eq_work_1');
+    expect(list.querySelector('[data-id="z_client"]')).not.toBeNull();
+    expect(list.querySelector('[data-id="eq_work_1"]')).not.toBeNull();
   });
 
   test('слой выключен: в подписи нули и число элементов вне вида', () => {
-    render(<View3D document={hidden} selection={null} />);
+    render(<View3D document={hidden} selection={null} onSelect={vi.fn()} />);
 
     expect(caption()).toContain('Зон: 0, объектов: 0');
     expect(caption()).toContain('элементов вне вида — 2');
     expect(screen.getByTestId('view3d-primitives').children).toHaveLength(0);
+  });
+  test('кнопка примитива выбирает его через общую сессию', () => {
+    const onSelect = vi.fn();
+    render(<View3D document={plan} selection={null} onSelect={onSelect} />);
+
+    screen.getByRole('button', { name: /Рабочее место 1/ }).click();
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'object', id: 'eq_work_1' });
   });
 });

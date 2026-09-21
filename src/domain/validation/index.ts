@@ -17,6 +17,7 @@
 import {
   type Catalog,
   type Equipment,
+  type Id,
   type Issue,
   type Opening,
   type PlanDocument,
@@ -43,6 +44,9 @@ import {
   segmentLength,
 } from '../geometry';
 import { RELATION_ISSUE_CODES, relationIssues } from '../relations';
+
+/** UI metadata kept outside the persisted, shared Issue contract. */
+export type ValidationIssue = Issue & { ruleIds?: Id[] };
 
 /** Codes owned by this module. */
 export const VALIDATION_ISSUE_CODES = {
@@ -76,10 +80,12 @@ function issue(
   message: string,
   refs: Ref[],
   polygon?: Polygon,
-): Issue {
-  return polygon === undefined
+  ruleIds?: Id[],
+): ValidationIssue {
+  const base: Issue = polygon === undefined
     ? { code, severity, message, refs }
     : { code, severity, message, refs, polygon };
+  return ruleIds === undefined ? base : { ...base, ruleIds };
 }
 
 /** A team rule is a warning, an organizers' rule is an error. */
@@ -89,8 +95,8 @@ function severityOf(rule: Rule): Severity {
 
 function ruleNote(rule: Rule): string {
   return rule.source === 'organizer-material'
-    ? `Источник правила: материалы организаторов (${rule.id}).`
-    : `Источник правила: допущение команды, не норматив Почты (${rule.id}).`;
+    ? 'Источник правила: материалы организаторов.'
+    : 'Источник правила: допущение команды, не норматив Почты.';
 }
 
 /** User-facing subjects: ids stay in refs for focus, not in the sentence. */
@@ -113,7 +119,7 @@ function openingName(opening: Opening): string {
  * references into nothing, a version from the future — is refused earlier, by
  * the schema; what is left here is a plan that loads and is still wrong.
  */
-export function validatePlan(plan: PlanDocument): Issue[] {
+export function validatePlan(plan: PlanDocument): ValidationIssue[] {
   const unusable = unusableGeometry(plan);
   // Containment, collisions and areas are meaningless on a self-intersecting
   // polygon, so the first thing to fix is reported alone.
@@ -324,8 +330,8 @@ function isPhysical(catalog: Catalog, object: Equipment): boolean {
   return findObjectType(catalog, object.typeId)?.physical ?? true;
 }
 
-function ruleIssues(plan: PlanDocument): Issue[] {
-  const issues: Issue[] = [];
+function ruleIssues(plan: PlanDocument): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
   for (const rule of plan.catalog.rules) {
     if (rule.kind === 'count') issues.push(...countRuleIssues(plan, rule));
     else issues.push(...distanceRuleIssues(plan, rule));
@@ -336,8 +342,8 @@ function ruleIssues(plan: PlanDocument): Issue[] {
 function countRuleIssues(
   plan: PlanDocument,
   rule: Extract<Rule, { kind: 'count' }>,
-): Issue[] {
-  const issues: Issue[] = [];
+): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
 
   for (const zone of plan.zones) {
     if (zone.typeId !== rule.zoneTypeId) continue;
@@ -355,6 +361,7 @@ function countRuleIssues(
           `В зоне «${zone.name}» ${count} шт. «${objectTypeName(plan, rule.objectTypeId)}» при минимуме ${rule.min} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
+          [rule.id],
         ),
       );
     }
@@ -366,6 +373,7 @@ function countRuleIssues(
           `В зоне «${zone.name}» ${count} шт. «${objectTypeName(plan, rule.objectTypeId)}» при максимуме ${rule.max} (${where}). ${ruleNote(rule)}`,
           [{ kind: 'zone', id: zone.id }],
           zone.polygon,
+          [rule.id],
         ),
       );
     }
@@ -376,7 +384,7 @@ function countRuleIssues(
 function distanceRuleIssues(
   plan: PlanDocument,
   rule: Extract<Rule, { kind: 'distance-to-entrance' }>,
-): Issue[] {
+): ValidationIssue[] {
   const targets = plan.objects.filter((object) => object.typeId === rule.objectTypeId);
   if (targets.length === 0) return [];
 
@@ -395,13 +403,15 @@ function distanceRuleIssues(
       issue(
         VALIDATION_ISSUE_CODES.RULE_ENTRANCE_MISSING,
         severityOf(rule),
-        `Правило «${rule.id}» требует вход, но входов в плане нет: расстояние проверить нечем. ${ruleNote(rule)}`,
+        `Для «${objectTypeName(plan, rule.objectTypeId)}» требуется проверить расстояние до входа, но входов в плане нет. ${ruleNote(rule)}`,
         [],
+        undefined,
+        [rule.id],
       ),
     ];
   }
 
-  const issues: Issue[] = [];
+  const issues: ValidationIssue[] = [];
   for (const object of targets) {
     let nearest = entrances[0];
     if (nearest === undefined) continue;
@@ -424,6 +434,7 @@ function distanceRuleIssues(
           { kind: 'opening', id: nearest.opening.id },
         ],
         footprint(object),
+        [rule.id],
       ),
     );
   }

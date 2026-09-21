@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Circle, Group, Layer, Line, Text } from 'react-konva';
+import { Circle, Group, Layer, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
@@ -24,9 +24,7 @@ import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import { findZoneType } from '../../domain/catalog';
 import {
   SNAP,
-  type BoundingBox,
   boundingBox,
-  footprint,
   modelToScreen,
   openingCentre,
   pointGuides,
@@ -58,7 +56,6 @@ import {
   removeVertex,
   roundPoint,
 } from './vertex-edit';
-import { zoneLabelAnchor } from './zone-label';
 
 const ROOM_STROKE = '#212529';
 /** Сетка шага привязки: заметнее фоновой, но слабее любой линии плана (D-230). */
@@ -70,20 +67,6 @@ const SELECTED_STROKE = '#1971C2';
 const INVALID_STROKE = '#E03131';
 const HANDLE_FILL = '#FFFFFF';
 const ZONE_FALLBACK = '#E9ECEF';
-/**
- * Zone name style, deliberately unlike an object's caption (D-216): muted —
- * same grey as the app's `--color-muted` token, so it reads as a background
- * label, not a fact competing with the furniture on top of it — larger than
- * an object caption (11 px, `object-label.ts`), spaced and upper-case so the
- * two never look like the same kind of text on a crowded plan.
- */
-const ZONE_LABEL_FILL = '#56626E';
-const ZONE_LABEL_FONT_PX = 13;
-const ZONE_LABEL_LETTER_SPACING = 0.4;
-// Narrow enough that two neighbouring zones (a waiting area nested in the
-// client hall, say) do not bleed into each other's name at the plan's usual
-// zoom; a name too long for this wraps onto a second line on its own.
-const ZONE_LABEL_BOX_WIDTH = 118;
 
 type Editing =
   | { kind: 'ring'; ref: Ref; polygon: Polygon; snapOff?: boolean }
@@ -135,26 +118,6 @@ export function PlanGeometryLayer({
     .filter((zone) => visibleLayers.has(zone.layerId))
     .slice()
     .sort((a, b) => (zoneDepth(a.id, plan.zones) ?? 0) - (zoneDepth(b.id, plan.zones) ?? 0));
-
-  // Footprints a zone name has to steer around (D-216). In model metres, not
-  // screen pixels, so it is independent of pan and zoom — a pan or a zoom
-  // re-renders this layer on every frame (D-190), and recomputing it from
-  // `plan.objects` instead of the viewport keeps that frame cheap.
-  const objectBoxes: BoundingBox[] = useMemo(
-    () =>
-      plan.objects
-        .filter((object) => visibleLayers.has(object.layerId))
-        .map((object) => boundingBox(footprint(object))),
-    [plan.objects, visibleLayers],
-  );
-
-  // The anchors themselves are model metres too, and cost O(zones × objects) —
-  // recomputing them inside the render below would pay that on every pan and
-  // zoom frame for a result that cannot have changed.
-  const zoneLabelAnchors = useMemo(
-    () => new Map(plan.zones.map((zone) => [zone.id, zoneLabelAnchor(zone.polygon, objectBoxes)])),
-    [plan.zones, objectBoxes],
-  );
 
   // Delete and Backspace remove the selected zone, wall or opening; the room
   // stays, and objects belong to the equipment layer. What exactly the keys
@@ -503,29 +466,9 @@ export function PlanGeometryLayer({
         );
       })}
 
-      {zones.map((zone) => {
-        // Centred by default; nudged just clear of whichever object sits
-        // where the name would (D-216) — a rack row or a bench in the middle
-        // of a zone is the common case, not an edge case.
-        const anchor = zoneLabelAnchors.get(zone.id);
-        if (anchor === undefined) return null;
-        const [x, y] = modelToScreen(anchor, viewport);
-        return (
-          <Text
-            key={`label-${zone.id}`}
-            x={x - ZONE_LABEL_BOX_WIDTH / 2}
-            y={y - ZONE_LABEL_FONT_PX / 2}
-            width={ZONE_LABEL_BOX_WIDTH}
-            align="center"
-            text={zone.name.toLocaleUpperCase('ru')}
-            fontSize={ZONE_LABEL_FONT_PX}
-            fontStyle="500"
-            letterSpacing={ZONE_LABEL_LETTER_SPACING}
-            fill={ZONE_LABEL_FILL}
-            listening={false}
-          />
-        );
-      })}
+      {/* Названия зон рисует `ZoneNameLayer` — отдельным слоем поверх
+          оборудования, иначе объект, вставший на подпись, закрывает её
+          целиком. Здесь их больше нет намеренно. */}
 
       {plan.walls.map((wall) => (
         <Line

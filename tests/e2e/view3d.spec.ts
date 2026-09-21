@@ -104,6 +104,12 @@ test.describe('3D-вид: обычный запуск', () => {
     await expect(objects).toContainText(placed);
     expect(await objects.getAttribute('data-id')).toMatch(/^eq_/);
 
+    // Строка сцены — доступная альтернатива клику по объёму: выбирает тот же
+    // объект и открывает общую карточку свойств, без отдельного состояния 3D.
+    await objects.getByRole('button').click();
+    await expect(objects).toHaveAttribute('data-selected', 'true');
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText(/^eq_/);
+
     // Что покажет этот браузер — canvas или сообщение о WebGL, — но что-то одно.
     const canvas = page.getByTestId('view3d-canvas');
     const unavailable = page.getByTestId('view3d-unavailable');
@@ -143,6 +149,30 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
     });
   });
 
+  test('клик по объёму выбирает объект и открывает его карточку', async ({ playwright, browserName, baseURL }) => {
+    await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
+      await page.goto('/');
+      await page.locator('.library__item').first().click();
+      await page.getByTestId('editor-canvas').click();
+      // Сначала выбираем фон, чтобы последующий выбор точно пришёл из 3D.
+      await page.getByTestId('editor-canvas').click({ position: { x: 80, y: 120 } });
+      await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+
+      await switchTo(page, '3D');
+      const canvas = page.getByTestId('view3d-canvas');
+      await expect(canvas).toBeVisible();
+      const box = await canvas.boundingBox();
+      if (box === null) throw new Error('3D canvas не измерился');
+      const selectedId = page.getByLabel('Свойства').getByTestId('props-id');
+      for (let offset = -80; offset <= 20; offset += 5) {
+        await canvas.click({ position: { x: box.width / 2, y: box.height / 2 + offset } });
+        if ((await selectedId.textContent()) === 'eq_1') break;
+      }
+
+      await expect(selectedId).toHaveText('eq_1');
+      await expect(prisms(page, '[data-kind="object"]')).toHaveAttribute('data-selected', 'true');
+    });
+  });
   test('двадцать переключений «2D / 3D» подряд: контекст жив, чёрного холста нет', async ({
     playwright,
     browserName,
@@ -204,8 +234,13 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
     expect(await zones.count()).toBeGreaterThanOrEqual(3);
     // Один объект — одна призма: список 3D совпадает с инвентаризацией.
     await expect(objects).toHaveCount(inventoryCount);
-    await expect(prisms(page, '[data-id="z_client"]')).toHaveCount(1);
-    await expect(prisms(page, '[data-id="eq_kiosk"]')).toHaveCount(1);
+    const clientZone = prisms(page, '[data-id="z_client"]');
+    const kiosk = prisms(page, '[data-id="eq_kiosk"]');
+    await expect(clientZone).toHaveCount(1);
+    await expect(kiosk).toHaveCount(1);
+    // Технические id остаются связью в data-атрибутах, но не торчат в подписи.
+    await expect(clientZone).not.toContainText('z_client');
+    await expect(kiosk).not.toContainText('eq_kiosk');
     // Подпись повторяет числа документа: сцена и план — одно состояние.
     await expect(page.getByText(`объектов: ${inventoryCount}`)).toBeVisible();
 

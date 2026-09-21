@@ -16,7 +16,7 @@ import { hasWebgl } from './webgl';
 
 const View3DCanvas = lazy(() => import('./View3DCanvas'));
 
-/** Prism kinds listed by id next to the canvas; walls and the floor are counted only. */
+/** Prism kinds listed next to the canvas; walls and the floor are counted only. */
 const LISTED_KINDS: ReadonlySet<ScenePrism['kind']> = new Set(['zone', 'object']);
 
 const KIND_LABELS: Record<ScenePrism['kind'], string> = {
@@ -27,7 +27,7 @@ const KIND_LABELS: Record<ScenePrism['kind'], string> = {
   object: 'объект',
 };
 
-export function View3D({ document, selection }: View3DProps): React.JSX.Element {
+export function View3D({ document, selection, onSelect }: View3DProps): React.JSX.Element {
   const scene = useMemo(() => buildScene(document), [document]);
   // Probed once per session, not per mount: every probe costs a GPU context.
   const [webgl] = useState(hasWebgl);
@@ -53,7 +53,7 @@ export function View3D({ document, selection }: View3DProps): React.JSX.Element 
                 </p>
               }
             >
-              <View3DCanvas scene={scene} selection={selection} />
+              <View3DCanvas scene={scene} selection={selection} onSelect={onSelect} />
             </Suspense>
           </LoadFailure>
         ) : (
@@ -81,16 +81,22 @@ export function View3D({ document, selection }: View3DProps): React.JSX.Element 
               data-id={prism.ref.id}
               data-selected={isSelected(prism, selection) ? 'true' : undefined}
             >
-              <span className="view3d__swatch" style={{ background: prism.color }} aria-hidden="true" />
-              <span className="view3d__kind">{KIND_LABELS[prism.kind]}</span>{' '}
-              <span className="view3d__label">{prism.label}</span>{' '}
-              <code className="view3d__id">{prism.ref.id}</code>
-              {prism.kind === 'object' ? (
-                <span className="view3d__dims">
-                  {' '}
-                  {prism.base_m > 0 ? `${prism.base_m}–${round(prism.base_m + prism.height_m)} м` : `h ${prism.height_m} м`}
-                </span>
-              ) : null}
+              <button
+                type="button"
+                className="view3d__pick"
+                aria-pressed={isSelected(prism, selection)}
+                onClick={() => onSelect(prism.ref)}
+              >
+                <span className="view3d__swatch" style={{ background: prism.color }} aria-hidden="true" />
+                <span className="view3d__kind">{KIND_LABELS[prism.kind]}</span>{' '}
+                <span className="view3d__label">{prism.label}</span>
+                {prism.kind === 'object' ? (
+                  <span className="view3d__dims">
+                    {' '}
+                    {prism.base_m > 0 ? `${prism.base_m}–${round(prism.base_m + prism.height_m)} м` : `h ${prism.height_m} м`}
+                  </span>
+                ) : null}
+              </button>
             </li>
           ))}
         </ol>

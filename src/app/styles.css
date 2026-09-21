@@ -49,6 +49,13 @@
   --control-h: 30px;
   --side-left: 260px;
   --side-right: 340px;
+  /* UI-2В (D-226): the sticky section header's minimum height (measured in
+     the browser at 1280×800, ~37.3px, with a little slack) — `.section__header`
+     enforces this as its own `min-height`, so it is the one number driving
+     both the header and every scrolled-to card's `scroll-margin-top`, not a
+     copy of a measurement that padding/font tokens could quietly drift away
+     from (by ревью MR !177). */
+  --section-header-h: 40px;
 
   /* Aliases kept for module blocks. */
   --ink: var(--color-ink);
@@ -88,6 +95,66 @@ body {
 
 :where(button:disabled) {
   cursor: not-allowed;
+}
+
+/* A persistent, named entry point makes the assistant discoverable without
+   creating a parallel chat surface. It sits above the editor but outside the
+   right column, whose own panel remains the sole place for a conversation. */
+.assistant-launcher {
+  position: fixed;
+  z-index: 20;
+  right: calc(var(--side-right) + var(--space-3));
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: 0 3px 12px rgb(28 40 51 / 20%);
+  text-align: left;
+}
+
+.assistant-launcher:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.assistant-launcher:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.assistant-launcher__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 36%;
+  image-rendering: pixelated;
+}
+
+.assistant-launcher__copy {
+  display: grid;
+  gap: 0;
+  line-height: 1.2;
+}
+
+.assistant-launcher__copy b {
+  font-size: var(--text-s);
+}
+
+.assistant-launcher__copy small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 900px) {
+  .assistant-launcher {
+    right: var(--space-3);
+  }
 }
 
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
@@ -713,6 +780,12 @@ body {
   font-weight: 600;
   text-align: left;
   appearance: none;
+  /* UI-2В (D-226, по ревью MR !177): `--section-header-h` below is used
+     elsewhere as `scroll-margin-top`, so it has to be a lower bound on the
+     header's own rendered height, not a note that happens to match it —
+     padding, font size or the border changing here must not silently pull
+     the two numbers apart. */
+  min-height: var(--section-header-h);
 }
 
 .section__header:hover {
@@ -751,8 +824,81 @@ body {
   white-space: nowrap;
 }
 
+/* UI-2В (D-226, по ревью MR !177): same tone as `.panel__count.is-error`
+   inside «Проверка» — a collapsed section keeps telling the difference
+   between «has errors» and «warnings only» without reopening it. */
+.section__summary.is-error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
 .section__body .panel {
   margin-bottom: 0;
+  /* UI-2В: `scrollIntoView({ block: 'nearest' })` (PropertiesPanel) and Tab
+     focus must not let the sticky section header above cover the card's own
+     top edge (D-226). */
+  scroll-margin-top: var(--section-header-h);
+}
+
+/* UI-2В (D-226, по ревью MR !177): the card-level `scroll-margin-top` above
+   only helps when the whole card is the thing the browser scrolls to. Tab
+   into a field that is already inside a scrolled-past panel — the browser
+   brings that one field to the top instead, and the sticky header covers
+   it just the same. Every focusable element in an open section needs its
+   own margin, not only the card. */
+.section__body input,
+.section__body select,
+.section__body textarea,
+.section__body button,
+.section__body a,
+.section__body [tabindex] {
+  scroll-margin-top: var(--section-header-h);
+}
+
+/* UI-2В (D-226): the section header above already names this panel — a
+   second, identical-looking name right below it (e.g. «Площади» / «Площади»)
+   was flagged in review as a wasted line on every one of the six sections.
+   The heading stays in the DOM — a screen reader's heading list still finds
+   it — just not painted; the visible name of record is the section's own
+   header. Scoped to `.section__body` only: `LayersPanel`/`LibraryPanel` in
+   the left column are not wrapped by a `Section` and keep their own visible
+   heading. Two narrower scopes on top of that, both found by running the
+   full e2e suite, not by reading the markup:
+   - `h2.panel__title` only, not the bare class — `InventoryPanel` reuses
+     `panel__title` on an inner `<h3>` ("Объекты по типам N"), which is not a
+     duplicate of the section name and must stay visible.
+   - `:not(:has(button))` — a positive rule about the heading's own content,
+     not a name borrowed from a neighbouring module: `CatalogPanel`'s `<h2>`
+     is the one panel title that nests an interactive control, the
+     «править»/«свернуть» toggle (`data-testid="catalog-toggle"`); the clip
+     technique below shrinks the whole subtree to nothing, taking a real,
+     focused, clickable button down with it (`catalog-editor.spec.ts` caught
+     this as a `<html>… intercepts pointer events` timeout). An earlier draft
+     named `CatalogPanel`'s own `.catalog` class instead — a rename over
+     there would have silently unhidden the button-losing bug again; this
+     version instead asks the one question that actually matters, "does this
+     heading contain a control", so a future panel that puts a button in its
+     title is protected by the same rule without anyone remembering to list
+     it here. `:has()` needs Chromium 105+ (D-125 pins the e2e browser to a
+     current Playwright-managed Chromium, well past that). That one heading —
+     name, counts and toggle together — is left visible as-is; it still
+     reads one name twice for that single section, a smaller cost than
+     losing the control. Today that button always renders (`CatalogPanel.tsx`
+     never omits it), so this selector's match never flips after paint; a
+     future panel that puts its button behind a condition would make its own
+     `<h2>` pop in and out of the layout every time the button toggles —
+     `:has()` re-evaluates it live, `min-height` on the header alone will not
+     absorb that jump. */
+.section__body .panel > h2.panel__title:not(:has(button)) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Panel headings: sentence case, bold, ink — the panel's name, not a label. */
@@ -827,6 +973,12 @@ body {
 .library__item:hover {
   border-color: var(--accent);
   background: var(--ground);
+}
+
+.library__item.is-selected {
+  border-color: var(--accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .library__item:focus-visible {
@@ -964,6 +1116,13 @@ span.inventory__num {
   text-align: left;
 }
 
+/* Вложенная зона в таблице площадей: отступ задаёт разметка (он зависит от
+   глубины), здесь — только приглушённый значок ветки, чтобы вложенность была
+   видна и в узкой колонке, куда отступ уже не помещается. */
+.metrics__nested {
+  color: var(--muted);
+}
+
 /* M02: the object list. Smaller type and top-aligned rows fit more of the
    list into its scroll box; a long word breaks inside its own cell instead
    of running over the neighbour. */
@@ -986,6 +1145,17 @@ span.inventory__num {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.issues__technical-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .issues__item {
@@ -1016,9 +1186,38 @@ span.inventory__num {
   font-size: 12px;
 }
 
-.issues__code {
+.issues__technical {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--line) 22%, transparent);
   color: var(--muted);
+  font-size: 11px;
+}
+
+.issues__technical > div {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.issues__technical dt,
+.issues__technical dd {
+  margin: 0;
+}
+
+.issues__technical dd {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+}
+
+.issues__technical code {
   font-family: ui-monospace, "Cascadia Code", monospace;
+  overflow-wrap: anywhere;
 }
 
 /* A06: панель ассистента */
@@ -1574,8 +1773,24 @@ span.inventory__num {
   margin: 2px 0;
 }
 
-.view3d__item--selected {
-  background: #fff3bf;
+.view3d__pick {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view3d__pick:hover {
+  border-color: var(--accent);
+  background: var(--color-hover);
+}
+
+.view3d__item--selected .view3d__pick {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .view3d__swatch {

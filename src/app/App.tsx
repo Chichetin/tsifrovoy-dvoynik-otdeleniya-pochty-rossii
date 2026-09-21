@@ -19,10 +19,12 @@ import { formatArea } from '../domain/number-format';
 import { planIndex } from '../domain/plan-index';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
+import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { CatalogPanel } from '../features/catalog-editor/CatalogPanel';
@@ -36,6 +38,7 @@ import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourO
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
@@ -54,6 +57,7 @@ import {
   saveSectionState,
   toggleSection,
   type SectionId,
+  type SectionState,
 } from './right-column';
 import { Section } from './Section';
 import './styles.css';
@@ -117,11 +121,61 @@ export function App(): React.JSX.Element {
   // browser, kept in localStorage exactly like the tour (D-217), never in the
   // plan. Every section is open on the first visit.
   const [sections, setSections] = useState(() => loadSectionState(rightColumnStorage()));
+  // UI-2В: the value `sections` starts with is just what `loadSectionState`
+  // returned — writing it straight back would put a `{}` key in localStorage
+  // before the person ever touched a header (D-226). A "have we run before"
+  // ref flag looked like the fix, but `StrictMode` (`src/main.tsx`) invokes
+  // this effect twice on mount without resetting refs in between, so the
+  // second invocation saw the flag already set and wrote anyway. Comparing
+  // `sections` by reference to the exact object the initializer produced
+  // sidesteps that: every real toggle (`toggleSection`, `expandSection`,
+  // `without`) returns a new object, so identity only holds while nothing
+  // has been touched yet, StrictMode's extra pass included.
+  const initialSections = useRef(sections);
   useEffect(() => {
+    if (sections === initialSections.current) return;
     saveSectionState(rightColumnStorage(), sections);
   }, [sections]);
-  const toggleSectionState = useCallback((id: SectionId) => {
-    setSections((prev) => toggleSection(prev, id));
+  /**
+   * D-236: «Свойства» следуют за выбором — раскрыты, когда есть что показать,
+   * и свёрнуты, когда выбора нет: пустая карточка «ничего не выбрано» не
+   * занимает место в колонке. Остальные разделы живут своим состоянием и при
+   * выборе не прячутся: поставленный объект сразу выбран (D-147), поэтому
+   * скрытый при выборе обзор был бы скрыт почти всегда.
+   *
+   * Это не состояние, а вывод из выбора: в localStorage не пишется и чужую
+   * сохранённую раскладку не затирает.
+   */
+  const autoCollapsed = (id: SectionId): boolean =>
+    id === 'properties' ? selection === null : sections[id] === true;
+  /**
+   * Разделы, которые человек сам свернул или раскрыл при нынешнем выборе:
+   * щелчок по заголовку сильнее автоматики и живёт до смены выбора — иначе
+   * заглянуть в «Площади», не бросая выбранный объект, было бы нечем.
+   */
+  const [manualSections, setManualSections] = useState<SectionState>({});
+  const collapsedOf = (id: SectionId): boolean => manualSections[id] ?? autoCollapsed(id);
+  const toggleSectionState = useCallback(
+    (id: SectionId) => {
+      setSections((prev) => toggleSection(prev, id));
+      setManualSections((prev) => ({ ...prev, [id]: !collapsedOf(id) }));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- collapsedOf зависит от выбора и читается в момент щелчка
+    [selection, sections, manualSections],
+  );
+  // The launcher is deliberately only an entry point: the right-column panel
+  // remains the one place where assistant state and future chat history live.
+  // Ручную отметку «свёрнут» с него тоже снимаем: иначе кнопка прокрутит к
+  // заголовку, под которым по-прежнему пусто.
+  const openAssistant = useCallback(() => {
+    setSections((prev) => expandSection(prev, 'assistant'));
+    setManualSections((prev) => ({ ...prev, assistant: false }));
+    window.requestAnimationFrame(() => {
+      globalThis.document.getElementById('right-section-assistant')?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
   }, []);
 
   const retired = useStore(store, (state) => state.retired);
@@ -131,22 +185,21 @@ export function App(): React.JSX.Element {
     [tool, viewport, selection, selected, preview, focus, retired],
   );
 
-  // A selection just made — on the canvas or from a panel's «показать на
-  // плане» — is why the person needs the card that shows it: it opens even if
-  // its header was collapsed earlier. `expandSection` returns the same
-  // reference when it is already open, so an already-selected object does
-  // not re-render this on every store update.
+  // Смена выбора возвращает колонку к автоматике (D-236): ручные щелчки по
+  // заголовкам относились к прошлому выбранному объекту, а не к новому.
+  // Раскрывать «Свойства» отдельной командой больше не нужно — при выборе
+  // они раскрыты по определению.
   const select = useCallback(
     (ref: Ref | null) => {
       store.getState().select(ref);
-      if (ref !== null) setSections((prev) => expandSection(prev, 'properties'));
+      setManualSections({});
     },
     [store],
   );
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
       store.getState().selectMany(ids);
-      if (ids.length > 0) setSections((prev) => expandSection(prev, 'properties'));
+      setManualSections({});
     },
     [store],
   );
@@ -194,18 +247,43 @@ export function App(): React.JSX.Element {
   );
 
   const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
-  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatchAndSelect });
+  const placedType = useRef<Id | null>(null);
+  const dispatchEquipmentCommand = useCallback(
+    (command: Command): Result<PlanDocument> => {
+      const result = dispatchAndSelect(command);
+      // Remember an accepted placement until pointer-up. Keeping the placement
+      // tool through the matching click prevents that same click from falling
+      // through to the room selection layer after React re-renders.
+      if (result.ok && tool.kind === 'object.place' && command.type === 'object.put') {
+        placedType.current = tool.typeId;
+      }
+      return result;
+    },
+    [dispatchAndSelect, tool],
+  );
+  const equipmentTool = useEquipmentToolController({
+    document,
+    session,
+    onCommand: dispatchEquipmentCommand,
+  });
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
+  // UI-2В (D-226): `planIndex(document)` only depends on the plan, not on
+  // the assistant's own state — building it here keeps `sectionSummaries`
+  // below from rebuilding the whole index on every advice request or object
+  // pick, the way the other consumers of `planIndex` already memoize it by
+  // `[plan]` alone (`EquipmentLayer`, `AssistantPanel`, `ValidationPanel`,
+  // `InventoryPanel`).
+  const names = useMemo(() => planIndex(document), [document]);
+
   // UI-2Б: a line for each section's collapsed header, so it stays useful
   // closed. Every number here already exists — `metrics`, `issues` and
   // `inventory` above, `advice` below — this only picks words around it.
   const sectionSummaries = useMemo<Record<SectionId, string>>(() => {
-    const properties =
-      selection === null ? 'ничего не выбрано' : (planIndex(document).nameOf(selection) ?? selection.id);
+    const properties = selection === null ? 'ничего не выбрано' : (names.nameOf(selection) ?? selection.id);
     const assistant =
       adviceState.status === 'loading'
         ? 'запрос отправлен'
@@ -220,7 +298,13 @@ export function App(): React.JSX.Element {
     const types = document.catalog.objectTypes.length;
     const catalogSummary = `${types} ${pluralRu(types, 'тип', 'типа', 'типов')}`;
     return { properties, assistant, metrics: areas, validation: found, inventory: placed, catalog: catalogSummary };
-  }, [selection, document, adviceState, advice, metrics, issues, inventory]);
+  }, [selection, names, document, adviceState, advice, metrics, issues, inventory]);
+
+  // UI-2В (D-226, по ревью MR !177): the same test `ValidationPanel` uses for
+  // its own red `panel__count` (`issue.severity === 'error'`) — a collapsed
+  // «Проверка» section must not read as calm when the plan has real errors,
+  // not just team warnings.
+  const validationHasErrors = useMemo(() => issues.some((issue) => issue.severity === 'error'), [issues]);
 
   const askAssistant = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
@@ -358,7 +442,11 @@ export function App(): React.JSX.Element {
             onCommand={dispatch}
             onSelect={select}
           />
-          <LibraryPanel catalog={document.catalog} onTool={setTool} />
+          <LibraryPanel
+            catalog={document.catalog}
+            activeTypeId={tool.kind === 'object.place' ? tool.typeId : null}
+            onTool={setTool}
+          />
           <button
             type="button"
             className="shell__tour"
@@ -383,7 +471,32 @@ export function App(): React.JSX.Element {
             session={session}
             onPointer={(event) => {
               planTool.handlePointer(event);
+              if (event.phase === 'down' && tool.kind === 'object.place') {
+                const existing = findPlacementPick(
+                  document,
+                  tool.typeId,
+                  event.point,
+                  viewport.scale,
+                );
+                if (existing !== null) {
+                  select({ kind: 'object', id: existing.id });
+                  return;
+                }
+              }
               equipmentTool.handlePointer(event);
+              if (event.phase === 'up' && placedType.current !== null) {
+                const completedType = placedType.current;
+                placedType.current = null;
+                // Browser click follows pointer-up. Disarm after it, so the
+                // placement click cannot also select the room underneath.
+                window.setTimeout(() => {
+                  setTool((current) =>
+                    current.kind === 'object.place' && current.typeId === completedType
+                      ? { kind: 'select' }
+                      : current,
+                  );
+                }, 0);
+              }
             }}
             onViewport={setViewport}
             onSelect={select}
@@ -405,12 +518,18 @@ export function App(): React.JSX.Element {
               preview={preview}
               onGesturePreview={gesturePreview.publish}
             />
+            {/* После оборудования — иначе объект, вставший на подпись, закрывает
+                название зоны целиком; полупрозрачность не даёт подписи закрыть
+                сам объект. */}
+            <ZoneNameLayer document={document} viewport={viewport} />
             <InformationLayer document={document} session={session} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
             <IssueLayer issues={issues} focus={selection} viewport={viewport} />
           </EditorCanvas>
-          {view === '3d' ? <View3D document={document} selection={selection} /> : null}
+          {view === '3d' ? (
+            <View3D document={document} selection={selection} onSelect={select} />
+          ) : null}
         </main>
 
         <aside className="shell__side shell__side--wide" data-tour="side-right">
@@ -418,7 +537,7 @@ export function App(): React.JSX.Element {
             id="properties"
             title="Свойства"
             summary={sectionSummaries.properties}
-            collapsed={sections.properties === true}
+            collapsed={collapsedOf('properties')}
             onToggle={() => toggleSectionState('properties')}
           >
             <PropertiesPanel
@@ -432,7 +551,7 @@ export function App(): React.JSX.Element {
             id="assistant"
             title="Ассистент"
             summary={sectionSummaries.assistant}
-            collapsed={sections.assistant === true}
+            collapsed={collapsedOf('assistant')}
             onToggle={() => toggleSectionState('assistant')}
           >
             <AssistantPanel
@@ -449,7 +568,7 @@ export function App(): React.JSX.Element {
             id="metrics"
             title="Площади"
             summary={sectionSummaries.metrics}
-            collapsed={sections.metrics === true}
+            collapsed={collapsedOf('metrics')}
             onToggle={() => toggleSectionState('metrics')}
           >
             <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />
@@ -458,7 +577,8 @@ export function App(): React.JSX.Element {
             id="validation"
             title="Проверка"
             summary={sectionSummaries.validation}
-            collapsed={sections.validation === true}
+            summaryTone={validationHasErrors ? 'error' : undefined}
+            collapsed={collapsedOf('validation')}
             onToggle={() => toggleSectionState('validation')}
           >
             <ValidationPanel issues={issues} document={document} onFocus={focusOn} />
@@ -467,7 +587,7 @@ export function App(): React.JSX.Element {
             id="inventory"
             title="Инвентаризация"
             summary={sectionSummaries.inventory}
-            collapsed={sections.inventory === true}
+            collapsed={collapsedOf('inventory')}
             onToggle={() => toggleSectionState('inventory')}
           >
             <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
@@ -476,7 +596,7 @@ export function App(): React.JSX.Element {
             id="catalog"
             title="Справочник"
             summary={sectionSummaries.catalog}
-            collapsed={sections.catalog === true}
+            collapsed={collapsedOf('catalog')}
             onToggle={() => toggleSectionState('catalog')}
           >
             <CatalogPanel document={document} onCommand={dispatch} />
@@ -485,6 +605,7 @@ export function App(): React.JSX.Element {
       </div>
 
       <Onboarding open={tourOpen} onClose={closeTour} />
+      <AssistantLauncher onOpen={openAssistant} />
     </div>
   );
 }

@@ -27,7 +27,8 @@
   больше не расходует контексты браузера (D-107).
 - `View3D.tsx` — публичный компонент по `View3DProps`: проверяет WebGL, лениво
   грузит `View3DCanvas` (отдельный чанк с three), рядом с холстом печатает подпись и
-  список примитивов с `data-kind` / `data-id` / `data-selected` (D-084). Состояния:
+  список примитивов с рабочими названиями; технические id остаются только в
+  `data-kind` / `data-id` / `data-selected` для связи и тестов (D-084, D-223). Состояния:
   загрузка модуля, сцена, ошибка (`LoadFailure`, `data-testid="view3d-error"`),
   нет WebGL (`data-testid="view3d-unavailable"`).
 - `View3DCanvas.tsx` — Three.js: `ExtrudeGeometry` по полигону призмы, оси модели
