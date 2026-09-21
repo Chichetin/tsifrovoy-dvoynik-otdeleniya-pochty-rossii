@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { selectAffectedTests } from '../scripts/affected-tests';
+import { filterExistingE2eSpecs, selectAffectedTests } from '../scripts/affected-tests';
 
 describe('affected test selection', () => {
   test('selects the assistant browser spec and smoke for an assistant change', () => {
@@ -55,5 +55,44 @@ describe('affected test selection', () => {
       unitInputs: [],
       e2eSpecs: [],
     });
+  });
+
+  test('maps organizer data changes to tests that read the JSON directly', () => {
+    const selection = selectAffectedTests(['example_plan.json']);
+
+    expect(selection.unitInputs).toEqual(
+      expect.arrayContaining([
+        'src/persistence/format.test.ts',
+        'src/persistence/organizer-import.test.ts',
+        'tests/example-plan-checks.test.ts',
+      ]),
+    );
+  });
+
+  test('treats the affected-test runner itself as test infrastructure', () => {
+    expect(selectAffectedTests(['scripts/test-affected.ts'])).toEqual({
+      runAllUnit: true,
+      runAllE2e: true,
+      unitInputs: [],
+      e2eSpecs: [],
+    });
+  });
+
+  test('does not treat a module README as a product change', () => {
+    expect(selectAffectedTests(['src/features/assistant/README.md'])).toEqual({
+      runAllUnit: false,
+      runAllE2e: false,
+      unitInputs: [],
+      e2eSpecs: [],
+    });
+  });
+
+  test('does not pass deleted e2e files to Playwright', () => {
+    expect(
+      filterExistingE2eSpecs(
+        ['tests/e2e/files.spec.ts', 'tests/e2e/removed.spec.ts'],
+        (file) => file !== 'tests/e2e/removed.spec.ts',
+      ),
+    ).toEqual(['tests/e2e/files.spec.ts']);
   });
 });

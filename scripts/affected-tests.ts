@@ -10,6 +10,11 @@ type E2eRule = {
   specs: string[];
 };
 
+type UnitDataRule = {
+  prefixes: string[];
+  tests: string[];
+};
+
 const E2E_RULES: E2eRule[] = [
   {
     prefixes: ['src/features/assistant/', 'src/domain/advice/', 'server/advice-route.ts'],
@@ -108,9 +113,44 @@ const E2E_RULES: E2eRule[] = [
   },
 ];
 
+const UNIT_DATA_RULES: UnitDataRule[] = [
+  {
+    prefixes: ['example_plan.json'],
+    tests: [
+      'src/persistence/format.test.ts',
+      'src/persistence/organizer-import.test.ts',
+      'tests/example-plan-checks.test.ts',
+    ],
+  },
+  {
+    prefixes: ['data/catalog/'],
+    tests: [
+      'src/domain/advice/placement.test.ts',
+      'src/domain/catalog/catalog.test.ts',
+      'src/features/equipment/wall-mount.test.ts',
+      'src/features/layers/legend.test.ts',
+      'src/persistence/organizer-import.test.ts',
+      'tests/example-plan-checks.test.ts',
+    ],
+  },
+  {
+    prefixes: ['demo/'],
+    tests: [
+      'src/domain/advice/placement.test.ts',
+      'src/domain/validation/validation.test.ts',
+      'src/features/layers/InformationLayer.test.tsx',
+      'src/features/layers/LayersPanel.test.tsx',
+      'src/features/plan-tools/PlanGeometryLayer.test.tsx',
+      'tests/demo.test.ts',
+    ],
+  },
+];
+
 const UNIT_INFRASTRUCTURE = new Set([
   'package.json',
   'package-lock.json',
+  'scripts/affected-tests.ts',
+  'scripts/test-affected.ts',
   'vitest.config.ts',
   'vite.config.ts',
   'tsconfig.json',
@@ -123,6 +163,8 @@ const E2E_INFRASTRUCTURE = new Set([
   'package-lock.json',
   'playwright.config.ts',
   'playwright.qa.config.ts',
+  'scripts/affected-tests.ts',
+  'scripts/test-affected.ts',
   'vite.config.ts',
   'tests/e2e/fixtures.ts',
 ]);
@@ -143,6 +185,7 @@ function isUnitInput(file: string): boolean {
 }
 
 function isProductChange(file: string): boolean {
+  if (file.endsWith('.md')) return false;
   return (
     file.startsWith('src/') ||
     file.startsWith('server/') ||
@@ -172,7 +215,18 @@ export function selectAffectedTests(files: readonly string[]): AffectedTests {
     return { runAllUnit, runAllE2e, unitInputs: [], e2eSpecs: [] };
   }
 
-  const unitInputs = changed.filter(isUnitInput).sort();
+  const unitInputs = changed.filter(isUnitInput);
+  const addUnit = (testFile: string) => {
+    if (!unitInputs.includes(testFile)) unitInputs.push(testFile);
+  };
+  for (const file of changed) {
+    for (const rule of UNIT_DATA_RULES) {
+      if (rule.prefixes.some((prefix) => matches(file, prefix))) {
+        for (const testFile of rule.tests) addUnit(testFile);
+      }
+    }
+  }
+  unitInputs.sort();
   const e2eSpecs: string[] = [];
   const addE2e = (spec: string) => {
     if (!e2eSpecs.includes(spec)) e2eSpecs.push(spec);
@@ -205,4 +259,11 @@ export function selectAffectedTests(files: readonly string[]): AffectedTests {
     unitInputs,
     e2eSpecs,
   };
+}
+
+export function filterExistingE2eSpecs(
+  specs: readonly string[],
+  isAvailable: (spec: string) => boolean,
+): string[] {
+  return specs.filter(isAvailable);
 }

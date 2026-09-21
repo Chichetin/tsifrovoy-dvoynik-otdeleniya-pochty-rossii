@@ -1,6 +1,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import process from 'node:process';
-import { selectAffectedTests } from './affected-tests';
+import { filterExistingE2eSpecs, selectAffectedTests } from './affected-tests';
 
 type Options = {
   base: string;
@@ -42,7 +43,11 @@ function changedFiles(base: string): string[] {
   ];
 }
 
-function printSelection(files: string[], selection: ReturnType<typeof selectAffectedTests>): void {
+function printSelection(
+  files: string[],
+  selection: ReturnType<typeof selectAffectedTests>,
+  missingE2eSpecs: string[],
+): void {
   console.log(`Changed files: ${files.length}`);
   if (files.length > 0) console.log(files.map((file) => `  ${file}`).join('\n'));
 
@@ -60,6 +65,9 @@ function printSelection(files: string[], selection: ReturnType<typeof selectAffe
     console.log(`E2E: ${selection.e2eSpecs.join(', ')}`);
   } else {
     console.log('E2E: skipped');
+  }
+  if (missingE2eSpecs.length > 0) {
+    console.log(`E2E: skipped missing ${missingE2eSpecs.join(', ')}`);
   }
 }
 
@@ -87,8 +95,13 @@ function main(): number {
     return 2;
   }
 
-  const selection = selectAffectedTests(files);
-  printSelection(files, selection);
+  const rawSelection = selectAffectedTests(files);
+  const missingE2eSpecs = rawSelection.e2eSpecs.filter((spec) => !existsSync(spec));
+  const selection = {
+    ...rawSelection,
+    e2eSpecs: filterExistingE2eSpecs(rawSelection.e2eSpecs, existsSync),
+  };
+  printSelection(files, selection, missingE2eSpecs);
   if (options.dryRun || files.length === 0) return 0;
 
   if (selection.runAllUnit) {
