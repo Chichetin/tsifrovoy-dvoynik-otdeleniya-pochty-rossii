@@ -988,6 +988,14 @@ body {
   background: var(--ground);
 }
 
+.library__item[draggable='true'] {
+  cursor: grab;
+}
+
+.library__item[draggable='true']:active {
+  cursor: grabbing;
+}
+
 .library__item.is-selected {
   border-color: var(--accent);
   background: var(--color-accent-soft);

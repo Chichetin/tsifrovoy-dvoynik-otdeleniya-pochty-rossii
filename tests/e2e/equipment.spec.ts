@@ -50,6 +50,12 @@ async function placeFromLibrary(page: Page, label: string, x: number, y: number)
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
+async function dragFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await page.locator('.library__item', { hasText: label }).first().dragTo(page.getByTestId('editor-canvas'), {
+    targetPosition: { x, y },
+  });
+}
+
 /** Выбор по строке перечня: не зависит от попадания мышью в фигуру. */
 async function selectRow(page: Page, index: number): Promise<void> {
   await inventoryRows(page).nth(index).getByRole('button').first().click();
@@ -193,6 +199,17 @@ async function armLayerClearCounter(page: Page): Promise<void> {
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('оборудование можно перетащить из библиотеки прямо на план', async ({ page }) => {
+    await page.goto('/');
+
+    await dragFromLibrary(page, RACK, 330, 260);
+
+    await expect(inventoryRows(page)).toHaveCount(1);
+    await expect(inventoryRows(page).first()).toContainText(RACK);
+    await expect(page.locator('.library__item', { hasText: RACK }).first()).toHaveAttribute('aria-pressed', 'false');
+    await expect(card(page)).toContainText(RACK);
+  });
+
   test('наведение показывает паспорт объекта и связанную находку проверки', async ({ page }) => {
     const raw: unknown = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
     const parsed = parsePlanDocument(raw);
