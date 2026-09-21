@@ -27,6 +27,7 @@ import {
   gridLines,
   panBy,
   visibleExtent,
+  wheelIntent,
   zoomByWheel,
 } from './viewport';
 
@@ -222,6 +223,17 @@ export function EditorCanvas({
       const stage = event.target.getStage();
       const position = stage?.getPointerPosition();
       if (position === undefined || position === null) return;
+      if (
+        wheelIntent({
+          deltaX: event.evt.deltaX,
+          deltaY: event.evt.deltaY,
+          deltaMode: event.evt.deltaMode,
+          ctrlKey: event.evt.ctrlKey,
+        }) === 'pan'
+      ) {
+        onViewport(panBy(session.viewport, [event.evt.deltaX, event.evt.deltaY]));
+        return;
+      }
       onViewport(zoomByWheel(session.viewport, [position.x, position.y], event.evt.deltaY));
     },
     [onViewport, session.viewport],
