@@ -1116,6 +1116,13 @@ span.inventory__num {
   text-align: left;
 }
 
+/* Вложенная зона в таблице площадей: отступ задаёт разметка (он зависит от
+   глубины), здесь — только приглушённый значок ветки, чтобы вложенность была
+   видна и в узкой колонке, куда отступ уже не помещается. */
+.metrics__nested {
+  color: var(--muted);
+}
+
 /* M02: the object list. Smaller type and top-aligned rows fit more of the
    list into its scroll box; a long word breaks inside its own cell instead
    of running over the neighbour. */

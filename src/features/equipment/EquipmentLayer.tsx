@@ -745,8 +745,14 @@ export function EquipmentLayer({
               <Label
                 key={`label-${object.id}`}
                 name={`label-${object.id}`}
-                x={label.x - label.width / 2}
-                y={label.y - height / 2}
+                // Поворот — вокруг центра объекта, поэтому точка задаётся
+                // центром, а смещение уводит бирку в её левый верхний угол.
+                // Так неповёрнутая подпись стоит ровно там же, где стояла.
+                x={label.x}
+                y={label.y}
+                offsetX={label.width / 2}
+                offsetY={height / 2}
+                rotation={label.rotation}
                 listening={false}
               >
                 {/* A pale tag under the text: dark letters on a red rack are
