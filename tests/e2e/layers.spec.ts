@@ -139,7 +139,7 @@ test.describe('слои в браузере', () => {
     // Все правки слоёв переживают сохранение и повторное открытие.
     const saved = await savePlan(page);
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toHaveCount(0);
 
     await page.getByTestId('plan-file-input').setInputFiles({

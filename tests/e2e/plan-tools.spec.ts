@@ -427,7 +427,7 @@ test.describe('инструменты плана', () => {
     expect(saved.zones[1]?.polygon).toHaveLength(4);
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
 
     await page.getByTestId('plan-file-input').setInputFiles(file);
@@ -599,7 +599,7 @@ test.describe('инструменты плана', () => {
     await expect(notice).toContainText('вершин');
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
     await expect(notice).toHaveCount(0);
   });

@@ -76,7 +76,7 @@ for (const config of CASES) {
         // Clear the document first: the row assertion must observe a new load,
         // not the old table that already has the expected number of rows.
         page.once('dialog', (dialog) => void dialog.accept());
-        await page.getByRole('button', { name: 'Новый' }).click();
+        await page.getByRole('button', { name: 'Создать новый' }).click();
         await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
         const warmStarted = performance.now();
         await page.getByTestId('plan-file-input').setInputFiles(file);
@@ -171,7 +171,7 @@ for (const config of CASES) {
         // dirty (275d061): without a handler Playwright dismisses the dialog and
         // the plan is never cleared, so the reopen below measures nothing.
         page.once('dialog', (dialog) => void dialog.accept());
-        await page.getByRole('button', { name: 'Новый' }).click();
+        await page.getByRole('button', { name: 'Создать новый' }).click();
         await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
         await page.getByTestId('plan-file-input').setInputFiles(saved);
         await expect(rows).toHaveCount(config.objects);
