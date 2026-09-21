@@ -18,7 +18,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type Page, type TestInfo } from './fixtures';
+import { expect, test, type Locator, type Page, type TestInfo , exportPlan } from './fixtures';
 import { showTab } from './side-tabs';
 
 type Point = [number, number];
@@ -146,7 +146,7 @@ async function zoneAreaValue(page: Page, name: string): Promise<number> {
 async function savePlanFile(page: Page): Promise<string> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();

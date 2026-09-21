@@ -14,7 +14,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 import { DEMO_FILES, packageDemo, readZip } from '../../scripts/package-demo';
 import { showTab } from './side-tabs';
 
@@ -55,7 +55,7 @@ async function selectByLabel(page: Page, label: string): Promise<void> {
 async function savePlan(page: Page): Promise<Record<string, unknown>> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const file = await download.path();
   expect(file).not.toBeNull();

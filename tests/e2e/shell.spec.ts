@@ -23,7 +23,7 @@ async function layout(page: Page): Promise<Layout> {
     const canvas = document.querySelector<HTMLElement>('.shell__canvas');
     if (bar === null || canvas === null) throw new Error('оболочка не смонтирована');
     const buttons = Array.from(
-      bar.querySelectorAll<HTMLElement>('.toolbar > button, .shell__view button, .shell__history button, .files > button'),
+      bar.querySelectorAll<HTMLElement>('.toolbar > button, .shell__view button, .shell__history button, .files > button, .files__export > button'),
     );
     return {
       bar: Math.round(bar.getBoundingClientRect().height),
@@ -41,9 +41,9 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
   expect(now.overflow, `шапка не шире окна: ${label}`).toBeLessThanOrEqual(0);
   expect(new Set(now.rowTops).size, `кнопки шапки в одну строку: ${label}`).toBe(1);
   const viewport = page.viewportSize();
-  const right = await page.getByRole('button', { name: 'Сохранить' }).boundingBox();
-  expect(right, 'кнопка «Сохранить» на экране').not.toBeNull();
-  expect(right!.x + right!.width, `«Сохранить» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
+  const right = await page.getByRole('button', { name: 'Экспорт' }).boundingBox();
+  expect(right, 'кнопка «Экспорт» на экране').not.toBeNull();
+  expect(right!.x + right!.width, `«Экспорт» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
 }
 
 for (const size of [

@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page , exportPlan } from './fixtures';
 import { showTab, sideTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Слои');
@@ -45,7 +45,7 @@ async function placeFromLibrary(page: Page, label: string, x: number, y: number)
 async function savePlan(page: Page): Promise<string> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();
