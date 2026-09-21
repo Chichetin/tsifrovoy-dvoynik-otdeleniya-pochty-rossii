@@ -1946,7 +1946,9 @@ span.inventory__num {
 
 .props__pair {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* minmax(0, …): у `1fr` минимум — внутренняя ширина поля (216 px при
+     size=20), и пара вылезала за карточку 315 px. */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
