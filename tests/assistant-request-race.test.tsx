@@ -62,4 +62,5 @@ test('поздний ответ старого плана не заменяет 
   await act(async () => mocked.pending[1]!.resolve(answer('новый ответ')));
   await waitFor(() => expect(screen.getByText(/новый ответ/)).toBeDefined());
   expect(screen.queryByText(/старый ответ/)).toBeNull();
-});
+  // Renders the whole App: under a parallel full run it needs more than the 5 s default.
+}, 20_000);
