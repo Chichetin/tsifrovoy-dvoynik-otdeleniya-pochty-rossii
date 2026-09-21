@@ -251,6 +251,55 @@ test.describe('инструменты плана', () => {
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
   });
 
+  test('три клика и Enter замыкают зону одной правкой (D-262)', async ({ page }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const triangle = ring(size, [
+      [0.2, 0.2],
+      [0.6, 0.2],
+      [0.6, 0.7],
+    ]);
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await clickAt(page, triangle[0] as Pixel);
+    await clickAt(page, triangle[1] as Pixel);
+    // Двух точек мало: Enter объясняет и ничего не создаёт.
+    await page.keyboard.press('Enter');
+    await expect(page.getByText(/нужно не меньше трёх точек/)).toBeVisible();
+    await clickAt(page, triangle[2] as Pixel);
+    await page.keyboard.press('Enter');
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 3');
+
+    const saved = await savePlan(page);
+    const zone = saved.zones.find((entry) => entry.id === 'z_1');
+    expect(zone?.polygon).toHaveLength(3);
+  });
+
+  test('клики и двойной клик замыкают зону без дубля последней вершины (D-262)', async ({ page }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const quad = ring(size, [
+      [0.2, 0.2],
+      [0.6, 0.2],
+      [0.6, 0.7],
+      [0.2, 0.7],
+    ]);
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    for (const point of quad.slice(0, 3)) await clickAt(page, point);
+    await dblclickAt(page, quad[3] as Pixel);
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+
+    const saved = await savePlan(page);
+    const polygon = saved.zones.find((entry) => entry.id === 'z_1')?.polygon ?? [];
+    expect(polygon).toHaveLength(4);
+    // Ни одного вырожденного ребра: соседние вершины, включая замыкающее ребро, различны.
+    for (const [index, point] of polygon.entries()) {
+      const next = polygon[(index + 1) % polygon.length] as Point;
+      expect(Math.hypot(point[0] - next[0], point[1] - next[1])).toBeGreaterThan(0.1);
+    }
+  });
+
   test('вершина зоны у угла помещения ложится ровно на грань стены; с Alt — куда кликнули (D-209)', async ({
     page,
   }) => {

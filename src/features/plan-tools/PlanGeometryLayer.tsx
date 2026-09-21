@@ -39,6 +39,7 @@ import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
 import { WALL_LABEL_FONT_PX, wallLengthLabel } from './wall-length-label';
 import { deleteIntent, isDeleteKey } from './delete-key';
+import { isTextTarget } from './text-target';
 import { currentExtrusion, endExtrusion, startExtrusion } from './extrude';
 import {
   MIN_VERTICES_NOTICE,
@@ -77,15 +78,6 @@ type Editing =
   | { kind: 'ring'; ref: Ref; polygon: Polygon; snapOff?: boolean }
   | { kind: 'wall'; wall: Wall; snapOff?: boolean }
   | { kind: 'opening'; opening: Opening };
-
-/** Typing in a field must not delete the selected zone. */
-function isTextTarget(target: EventTarget | null): boolean {
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
-  );
-}
 
 function flatten(polygon: Polygon, viewport: PlanGeometryLayerProps['session']['viewport']): number[] {
   return polygon.flatMap((point) => modelToScreen(point, viewport));
