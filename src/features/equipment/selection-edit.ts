@@ -109,7 +109,7 @@ export function nextObjectId(taken: Set<Id>): Id {
  * это ярлык физического предмета, а копия — другой предмет, и одинаковый
  * номер у двух объектов проверка считает дублем. Номер пуст, а не «следующий
  * свободный»: формат номеров в плане задаёт человек, и угаданный код выглядел
- * бы настоящим, хотя на предмете его нет (D-265).
+ * бы настоящим, хотя на предмете его нет (D-266).
  */
 export function pasteObjects(
   source: readonly Equipment[],
@@ -120,12 +120,18 @@ export function pasteObjects(
   const [dx, dy] = PASTE_OFFSET_M;
   return source.map((object) => {
     const id = nextObjectId(used);
+    // Only clear a number the source has: a catalog type without the
+    // attribute must not gain it on the copy.
+    const attributes =
+      INVENTORY_NUMBER_KEY in object.attributes
+        ? { ...object.attributes, [INVENTORY_NUMBER_KEY]: null }
+        : { ...object.attributes };
     return {
       ...object,
       id,
       position: snapPosition([object.position[0] + dx * step, object.position[1] + dy * step]),
       zoneId: null,
-      attributes: { ...object.attributes, [INVENTORY_NUMBER_KEY]: null },
+      attributes,
     };
   });
 }
@@ -136,7 +142,7 @@ export function pasteObjects(
  * первый (`pasteObjects(…, 1)`), так что повторное «Ctrl+D» от уже
  * выделенной копии просто уводит следующую копию туда же на `PASTE_OFFSET_M`
  * дальше — держать свой счётчик вставок не нужно. `inventoryNumber` у копии
- * пуст, как и при вставке (D-243, D-265).
+ * пуст, как и при вставке (D-243, D-266).
  */
 export function duplicateObjects(source: readonly Equipment[], taken: ReadonlySet<Id>): Equipment[] {
   return pasteObjects(source, taken, 1);

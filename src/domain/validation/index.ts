@@ -393,7 +393,7 @@ function inventoryNumberOf(object: Equipment): string | null {
 
 /**
  * An inventory number names one physical item, so two objects with the same
- * number are one mistake in the inventory (D-265). Every repeat is reported
+ * number are one mistake in the inventory (D-266). Every repeat is reported
  * against the first holder in plan order: the repeat comes first in `refs`
  * and its footprint is highlighted, because the later object is usually the
  * copy that needs a number of its own. A warning, not an error: the plan's
