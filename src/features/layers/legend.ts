@@ -57,5 +57,5 @@ export function legendOf(type: LayerType): LayerLegend {
 export function legendLine(type: LayerType, legend: LayerLegend): string {
   const scale = legend.kind === 'scale' ? `${legend.low} … ${legend.high}` : '';
   const body = legend.kind === 'swatch' ? legend.text : scale;
-  return `${type.label}: ${body}${body === '' ? '' : ' · '}числа синтетические`;
+  return body === '' ? type.label : `${type.label}: ${body}`;
 }
