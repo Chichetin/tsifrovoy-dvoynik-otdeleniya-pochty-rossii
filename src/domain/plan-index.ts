@@ -5,14 +5,20 @@
  * person reading them: an object's label, a zone's name, a type's label. Each
  * panel used to search the plan its own way, with its own answer for «nothing
  * behind the id». This index is built once per document, looks up in O(1),
- * and answers the same everywhere: `null` when the plan has no such entity,
- * so the caller decides how to show a raw id — never a made-up name.
+ * and answers the same everywhere: entities without a custom name receive a
+ * human designation by kind; `null` means the plan has no such entity.
  */
 
-import type { Id, PlanDocument, Ref } from '../contracts/model';
+import type { Id, Opening, PlanDocument, Ref } from '../contracts/model';
+
+const OPENING_NAMES: Record<Opening['kind'], string> = {
+  entrance: 'Главный вход',
+  door: 'Дверь',
+  window: 'Окно',
+};
 
 export type PlanIndex = {
-  /** Human name of an entity, or null: walls and openings carry no name. */
+  /** Human name/designation of an entity, or null when the id is absent. */
   nameOf(ref: Ref): string | null;
   objectLabel(id: Id): string | null;
   zoneName(id: Id): string | null;
@@ -29,6 +35,8 @@ export function planIndex(plan: PlanDocument): PlanIndex {
   const objects = new Map(plan.objects.map((object) => [object.id, object.label]));
   const zones = new Map(plan.zones.map((zone) => [zone.id, zone.name]));
   const layers = new Map(plan.layers.map((layer) => [layer.id, layer.name]));
+  const walls = new Set(plan.walls.map((wall) => wall.id));
+  const openings = new Map(plan.openings.map((opening) => [opening.id, OPENING_NAMES[opening.kind]]));
   const objectTypes = new Map(plan.catalog.objectTypes.map((type) => [type.id, type.label]));
   const zoneTypes = new Map(plan.catalog.zoneTypes.map((type) => [type.id, type.label]));
   const get = (map: Map<Id, string>, id: Id): string | null => map.get(id) ?? null;
@@ -48,8 +56,10 @@ export function planIndex(plan: PlanDocument): PlanIndex {
           return get(layers, ref.id);
         case 'room':
           return plan.room.id === ref.id ? ROOM_NAME : null;
-        default:
-          return null;
+        case 'wall':
+          return walls.has(ref.id) ? 'Стена' : null;
+        case 'opening':
+          return get(openings, ref.id);
       }
     },
   };

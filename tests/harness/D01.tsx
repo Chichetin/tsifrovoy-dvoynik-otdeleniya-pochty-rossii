@@ -41,7 +41,7 @@ export default function D01Stand() {
         <code data-testid="d01-position">{first ? JSON.stringify(first.position) : '—'}</code>
       </div>
       <div style={{ position: 'relative' }}>
-        <View3D document={plan} selection={selection} />
+        <View3D document={plan} selection={selection} onSelect={setSelection} />
       </div>
     </div>
   );
