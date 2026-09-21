@@ -10,6 +10,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
+import type { FocusRequest } from '../../contracts/ui';
 import type { Issue, PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { ValidationIssue } from '../../domain/validation';
@@ -144,5 +145,60 @@ describe('названия в находках', () => {
     renderPanel([], plan);
 
     expect(screen.getByText('Нарушений не найдено')).not.toBeNull();
+  });
+});
+
+describe('клик по маркеру на плане (V02-marker-click)', () => {
+  const zoneOnly: Issue = {
+    code: 'ZONE_RULE',
+    severity: 'warning',
+    message: 'Зоне не хватает оборудования',
+    refs: [{ kind: 'zone', id: 'z_client' }],
+  };
+
+  test('без фокуса ни одна строка не выделена', () => {
+    render(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} />);
+
+    for (const item of screen.getAllByRole('listitem')) {
+      expect(item.className.includes('is-focused')).toBe(false);
+      expect(item.getAttribute('aria-current')).toBeNull();
+    }
+  });
+
+  test('фокус на сущности выделяет её находки и не трогает чужие', () => {
+    // jsdom не умеет прокрутку: подменяем, как в других тестах со scrollIntoView.
+    Element.prototype.scrollIntoView = vi.fn();
+    const focus: FocusRequest = { ref: { kind: 'object', id: 'eq_bench_1' }, sequence: 1 };
+    render(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} focus={focus} />);
+
+    const items = screen.getAllByRole('listitem');
+    const [benchRow, zoneRow] = items;
+    expect(benchRow?.className.includes('is-focused')).toBe(true);
+    expect(benchRow?.getAttribute('aria-current')).toBe('true');
+    expect(zoneRow?.className.includes('is-focused')).toBe(false);
+    expect(zoneRow?.getAttribute('aria-current')).toBeNull();
+  });
+
+  test('прокручивает к первой находке; повтор того же клика не прокручивает снова', () => {
+    // jsdom не умеет прокрутку: подменяем и считаем вызовы, как в PropertiesPanel.
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const ref = { kind: 'object' as const, id: 'eq_bench_1' };
+    const at = (sequence: number | null): FocusRequest | null => (sequence === null ? null : { ref, sequence });
+
+    const { rerender } = render(
+      <ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} focus={at(null)} />,
+    );
+    expect(scroll).not.toHaveBeenCalled();
+
+    rerender(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} focus={at(1)} />);
+    expect(scroll).toHaveBeenCalledTimes(1);
+
+    rerender(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} focus={at(1)} />);
+    expect(scroll).toHaveBeenCalledTimes(1);
+
+    // Клик по тому же маркеру снова — новая последовательность, список подъезжает опять.
+    rerender(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} focus={at(2)} />);
+    expect(scroll).toHaveBeenCalledTimes(2);
   });
 });
