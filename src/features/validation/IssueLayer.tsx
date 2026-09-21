@@ -8,16 +8,21 @@
  * клика (D-157). Отдельный слой под маркеры не заводится: у сцены их и так
  * шесть при рекомендованных Konva 3–5.
  *
- * Слой ничего не решает и ничего не ловит мышью: что рисовать, решает
- * `issue-highlight.ts`. Слой стоит выше фигур плана, поэтому
- * `listening={false}` обязателен — иначе он заслонил бы объект, который
- * пользователь хочет потянуть после исправления.
+ * Подсветка и остальной слой мышь по-прежнему не ловят — иначе слой заслонил
+ * бы объект, который пользователь хочет потянуть после исправления. Ловит
+ * только сам кружочек маркера (V02-marker-click): клик по нему открывает
+ * находки сущности в списке, но не должен провалиться в объект под ним, —
+ * `cancelBubble` останавливает всплытие раньше, чем его увидят инструмент
+ * плана и рамка выделения на слое оборудования. Слой становится `listening`
+ * только когда `onMarkerClick` передан (в режимах «Выбор»/«Обзор»): во время
+ * рисования её не задают, и клик по маркеру проходит насквозь, как раньше.
  *
  * Маркер — узел Konva с `name="issue-marker"`, `id` вида
  * `issue-marker:<kind>:<id>` и атрибутами `issueCount`, `severity`,
  * `focused`: DOM-атрибутов у фигур холста нет, e2e читает их через Konva.
  */
 
+import type Konva from 'konva';
 import { Circle, Group, Layer, Line, Text } from 'react-konva';
 import type { Issue, Ref, Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
@@ -28,7 +33,17 @@ export type IssueLayerProps = {
   /** Выделенная сущность — из списка или кликом на холсте; null гасит подсветку. */
   focus: Ref | null;
   viewport: Viewport;
+  /**
+   * Клик по кружочку маркера. Не задан — маркеры не ловят мышь вовсе (во
+   * время рисования инструмент получает клик как раньше).
+   */
+  onMarkerClick?: (ref: Ref) => void;
 };
+
+function setCursor(event: Konva.KonvaEventObject<MouseEvent>, cursor: string): void {
+  const container = event.target.getStage()?.container();
+  if (container !== undefined) container.style.cursor = cursor;
+}
 
 /** Кайма вокруг контура и значка: светлая на тёмном и красном, заметная на светлом полу. */
 const HALO = '#FFFFFF';
@@ -38,12 +53,13 @@ const MARKER_RADIUS = 9;
 const RESIZE_HANDLE_RADIUS_PX = 6;
 const FOCUSED_MARKER_RADIUS = 13;
 
-export function IssueLayer({ issues, focus, viewport }: IssueLayerProps): React.JSX.Element {
+export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLayerProps): React.JSX.Element {
   const highlights = highlightsFor(issues, focus);
   const markers = issueMarkers(issues, focus);
+  const clickable = onMarkerClick !== undefined;
   return (
-    <Layer listening={false} name="issue-highlights">
-      <Group name="issue-focus">
+    <Layer listening={clickable} name="issue-highlights">
+      <Group name="issue-focus" listening={false}>
         {highlights.map((entry, index) => {
           const points = entry.polygon.flatMap((point) => modelToScreen(point, viewport));
           const color = HIGHLIGHT_COLORS[entry.severity];
@@ -74,6 +90,21 @@ export function IssueLayer({ issues, focus, viewport }: IssueLayerProps): React.
               focused={marker.focused}
               x={x + shift}
               y={y - shift}
+              listening={clickable}
+              onPointerDown={
+                onMarkerClick === undefined
+                  ? undefined
+                  : (event) => {
+                      // The stage must not read this press as a tool click:
+                      // without it the select tool would start a marquee, or
+                      // the object right under the marker would take the
+                      // click and begin a drag.
+                      event.cancelBubble = true;
+                      onMarkerClick(marker.ref);
+                    }
+              }
+              onMouseEnter={onMarkerClick === undefined ? undefined : (event) => setCursor(event, 'pointer')}
+              onMouseLeave={onMarkerClick === undefined ? undefined : (event) => setCursor(event, 'default')}
             >
               <Circle
                 radius={radius}
