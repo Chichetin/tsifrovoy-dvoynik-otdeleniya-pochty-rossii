@@ -49,6 +49,7 @@ export {
   polygonArea,
   polygonSegmentDistance,
   projectOnSegment,
+  ringArea,
   segmentLength,
   segmentsProperlyCross,
   signedArea,
