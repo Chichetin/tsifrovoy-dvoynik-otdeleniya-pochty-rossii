@@ -105,7 +105,7 @@ body {
   z-index: 20;
   /* Центр средней колонки (между --side-left и --side-right), не центр окна:
      50vw сдвигается на полуразницу боковых панелей, а -50% центрирует сам
-     элемент. D-245: кнопка заслоняла правый нижний угол холста и крала жест
+     элемент. D-248: кнопка заслоняла правый нижний угол холста и крала жест
      ручки вершины там (D-210) — теперь она посередине снизу и угол свободен. */
   left: 50%;
   bottom: var(--space-3);
@@ -387,7 +387,7 @@ body {
   align-items: center;
 }
 
-/* D-245: a thin rule between the view tools (Выбор, Обзор) and the drawing
+/* D-248: a thin rule between the view tools (Выбор, Обзор) and the drawing
    tools that follow — two different kinds of action, not one segment. */
 .toolbar__group-gap {
   flex: none;
