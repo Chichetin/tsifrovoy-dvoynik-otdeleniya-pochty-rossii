@@ -23,6 +23,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page, exportPlan } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Пусто — адрес деплоя не назвали, проверять нечего. */
 const DEPLOY_URL = (process.env.DEPLOY_URL ?? '').trim().replace(/\/+$/, '');
@@ -106,9 +107,10 @@ test.describe('развёрнутый сервис', () => {
     page,
   }) => {
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await drawZone(page);
 
-    const panel = page.getByLabel('Ассистент');
+    const panel = page.getByLabel('Ассистент', { exact: true });
     await panel.getByRole('button', { name: 'Спросить' }).click();
 
     // Ответ пришёл с сервера: mode=llm, если на сервере задан ключ провайдера,
