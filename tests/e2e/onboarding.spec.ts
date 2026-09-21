@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { ONBOARDING_KEY } from '../../src/features/onboarding/tour';
-import { skipOnboarding } from './fixtures';
+import { skipOnboarding, exportPlan } from './fixtures';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 
@@ -39,7 +39,7 @@ async function expectRingAround(page: Page, target: string, panel: Locator): Pro
 async function savedText(page: Page): Promise<string> {
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]);
   return readFileSync((await download.path())!, 'utf8');
 }

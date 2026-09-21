@@ -54,7 +54,7 @@ describe('шаги обучения', () => {
     expect(open?.text).toContain('«Создать новый»');
     expect(edit?.targets).toContain('tools');
     expect(check?.text).toContain('Ассистент');
-    expect(save?.text).toContain('«Сохранить»');
+    expect(save?.text).toContain('«Экспорт → JSON»');
     expect(save?.targets).toEqual(['files']);
   });
 

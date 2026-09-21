@@ -9,6 +9,7 @@
  */
 
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Calibration = { scale: number; origin: Screen };
@@ -56,6 +57,7 @@ async function numberOf(page: Page, label: string): Promise<number> {
 
 /** Ставит объект библиотеки в точку мира и возвращает инструмент «Выбор». */
 async function place(page: Page, label: string, view: Calibration, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, toScreen(view, x, y));
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();

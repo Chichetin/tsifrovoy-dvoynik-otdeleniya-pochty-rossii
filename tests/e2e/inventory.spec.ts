@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
 import type { PlanDocument } from '../../src/contracts/model';
 import { generateBenchmark } from '../../scripts/generate-benchmark';
+import { showTab } from './side-tabs';
 
 const BEFORE = join(process.cwd(), 'demo', 'before.json');
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
@@ -72,20 +73,25 @@ async function widenFirstColumn(page: Page, table: Locator, pixels: number): Pro
 test.describe('перечень оборудования', () => {
   test('ширины колонок инвентаризации и площадей тянутся и переживают перезагрузку', async ({ page }) => {
     await openDemo(page);
+    // Колонки тянутся на своих вкладках: видна одна панель за раз (D-249).
+    await showTab(page, 'Инвентаризация');
     const inventoryTable = panel(page).locator('table').first();
-    const metricsTable = page.getByLabel('Площади').getByRole('table');
     const inventoryBefore = await firstColumnWidth(inventoryTable);
-    const metricsBefore = await firstColumnWidth(metricsTable);
-
     await widenFirstColumn(page, inventoryTable, 24);
-    await widenFirstColumn(page, metricsTable, 24);
     await expect.poll(() => firstColumnWidth(inventoryTable)).toBeGreaterThan(inventoryBefore);
-    await expect.poll(() => firstColumnWidth(metricsTable)).toBeGreaterThan(metricsBefore);
     const inventorySaved = await firstColumnWidth(inventoryTable);
+
+    await showTab(page, 'Площади');
+    const metricsTable = page.getByLabel('Площади').getByRole('table');
+    const metricsBefore = await firstColumnWidth(metricsTable);
+    await widenFirstColumn(page, metricsTable, 24);
+    await expect.poll(() => firstColumnWidth(metricsTable)).toBeGreaterThan(metricsBefore);
     const metricsSaved = await firstColumnWidth(metricsTable);
 
     await openDemo(page);
+    await showTab(page, 'Инвентаризация');
     await expect.poll(() => firstColumnWidth(panel(page).locator('table').first())).toBe(inventorySaved);
+    await showTab(page, 'Площади');
     await expect.poll(() => firstColumnWidth(page.getByLabel('Площади').getByRole('table'))).toBe(metricsSaved);
   });
 
@@ -158,6 +164,7 @@ test.describe('перечень оборудования', () => {
     await expect(zones).toContainText('z_client');
 
     // Находка проверки называет объект, о котором она.
+    await showTab(page, 'Проверка');
     const checks = page.getByLabel('Проверка плана');
     const terminal = checks.locator('button[data-ref-id="eq_1"]', {
       hasText: 'Терминал электронной очереди',
