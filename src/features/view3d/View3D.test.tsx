@@ -37,7 +37,14 @@ describe('View3D: подпись под сценой', () => {
 
     expect(caption()).toContain('Зон: 1, объектов: 1');
     expect(caption()).not.toContain('Скрытые слои');
-    expect(screen.getByTestId('view3d-primitives').children).toHaveLength(2);
+    const list = screen.getByTestId('view3d-primitives');
+    expect(list.children).toHaveLength(2);
+    expect(list.textContent).toContain('Клиентская зона');
+    expect(list.textContent).toContain('Рабочее место 1');
+    expect(list.textContent).not.toContain('z_client');
+    expect(list.textContent).not.toContain('eq_work_1');
+    expect(list.querySelector('[data-id="z_client"]')).not.toBeNull();
+    expect(list.querySelector('[data-id="eq_work_1"]')).not.toBeNull();
   });
 
   test('слой выключен: в подписи нули и число элементов вне вида', () => {
