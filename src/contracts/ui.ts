@@ -9,6 +9,7 @@
 
 import type { ReactNode } from 'react';
 import type { AdviceRequest, AdviceResponse, Candidate } from './advice';
+import type { AgentAnswer, AgentExchange, AssistantAction } from './advice-chat';
 import type { Command } from './commands';
 import type {
   Catalog,
@@ -202,6 +203,16 @@ export type AssistantPanelProps = {
    * starts the request; the app owns the transport and the resulting state.
    */
   onAsk: (request: AssistantPanelRequest, query?: string) => void;
+  /**
+   * D-258: the conversation with the plan agent. The app owns the transport,
+   * the history and the execution of actions; the panel shows and asks.
+   */
+  exchanges?: readonly AgentExchange[];
+  /** Result of the last action button: applied, shown, or why not. */
+  actionStatus?: string | null;
+  onAskAgent?: (question: string) => void;
+  onAgentAction?: (action: AssistantAction, answer: AgentAnswer) => void;
+  onClearChat?: () => void;
 };
 
 export type View3DProps = {

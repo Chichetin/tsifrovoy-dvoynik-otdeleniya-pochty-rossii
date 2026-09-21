@@ -15,7 +15,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:perf": "playwright test -c playwright.perf.config.ts",
-    "serve": "tsx server/main.ts",
+    "serve": "tsx --env-file-if-exists=.env server/main.ts",
     "package:demo": "tsx scripts/package-demo.ts"
   },
   "dependencies": {
