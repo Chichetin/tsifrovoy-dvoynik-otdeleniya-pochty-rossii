@@ -70,6 +70,8 @@ describe('назначение объекта зоне', () => {
     );
     expect(resolution.issues[0]?.polygon).toHaveLength(4);
     expect(resolution.issues[0]?.refs[0]?.id).toBe('eq_bench_1');
+    expect(resolution.issues[0]?.message).toContain('Скамья 1');
+    expect(resolution.issues[0]?.message).not.toContain('eq_bench_1');
   });
 });
 
@@ -95,6 +97,8 @@ describe('подготовленный индекс зон (D-205)', () => {
     const resolution = resolveZone(objectOf(plan, 'eq_work_1'), [...plan.zones, bowtie], prepared);
     expect(resolution.zoneId).toBeNull();
     expect(resolution.issues.map((entry) => entry.code)).toEqual([RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE]);
+    expect(resolution.issues[0]?.message).toContain('Клиентская зона');
+    expect(resolution.issues[0]?.message).not.toContain('z_client');
   });
 });
 
@@ -111,7 +115,10 @@ describe('неоднозначность и цикл', () => {
     expect(resolution.issues.map((entry) => entry.code)).toEqual([
       CONTRACT_ISSUE_CODES.ZONE_AMBIGUOUS,
     ]);
-    expect(resolution.issues[0]?.message).toContain('z_client_b');
+    expect(resolution.issues[0]?.message).toContain('Рабочее место 1');
+    expect(resolution.issues[0]?.message).toContain('Вторая клиентская зона');
+    expect(resolution.issues[0]?.message).not.toContain('eq_work_1');
+    expect(resolution.issues[0]?.message).not.toContain('z_client_b');
   });
 
   test('цикл parentId обнаруживается и останавливает пересчёт', () => {

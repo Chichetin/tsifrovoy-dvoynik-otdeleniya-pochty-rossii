@@ -1080,6 +1080,17 @@ span.inventory__num {
   list-style: none;
 }
 
+.issues__technical-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .issues__item {
   padding: 6px 8px;
   margin-bottom: 6px;
@@ -1108,9 +1119,38 @@ span.inventory__num {
   font-size: 12px;
 }
 
-.issues__code {
+.issues__technical {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--line) 22%, transparent);
   color: var(--muted);
+  font-size: 11px;
+}
+
+.issues__technical > div {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.issues__technical dt,
+.issues__technical dd {
+  margin: 0;
+}
+
+.issues__technical dd {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+}
+
+.issues__technical code {
   font-family: ui-monospace, "Cascadia Code", monospace;
+  overflow-wrap: anywhere;
 }
 
 /* A06: панель ассистента */
