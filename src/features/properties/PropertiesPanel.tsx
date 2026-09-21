@@ -370,7 +370,19 @@ export function PropertiesPanel({
           <select
             aria-label="Тип зоны"
             value={zone.typeId}
-            onChange={(event) => commit('typeId', { ...zone, typeId: event.target.value })}
+            onChange={(event) => {
+              // Смена типа переименовывает зону в название типа — одной
+              // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
+              // связи нет: правка имени тип не трогает.
+              const typeId = event.target.value;
+              const renamed = findZoneType(plan.catalog, typeId);
+              setDraft((current) => without(current, 'name'));
+              commit('typeId', {
+                ...zone,
+                typeId,
+                name: renamed === null ? zone.name : renamed.label,
+              });
+            }}
           >
             {plan.catalog.zoneTypes.map((entry) => (
               <option key={entry.id} value={entry.id}>

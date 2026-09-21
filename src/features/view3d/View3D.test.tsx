@@ -9,7 +9,7 @@
  */
 
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -33,7 +33,7 @@ afterEach(cleanup);
 
 describe('View3D: подпись под сценой', () => {
   test('видимый слой: счётчики совпадают со списком примитивов, о скрытом молчим', () => {
-    render(<View3D document={plan} selection={null} />);
+    render(<View3D document={plan} selection={null} onSelect={vi.fn()} />);
 
     expect(caption()).toContain('Зон: 1, объектов: 1');
     expect(caption()).not.toContain('Скрытые слои');
@@ -48,10 +48,17 @@ describe('View3D: подпись под сценой', () => {
   });
 
   test('слой выключен: в подписи нули и число элементов вне вида', () => {
-    render(<View3D document={hidden} selection={null} />);
+    render(<View3D document={hidden} selection={null} onSelect={vi.fn()} />);
 
     expect(caption()).toContain('Зон: 0, объектов: 0');
     expect(caption()).toContain('элементов вне вида — 2');
     expect(screen.getByTestId('view3d-primitives').children).toHaveLength(0);
+  });
+  test('кнопка примитива выбирает его через общую сессию', () => {
+    const onSelect = vi.fn();
+    render(<View3D document={plan} selection={null} onSelect={onSelect} />);
+
+    screen.getByRole('button', { name: /Рабочее место 1/ }).click();
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'object', id: 'eq_work_1' });
   });
 });

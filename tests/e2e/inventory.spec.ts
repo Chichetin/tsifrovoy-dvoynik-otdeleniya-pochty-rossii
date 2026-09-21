@@ -159,18 +159,21 @@ test.describe('перечень оборудования', () => {
 
     // Находка проверки называет объект, о котором она.
     const checks = page.getByLabel('Проверка плана');
-    await expect(
-      checks.locator('.table__link', { hasText: 'Терминал электронной очереди' }),
-    ).toContainText('eq_1');
+    const terminal = checks.locator('button[data-ref-id="eq_1"]', {
+      hasText: 'Терминал электронной очереди',
+    });
+    await expect(terminal).toHaveText('Терминал электронной очереди');
 
-    // Само предложение читается без внутренних кодов. Они остаются ниже в
-    // ссылках, по которым редактор переводит к объекту.
+    // Само предложение и ссылка читаются без внутренних кодов. Они доступны
+    // только после явного раскрытия технических деталей.
     const messages = checks.locator('.issues__message');
     await expect(messages.filter({ hasText: 'Скамья / кресла для ожидания' }).first()).toBeVisible();
     await expect(messages.filter({ hasText: 'от главного входа' }).first()).toBeVisible();
     for (const message of await messages.allTextContents()) {
       expect(message).not.toMatch(/\b(?:ot|op|w)_[a-z0-9_]+\b/i);
     }
+    await checks.getByRole('checkbox', { name: 'Показать технические детали' }).check();
+    await expect(checks.getByText('object:eq_1').first()).toBeVisible();
   });
 
   test('поиск находит объект по инвентарному номеру и по зоне', async ({ page }) => {

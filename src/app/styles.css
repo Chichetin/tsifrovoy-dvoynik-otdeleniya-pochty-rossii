@@ -97,6 +97,66 @@ body {
   cursor: not-allowed;
 }
 
+/* A persistent, named entry point makes the assistant discoverable without
+   creating a parallel chat surface. It sits above the editor but outside the
+   right column, whose own panel remains the sole place for a conversation. */
+.assistant-launcher {
+  position: fixed;
+  z-index: 20;
+  right: calc(var(--side-right) + var(--space-3));
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: 0 3px 12px rgb(28 40 51 / 20%);
+  text-align: left;
+}
+
+.assistant-launcher:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.assistant-launcher:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.assistant-launcher__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 36%;
+  image-rendering: pixelated;
+}
+
+.assistant-launcher__copy {
+  display: grid;
+  gap: 0;
+  line-height: 1.2;
+}
+
+.assistant-launcher__copy b {
+  font-size: var(--text-s);
+}
+
+.assistant-launcher__copy small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 900px) {
+  .assistant-launcher {
+    right: var(--space-3);
+  }
+}
+
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
   padding: 3px 6px;
   border: 1px solid var(--color-line-strong);
@@ -915,6 +975,12 @@ body {
   background: var(--ground);
 }
 
+.library__item.is-selected {
+  border-color: var(--accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .library__item:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
@@ -1050,6 +1116,13 @@ span.inventory__num {
   text-align: left;
 }
 
+/* Вложенная зона в таблице площадей: отступ задаёт разметка (он зависит от
+   глубины), здесь — только приглушённый значок ветки, чтобы вложенность была
+   видна и в узкой колонке, куда отступ уже не помещается. */
+.metrics__nested {
+  color: var(--muted);
+}
+
 /* M02: the object list. Smaller type and top-aligned rows fit more of the
    list into its scroll box; a long word breaks inside its own cell instead
    of running over the neighbour. */
@@ -1072,6 +1145,17 @@ span.inventory__num {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.issues__technical-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .issues__item {
@@ -1102,9 +1186,38 @@ span.inventory__num {
   font-size: 12px;
 }
 
-.issues__code {
+.issues__technical {
+  display: grid;
+  gap: 3px;
+  margin: 6px 0 0;
+  padding: 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--line) 22%, transparent);
   color: var(--muted);
+  font-size: 11px;
+}
+
+.issues__technical > div {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 6px;
+}
+
+.issues__technical dt,
+.issues__technical dd {
+  margin: 0;
+}
+
+.issues__technical dd {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 3px 8px;
+}
+
+.issues__technical code {
   font-family: ui-monospace, "Cascadia Code", monospace;
+  overflow-wrap: anywhere;
 }
 
 /* A06: панель ассистента */
@@ -1660,8 +1773,24 @@ span.inventory__num {
   margin: 2px 0;
 }
 
-.view3d__item--selected {
-  background: #fff3bf;
+.view3d__pick {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view3d__pick:hover {
+  border-color: var(--accent);
+  background: var(--color-hover);
+}
+
+.view3d__item--selected .view3d__pick {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .view3d__swatch {

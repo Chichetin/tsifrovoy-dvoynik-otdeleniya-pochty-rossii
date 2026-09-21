@@ -35,11 +35,50 @@ describe('подпись объекта на холсте', () => {
     expect(label?.lines).toBe(2);
   });
 
-  test('ширина — по следу на экране: вытянутый по Y объект узок и ждёт приближения', () => {
-    expect(objectLabel(object({ size_m: [1, 2] }), viewport)).toBeNull();
-    expect(objectLabel(object({ size_m: [2, 1], rotation_deg: 90 }), viewport)).toBeNull();
-    // Поворот на 90° делает след 2 м широким: подпись возвращается.
-    expect(objectLabel(object({ size_m: [1, 2], rotation_deg: 90 }), viewport)?.width).toBe(104);
+  test('поворот на 90° делает след широким: подпись снова горизонтальна', () => {
+    const label = objectLabel(object({ size_m: [1, 2], rotation_deg: 90 }), viewport);
+    expect(label?.width).toBe(104);
+    expect(label?.rotation).toBe(0);
+  });
+
+  test('объект «на торце» подписан вдоль себя, а не оставлен без имени', () => {
+    // Стол, вытянутый по Y: поперёк 1 м — горизонтальной подписи не хватит.
+    const upright = objectLabel(object({ size_m: [1, 2] }), viewport);
+    expect(upright).not.toBeNull();
+    expect(upright?.rotation).toBe(90);
+    // Ширина бирки — по длинной стороне, вдоль которой она и идёт.
+    expect(upright?.width).toBe(104);
+
+    // Тот же стол, повёрнутый инструментом: результат тот же.
+    const turned = objectLabel(object({ size_m: [2, 1], rotation_deg: 90 }), viewport);
+    expect(turned?.rotation).toBe(90);
+    expect(turned?.width).toBe(104);
+  });
+
+  test('подпись никогда не идёт вверх ногами', () => {
+    for (const rotation_deg of [0, 45, 90, 135, 180, 225, 270, 315, -120, 400]) {
+      const label = objectLabel(object({ size_m: [1, 2], rotation_deg }), viewport);
+      if (label === null) continue;
+      expect(label.rotation).toBeGreaterThan(-90);
+      expect(label.rotation).toBeLessThanOrEqual(90);
+    }
+  });
+
+  test('повёрнутый в разные стороны стеллаж подписан одинаково', () => {
+    const left = objectLabel(object({ size_m: [1, 2], rotation_deg: 90 }), viewport);
+    const right = objectLabel(object({ size_m: [1, 2], rotation_deg: 270 }), viewport);
+    expect(left?.rotation).toBe(right?.rotation);
+  });
+
+  test('узкий по обеим сторонам объект подписи по-прежнему не получает', () => {
+    expect(objectLabel(object({ size_m: [0.5, 0.9] }), viewport)).toBeNull();
+  });
+
+  test('повёрнутая подпись держится центра объекта', () => {
+    const label = objectLabel(object({ size_m: [1, 2], position: [3, 7] }), viewport);
+    const [x, y] = modelToScreen([3, 7], viewport);
+    expect(label?.x).toBe(x);
+    expect(label?.y).toBe(y);
   });
 
   test('низкий объект — одна строка', () => {
