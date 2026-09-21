@@ -22,6 +22,14 @@ export type ObjectLabel = {
   fontSize: number;
   /** One line with an ellipsis, or two wrapped lines when the footprint is tall enough. */
   lines: 1 | 2;
+  /**
+   * Поворот подписи в градусах, вокруг центра объекта. 0 — обычный случай,
+   * текст горизонтален. Ненулевой означает, что объект стоит «на торце»
+   * (повёрнутый стол, стеллаж вдоль стены): поперёк он узкий, и подпись
+   * пускается вдоль длинной стороны. Всегда в (-90, 90] — вверх ногами
+   * текст не читается.
+   */
+  rotation: number;
 };
 
 /** Below this many pixels of screen width the caption is dropped, not squeezed. */
@@ -31,17 +39,64 @@ export const LABEL_LINE_PX = 13;
 /** The box may hang over the footprint a little: «Окно 1 — приём» beats «Окно 1 —…». */
 const LABEL_OVERHANG = 1.3;
 
+/**
+ * Приводит угол в (-90, 90]: текст под 100° — это тот же текст под -80°, но
+ * читаемый. Ровно 90° оставляем (подпись снизу вверх — привычная для планов),
+ * а -90° переводим в 90°, чтобы у двух одинаковых стеллажей, повёрнутых в
+ * разные стороны, подписи шли одинаково.
+ */
+function readableAngle(degrees: number): number {
+  let angle = degrees % 180;
+  if (angle > 90) angle -= 180;
+  if (angle <= -90) angle += 180;
+  return angle;
+}
+
 export function objectLabel(object: Equipment, viewport: Viewport): ObjectLabel | null {
   const text = object.label.trim();
   if (text === '') return null;
-  // The box follows the footprint as it lies on screen, rotation included: a
-  // rack turned upright is narrow, and a wide caption over it would cover its
-  // neighbours in a row of racks. It stays uncaptioned until zoomed in.
+  const [x, y] = modelToScreen(object.position, viewport);
+
+  // Сначала — как объект лежит на экране. Для неповёрнутого объекта это его
+  // собственные габариты, и подпись идёт горизонтально: так её читать легче
+  // всего, и менять это поведение не из-за чего.
   const box = boundingBox(footprint(object));
   const width = (box.maxX - box.minX) * viewport.scale;
   const height = (box.maxY - box.minY) * viewport.scale;
-  if (width < LABEL_MIN_WIDTH_PX || height < LABEL_FONT_PX + 2) return null;
-  const [x, y] = modelToScreen(object.position, viewport);
-  const lines: 1 | 2 = height >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
-  return { text, x, y, width: Math.round(width * LABEL_OVERHANG), fontSize: LABEL_FONT_PX, lines };
+  if (width >= LABEL_MIN_WIDTH_PX && height >= LABEL_FONT_PX + 2) {
+    const lines: 1 | 2 = height >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
+    return {
+      text,
+      x,
+      y,
+      width: Math.round(width * LABEL_OVERHANG),
+      fontSize: LABEL_FONT_PX,
+      lines,
+      rotation: 0,
+    };
+  }
+
+  // Поперёк объект узкий — горизонтальной подписи не хватает места. Раньше
+  // подпись здесь просто исчезала, и повёрнутый стол становился безымянным
+  // прямоугольником: на плане, повёрнутом вдоль стены, так пропадал целый
+  // ряд рабочих мест. Вдоль объекта место есть — пускаем подпись вдоль.
+  const along = object.size_m[0] * viewport.scale;
+  const across = object.size_m[1] * viewport.scale;
+  const long = Math.max(along, across);
+  const short = Math.min(along, across);
+  if (long < LABEL_MIN_WIDTH_PX || short < LABEL_FONT_PX + 2) return null;
+
+  // Длинная сторона — либо собственный X объекта, либо его Y, повёрнутый на
+  // прямой угол; сам объект нарисован под `rotation_deg` (`EquipmentLayer`).
+  const rotation = readableAngle(object.rotation_deg + (along >= across ? 0 : 90));
+  const lines: 1 | 2 = short >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
+  return {
+    text,
+    x,
+    y,
+    width: Math.round(long * LABEL_OVERHANG),
+    fontSize: LABEL_FONT_PX,
+    lines,
+    rotation,
+  };
 }

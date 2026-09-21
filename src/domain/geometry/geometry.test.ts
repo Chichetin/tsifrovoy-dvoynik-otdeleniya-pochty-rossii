@@ -22,6 +22,7 @@ import {
   pointSegmentDistance,
   polygonArea,
   projectOnSegment,
+  ringArea,
   segmentLength,
   wallLength,
   wallSpanPolygon,
@@ -147,6 +148,54 @@ describe('простой контур', () => {
 
   test('промежуточная вершина на прямой стороне допустима', () => {
     expect(isSimplePolygon([[0, 0], [2, 0], [4, 0], [4, 4], [0, 4]])).toBe(true);
+  });
+});
+
+/**
+ * An honest area or none at all (D-242). `polygonArea` is the absolute value of
+ * the shoelace sum: on a self-crossing ring its halves carry opposite signs and
+ * cancel out, so a 4 m bow tie reports a flat 0 m². Showing that number to a
+ * clerk is lying with a figure, so the area meant for the interface answers the
+ * same way for every unusable ring: null.
+ */
+describe('площадь кольца', () => {
+  test('простое кольцо отдаёт свою площадь', () => {
+    expect(ringArea([[0, 0], [4, 0], [4, 4], [0, 4]])).toBe(16);
+    expect(ringArea([[0, 0], [4, 0], [0, 3]])).toBe(6);
+    expect(ringArea([[0, 0], [2, 0], [4, 0], [4, 4], [0, 4]])).toBe(16);
+  });
+
+  test('направление обхода на площадь не влияет', () => {
+    const ring: Polygon = [[0, 0], [4, 0], [4, 3], [0, 3]];
+    const reversed: Polygon = [...ring].reverse();
+    expect(ringArea(ring)).toBe(12);
+    expect(ringArea(reversed)).toBe(12);
+  });
+
+  test.each<[string, Polygon]>([
+    ['пустой контур', []],
+    ['одна вершина', [[0, 0]]],
+    ['две вершины', [[0, 0], [4, 0]]],
+    ['совпадающие соседние точки', [[0, 0], [4, 0], [4, 0], [4, 4], [0, 4]]],
+    ['все точки в одной', [[2, 2], [2, 2], [2, 2]]],
+    ['нулевая площадь: точки на одной прямой', [[0, 0], [2, 0], [4, 0]]],
+    ['восьмёрка', [[0, 0], [4, 0], [0, 4], [4, 4]]],
+    ['касание рёбер в одной точке', [[0, 4], [4, 4], [4, 0], [2, 4], [0, 0]]],
+    ['возврат по ребру', [[0, 0], [4, 0], [4, 4], [2, 2], [0, 4], [2, 2]]],
+  ])('%s — площади нет', (_case, polygon) => {
+    expect(ringArea(polygon)).toBeNull();
+  });
+
+  test('«бабочка» именно та, на которой формула площади врёт нулём', () => {
+    const bowtie: Polygon = [[0, 0], [4, 0], [0, 4], [4, 4]];
+    expect(polygonArea(bowtie)).toBe(0);
+    expect(ringArea(bowtie)).toBeNull();
+  });
+
+  test('кольцо годное — ответ тот же, что у формулы площади', () => {
+    const ring: Polygon = [[0, 0], [6, 0], [6, 2], [2, 2], [2, 6], [0, 6]];
+    expect(ringArea(ring)).toBe(polygonArea(ring));
+    expect(ringArea(ring)).toBe(20);
   });
 });
 

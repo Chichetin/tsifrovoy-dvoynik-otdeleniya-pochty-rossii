@@ -61,3 +61,14 @@ export function historyHotkey(event: HotkeyEvent): 'undo' | 'redo' | null {
   if (event.code === 'KeyY' && !event.shiftKey) return 'redo';
   return null;
 }
+
+/**
+ * `?` показывает или прячет карту горячих клавиш. На стандартной раскладке
+ * это `Shift+Slash` — физическая клавиша с кодом `Slash` не меняется от
+ * раскладки (D-128), поэтому проверка та же на русской и на английской.
+ */
+export function isHotkeysMapHotkey(event: HotkeyEvent): boolean {
+  if (event.code !== 'Slash') return false;
+  if (event.ctrlKey || event.metaKey || event.altKey || !event.shiftKey) return false;
+  return !isTypingTarget(event.target);
+}
