@@ -113,3 +113,18 @@ export function moveOpeningTo(opening: Opening, wall: Wall, point: Point): Openi
 export function parentForRing(ring: Polygon, zones: Zone[]): Id | null {
   return parentZoneFor(ring, zones);
 }
+
+/**
+ * Начало выступа (D-232): куда ткнули в ребро — там появляется вершина, и
+ * дальше её тянут. Возвращает кольцо с новой вершиной и её место в нём, либо
+ * `null`, если ткнули у самого угла — там вставлять нечего, рядом уже есть
+ * вершина, и её надо двигать, а не плодить соседнюю.
+ */
+export function extrudeEdge(
+  polygon: Polygon,
+  point: Point,
+): { polygon: Polygon; index: number } | null {
+  const hit = insertionOnEdge(polygon, point);
+  if (hit === null) return null;
+  return { polygon: insertVertex(polygon, hit.index, hit.point), index: hit.index + 1 };
+}

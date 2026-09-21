@@ -119,7 +119,7 @@ export function App(): React.JSX.Element {
   const [documentEpoch, setDocumentEpoch] = useState(0);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
-  // D-247: which tab each side column shows — a fact about this browser,
+  // D-249: which tab each side column shows — a fact about this browser,
   // kept in localStorage like the tour (D-195), never in the plan. The value
   // the initializer returned is not written straight back: comparing by
   // reference skips the mount (StrictMode included, see D-226), so nothing
@@ -231,7 +231,7 @@ export function App(): React.JSX.Element {
   const issues = useMemo(() => validatePlan(document), [document]);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
-  // D-247: the one live signal a tab keeps while its panel is hidden — how
+  // D-249: the one live signal a tab keeps while its panel is hidden — how
   // many findings «Проверка» has, red when any of them is a real error (the
   // same test `ValidationPanel` uses for its own red `panel__count`).
   const validationBadge = useMemo(
@@ -485,7 +485,7 @@ export function App(): React.JSX.Element {
         </main>
 
         <aside className="shell__side shell__side--wide" data-tour="side-right">
-          {/* D-247: «Свойства» are not a tab and have no collapsed state —
+          {/* D-249: «Свойства» are not a tab and have no collapsed state —
               without a selection there is nothing to show, so the card is not
               rendered at all; with one it sits above the tabs, and «×» drops
               the selection (the same as Escape on the canvas). */}

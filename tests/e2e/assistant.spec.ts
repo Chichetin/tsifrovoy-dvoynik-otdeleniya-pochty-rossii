@@ -27,7 +27,7 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент', { exact: true });
 
 test.describe('ассистент в браузере', () => {
-  test('плавающая кнопка переключает правую колонку на вкладку ассистента (D-247)', async ({ page }) => {
+  test('плавающая кнопка переключает правую колонку на вкладку ассистента (D-249)', async ({ page }) => {
     await page.goto('/');
     const assistant = panel(page);
     await showTab(page, 'Справочник');

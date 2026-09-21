@@ -283,6 +283,44 @@ test.describe('инструменты плана', () => {
     expect(vertex[0]).not.toBe(corner[0] + half);
   });
 
+  test('Ctrl: протяжка ребра вытягивает выступ, клик по вершине её удаляет (D-247)', async ({ page }) => {
+    const size = await openEditor(page);
+    await drawPlan(page, size);
+    const start = await savePlan(page);
+    const before = start.room.boundary;
+    const [first, second] = [before[0], before[1]];
+    if (first === undefined || second === undefined) throw new Error('у помещения нет контура');
+
+    // Выбрать помещение: пол между его контуром и внешней зоной.
+    await clickAt(page, px(size, 0.12, 0.12));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+
+    // Середина первого ребра — и тянем её наружу на метр с зажатым Ctrl.
+    const middle: Point = [(first[0] + second[0]) / 2, (first[1] + second[1]) / 2];
+    const outward: Point = [middle[0], middle[1] - 1];
+    await page.keyboard.down('Control');
+    await dragAt(page, await worldPixel(page, middle[0], middle[1]), await worldPixel(page, outward[0], outward[1]));
+    await page.keyboard.up('Control');
+
+    await expect.poll(async () => (await savePlan(page)).room.boundary.length).toBe(before.length + 1);
+    const pulled = (await savePlan(page)).room.boundary;
+    const added = pulled.find((vertex) => !before.some((old) => old[0] === vertex[0] && old[1] === vertex[1]));
+    if (added === undefined) throw new Error('новой вершины в контуре нет');
+    expect(Math.abs(added[0] - outward[0])).toBeLessThan(0.6);
+    expect(Math.abs(added[1] - outward[1])).toBeLessThan(0.6);
+
+    // Ctrl + клик по этой же вершине убирает её, и контур возвращается к прежнему.
+    await clickAt(page, px(size, 0.12, 0.12));
+    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    const handle = await worldPixel(page, added[0], added[1]);
+    const onStage = await onPage(page, handle);
+    await page.keyboard.down('Control');
+    await page.mouse.click(onStage.x, onStage.y);
+    await page.keyboard.up('Control');
+
+    await expect.poll(async () => (await savePlan(page)).room.boundary.length).toBe(before.length);
+  });
+
   test('ручка вершины притягивается к вершине соседней зоны; с Alt — нет (D-210)', async ({ page }) => {
     const size = await openEditor(page);
     await drawPlan(page, size);
