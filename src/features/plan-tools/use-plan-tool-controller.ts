@@ -81,6 +81,14 @@ export const usePlanToolController: UsePlanToolController = ({
     [kind],
   );
 
+  // Открыли другой план — измерение прежнего с холста уходит: отрезок,
+  // померенный по старым стенам, поверх нового плана читается как дефект.
+  // План опознаётся по id и имени, как в `PlanTools.tsx`, а не по ссылке:
+  // иначе измерение стирала бы любая правка плана.
+  useEffect(() => {
+    setMeasurement(null);
+  }, [plan.id, plan.name]);
+
   const cancel = useCallback(() => {
     setDraft(null);
     setSnapHint(null);

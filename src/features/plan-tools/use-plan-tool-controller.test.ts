@@ -506,6 +506,32 @@ describe('линейка', () => {
     expect(getMeasurement()).toBeNull();
   });
 
+  it('открыли другой план — измерение прежнего с холста уходит', () => {
+    const plan = planWith([]);
+    const session: EditorSession = {
+      tool: { kind: 'measure' },
+      viewport: { origin: [0, 0], scale: 50 },
+      selection: null,
+      preview: null,
+      focus: null,
+    };
+    const hook = renderHook(
+      (document: PlanDocument) =>
+        usePlanToolController({ document, session, onCommand: () => ({ ok: true, value: document }) }),
+      { initialProps: plan },
+    );
+    act(() => hook.result.current.handlePointer(down([1, 1])));
+    act(() => hook.result.current.handlePointer(down([3, 1])));
+    expect(getMeasurement()).not.toBeNull();
+
+    // Правка того же плана измерение не трогает.
+    hook.rerender({ ...plan, name: plan.name, zones: [hall] });
+    expect(getMeasurement()).not.toBeNull();
+
+    hook.rerender({ ...plan, id: 'plan_other', name: 'Другое отделение' });
+    expect(getMeasurement()).toBeNull();
+  });
+
   it('точки садятся по привязке, как у рисования: клик у вершины зоны берёт вершину', () => {
     // Масштаб 50 px/м, допуск 8 px = 0,16 м: клик в 0,1 м от угла зоны.
     const { click } = setup({ kind: 'measure' }, planWith([hall]));

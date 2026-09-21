@@ -6,9 +6,9 @@
 
 | Проверка | Команда | Результат |
 |---|---|---|
-| Чистые функции подписи | `npx vitest run src/features/plan-tools/wall-length-label.test.ts` | 13 тестов |
-| Канал измерения | `npx vitest run src/features/plan-tools/measure.test.ts` | 10 тестов |
-| Жест линейки | `npx vitest run src/features/plan-tools/use-plan-tool-controller.test.ts` | 30 тестов (9 из них — блок «линейка») |
+| Чистые функции подписи | `npx vitest run src/features/plan-tools/wall-length-label.test.ts` | 14 тестов |
+| Канал измерения | `npx vitest run src/features/plan-tools/measure.test.ts` | 5 тестов |
+| Жест линейки | `npx vitest run src/features/plan-tools/use-plan-tool-controller.test.ts` | 31 тест (11 из них — блок «линейка») |
 | Панель инструментов | `npx vitest run src/features/plan-tools/PlanTools.test.tsx` | 13 тестов |
 | Линейка и подписи в браузере | `DEV_PORT=5283 npx playwright test tests/e2e/measure.spec.ts` | 4 passed |
 | Шапка не сломалась седьмой кнопкой | `DEV_PORT=5283 npx playwright test tests/e2e/shell.spec.ts` | 7 passed — шапка остаётся в одну строку на 1280×800 и 1440×900 |

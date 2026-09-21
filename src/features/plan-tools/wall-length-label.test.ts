@@ -111,6 +111,13 @@ describe('сторона подписи', () => {
     );
   });
 
+  it('вертикальная стена через точку отсчёта подписана одинаково в обе стороны', () => {
+    // У неё нормаль горизонтальна, и общее правило «вверх экрана» её не решает.
+    const up = wall([5, 0], [5, 8]);
+    const down = wall([5, 8], [5, 0]);
+    expect(wallLengthLabel(up, viewport, centre)?.x).toBe(wallLengthLabel(down, viewport, centre)?.x);
+  });
+
   it('направление рисования стены сторону не меняет', () => {
     const back = wall([10, 0], [0, 0]);
     expect(wallLengthLabel(south, viewport, centre)?.y).toBe(
