@@ -152,9 +152,12 @@ export function App(): React.JSX.Element {
   // remains the one place where assistant state and future chat history live.
   // It switches the column to the assistant tab — a hidden panel is not
   // "opened" by scrolling to it.
+  // With a selection the column shows only «Свойства»; the launcher drops it
+  // so the assistant tab is actually visible.
   const openAssistant = useCallback(() => {
+    store.getState().select(null);
     showRightTab('assistant');
-  }, [showRightTab]);
+  }, [showRightTab, store]);
 
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
@@ -217,6 +220,36 @@ export function App(): React.JSX.Element {
     },
     [select],
   );
+
+  // A pick on the plan (2D or 3D) shows only «Свойства» on the right. A pick
+  // from a panel row or a fresh placement keeps the tabs in view, so the next
+  // row is one click away.
+  const [pickedOnPlan, setPickedOnPlan] = useState<Ref | null>(null);
+  const selectOnPlan = useCallback(
+    (ref: Ref | null) => {
+      select(ref);
+      // Same pick again (a click on the already selected room while editing its
+      // outline) must not re-render the app mid-gesture.
+      setPickedOnPlan((prev) =>
+        prev?.kind === ref?.kind && prev?.id === ref?.id ? prev : ref,
+      );
+    },
+    [select],
+  );
+  // A tab click while «Свойства» fill the column brings the panels back; the
+  // selection stays.
+  const showRightPanel = useCallback(
+    (right: RightTab) => {
+      setPickedOnPlan(null);
+      showRightTab(right);
+    },
+    [showRightTab],
+  );
+  const propsOnly =
+    selection !== null &&
+    pickedOnPlan !== null &&
+    pickedOnPlan.kind === selection.kind &&
+    pickedOnPlan.id === selection.id;
 
   const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
   const placedType = useRef<Id | null>(null);
@@ -554,7 +587,7 @@ export function App(): React.JSX.Element {
                   viewport.scale,
                 );
                 if (existing !== null) {
-                  select({ kind: 'object', id: existing.id });
+                  selectOnPlan({ kind: 'object', id: existing.id });
                   return;
                 }
               }
@@ -574,21 +607,21 @@ export function App(): React.JSX.Element {
               }
             }}
             onViewport={setViewport}
-            onSelect={select}
+            onSelect={selectOnPlan}
           >
             <PlanGeometryLayer
               document={document}
               session={session}
               draft={planTool.draft}
               onCommand={dispatch}
-              onSelect={select}
+              onSelect={selectOnPlan}
             />
             <EquipmentLayer
               document={document}
               session={session}
               issues={issues}
               onCommand={dispatch}
-              onSelect={select}
+              onSelect={selectOnPlan}
               onSelectMany={selectMany}
               preview={preview}
               onGesturePreview={gesturePreview.publish}
@@ -608,7 +641,7 @@ export function App(): React.JSX.Element {
             <IssueLayer issues={issues} focus={selection} viewport={viewport} />
           </EditorCanvas>
           {view === '3d' ? (
-            <View3D document={document} selection={selection} onSelect={select} />
+            <View3D document={document} selection={selection} onSelect={selectOnPlan} />
           ) : null}
         </main>
 
@@ -643,7 +676,8 @@ export function App(): React.JSX.Element {
             idPrefix="side-right"
             tabs={RIGHT_TABS}
             active={tabs.right}
-            onSelect={showRightTab}
+            onSelect={showRightPanel}
+            collapsed={propsOnly}
             badges={{ validation: validationBadge }}
             panels={{
               assistant: (
