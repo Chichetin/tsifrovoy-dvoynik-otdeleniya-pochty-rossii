@@ -1950,7 +1950,7 @@ span.inventory__num {
   position: absolute;
   inset: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
+  grid-template-columns: minmax(0, 1fr);
   background: var(--surface, #fff);
   z-index: 2;
 }
@@ -1978,84 +1978,6 @@ span.inventory__num {
   border: 1px solid var(--line, #ddd);
   border-radius: 6px;
   background: #fff;
-}
-
-.view3d__side {
-  overflow-y: auto;
-  padding: 12px;
-  border-left: 1px solid var(--line, #ddd);
-  font-size: 13px;
-}
-
-.view3d__caption {
-  margin: 0 0 8px;
-  color: var(--muted, #555);
-}
-
-.view3d__hint,
-.view3d__selection {
-  margin: 0 0 8px;
-  padding: 8px;
-  border-radius: var(--radius-s);
-  line-height: 1.4;
-}
-
-.view3d__hint {
-  color: var(--muted, #555);
-  background: var(--color-hover);
-}
-
-.view3d__selection {
-  color: var(--color-text, #202124);
-  background: var(--color-warning-soft);
-  border: 1px solid var(--color-warning);
-}
-
-.view3d__list {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.view3d__item {
-  margin: 2px 0;
-}
-
-.view3d__pick {
-  width: 100%;
-  padding: 3px 5px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-s);
-  background: transparent;
-  text-align: left;
-  cursor: pointer;
-}
-
-.view3d__pick:hover {
-  border-color: var(--accent);
-  background: var(--color-hover);
-}
-
-.view3d__item--selected .view3d__pick {
-  border-color: var(--color-warning);
-  background: var(--color-warning-soft);
-}
-
-.view3d__swatch {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 6px;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  vertical-align: middle;
-}
-
-.view3d__kind,
-.view3d__dims {
-  color: var(--muted, #555);
-}
-
-.view3d__id {
-  font-size: 12px;
 }
 
 /* Справочник: формы нового типа, атрибута и правила */
