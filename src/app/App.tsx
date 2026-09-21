@@ -19,6 +19,7 @@ import { formatArea } from '../domain/number-format';
 import { planIndex } from '../domain/plan-index';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
@@ -50,6 +51,7 @@ import { catalog, createEmptyPlan } from './default-plan';
 import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
   browserStorage as rightColumnStorage,
+  expandSection,
   loadSectionState,
   pluralRu,
   saveSectionState,
@@ -135,11 +137,11 @@ export function App(): React.JSX.Element {
     saveSectionState(rightColumnStorage(), sections);
   }, [sections]);
   /**
-   * D-236: выбор переводит колонку в режим карточки — «Свойства» раскрыты,
-   * остальные разделы свёрнуты в заголовки. Заголовки остаются на месте и
-   * открываются одним щелчком: числа площадей и перечня не исчезают, просто
-   * уступают место тому, что человек сейчас правит. Без выбора наоборот —
-   * свёрнуты «Свойства», которым нечего показать.
+   * D-236: «Свойства» следуют за выбором — раскрыты, когда есть что показать,
+   * и свёрнуты, когда выбора нет: пустая карточка «ничего не выбрано» не
+   * занимает место в колонке. Остальные разделы живут своим состоянием и при
+   * выборе не прячутся: поставленный объект сразу выбран (D-147), поэтому
+   * скрытый при выборе обзор был бы скрыт почти всегда.
    *
    * Это не состояние, а вывод из выбора: в localStorage не пишется и чужую
    * сохранённую раскладку не затирает.
@@ -161,6 +163,20 @@ export function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- collapsedOf зависит от выбора и читается в момент щелчка
     [selection, sections, manualSections],
   );
+  // The launcher is deliberately only an entry point: the right-column panel
+  // remains the one place where assistant state and future chat history live.
+  // Ручную отметку «свёрнут» с него тоже снимаем: иначе кнопка прокрутит к
+  // заголовку, под которым по-прежнему пусто.
+  const openAssistant = useCallback(() => {
+    setSections((prev) => expandSection(prev, 'assistant'));
+    setManualSections((prev) => ({ ...prev, assistant: false }));
+    window.requestAnimationFrame(() => {
+      globalThis.document.getElementById('right-section-assistant')?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
+  }, []);
 
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
@@ -589,6 +605,7 @@ export function App(): React.JSX.Element {
       </div>
 
       <Onboarding open={tourOpen} onClose={closeTour} />
+      <AssistantLauncher onOpen={openAssistant} />
     </div>
   );
 }
