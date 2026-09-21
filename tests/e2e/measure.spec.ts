@@ -80,7 +80,7 @@ test('линейка меряет расстояние между двумя т�
   expect(await measureCaption(page)).toBeNull();
 });
 
-test('измерение не трогает план: он остаётся сохранённым, и в файле его нет', async ({ page }) => {
+test('измерение не трогает план: он остаётся сохранённым', async ({ page }) => {
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
   await expect(page.getByText('сохранено')).toBeVisible();
 
