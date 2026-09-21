@@ -77,7 +77,7 @@ async function panAway(page: Page): Promise<void> {
   const box = await canvas(page).boundingBox();
   expect(box).not.toBeNull();
   const { x, y, width, height } = box as { x: number; y: number; width: number; height: number };
-  await page.getByRole('button', { name: 'Рука', exact: true }).click();
+  await page.getByRole('button', { name: 'Обзор', exact: true }).click();
   // Три взмаха: один сдвигает вид меньше чем на половину холста, а объект после
   // перехода стоит ровно в его середине.
   for (let stroke = 0; stroke < 3; stroke += 1) {
