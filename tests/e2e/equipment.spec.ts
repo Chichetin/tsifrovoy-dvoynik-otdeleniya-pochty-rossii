@@ -284,30 +284,52 @@ test.describe('жесты над оборудованием', () => {
     await expect.poll(() => captionPixels(page, box)).toBeGreaterThan(30);
   });
 
-  test('поставленный из библиотеки объект сразу выбран, ручки не мешают ставить следующий', async ({
+  test('установка из библиотеки одноразовая: объект выбран, следующий клик не создаёт дубль', async ({
     page,
   }) => {
     await page.goto('/');
-    await page.locator('.library__item', { hasText: RACK }).first().click();
+    const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
+    await libraryItem.click();
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
+    await expect(libraryItem).toHaveClass(/is-selected/);
     const centre: Screen = { x: 420, y: 330 };
     await clickCanvas(page, centre.x, centre.y);
-    // Ещё до переключения на «Выбор» карточка — про только что поставленный объект.
+    // Карточка сразу показывает новый объект, а инструмент вернулся к выбору.
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(page.getByRole('button', { name: 'Выбор', exact: true })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'false');
+    await expect(libraryItem).not.toHaveClass(/is-selected/);
 
-    // Второй стеллаж «в столбик»: клик приходится ровно туда, где у выбранного
-    // объекта была бы ручка поворота. Под инструментом установки ручек нет, и
-    // клик ставит объект, а не начинает поворот первого.
+    // Клик по плану после установки работает с выбранным объектом и не создаёт
+    // ещё один, даже если приходится на его ручку поворота.
     const depth = await numberOf(page, 'Глубина, м');
     const scale = await shownScale(page);
     const handle = rotationHandle(centre, depth, scale, 0);
     await clickCanvas(page, handle.x, handle.y);
+    await expect(inventoryRows(page)).toHaveCount(1);
+
+    // Повторная установка требует явного нового выбора типа.
+    await libraryItem.click();
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
+    await clickCanvas(page, 300, 260);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
     await expect(inventoryRows(page)).toHaveCount(2);
+  });
 
-    // Клик по первому объекту под инструментом установки ставит третий, а не выбирает первый.
-    await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
-    await expect(inventoryRows(page)).toHaveCount(3);
+  test('отклонённая установка оставляет тип активным для повторной попытки', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
+    const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
+    await libraryItem.click();
+    await clickCanvas(page, 420, 330);
+
+    await expect(page.getByRole('alert')).toContainText('заперт');
+    await expect(inventoryRows(page)).toHaveCount(0);
+    await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
+    await expect(libraryItem).toHaveClass(/is-selected/);
   });
 
   test('поворот за ручку: 90° с Shift, свободный 37°, одно «Отменить» на жест', async ({ page }) => {
