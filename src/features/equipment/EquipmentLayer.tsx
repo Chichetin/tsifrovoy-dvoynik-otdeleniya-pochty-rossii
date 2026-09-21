@@ -376,10 +376,12 @@ export function EquipmentLayer({
 
       // Ctrl+D — «второй такой же предмет прямо сейчас», не второе имя для
       // Ctrl+C/Ctrl+V: свой снимок каждый раз, без общего буфера и без его
-      // счётчика вставок подряд.
+      // счётчика вставок подряд. `preventDefault` — раньше проверки выделения:
+      // иначе Ctrl+D без выделенного или со скрытым объектом уходит браузеру и
+      // открывает закладки вместо того, чтобы молча ничего не делать.
       if (combo && event.code === 'KeyD') {
-        if (selectedObject === null || !selectedVisible) return;
         event.preventDefault();
+        if (selectedObject === null || !selectedVisible) return;
         const taken = takenIds(plan, session.retired);
         const copies = duplicateObjects(isGroup ? members : [selectedObject], taken);
         if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
