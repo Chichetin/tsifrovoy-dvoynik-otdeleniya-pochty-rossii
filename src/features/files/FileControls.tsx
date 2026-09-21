@@ -375,14 +375,23 @@ export function FileControls({
         Открыть существующий
       </button>
 
+      {/* D-254: icon + aria-label — the word «Картинка» was the easiest
+          button in the row to shrink without losing a name any test looks
+          up (it is found by `data-testid`, not by role name), and it bought
+          the header the room «Удалить перегородку» needed at 1280/1440 px. */}
       <button
         type="button"
-        className="files__button"
+        className="files__button files__button--icon"
         title="Скачать план картинкой (SVG) для согласования и презентации"
+        aria-label="Картинка"
         data-testid="export-svg"
         onClick={exportImage}
       >
-        Картинка
+        <svg className="files__icon" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="2" y="3" width="12" height="10" rx="1.5" />
+          <circle cx="6" cy="7" r="1.2" />
+          <path d="m3 12 3.5-3.5L9 11l2-2 2 2.5" />
+        </svg>
       </button>
 
       <button type="button" className="files__button is-primary" onClick={save}>
