@@ -36,6 +36,7 @@ import {
   snapPosition,
   type ResizeHandle,
 } from './transform';
+import { isWallMounted } from './wall-mount';
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
@@ -171,6 +172,11 @@ export function EquipmentLayer({
       : null;
   const selectedVisible = selectedObject !== null && visibleLayers.has(selectedObject.layerId);
   const selectedLocked = selectedObject !== null && lockedLayers.has(selectedObject.layerId);
+  // Настенный прибор (D-228) не растягивают: его габариты — свойство изделия,
+  // а не решение планировщика. Ручки размера ему не показываются, поворот и
+  // перенос остаются. Признак — из справочника, не список типов здесь.
+  const selectedFixedSize =
+    selectedObject !== null && isWallMounted(findObjectType(plan.catalog, selectedObject.typeId));
   const clipboard = useRef<Clipboard | null>(null);
 
   // The group (marquee, Shift+click): visible members only, the primary among
@@ -779,11 +785,16 @@ export function EquipmentLayer({
         )}
 
         {/* A locked layer shows the selection but offers nothing to pull; a
-            group has no handles — it moves, it is not resized or turned. */}
+            group has no handles — it moves, it is not resized or turned.
+            Настенный прибор показывает только ручку поворота (D-228): тянуть
+            размер камеры или датчика нечем — их габариты не планировочное
+            решение, а характеристика изделия. */}
         {!picking || isGroup || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
           ? null
           : [
-              ...RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle)),
+              ...(selectedFixedSize
+                ? []
+                : RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle))),
               renderRotationHandle(selectedObject),
             ]}
 

@@ -55,7 +55,11 @@ function planWith(symbol: ObjectSymbol): PlanDocument {
   };
 }
 
-function drawnSymbols(plan: PlanDocument, selection: Ref | null, preview: Candidate | null): Konva.Shape[] {
+function renderLayer(
+  plan: PlanDocument,
+  selection: Ref | null,
+  preview: Candidate | null,
+): Konva.Stage {
   const stage = createRef<Konva.Stage>();
   const session: EditorSession = {
     tool: { kind: 'select' },
@@ -76,12 +80,60 @@ function drawnSymbols(plan: PlanDocument, selection: Ref | null, preview: Candid
     </Stage>,
   );
   if (stage.current === null) throw new Error('Stage не смонтировался');
+  return stage.current;
+}
+
+function drawnSymbols(plan: PlanDocument, selection: Ref | null, preview: Candidate | null): Konva.Shape[] {
   // The symbol is the only child of the group that carries the object's name;
   // the selection layer is also named `equipment-…`, hence the class check.
-  return stage.current
+  return renderLayer(plan, selection, preview)
     .find((node: Konva.Node) => node.getClassName() === 'Group' && node.name().startsWith('equipment-'))
     .map((group) => (group as Konva.Group).getChildren()[0] as Konva.Shape);
 }
+
+/** Имена ручек выбранного объекта на слое выделения. */
+function handleNames(plan: PlanDocument, objectId: string): string[] {
+  return renderLayer(plan, { kind: 'object', id: objectId }, null)
+    .find((node: Konva.Node) => node.name().startsWith('handle-'))
+    .map((node) => node.name());
+}
+
+/** Тот же план, но тип объекта `typeId` повешен на стену: высоко и не на полу. */
+function mountedOnWall(plan: PlanDocument, typeId: string): PlanDocument {
+  return {
+    ...plan,
+    catalog: {
+      ...plan.catalog,
+      objectTypes: plan.catalog.objectTypes.map((type) =>
+        type.id === typeId ? { ...type, occupiesFloor: false, defaultBase_m: 2.6 } : type,
+      ),
+    },
+  };
+}
+
+describe('ручки выбранного объекта', () => {
+  test('мебель тянется за восемь ручек размера и поворачивается', () => {
+    const plan = planWith('rect');
+    expect(handleNames(plan, 'eq_bench_1').sort()).toEqual([
+      'handle-resize-e',
+      'handle-resize-n',
+      'handle-resize-ne',
+      'handle-resize-nw',
+      'handle-resize-s',
+      'handle-resize-se',
+      'handle-resize-sw',
+      'handle-resize-w',
+      'handle-rotate',
+    ]);
+  });
+
+  test('настенный прибор (D-228) поворачивается, но не растягивается', () => {
+    const plan = mountedOnWall(planWith('rect'), 'ot_bench');
+    expect(handleNames(plan, 'eq_bench_1')).toEqual(['handle-rotate']);
+    // Соседний тип остался мебелью: запрет адресный, а не «всем без ручек».
+    expect(handleNames(plan, 'eq_work_1')).toHaveLength(9);
+  });
+});
 
 describe('символ оборудования рисуется без буферного холста', () => {
   for (const symbol of ['rect', 'circle', 'triangle'] as const) {
