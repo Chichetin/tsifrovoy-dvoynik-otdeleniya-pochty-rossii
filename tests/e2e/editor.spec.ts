@@ -113,7 +113,10 @@ test.describe('сквозной сценарий редактора', () => {
       buffer: Buffer.from('{"schemaVersion": 1, "zones": ['),
     });
 
-    await expect(page.getByRole('alert')).toContainText('DOCUMENT_UNREADABLE');
+    // Сотруднику — понятная фраза, технический код спрятан в раскрытии (MR !215).
+    await expect(page.getByRole('alert')).toContainText('не соответствует поддерживаемому формату');
+    await page.getByTestId('file-error-details').locator('summary').click();
+    await expect(page.getByTestId('file-error-details')).toContainText('DOCUMENT_UNREADABLE');
     // Документ остался на месте: строка инвентаризации не пропала.
     await expect(rows).toHaveCount(1);
   });
