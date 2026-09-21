@@ -231,7 +231,7 @@ Intel Pentium G3220, Node 22, бандловый Chromium Playwright):
 npm ci
 npx playwright install chromium   # один раз, для браузерных тестов
 npm run dev                       # редактор: http://127.0.0.1:5173
-npm run serve                     # API ассистента и раздача сборки: http://127.0.0.1:8080
+npm run serve                     # API ассистента и раздача сборки: http://127.0.0.1:8080 (ключ LLM — из .env)
 npm test && npm run test:e2e && npm run typecheck && npm run lint && npm run build
 ```
 
