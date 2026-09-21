@@ -640,4 +640,20 @@ describe('FileControls: меню «Экспорт»', () => {
     expect(screen.getByTestId('files-loading').textContent).toBe('читаем файл…');
     expect(screen.queryByTestId('files-notice')).toBeNull();
   });
+  test('поздний ответ PNG не перетирает результат более позднего «Экспорт → JSON»', async () => {
+    const { downloads } = stubDownload();
+    let finishPng!: (blob: Blob) => void;
+    pngRenderer.mockReturnValue(new Promise<Blob>((done) => { finishPng = done; }));
+    renderControls({ storage: null, document: filled });
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
+    openMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
+    expect(screen.getByTestId('files-notice').textContent).toContain('.json');
+
+    await act(async () => { finishPng(new Blob(['png'], { type: 'image/png' })); });
+
+    expect(screen.getByTestId('files-notice').textContent).toContain('.json');
+    expect(downloads.filter((name) => name.endsWith('.png'))).toEqual([]);
+  });
 });

@@ -143,6 +143,8 @@ export function FileControls({
 }: FileControlsProps): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null);
   const openSequence = useRef(0);
+  /** Bumped by every export: a late PNG must not overwrite a later export's result. */
+  const exportSequence = useRef(0);
   const currentDocument = useRef({ plan, revision });
   useLayoutEffect(() => {
     currentDocument.current = { plan, revision };
@@ -317,6 +319,7 @@ export function FileControls({
   };
 
   const save = (): void => {
+    exportSequence.current += 1;
     setBusy('читаем файл…');
     setState({ status: 'loading' });
     const encoded = encode(plan);
@@ -338,6 +341,7 @@ export function FileControls({
    * каким был, и черновик не трогается.
    */
   const exportSvg = (): void => {
+    exportSequence.current += 1;
     handToBrowser(new Blob([renderPlanSvg(plan)], { type: 'image/svg+xml' }), svgFileName(plan));
     // Own result state, like «Сохранить»: otherwise a stale «План не открыт…»
     // would stay on screen next to a file that downloaded fine.
@@ -353,22 +357,24 @@ export function FileControls({
    */
   const exportPng = (): void => {
     const name = pngFileName(plan);
-    // Opening a file, «Создать новый» or a draft restore bump the sequence:
-    // a late raster must not overwrite their state with its own.
+    // Opening a file, «Создать новый», a draft restore or a later export bump
+    // a sequence: a late raster must not overwrite their state with its own.
     const sequence = openSequence.current;
+    const request = ++exportSequence.current;
+    const stale = (): boolean => sequence !== openSequence.current || request !== exportSequence.current;
     setBusy('готовим картинку PNG…');
     setNotice(null);
     setState({ status: 'loading' });
     renderPlanPng(plan).then(
       (blob) => {
-        if (sequence !== openSequence.current) return;
+        if (stale()) return;
         handToBrowser(blob, name);
         setErrorDetails([]);
         setNotice(`Картинка ${name} передана браузеру на скачивание.`);
         setState({ status: 'done' });
       },
       (error: unknown) => {
-        if (sequence !== openSequence.current) return;
+        if (stale()) return;
         const reason = error instanceof Error ? error.message : String(error);
         setErrorDetails([]);
         setState({ status: 'error', message: `Картинка PNG не выгружена. ${reason}` });
