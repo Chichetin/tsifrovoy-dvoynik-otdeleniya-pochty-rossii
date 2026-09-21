@@ -726,7 +726,6 @@ body {
      padding, font size or the border changing here must not silently pull
      the two numbers apart. */
   min-height: var(--section-header-h);
-  box-sizing: border-box;
 }
 
 .section__header:hover {
@@ -824,7 +823,12 @@ body {
      current Playwright-managed Chromium, well past that). That one heading —
      name, counts and toggle together — is left visible as-is; it still
      reads one name twice for that single section, a smaller cost than
-     losing the control. */
+     losing the control. Today that button always renders (`CatalogPanel.tsx`
+     never omits it), so this selector's match never flips after paint; a
+     future panel that puts its button behind a condition would make its own
+     `<h2>` pop in and out of the layout every time the button toggles —
+     `:has()` re-evaluates it live, `min-height` on the header alone will not
+     absorb that jump. */
 .section__body .panel > h2.panel__title:not(:has(button)) {
   position: absolute;
   width: 1px;
