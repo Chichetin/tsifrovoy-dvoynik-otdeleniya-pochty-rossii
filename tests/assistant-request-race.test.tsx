@@ -43,7 +43,7 @@ function answer(reason: string): AdviceResult {
 
 test('поздний ответ старого плана не заменяет ответ нового плана', async () => {
   render(<App />);
-  // D-244: the assistant is a tab of the right column, not open by default.
+  // D-247: the assistant is a tab of the right column, not open by default.
   fireEvent.click(screen.getByRole('tab', { name: 'Ассистент' }));
 
   fireEvent.click(screen.getByRole('button', { name: 'Спросить' }));

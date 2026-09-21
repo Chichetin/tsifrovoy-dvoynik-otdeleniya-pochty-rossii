@@ -1,5 +1,5 @@
 /**
- * D-244: a side column's switch between its panels — WAI-ARIA tabs.
+ * D-247: a side column's switch between its panels — WAI-ARIA tabs.
  *
  * Wraps panels from outside: their markup and `aria-label` are untouched,
  * this only adds the row of tabs and shows one panel at a time. Hidden panels

@@ -24,6 +24,33 @@ const DEFAULT_SCALE = 48;
 
 export type CanvasSize = { width: number; height: number };
 
+export type WheelInput = {
+  deltaX: number;
+  deltaY: number;
+  /** Some browser/Konva paths omit deltaMode; omitted means pixel mode. */
+  deltaMode?: number;
+  ctrlKey: boolean;
+};
+
+export type WheelIntent = 'pan' | 'zoom';
+
+/**
+ * Browser wheel events do not expose whether their source is a mouse or a
+ * trackpad. Smooth pixel deltas are the useful signal for a two-finger swipe;
+ * line-based and large pixel steps are the discrete rotation of a wheel.
+ */
+const TRACKPAD_DELTA_LIMIT_PX = 50;
+
+export function wheelIntent(input: WheelInput): WheelIntent {
+  if (input.ctrlKey) return 'zoom';
+  // A diagonal, small-delta gesture is the browser's most reliable signal
+  // for a trackpad swipe, even when a browser/Konva adapter reports line mode.
+  if (input.deltaX !== 0 && Math.abs(input.deltaY) < TRACKPAD_DELTA_LIMIT_PX) return 'pan';
+  if (input.deltaMode === 1 || input.deltaMode === 2) return 'zoom';
+  if (input.deltaX !== 0) return 'pan';
+  return Math.abs(input.deltaY) < TRACKPAD_DELTA_LIMIT_PX ? 'pan' : 'zoom';
+}
+
 export function clampScale(scale: number): number {
   if (!Number.isFinite(scale)) return SCALE_LIMITS.min;
   return Math.min(SCALE_LIMITS.max, Math.max(SCALE_LIMITS.min, scale));

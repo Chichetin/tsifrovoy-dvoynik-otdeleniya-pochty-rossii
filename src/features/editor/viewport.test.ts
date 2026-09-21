@@ -17,6 +17,7 @@ import {
   gridStep,
   panBy,
   visibleExtent,
+  wheelIntent,
   zoomAt,
   zoomByWheel,
 } from './viewport';
@@ -73,6 +74,22 @@ describe('zoom у курсора', () => {
 
     const centre: Point = [6.5, 1.5];
     closeTo(screenToModel(modelToScreen(centre, zoomed), zoomed), centre);
+  });
+});
+
+describe('жесты колеса', () => {
+  test('плавные пиксельные дельты тачпада означают pan', () => {
+    expect(wheelIntent({ deltaX: 18, deltaY: -12, deltaMode: 0, ctrlKey: false })).toBe('pan');
+    expect(wheelIntent({ deltaX: 0, deltaY: 16, deltaMode: 0, ctrlKey: false })).toBe('pan');
+  });
+
+  test('дискретное вращение колеса означает zoom', () => {
+    expect(wheelIntent({ deltaX: 0, deltaY: -120, deltaMode: 0, ctrlKey: false })).toBe('zoom');
+    expect(wheelIntent({ deltaX: 0, deltaY: -1, deltaMode: 1, ctrlKey: false })).toBe('zoom');
+  });
+
+  test('Ctrl принудительно оставляет zoom даже у плавной дельты', () => {
+    expect(wheelIntent({ deltaX: 0, deltaY: -12, deltaMode: 0, ctrlKey: true })).toBe('zoom');
   });
 });
 

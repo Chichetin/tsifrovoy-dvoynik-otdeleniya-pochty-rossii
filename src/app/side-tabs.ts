@@ -1,5 +1,5 @@
 /**
- * D-244: which tab each side column shows, without any DOM.
+ * D-247: which tab each side column shows, without any DOM.
  *
  * The open tab is a fact about this browser, not about the plan: it lives in
  * `localStorage` under a versioned, project-prefixed key (the same pattern as
