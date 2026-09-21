@@ -517,11 +517,14 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         {/* D-260: the hotkeys map lives in the header, icon only — the row has
-            little slack left at 1280 px (tests/e2e/shell.spec.ts). */}
+            little slack left at 1280 px (tests/e2e/shell.spec.ts). D-261:
+            aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
+            code "Shift+Slash". */}
         <button
           type="button"
           className="shell__quiet shell__help"
           aria-label="Горячие клавиши"
+          aria-keyshortcuts="?"
           title="Горячие клавиши (?)"
           onClick={hotkeysMap.show}
         >
