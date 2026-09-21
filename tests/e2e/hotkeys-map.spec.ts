@@ -58,6 +58,8 @@ test.describe('карта горячих клавиш', () => {
     await page.goto('/');
     const button = hotkeysButton(page);
     await expect(button).toHaveAttribute('title', 'Горячие клавиши (?)');
+    // D-261: клавиша объявлена и экранному диктору — значением KeyboardEvent.key.
+    await expect(button).toHaveAttribute('aria-keyshortcuts', '?');
     // Из левой колонки кнопка ушла, «Обучение» осталось на месте.
     await expect(page.locator('.shell__side').getByRole('button', { name: /Горячие клавиши/ })).toHaveCount(0);
     await expect(page.locator('.shell__side-foot').getByRole('button', { name: 'Обучение' })).toBeVisible();
