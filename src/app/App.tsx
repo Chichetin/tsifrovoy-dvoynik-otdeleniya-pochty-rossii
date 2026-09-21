@@ -23,6 +23,7 @@ import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
+import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { CatalogPanel } from '../features/catalog-editor/CatalogPanel';
@@ -430,6 +431,18 @@ export function App(): React.JSX.Element {
             session={session}
             onPointer={(event) => {
               planTool.handlePointer(event);
+              if (event.phase === 'down' && tool.kind === 'object.place') {
+                const existing = findPlacementPick(
+                  document,
+                  tool.typeId,
+                  event.point,
+                  viewport.scale,
+                );
+                if (existing !== null) {
+                  select({ kind: 'object', id: existing.id });
+                  return;
+                }
+              }
               equipmentTool.handlePointer(event);
               if (event.phase === 'up' && placedType.current !== null) {
                 const completedType = placedType.current;

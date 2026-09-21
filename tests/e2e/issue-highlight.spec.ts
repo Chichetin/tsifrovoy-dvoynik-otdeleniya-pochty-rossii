@@ -56,14 +56,27 @@ test('находка из списка подсвечивается на пла�
   // Пример организаторов: у стеллажа eq_rack_1 три находки сразу.
   await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
   const validation = page.getByLabel('Проверка плана');
+  const rackLink = validation.locator('button[data-ref-id="eq_rack_1"]').first();
+  await expect(rackLink).toBeVisible();
+
+  // Сотруднику сначала показаны объяснения и названия, внутренние коды скрыты.
+  await expect(validation.getByText('OBJECT_COLLISION')).toHaveCount(0);
+  await expect(validation.locator('button[data-ref-id="w_inner_1"]').first()).toHaveText('Стена');
+  await expect(validation.getByText('w_inner_1', { exact: true })).toHaveCount(0);
+  await expect(validation.locator('button[data-ref-id="d_main"]').first()).toHaveText('Главный вход');
+  await expect(validation.getByText('d_main', { exact: true })).toHaveCount(0);
+  await validation.getByRole('checkbox', { name: 'Показать технические детали' }).check();
   await expect(validation.getByText('OBJECT_COLLISION').first()).toBeVisible();
+  await expect(validation.getByText('object:eq_rack_1').first()).toBeVisible();
+  await expect(validation.getByText('wall:w_inner_1').first()).toBeVisible();
+  await expect(validation.getByText('opening:d_main').first()).toBeVisible();
 
   // До клика подсветки нет — только маркеры находок.
   await expect.poll(() => focusShapes(page)).toBe(0);
   const markersOnly = await redShare(page);
 
   // Клик по ссылке на стеллаж в первой же находке.
-  await validation.getByRole('button', { name: 'eq_rack_1' }).first().click();
+  await rackLink.click();
   await expect.poll(() => focusShapes(page), { timeout: 5_000 }).toBeGreaterThan(0);
   await expect
     .poll(() => redShare(page), { timeout: 5_000 })
