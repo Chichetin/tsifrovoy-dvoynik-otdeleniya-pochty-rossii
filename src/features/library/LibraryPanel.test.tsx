@@ -42,8 +42,11 @@ test('поле поиска подписано, образец цвета скр
 
 test('вооружённый тип заметно выделен и сообщён как нажатый', () => {
   const sized = withSize(1, 1);
-  render(<LibraryPanel catalog={sized} activeTypeId="ot_sized" onTool={vi.fn()} />);
+  const onTool = vi.fn();
+  render(<LibraryPanel catalog={sized} activeTypeId="ot_sized" onTool={onTool} />);
 
   const item = screen.getByRole('button', { name: /Проверочный тип/, pressed: true });
   expect(item.classList.contains('is-selected')).toBe(true);
+  fireEvent.click(item);
+  expect(onTool).toHaveBeenCalledWith({ kind: 'select' });
 });
