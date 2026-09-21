@@ -49,13 +49,6 @@
   --control-h: 30px;
   --side-left: 260px;
   --side-right: 340px;
-  /* UI-2В (D-226): the sticky section header's minimum height (measured in
-     the browser at 1280×800, ~37.3px, with a little slack) — `.section__header`
-     enforces this as its own `min-height`, so it is the one number driving
-     both the header and every scrolled-to card's `scroll-margin-top`, not a
-     copy of a measurement that padding/font tokens could quietly drift away
-     from (by ревью MR !177). */
-  --section-header-h: 40px;
 
   /* Aliases kept for module blocks. */
   --ink: var(--color-ink);
@@ -319,8 +312,13 @@ body {
 }
 
 .shell__side {
-  overflow-y: auto;
-  padding: var(--space-3);
+  /* D-249: the column itself does not scroll — the tab row stays put and
+     only the open tab's panel scrolls, so switching never needs scrolling
+     back up first. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   background: var(--color-surface);
   border-right: 1px solid var(--color-line);
 }
@@ -790,148 +788,97 @@ body {
   margin-bottom: var(--space-5);
 }
 
-/* UI-2Б (D-217): a collapsible section of the right column. Wraps a panel
-   from the outside — the panel's own markup and `aria-label` are untouched;
-   only its bottom margin is cancelled below so the section's own margin does
-   the spacing once. The header bleeds into `.shell__side`'s own padding
-   (negative margin, same amount back as padding) so it reads edge to edge
-   while pinned, instead of floating with a gap on each side. */
-.section {
-  margin-bottom: var(--space-4);
-}
-
-.section:last-child {
-  margin-bottom: 0;
-}
-
-.section__header {
-  position: sticky;
-  top: 0;
-  z-index: 1;
+/* D-249: a side column's tabs (WAI-ARIA tabs, `SideTabs.tsx`). The row
+   wraps instead of scrolling sideways: five Russian titles do not fit in
+   340px on one line, and a hidden tab behind a horizontal scroll is a tab
+   nobody finds. */
+.side-tabs {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  width: calc(100% + 2 * var(--space-3));
-  margin: 0 calc(-1 * var(--space-3)) var(--space-2);
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.side-tabs__list {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
-  border: none;
   border-bottom: 1px solid var(--color-line);
   background: var(--color-surface);
-  color: var(--color-ink);
-  font-size: var(--text-m);
+}
+
+.side-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h);
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--text-s);
   font-weight: 600;
-  text-align: left;
-  appearance: none;
-  /* UI-2В (D-226, по ревью MR !177): `--section-header-h` below is used
-     elsewhere as `scroll-margin-top`, so it has to be a lower bound on the
-     header's own rendered height, not a note that happens to match it —
-     padding, font size or the border changing here must not silently pull
-     the two numbers apart. */
-  min-height: var(--section-header-h);
+  cursor: pointer;
 }
 
-.section__header:hover {
+.side-tabs__tab:hover {
   background: var(--color-hover);
+  color: var(--color-ink);
 }
 
-.section__chevron {
-  flex: none;
-  width: 12px;
-  height: 12px;
-  stroke: var(--color-muted);
-  stroke-width: 1.6;
-  fill: none;
-  transition: transform var(--motion-fast) ease-out;
+.side-tabs__tab[aria-selected="true"] {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
 }
 
-.section.is-collapsed .section__chevron {
-  transform: rotate(-90deg);
-}
-
-.section__title {
-  flex: none;
-}
-
-/* The summary is the only thing left to read once a section is collapsed —
-   it must not wrap onto a second line or fight the title for width. */
-.section__summary {
-  overflow: hidden;
-  flex: 1 1 auto;
-  min-width: 0;
+.side-tabs__badge {
+  min-width: 18px;
+  padding: 0 var(--space-1);
+  border-radius: 9px;
+  background: var(--color-hover);
   color: var(--color-muted);
   font-size: var(--text-xs);
-  font-weight: 400;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 18px;
+  text-align: center;
 }
 
-/* UI-2В (D-226, по ревью MR !177): same tone as `.panel__count.is-error`
-   inside «Проверка» — a collapsed section keeps telling the difference
-   between «has errors» and «warnings only» without reopening it. */
-.section__summary.is-error {
-  color: var(--color-danger);
-  font-weight: 600;
+/* Same tone as `.panel__count.is-error` inside «Проверка»: the tab keeps
+   telling «has errors» from «warnings only» while the panel is hidden. */
+.side-tabs__badge.is-error {
+  background: var(--color-danger);
+  color: var(--color-surface);
 }
 
-.section__body .panel {
+.side-tabs__panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+.side-tabs__panel[hidden] {
+  display: none;
+}
+
+.side-tabs__panel > .panel {
   margin-bottom: 0;
-  /* UI-2В: `scrollIntoView({ block: 'nearest' })` (PropertiesPanel) and Tab
-     focus must not let the sticky section header above cover the card's own
-     top edge (D-226). */
-  scroll-margin-top: var(--section-header-h);
 }
 
-/* UI-2В (D-226, по ревью MR !177): the card-level `scroll-margin-top` above
-   only helps when the whole card is the thing the browser scrolls to. Tab
-   into a field that is already inside a scrolled-past panel — the browser
-   brings that one field to the top instead, and the sticky header covers
-   it just the same. Every focusable element in an open section needs its
-   own margin, not only the card. */
-.section__body input,
-.section__body select,
-.section__body textarea,
-.section__body button,
-.section__body a,
-.section__body [tabindex] {
-  scroll-margin-top: var(--section-header-h);
-}
-
-/* UI-2В (D-226): the section header above already names this panel — a
-   second, identical-looking name right below it (e.g. «Площади» / «Площади»)
-   was flagged in review as a wasted line on every one of the six sections.
-   The heading stays in the DOM — a screen reader's heading list still finds
-   it — just not painted; the visible name of record is the section's own
-   header. Scoped to `.section__body` only: `LayersPanel`/`LibraryPanel` in
-   the left column are not wrapped by a `Section` and keep their own visible
-   heading. Two narrower scopes on top of that, both found by running the
-   full e2e suite, not by reading the markup:
-   - `h2.panel__title` only, not the bare class — `InventoryPanel` reuses
-     `panel__title` on an inner `<h3>` ("Объекты по типам N"), which is not a
-     duplicate of the section name and must stay visible.
-   - `:not(:has(button))` — a positive rule about the heading's own content,
-     not a name borrowed from a neighbouring module: `CatalogPanel`'s `<h2>`
-     is the one panel title that nests an interactive control, the
-     «править»/«свернуть» toggle (`data-testid="catalog-toggle"`); the clip
-     technique below shrinks the whole subtree to nothing, taking a real,
-     focused, clickable button down with it (`catalog-editor.spec.ts` caught
-     this as a `<html>… intercepts pointer events` timeout). An earlier draft
-     named `CatalogPanel`'s own `.catalog` class instead — a rename over
-     there would have silently unhidden the button-losing bug again; this
-     version instead asks the one question that actually matters, "does this
-     heading contain a control", so a future panel that puts a button in its
-     title is protected by the same rule without anyone remembering to list
-     it here. `:has()` needs Chromium 105+ (D-125 pins the e2e browser to a
-     current Playwright-managed Chromium, well past that). That one heading —
-     name, counts and toggle together — is left visible as-is; it still
-     reads one name twice for that single section, a smaller cost than
-     losing the control. Today that button always renders (`CatalogPanel.tsx`
-     never omits it), so this selector's match never flips after paint; a
-     future panel that puts its button behind a condition would make its own
-     `<h2>` pop in and out of the layout every time the button toggles —
-     `:has()` re-evaluates it live, `min-height` on the header alone will not
-     absorb that jump. */
-.section__body .panel > h2.panel__title:not(:has(button)) {
+/* The tab already names its panel — a second identical name right below it
+   («Площади» / «Площади») is a wasted line. The heading stays in the DOM for
+   a screen reader's heading list, just not painted. Two narrower scopes,
+   kept from D-226 where full e2e runs found them:
+   - `h2.panel__title` only — `InventoryPanel` reuses `panel__title` on an
+     inner `<h3>` («Объекты по типам N») that is not a duplicate;
+   - `:not(:has(button))` — `CatalogPanel`'s `<h2>` nests the
+     «править»/«свернуть» toggle; clipping it would take a real, clickable
+     control down with it. */
+.side-tabs__panel > .panel > h2.panel__title:not(:has(button)) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -941,6 +888,66 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* D-249: the properties card, shown only with a selection, above the right
+   tabs. Capped at half the column and scrolling on its own, so a long
+   attribute list never pushes the tabs off screen. */
+.shell__props {
+  position: relative;
+  flex: 0 1 auto;
+  max-height: 55%;
+  overflow-y: auto;
+  padding: var(--space-3);
+  border-bottom: 2px solid var(--color-line);
+}
+
+.shell__props > .panel {
+  margin-bottom: 0;
+}
+
+/* Sits on the card's own heading line; the heading keeps room for it. */
+.shell__props > .panel > .panel__title {
+  padding-right: 32px;
+}
+
+.shell__props-close {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.shell__props-close:hover {
+  background: var(--color-hover);
+  color: var(--color-ink);
+}
+
+.shell__props-close svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  fill: none;
+}
+
+/* «Обучение» and «Горячие клавиши» stay at the bottom of the left column,
+   under whichever tab is open. */
+.shell__side-foot {
+  flex: none;
+  padding: 0 var(--space-3) var(--space-3);
+  border-top: 1px solid var(--color-line);
 }
 
 /* Panel headings: sentence case, bold, ink — the panel's name, not a label. */

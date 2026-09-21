@@ -8,6 +8,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const card = (page: Page) => page.getByLabel('Свойства');
 
@@ -26,6 +27,7 @@ async function drawZone(page: Page): Promise<void> {
 }
 
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, x, y);
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
@@ -55,21 +57,22 @@ async function selectPlacedObject(page: Page): Promise<void> {
 }
 
 test.describe('карточка свойств', () => {
-  test('без выбора карточка свёрнута, но объяснение из неё никуда не делось (D-236)', async ({
+  test('без выбора карточки свойств нет вовсе; выбор показывает её над вкладками (D-249)', async ({
     page,
   }) => {
     await page.goto('/');
-    const hint = card(page).getByText(
-      'Выберите помещение, зону, объект, перегородку или проём на плане',
-    );
-    // Раздел свёрнут: пустая карточка не занимает место в колонке…
-    await expect(hint).not.toBeVisible();
-    // …но остаётся в DOM, и заголовок раздела на месте — развернуть можно щелчком.
-    await expect(hint).toBeAttached();
-    await expect(page.getByRole('button', { name: /^Свойства/ })).toHaveAttribute(
-      'aria-expanded',
-      'false',
-    );
+    // «Свойства» — не вкладка и не свёрнутый раздел: показывать нечего, и
+    // колонка отдана открытой панели целиком.
+    await expect(card(page)).toHaveCount(0);
+    await expect(page.getByRole('tab', { name: /^Свойства/ })).toHaveCount(0);
+
+    await clickCanvas(page, 300, 200);
+
+    await expect(card(page)).toBeVisible();
+    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
+    // «×» снимает выделение, и карточка снова исчезает.
+    await page.getByRole('button', { name: 'Снять выделение' }).click();
+    await expect(card(page)).toHaveCount(0);
   });
 
   test('карточка помещения: название плана становится именем файла, потолок поднимает наружные стены', async ({

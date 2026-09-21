@@ -10,6 +10,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -55,6 +56,7 @@ test('находка из списка подсвечивается на пла�
 
   // Пример организаторов: у стеллажа eq_rack_1 три находки сразу.
   await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
+  await showTab(page, 'Проверка');
   const validation = page.getByLabel('Проверка плана');
   const rackLink = validation.locator('button[data-ref-id="eq_rack_1"]').first();
   await expect(rackLink).toBeVisible();
