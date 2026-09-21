@@ -13,7 +13,7 @@ import { describe, expect, test } from 'vitest';
 import type { AdviceResponse } from '../src/contracts/advice';
 import { LIMITS, SCHEMA_VERSION, type Catalog, type PlanDocument } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
-import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
+import { LLM_ISSUE_CODES, type LlmClient, type LlmRequest } from './llm-client';
 import { readConfig, describeConfig, publicModelName } from './config';
 import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
 
@@ -75,6 +75,10 @@ function server(llm: LlmClient | null, label: string | null = 'stub/stub'): Fast
 
 async function ask(app: FastifyInstance, body: unknown) {
   return app.inject({ method: 'POST', url: '/api/advice', payload: body as object });
+}
+
+async function chat(app: FastifyInstance, body: unknown) {
+  return app.inject({ method: 'POST', url: '/api/advice/chat', payload: body as object });
 }
 
 /** Модель, которая честно выбирает первый предложенный вариант. */
@@ -338,6 +342,146 @@ describe('A05: маршрут ассистента', () => {
       (await ask(server(null), { plan, revision: 7, request: { scenario: 'compare', before: {} } }))
         .statusCode,
     ).toBe(400);
+  });
+});
+
+describe('A07: разговорный маршрут ассистента', () => {
+  test('разбирает намерение и выбирает факты двумя ограниченными вызовами', async () => {
+    const calls: LlmRequest[] = [];
+    const llm: LlmClient = async (request) => {
+      calls.push(request);
+      if (calls.length === 1) {
+        return {
+          ok: true,
+          value: '{"kind":"request","request":{"scenario":"place","typeId":"ot_desk","zoneId":null},"preference":null}',
+        };
+      }
+      const payload = JSON.parse(request.user.slice(request.user.indexOf('['))) as {
+        id: string;
+        factIds: string[];
+      }[];
+      return {
+        ok: true,
+        value: JSON.stringify({
+          selections: [
+            { recommendationId: payload[0]?.id, factIds: [payload[0]?.factIds[0]], actions: [] },
+          ],
+        }),
+      };
+    };
+
+    const response = await chat(server(llm), {
+      plan,
+      revision: 8,
+      query: 'Где поставить ещё один стол?',
+      history: [],
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]?.user).toContain('ot_desk');
+    expect(calls[0]?.user).not.toContain('boundary');
+    expect(calls[1]?.user).toContain('factIds');
+    expect(calls[1]?.user).not.toContain('Тестовый план');
+    expect(response.json()).toMatchObject({ revision: 8, kind: 'result', mode: 'llm' });
+  });
+
+  test('уточнение возвращает вопрос после одного вызова', async () => {
+    const calls: LlmRequest[] = [];
+    const llm: LlmClient = async (request) => {
+      calls.push(request);
+      return { ok: true, value: '{"kind":"clarify","question":"Для какой зоны искать место?"}' };
+    };
+
+    const response = await chat(server(llm), { plan, revision: 3, query: 'Нужно ещё место' });
+
+    expect(response.statusCode).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(response.json()).toEqual({
+      revision: 3,
+      kind: 'clarify',
+      question: 'Для какой зоны искать место?',
+    });
+  });
+
+  test.each([
+    [
+      'несуществующий id намерения',
+      async (): Promise<string> =>
+        '{"kind":"request","request":{"scenario":"place","typeId":"invented","zoneId":null},"preference":null}',
+    ],
+    [
+      'лишнее поле намерения',
+      async (): Promise<string> =>
+        '{"kind":"clarify","question":"Уточните зону","confidence":0.9}',
+    ],
+  ])('%s возвращает непустой fallback', async (_name, answer) => {
+    const response = await chat(server(async () => ({ ok: true, value: await answer() })), {
+      plan,
+      revision: 2,
+      query: 'Проверьте план',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ revision: 2, kind: 'fallback', mode: 'fallback' });
+    expect(response.json()).toHaveProperty('fallbackReason');
+  });
+
+  test('неизвестное действие, недоступная модель и лимит дают fallback без пустого ответа', async () => {
+    let calls = 0;
+    let unavailableCalls = 0;
+    let limitedCalls = 0;
+    const badAction: LlmClient = async (request) => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          ok: true,
+          value: '{"kind":"request","request":{"scenario":"place","typeId":"ot_desk","zoneId":null},"preference":null}',
+        };
+      }
+      const payload = JSON.parse(request.user.slice(request.user.indexOf('['))) as { id: string; factIds: string[] }[];
+      return {
+        ok: true,
+        value: JSON.stringify({
+          selections: [
+            {
+              recommendationId: payload[0]?.id,
+              factIds: [payload[0]?.factIds[0]],
+              actions: [{ kind: 'focus', ref: { kind: 'object', id: 'invented' } }],
+            },
+          ],
+        }),
+      };
+    };
+    const unavailable: LlmClient = async () => {
+      unavailableCalls += 1;
+      return {
+        ok: false,
+        issues: [{ code: LLM_ISSUE_CODES.LLM_UNREACHABLE, severity: 'error', message: 'Нет сети.', refs: [] }],
+      };
+    };
+    const limited = Fastify({ logger: false, bodyLimit: LIMITS.maxRequestBytes });
+    registerAdviceRoutes(limited, {
+      llm: async () => {
+        limitedCalls += 1;
+        return { ok: true, value: '{}' };
+      },
+      llmLabel: 'stub/stub',
+      llmProvider: 'stub',
+      rateLimit: { max: 1, windowMs: 60_000 },
+    });
+
+    for (const app of [server(badAction), server(unavailable), limited]) {
+      const response = await chat(app, { plan, revision: 5, query: 'Где поставить стол?' });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ revision: 5, kind: 'fallback', mode: 'fallback' });
+      expect(response.json()).toHaveProperty('fallbackReason');
+    }
+    expect(calls).toBe(2);
+    // A failed intent call ends the exchange; the second paid call is never made.
+    expect(unavailableCalls).toBe(1);
+    // One free slot cannot start an exchange that needs two calls.
+    expect(limitedCalls).toBe(0);
   });
 });
 

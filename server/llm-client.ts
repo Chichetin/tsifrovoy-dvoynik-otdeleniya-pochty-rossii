@@ -30,6 +30,8 @@ export const LLM_ISSUE_CODES = {
   LLM_HTTP_ERROR: 'LLM_HTTP_ERROR',
   /** The provider's body is not the OpenAI-compatible shape. */
   LLM_BODY_UNEXPECTED: 'LLM_BODY_UNEXPECTED',
+  /** A bounded assistant response was not valid JSON. */
+  LLM_JSON_INVALID: 'LLM_JSON_INVALID',
   /**
    * The answer has no text: a reasoning model spent `max_tokens` on
    * `reasoning_content` (finish_reason `length`), or the provider returned an
@@ -60,6 +62,18 @@ function issue(code: string, message: string): Issue {
 /** Text of a failure, safe to log: no key, no prompt, no plan. */
 function failure(code: string, message: string): Result<string> {
   return { ok: false, issues: [issue(code, message)] };
+}
+
+/** JSON is a transport boundary: callers still validate its exact schema. */
+export function parseLlmJson(value: string): Result<unknown> {
+  try {
+    return { ok: true, value: JSON.parse(value) as unknown };
+  } catch {
+    return {
+      ok: false,
+      issues: [issue(LLM_ISSUE_CODES.LLM_JSON_INVALID, 'Модель вернула ответ не в формате JSON.')],
+    };
+  }
 }
 
 export function createLlmClient(config: LlmConfig): LlmClient {
