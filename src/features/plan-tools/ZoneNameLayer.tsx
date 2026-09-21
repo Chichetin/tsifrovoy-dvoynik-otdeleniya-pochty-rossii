@@ -27,9 +27,17 @@ import { zoneLabelAnchor } from './zone-label';
 
 /** Начертание — то же, что было у подписи в `PlanGeometryLayer`. */
 const ZONE_LABEL_FILL = '#56626E';
-const ZONE_LABEL_FONT_PX = 13;
-const ZONE_LABEL_LETTER_SPACING = 0.4;
-const ZONE_LABEL_BOX_WIDTH = 118;
+/**
+ * Экспортированы, а не только локальные: `InformationLayer` (D-241) держит
+ * свою копию этих трёх чисел для расчёта места под значение слоя рядом с
+ * именем зоны и не может импортировать `plan-tools` напрямую
+ * (`eslint.config.js`), поэтому `tests/zone-name-anchor-sync.test.ts`
+ * сверяет копию с настоящими числами отсюда, а не с их пересказом в самом
+ * тесте.
+ */
+export const ZONE_LABEL_FONT_PX = 13;
+export const ZONE_LABEL_LETTER_SPACING = 0.4;
+export const ZONE_LABEL_BOX_WIDTH = 118;
 
 /**
  * Непрозрачность подписи. 0,55 подобрано под самый трудный случай — тёмную
