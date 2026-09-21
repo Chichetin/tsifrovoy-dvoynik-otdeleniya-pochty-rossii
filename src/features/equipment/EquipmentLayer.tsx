@@ -25,7 +25,15 @@ import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
-import { arrowDelta, marqueeHits, moveObjects, pasteObjects } from './selection-edit';
+import {
+  arrowDelta,
+  duplicateObjects,
+  marqueeHits,
+  moveObjects,
+  pasteObjects,
+  rotateDelta,
+  rotateObjects,
+} from './selection-edit';
 import {
   RESIZE_HANDLES,
   grabOffset,
@@ -319,7 +327,8 @@ export function EquipmentLayer({
   });
 
   // Клавиатурная правка выбранного: стрелки двигают на шаг, Shift+стрелка — на
-  // мелкий, Ctrl+C/Ctrl+V копируют и вставляют со смещением. Одно нажатие —
+  // мелкий, Ctrl+C/Ctrl+V копируют и вставляют со смещением, Ctrl+D дублирует
+  // без буфера, R/Shift+R поворачивают на фиксированный шаг. Одно нажатие —
   // одна команда, поэтому «Отменить» возвращает объект туда, где он был до
   // нажатия, а не отыгрывает кадры.
   //
@@ -357,6 +366,24 @@ export function EquipmentLayer({
         return;
       }
 
+      // Ctrl+D — «второй такой же предмет прямо сейчас», не второе имя для
+      // Ctrl+C/Ctrl+V: свой снимок каждый раз, без общего буфера и без его
+      // счётчика вставок подряд.
+      if (combo && event.code === 'KeyD') {
+        if (selectedObject === null || !selectedVisible) return;
+        event.preventDefault();
+        const taken = takenIds(plan, session.retired);
+        const copies = duplicateObjects(isGroup ? members : [selectedObject], taken);
+        if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
+        const last = copies.at(-1);
+        if (copies.length > 1 && onSelectMany !== undefined) {
+          onSelectMany(copies.map((copy) => copy.id));
+        } else if (last !== undefined) {
+          onSelect({ kind: 'object', id: last.id });
+        }
+        return;
+      }
+
       // Всё остальное правит выбранное — и только то, что видно на плане.
       if (selectedObject === null || !selectedVisible) return;
 
@@ -368,6 +395,20 @@ export function EquipmentLayer({
       }
 
       if (event.altKey) return;
+
+      // R поворачивает по часовой на фиксированный шаг, Shift+R — против; как
+      // ручка поворота на холсте, только у одиночного видимого объекта на
+      // разблокированном слое — у группы своей ручки поворота тоже нет.
+      const rotation = rotateDelta(event.code, event.shiftKey);
+      if (rotation !== null) {
+        if (!isGroup && !selectedLocked) {
+          event.preventDefault();
+          const [rotated] = rotateObjects([selectedObject], rotation);
+          if (rotated !== undefined) onCommand(put(rotated));
+        }
+        return;
+      }
+
       const delta = arrowDelta(event.key, event.shiftKey);
       if (delta === null) return;
       // Заблокированный слой не тянется мышью — не двигается и стрелками.
