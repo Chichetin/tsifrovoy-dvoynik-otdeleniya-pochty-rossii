@@ -196,7 +196,7 @@ body {
 .shell__bar {
   position: relative;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto;
   grid-template-rows: var(--bar-row) minmax(var(--strip-row), auto);
   align-items: center;
   column-gap: var(--space-4);
@@ -225,6 +225,19 @@ body {
 .shell__bar > .shell__history {
   grid-row: 1;
   grid-column: 5;
+}
+
+/* D-260: the hotkeys map button sits between history and files, «Экспорт»
+   stays last. */
+.shell__bar > .shell__help {
+  grid-row: 1;
+  grid-column: 6;
+}
+
+.shell__quiet.shell__help {
+  justify-content: center;
+  width: var(--control-h);
+  padding: 0;
 }
 
 .shell__history {
@@ -568,7 +581,7 @@ body {
 /* File group: secondary buttons, «Экспорт» filled and last (D-255). */
 .files {
   grid-row: 1;
-  grid-column: 6;
+  grid-column: 7;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -816,6 +829,17 @@ body {
     font-size: var(--text-s);
   }
 
+  /* D-260: the title takes two lines («Цифровой двойник» / «ОПС») — it
+     gives the row back the width of the header hotkeys button with room to
+     spare, and two 16 px lines fit the 48 px row. */
+  .shell__title {
+    line-height: 16px;
+  }
+
+  .shell__title-line {
+    display: block;
+  }
+
   .files > .files__status {
     left: var(--space-3);
   }
@@ -848,6 +872,11 @@ body {
   .shell__bar {
     column-gap: var(--space-2);
     padding: 0 var(--space-2);
+  }
+
+  /* D-260: the header hotkeys button costs one more grid column. */
+  .shell__title {
+    font-size: var(--text-xs);
   }
 }
 
@@ -1031,8 +1060,8 @@ body {
   fill: none;
 }
 
-/* «Обучение» and «Горячие клавиши» stay at the bottom of the left column,
-   under whichever tab is open. */
+/* «Обучение» stays at the bottom of the left column, under whichever tab
+   is open; «Горячие клавиши» moved to the header (D-260). */
 .shell__side-foot {
   flex: none;
   padding: 0 var(--space-3) var(--space-3);

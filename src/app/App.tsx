@@ -484,7 +484,10 @@ export function App(): React.JSX.Element {
   return (
     <div className="shell">
       <header className="shell__bar">
-        <h1 className="shell__title">Цифровой двойник ОПС</h1>
+        {/* D-260: two spans so the title can take two lines below 1600 px. */}
+        <h1 className="shell__title">
+          <span className="shell__title-line">Цифровой двойник</span> <span className="shell__title-line">ОПС</span>
+        </h1>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
           <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
@@ -513,6 +516,20 @@ export function App(): React.JSX.Element {
             <span className="shell__label">Вернуть</span>
           </button>
         </div>
+        {/* D-260: the hotkeys map lives in the header, icon only — the row has
+            little slack left at 1280 px (tests/e2e/shell.spec.ts). */}
+        <button
+          type="button"
+          className="shell__quiet shell__help"
+          aria-label="Горячие клавиши"
+          title="Горячие клавиши (?)"
+          onClick={hotkeysMap.show}
+        >
+          <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
+            <path d="M4 6.5h1M7.5 6.5h1M11 6.5h1M4 9.5h8" />
+          </svg>
+        </button>
         <div className="shell__anchor" data-tour="files">
         <FileControls
           document={document}
@@ -558,9 +575,6 @@ export function App(): React.JSX.Element {
               onClick={() => setTourOpen(true)}
             >
               Обучение
-            </button>
-            <button type="button" className="shell__tour" title="Список всех горячих клавиш" onClick={hotkeysMap.show}>
-              Горячие клавиши (?)
             </button>
           </div>
         </aside>

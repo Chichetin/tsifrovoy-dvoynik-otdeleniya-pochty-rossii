@@ -16,6 +16,8 @@ import { showTab } from './side-tabs';
 const RACK = 'Шкаф / стеллаж для посылок';
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Горячие клавиши' });
+// D-260: кнопка — иконка в шапке, имя без «(?)», клавиша — в подсказке.
+const hotkeysButton = (page: Page) => page.locator('.shell__bar').getByRole('button', { name: 'Горячие клавиши', exact: true });
 const inventoryRows = (page: Page) =>
   page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
 
@@ -52,9 +54,13 @@ test.describe('карта горячих клавиш', () => {
     await expect(dialog(page)).toHaveCount(0);
   });
 
-  test('кнопка «Горячие клавиши» в левой панели открывает накладку, крестик закрывает', async ({ page }) => {
+  test('кнопка «Горячие клавиши» в шапке открывает накладку, крестик закрывает', async ({ page }) => {
     await page.goto('/');
-    const button = page.getByRole('button', { name: 'Горячие клавиши (?)' });
+    const button = hotkeysButton(page);
+    await expect(button).toHaveAttribute('title', 'Горячие клавиши (?)');
+    // Из левой колонки кнопка ушла, «Обучение» осталось на месте.
+    await expect(page.locator('.shell__side').getByRole('button', { name: /Горячие клавиши/ })).toHaveCount(0);
+    await expect(page.locator('.shell__side-foot').getByRole('button', { name: 'Обучение' })).toBeVisible();
     await button.click();
     await expect(dialog(page)).toBeVisible();
 
@@ -66,7 +72,7 @@ test.describe('карта горячих клавиш', () => {
 
   test('после закрытия фокус возвращается на кнопку, которой открыли', async ({ page }) => {
     await page.goto('/');
-    const button = page.getByRole('button', { name: 'Горячие клавиши (?)' });
+    const button = hotkeysButton(page);
     await button.focus();
     await button.press('Enter');
     await expect(dialog(page)).toBeVisible();
@@ -111,7 +117,7 @@ test.describe('карта горячих клавиш', () => {
 
   test('Tab не выпускает фокус за пределы диалога', async ({ page }) => {
     await page.goto('/');
-    const opener = page.getByRole('button', { name: 'Горячие клавиши (?)' });
+    const opener = hotkeysButton(page);
     await opener.click();
     await expect(dialog(page)).toBeVisible();
     // Открытие фокусирует сам диалог (D-195), единственная кнопка внутри — крестик.
