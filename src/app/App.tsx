@@ -19,6 +19,7 @@ import { formatArea } from '../domain/number-format';
 import { planIndex } from '../domain/plan-index';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
@@ -135,6 +136,17 @@ export function App(): React.JSX.Element {
   }, [sections]);
   const toggleSectionState = useCallback((id: SectionId) => {
     setSections((prev) => toggleSection(prev, id));
+  }, []);
+  // The launcher is deliberately only an entry point: the right-column panel
+  // remains the one place where assistant state and future chat history live.
+  const openAssistant = useCallback(() => {
+    setSections((prev) => expandSection(prev, 'assistant'));
+    window.requestAnimationFrame(() => {
+      globalThis.document.getElementById('right-section-assistant')?.scrollIntoView?.({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    });
   }, []);
 
   const retired = useStore(store, (state) => state.retired);
@@ -561,6 +573,7 @@ export function App(): React.JSX.Element {
       </div>
 
       <Onboarding open={tourOpen} onClose={closeTour} />
+      <AssistantLauncher onOpen={openAssistant} />
     </div>
   );
 }

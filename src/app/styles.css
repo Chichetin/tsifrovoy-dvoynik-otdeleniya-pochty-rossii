@@ -97,6 +97,66 @@ body {
   cursor: not-allowed;
 }
 
+/* A persistent, named entry point makes the assistant discoverable without
+   creating a parallel chat surface. It sits above the editor but outside the
+   right column, whose own panel remains the sole place for a conversation. */
+.assistant-launcher {
+  position: fixed;
+  z-index: 20;
+  right: calc(var(--side-right) + var(--space-3));
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 52px;
+  padding: 5px 12px 5px 5px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 999px;
+  background: var(--color-surface);
+  box-shadow: 0 3px 12px rgb(28 40 51 / 20%);
+  text-align: left;
+}
+
+.assistant-launcher:hover {
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.assistant-launcher:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.assistant-launcher__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: 50% 36%;
+  image-rendering: pixelated;
+}
+
+.assistant-launcher__copy {
+  display: grid;
+  gap: 0;
+  line-height: 1.2;
+}
+
+.assistant-launcher__copy b {
+  font-size: var(--text-s);
+}
+
+.assistant-launcher__copy small {
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 900px) {
+  .assistant-launcher {
+    right: var(--space-3);
+  }
+}
+
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
   padding: 3px 6px;
   border: 1px solid var(--color-line-strong);
