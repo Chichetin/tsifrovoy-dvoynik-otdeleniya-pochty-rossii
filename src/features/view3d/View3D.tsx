@@ -16,7 +16,7 @@ import { hasWebgl } from './webgl';
 
 const View3DCanvas = lazy(() => import('./View3DCanvas'));
 
-/** Prism kinds listed by id next to the canvas; walls and the floor are counted only. */
+/** Prism kinds listed next to the canvas; walls and the floor are counted only. */
 const LISTED_KINDS: ReadonlySet<ScenePrism['kind']> = new Set(['zone', 'object']);
 
 const KIND_LABELS: Record<ScenePrism['kind'], string> = {
@@ -83,8 +83,7 @@ export function View3D({ document, selection }: View3DProps): React.JSX.Element 
             >
               <span className="view3d__swatch" style={{ background: prism.color }} aria-hidden="true" />
               <span className="view3d__kind">{KIND_LABELS[prism.kind]}</span>{' '}
-              <span className="view3d__label">{prism.label}</span>{' '}
-              <code className="view3d__id">{prism.ref.id}</code>
+              <span className="view3d__label">{prism.label}</span>
               {prism.kind === 'object' ? (
                 <span className="view3d__dims">
                   {' '}
