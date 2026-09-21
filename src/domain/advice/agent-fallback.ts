@@ -17,8 +17,9 @@ import { fallbackExplanation } from './templates';
 /**
  * `note` — what the router assumed or found that the question did not say; it goes into the answer.
  * `guessedZone` — the zone was chosen by the router, not named in the question: an empty result there widens the search.
+ * `lead` — the note opens the answer (a refusal goes before everything else).
  */
-export type AgentToolCall = { name: string; args: Record<string, unknown>; note?: string; guessedZone?: Id };
+export type AgentToolCall = { name: string; args: Record<string, unknown>; note?: string; guessedZone?: Id; lead?: boolean };
 export type AgentToolRecord = { name: string; output: unknown };
 
 const STOP_WORDS = new Set(['для', 'при', 'под', 'над', 'или', 'без', 'как', 'где', 'что', 'это']);
@@ -57,18 +58,31 @@ function matchZone(plan: PlanDocument, queryWords: readonly string[]): Id | null
   return best?.id ?? null;
 }
 
+function rulesFor(plan: PlanDocument, typeId: Id): Rule[] {
+  return plan.catalog.rules.filter((rule) => rule.objectTypeId === typeId);
+}
+
 function countRulesFor(plan: PlanDocument, typeId: Id): CountRule[] {
-  return plan.catalog.rules.filter((rule): rule is CountRule => rule.kind === 'count' && rule.objectTypeId === typeId);
+  return rulesFor(plan, typeId).filter((rule): rule is CountRule => rule.kind === 'count');
 }
 
 function zoneTitle(plan: PlanDocument, zoneId: Id): string {
   return `«${plan.zones.find((zone) => zone.id === zoneId)?.name ?? zoneId}» (${zoneId})`;
 }
 
+function typeTitle(plan: PlanDocument, typeId: Id): string {
+  return `«${plan.catalog.objectTypes.find((type) => type.id === typeId)?.label ?? typeId}»`;
+}
+
 /** «правило команды, не норматив» once: the rationale of a team rule often says «Правило команды» itself. */
 function ruleSource(rule: Rule): string {
-  if (rule.source === 'organizer-material') return `${rule.id}; материалы организаторов`;
-  return /^правило команды/i.test(rule.rationale) ? `${rule.id}, не норматив Почты России` : `${rule.id}; правило команды, не норматив Почты России`;
+  if (rule.source === 'organizer-material') return `${rule.id}; ${sourceLabel(rule)}`;
+  return /^правило команды/i.test(rule.rationale) ? `${rule.id}, ${sourceLabel(rule)}` : `${rule.id}; ${sourceLabel(rule)}`;
+}
+
+function sourceLabel(rule: Rule): string {
+  if (rule.source === 'organizer-material') return 'материалы организаторов';
+  return /^правило команды/i.test(rule.rationale) ? 'не норматив Почты России' : 'правило команды, не норматив Почты России';
 }
 
 /**
@@ -87,46 +101,100 @@ function preferredZone(plan: PlanDocument, typeId: Id): Id | null {
   return best?.id ?? null;
 }
 
-function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall {
-  const preferred = zoneId === null ? preferredZone(plan, typeId) : null;
-  if (preferred === null) return { name: 'find_place', args: { typeId, zoneId } };
-  const typeLabel = plan.catalog.objectTypes.find((type) => type.id === typeId)?.label ?? typeId;
-  const rules = countRulesFor(plan, typeId).length === 0
-    ? 'правил комплектования для этого типа в справочнике нет'
-    : 'правила с минимумом по зонам для этого типа в справочнике нет';
-  const note =
-    `Зона в вопросе не названа — место ищется в зоне ${zoneTitle(plan, preferred)}: там уже стоят объекты типа «${typeLabel}», а ${rules}.`;
-  return { name: 'find_place', args: { typeId, zoneId: preferred }, note, guessedZone: preferred };
+/** The zone and its ancestors; the guard keeps a mid-edit cycle from hanging it. */
+function zoneChain(plan: PlanDocument, zoneId: Id): Id[] {
+  const parents = new Map(plan.zones.map((zone) => [zone.id, zone.parentId]));
+  const chain: Id[] = [];
+  let current: Id | null = zoneId;
+  while (current !== null && !chain.includes(current)) {
+    chain.push(current);
+    current = parents.get(current) ?? null;
+  }
+  return chain;
+}
+
+type MaxState = { rule: CountRule; zoneId: Id; count: number; max: number };
+
+/**
+ * Maximum rules a new object standing in `zoneId` would count against, where
+ * the maximum is already reached (count = max) or exceeded (count > max). An
+ * `inclusive` rule of an ancestor zone counts the object too.
+ */
+function maxStatesAt(plan: PlanDocument, typeId: Id, zoneId: Id | null): MaxState[] {
+  if (zoneId === null) return [];
+  const chain = zoneChain(plan, zoneId);
+  const states: MaxState[] = [];
+  for (const rule of countRulesFor(plan, typeId)) {
+    if (rule.max === null) continue;
+    for (const zone of plan.zones) {
+      if (zone.typeId !== rule.zoneTypeId) continue;
+      if (rule.scope === 'direct' ? zone.id !== zoneId : !chain.includes(zone.id)) continue;
+      const count = countInZoneScope(plan, typeId, zone.id, rule.scope);
+      if (count >= rule.max) states.push({ rule, zoneId: zone.id, count, max: rule.max });
+    }
+  }
+  return states;
+}
+
+function ruleZoneTitle(plan: PlanDocument, state: MaxState): string {
+  return `${zoneTitle(plan, state.zoneId)}${state.rule.scope === 'inclusive' ? ' вместе с вложенными' : ''}`;
 }
 
 /**
- * A new object against the type's maximum: where the rule is already reached
- * or exceeded, the answer says so instead of silently offering one more. An
- * exceeded rule also runs check_equipment for the zone, so the counts in the
- * answer come from the calculation.
+ * One more object where the maximum is already exceeded is not offered at all:
+ * the answer opens with the refusal, and check_equipment of the rule's zone
+ * lists the counted objects and the excess — to be removed first.
  */
-function maxRuleNotes(plan: PlanDocument, typeId: Id): { reached: string[]; exceeded: AgentToolCall[] } {
-  const reached: string[] = [];
-  const exceeded: AgentToolCall[] = [];
-  for (const rule of countRulesFor(plan, typeId)) {
-    if (rule.max === null) continue;
-    const max = rule.max;
-    for (const zone of plan.zones.filter((entry) => entry.typeId === rule.zoneTypeId)) {
-      const count = countInZoneScope(plan, typeId, zone.id, rule.scope);
-      if (count < max) continue;
-      const where = `В зоне ${zoneTitle(plan, zone.id)}${rule.scope === 'inclusive' ? ' вместе с вложенными' : ''}`;
-      if (count > max) {
-        exceeded.push({
-          name: 'check_equipment',
-          args: { zoneId: zone.id },
-          note: `${where} правило максимума ${rule.id} уже нарушено — объектов этого типа больше допустимого; вариант внутри этой зоны увеличит превышение.`,
-        });
-      } else {
-        reached.push(`${where} уже достигнут максимум правила ${rule.id} (${ruleSource(rule)}); вариант внутри этой зоны его нарушит.`);
-      }
-    }
+function refusalCalls(plan: PlanDocument, typeId: Id, zoneId: Id, exceeded: readonly MaxState[], guessed: boolean): AgentToolCall[] {
+  const rules = exceeded.map((state) => `в зоне ${ruleZoneTitle(plan, state)} уже превышен максимум (${ruleSource(state.rule)})`);
+  const note =
+    `Ставить ещё одно ${typeTitle(plan, typeId)} в зону ${zoneTitle(plan, zoneId)}${guessed ? ' (зона в вопросе не названа — взята та, где такие объекты уже стоят)' : ''} не рекомендуется: ` +
+    `${rules.join('; ')}. Сначала уберите лишнее — учтённые объекты перечислены ниже.`;
+  const zones = [...new Set(exceeded.map((state) => state.zoneId))];
+  return zones.map((ruleZone, index) => ({
+    name: 'check_equipment',
+    args: { zoneId: ruleZone },
+    ...(index === 0 ? { note, lead: true } : {}),
+  }));
+}
+
+/** Rules without a zone (distance to the entrance): named, with whether the search keeps to them. */
+function zonelessRuleNotes(plan: PlanDocument, typeId: Id): string[] {
+  return rulesFor(plan, typeId)
+    .filter((rule) => rule.kind === 'distance-to-entrance')
+    .map((rule) => {
+      const entrance = rule.entranceId === null ? 'ближайшего входа' : `входа ${rule.entranceId}`;
+      const search = rule.source === 'organizer-material' ? 'поиск места его соблюдает' : 'это допущение команды, поиск места им не ограничен';
+      return `Правило ${rule.id} (${sourceLabel(rule)}) — не дальше ${String(rule.maxDistance_m).replace('.', ',')} м от ${entrance} — зону не задаёт; ${search}.`;
+    });
+}
+
+function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall {
+  const preferred = zoneId === null ? preferredZone(plan, typeId) : null;
+  const zoneless = zonelessRuleNotes(plan, typeId);
+  if (preferred === null) {
+    const call: AgentToolCall = { name: 'find_place', args: { typeId, zoneId } };
+    return zoneless.length === 0 ? call : { ...call, note: zoneless.join(' ') };
   }
-  return { reached, exceeded };
+  const rules =
+    rulesFor(plan, typeId).length === 0
+      ? 'правил для этого типа в справочнике нет'
+      : countRulesFor(plan, typeId).length === 0
+        ? 'правил комплектования по зонам для этого типа в справочнике нет'
+        : 'правила с минимумом по зонам для этого типа в справочнике нет';
+  const note = [
+    `Зона в вопросе не названа — место ищется в зоне ${zoneTitle(plan, preferred)}: там уже стоят объекты типа ${typeTitle(plan, typeId)}, а ${rules}.`,
+    ...zoneless,
+  ].join(' ');
+  return { name: 'find_place', args: { typeId, zoneId: preferred }, note, guessedZone: preferred };
+}
+
+/** The route for «where to put a <type>»: a refusal over an exceeded maximum, else the search. */
+function placeRoute(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall[] {
+  const target = zoneId ?? preferredZone(plan, typeId);
+  const exceeded = maxStatesAt(plan, typeId, target).filter((state) => state.count > state.max);
+  if (target !== null && exceeded.length > 0) return refusalCalls(plan, typeId, target, exceeded, zoneId === null);
+  return [placeCall(plan, typeId, zoneId)];
 }
 
 /**
@@ -146,6 +214,23 @@ export function widenCalls(state: AgentToolState, routed: readonly AgentToolCall
   }];
 }
 
+/**
+ * The search itself chose the zone (none was named or guessed): if the best
+ * variant lands where a maximum is already exceeded, the variant is withdrawn
+ * and the answer becomes the same refusal the router gives up front.
+ */
+export function limitCalls(state: AgentToolState): AgentToolCall[] {
+  for (const recommendation of state.recommendations.values()) {
+    const candidate = recommendation.candidates[0];
+    if (recommendation.scenario !== 'place' || candidate === undefined || candidate.object.zoneId === null) continue;
+    const exceeded = maxStatesAt(state.plan, candidate.object.typeId, candidate.object.zoneId).filter((entry) => entry.count > entry.max);
+    if (exceeded.length === 0) continue;
+    state.recommendations.delete(recommendation.id);
+    return refusalCalls(state.plan, candidate.object.typeId, candidate.object.zoneId, exceeded, false);
+  }
+  return [];
+}
+
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
@@ -162,12 +247,7 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (/не хват|нехват|лишн|комплект|недостат|избыт|чего нет|отсутств|сколько нужно/.test(text)) {
     return [{ name: 'check_equipment', args: { zoneId } }];
   }
-  if (typeId !== null) {
-    const place = placeCall(plan, typeId, zoneId);
-    const limits = maxRuleNotes(plan, typeId);
-    const note = [place.note, ...limits.reached].filter(Boolean).join(' ');
-    return [note === '' ? place : { ...place, note }, ...limits.exceeded];
-  }
+  if (typeId !== null) return placeRoute(plan, typeId, zoneId);
   if (zoneId !== null) {
     return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
   }
@@ -245,7 +325,12 @@ function equipmentDetails(state: AgentToolState, recommendation: Recommendation)
 }
 
 /** The answer text written by code from what the tools returned. */
-export function composeFallbackText(state: AgentToolState, records: readonly AgentToolRecord[], notes: readonly string[] = []): string {
+export function composeFallbackText(
+  state: AgentToolState,
+  records: readonly AgentToolRecord[],
+  notes: readonly string[] = [],
+  namedZones: readonly Id[] = [],
+): string {
   // One paragraph per note, tool and recommendation: the chat splits the text on blank lines.
   const parts: string[] = [...notes];
   for (const record of records) {
@@ -266,13 +351,16 @@ export function composeFallbackText(state: AgentToolState, records: readonly Age
     const details = recommendation.scenario === 'equipment' ? equipmentDetails(state, recommendation) : null;
     const candidate = recommendation.candidates[0];
     const zoneId = candidate?.object.zoneId ?? null;
-    // The note already named the zone the router chose — no need to repeat it.
-    const zoneKnown = zoneId !== null && notes.some((note) => note.includes(`место ищется в зоне «${state.names.zoneName(zoneId) ?? zoneId}» (${zoneId})`));
+    // A note already named the zone the router chose — no need to repeat it.
+    const zoneKnown = zoneId !== null && namedZones.includes(zoneId);
+    const place = recommendation.scenario === 'place' && candidate !== undefined;
+    const reached = place ? maxStatesAt(state.plan, candidate.object.typeId, zoneId).filter((entry) => entry.count === entry.max) : [];
     const paragraph = [
       details?.head,
       sentence,
       details?.tail,
-      recommendation.scenario === 'place' && candidate !== undefined && !zoneKnown ? `Место ${zoneLabel(state, zoneId)}.` : null,
+      place && !zoneKnown ? `Место ${zoneLabel(state, zoneId)}.` : null,
+      ...reached.map((entry) => `Этот вариант нарушит максимум (${ruleSource(entry.rule)}): в зоне ${ruleZoneTitle(state.plan, entry)} таких объектов уже предельное число.`),
     ].filter((part): part is string => typeof part === 'string' && part !== '');
     if (paragraph.length > 0) parts.push(paragraph.join(' '));
   }
