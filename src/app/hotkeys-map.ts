@@ -15,7 +15,7 @@
  * читать файлы другой — сводить их может только то, что стоит над обеими.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { NUDGE_FINE_STEP_M, NUDGE_STEP_M } from '../features/equipment/selection-edit';
 import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { isHotkeysMapHotkey, type HotkeyEvent } from '../features/editor/hotkeys';
@@ -77,26 +77,30 @@ export function useHotkeysMapDialog(): HotkeysMapDialogController {
   const [open, setOpen] = useState(false);
   const returnFocus = useRef<HTMLElement | null>(null);
 
-  const show = (): void => {
+  // Стабильные ссылки (D-195, как `closeTour` в `App.tsx`): `HotkeysMapDialog`
+  // держит `onClose` в зависимостях своего capture-эффекта, и новая функция на
+  // каждый рендер App пересоздавала бы слушатель посреди диспетчеризации того
+  // же нажатия — событие снималось бы до того, как до него дойдёт очередь, и
+  // Escape переставал закрывать карту.
+  const show = useCallback((): void => {
     returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setOpen(true);
-  };
-  const hide = (): void => {
+  }, []);
+  const hide = useCallback((): void => {
     setOpen(false);
     returnFocus.current?.focus();
     returnFocus.current = null;
-  };
+  }, []);
 
+  // Открывает карту по `?`, пока она закрыта. Обычная (bubble) фаза — блокировать
+  // здесь ещё нечего, карты на экране нет. Пока карта открыта, клавиатура
+  // принадлежит ей одной — этим занимается сам `HotkeysMapDialog` (capture-фаза,
+  // тот же приём, что у `Onboarding.tsx`), а не этот хук: у закрытого диалога
+  // (компонент не смонтирован) нечего перехватывать.
   useEffect(() => {
+    if (open) return;
     const onKey = (event: KeyboardEvent): void => {
       const hotkeyEvent: HotkeyEvent = event;
-      if (open) {
-        if (event.code === 'Escape' || isHotkeysMapHotkey(hotkeyEvent)) {
-          event.preventDefault();
-          hide();
-        }
-        return;
-      }
       if (isHotkeysMapHotkey(hotkeyEvent)) {
         event.preventDefault();
         show();
@@ -104,7 +108,7 @@ export function useHotkeysMapDialog(): HotkeysMapDialogController {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, show]);
 
   return { open, show, hide };
 }
