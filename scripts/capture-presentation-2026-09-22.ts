@@ -69,6 +69,10 @@ try {
   await page.screenshot({ path: join(dir, 'd-catalog-add-type.png'), animations: 'disabled' });
 
   // (д) ассистент: чат-ответ без LLM, вариант на плане, кнопка «Применить».
+  // Слои из шага (в) выключены заново загрузкой демо-плана: информационные
+  // слои по умолчанию не показаны, и вариант ассистента виден на чистом плане.
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+  await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
   await page.getByRole('tab', { name: /^Ассистент/ }).click();
   const assistant = page.getByLabel('Ассистент', { exact: true });
   await assistant.getByLabel('Вопрос ассистенту').fill('Куда добавить рабочее место оператора?');
