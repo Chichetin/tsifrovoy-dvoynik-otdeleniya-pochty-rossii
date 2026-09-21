@@ -197,6 +197,24 @@ describe('FileControls: замена текущего плана', () => {
       'Текущий план будет заменён. Открыть другой файл?',
     );
   });
+
+  test('код ошибки файла не попадает в основное сообщение, но остаётся в раскрытии', async () => {
+    const invalid = {
+      ok: false as const,
+      issues: [{ code: 'DOCUMENT_UNREADABLE', severity: 'error' as const, message: 'JSON оборван.', refs: [] }],
+    };
+    renderControls({ storage: null, read: () => invalid });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), {
+        target: { files: [new File(['{}'], 'broken.json', { type: 'application/json' })] },
+      });
+    });
+
+    expect(screen.getByRole('alert').textContent).toContain('План не открыт');
+    expect(screen.getByRole('alert').textContent).not.toContain('DOCUMENT_UNREADABLE');
+    expect(screen.getByTestId('file-error-details').textContent).toContain('DOCUMENT_UNREADABLE: JSON оборван.');
+  });
 });
 
 describe('FileControls: хранилище черновика', () => {
