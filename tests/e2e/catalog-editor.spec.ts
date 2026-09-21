@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Справочник');
 
@@ -32,6 +33,7 @@ test('новый тип, атрибут и правило из справочн�
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
+  await showTab(page, 'Справочник');
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
 
   await panel(page).getByTestId('catalog-toggle').click();
@@ -55,6 +57,7 @@ test('новый тип, атрибут и правило из справочн�
   // Поставить объект нового типа на план: он в перечне, атрибут в карточке.
   await library.getByRole('button', { name: /Сейф ОПС/ }).click();
   await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 260 } });
+  await showTab(page, 'Инвентаризация');
   const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
   await expect(rows).toHaveCount(1);
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
@@ -88,6 +91,7 @@ test('новый тип, атрибут и правило из справочн�
 
 test('обязательный атрибут без умолчания отклоняется с объяснением, план не меняется', async ({ page }) => {
   await page.goto('/');
+  await showTab(page, 'Справочник');
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
   await panel(page).getByTestId('catalog-toggle').click();
 
@@ -122,6 +126,7 @@ test('новый тип зоны из справочника назначает�
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
+  await showTab(page, 'Справочник');
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
   await panel(page).getByTestId('catalog-toggle').click();
 

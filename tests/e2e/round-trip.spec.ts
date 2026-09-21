@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test } from './fixtures';
+import { showTab } from './side-tabs';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -11,6 +12,7 @@ test('готовый план → правка → файл → новая ст�
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(EXAMPLE);
 
+  await showTab(page, 'Инвентаризация');
   const inventory = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
   await expect(inventory).toHaveCount(12);
   await inventory.filter({ hasText: 'Терминал электронной очереди' }).getByRole('button').first().click();

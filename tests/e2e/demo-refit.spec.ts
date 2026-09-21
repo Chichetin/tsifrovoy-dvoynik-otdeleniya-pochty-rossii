@@ -11,11 +11,13 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const demo = (name: string): string => join(process.cwd(), 'demo', name);
 
 async function open(page: Page, name: string): Promise<void> {
   await page.getByTestId('plan-file-input').setInputFiles(demo(name));
+  await showTab(page, 'Инвентаризация');
   await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
 }
 

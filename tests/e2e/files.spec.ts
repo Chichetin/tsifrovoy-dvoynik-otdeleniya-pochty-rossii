@@ -13,6 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
@@ -57,6 +58,7 @@ async function openFile(page: Page, file: string): Promise<void> {
 
 /** Ставит первый тип из библиотеки в точку холста. */
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item').first().click();
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
 }
@@ -144,7 +146,9 @@ test.describe('файлы плана', () => {
 
     // Правила команды сомкнулись с примером: ловушка «терминал в ~7 м от входа
     // при норме 3 м» видна в проверке, а не только в unit-тесте.
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).toContainText('от главного входа');
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).toContainText('не более 3 м');
     expect(errors).toEqual([]);
   });
@@ -370,6 +374,7 @@ test.describe('файлы плана', () => {
     // Находка operator №6: руководителю нечем показать план, кроме скриншота.
     await page.goto('/');
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Инвентаризация');
     const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
     await expect(rows).toHaveCount(53);
 

@@ -15,6 +15,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Демо-план сдачи: помещение 15 × 10 м, 53 объекта, 8 зон. */
 const BEFORE = join(process.cwd(), 'demo', 'before.json');
@@ -31,6 +32,7 @@ const card = (page: Page): Locator => page.getByLabel('Свойства');
 async function openBefore(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(BEFORE);
+  await showTab(page, 'Инвентаризация');
   await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
 }
 

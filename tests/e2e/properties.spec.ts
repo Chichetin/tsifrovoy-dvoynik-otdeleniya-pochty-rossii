@@ -8,6 +8,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const card = (page: Page) => page.getByLabel('Свойства');
 
@@ -26,6 +27,7 @@ async function drawZone(page: Page): Promise<void> {
 }
 
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, x, y);
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();

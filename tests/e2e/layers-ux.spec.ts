@@ -10,6 +10,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 
@@ -44,6 +45,8 @@ test('демо 1440×900: слои видны без прокрутки, у дв
   page.on('dialog', (dialog) => void dialog.accept());
 
   await page.goto('/');
+
+  await showTab(page, 'Слои');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
 
@@ -131,6 +134,7 @@ async function infoAlphaAt(page: Page, point: [number, number]): Promise<number>
 test('вложенная зона красится один раз: зона очереди внутри клиентского зала', async ({ page }) => {
   page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/');
+  await showTab(page, 'Слои');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   await layerItem(page, 'Тепловая нагрузка зон')
     .getByRole('button', { name: 'Показывать слой Тепловая нагрузка зон' })
@@ -152,6 +156,7 @@ test('демо 1440×900: карточки слоёв компактны — б�
   page,
 }) => {
   await page.goto('/');
+  await showTab(page, 'Слои');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
 

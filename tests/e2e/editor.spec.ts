@@ -9,6 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 /** Клик по холсту в пикселях от его левого верхнего угла. */
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
@@ -17,6 +18,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<string> {
+  await showTab(page, 'Библиотека');
   const item = page.locator('.library__item').first();
   const label = ((await item.locator('.library__label').textContent()) ?? '').trim();
   await item.click();
@@ -54,6 +56,7 @@ test.describe('сквозной сценарий редактора', () => {
     // В библиотеке и в перечне одинаковая подпись — берём строку перечня.
     await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
 
+    await showTab(page, 'Инвентаризация');
     const inventoryRows = page.getByLabel('Инвентаризация').locator('tbody tr').first();
     await expect(inventoryRows).toBeVisible();
     await expect(page.getByText('есть несохранённые правки')).toBeVisible();
@@ -99,6 +102,7 @@ test.describe('сквозной сценарий редактора', () => {
   test('битый файл не подменяет открытый план', async ({ page }) => {
     await page.goto('/');
     await placeFirstLibraryItem(page, 320, 240);
+    await showTab(page, 'Инвентаризация');
     const rows = page.getByLabel('Инвентаризация').locator('tbody tr');
     await expect(rows).toHaveCount(1);
 
@@ -117,6 +121,7 @@ test.describe('сквозной сценарий редактора', () => {
   test('отмена возвращает удалённую правку', async ({ page }) => {
     await page.goto('/');
     await placeFirstLibraryItem(page, 320, 240);
+    await showTab(page, 'Инвентаризация');
     const rows = page.getByLabel('Инвентаризация').locator('tbody tr');
     await expect(rows).toHaveCount(1);
 

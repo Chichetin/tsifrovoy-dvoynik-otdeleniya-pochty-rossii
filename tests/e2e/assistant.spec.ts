@@ -8,6 +8,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { showTab } from './side-tabs';
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
@@ -26,12 +27,10 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент', { exact: true });
 
 test.describe('ассистент в браузере', () => {
-  test('плавающая кнопка открывает свёрнутую панель ассистента', async ({ page }) => {
+  test('плавающая кнопка переключает правую колонку на вкладку ассистента (D-244)', async ({ page }) => {
     await page.goto('/');
     const assistant = panel(page);
-    const section = page.locator('.section').filter({ has: assistant });
-
-    await section.locator('.section__header').click();
+    await showTab(page, 'Справочник');
     await expect(assistant).toBeHidden();
 
     const launcher = page.getByRole('button', { name: 'Открыть ассистента' });
@@ -39,6 +38,7 @@ test.describe('ассистент в браузере', () => {
     await expect(launcher).toBeFocused();
     await launcher.click();
 
+    await expect(page.getByRole('tab', { name: 'Ассистент' })).toHaveAttribute('aria-selected', 'true');
     await expect(assistant).toBeVisible();
     await expect(assistant.getByLabel('Сценарий')).toBeVisible();
     await expect(assistant.getByRole('button', { name: 'Спросить' })).toBeVisible();
@@ -55,6 +55,7 @@ test.describe('ассистент в браузере', () => {
       }),
     );
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await drawZone(page);
 
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
@@ -69,6 +70,8 @@ test.describe('ассистент в браузере', () => {
     page.on('pageerror', (error) => errors.push(error.message));
 
     await page.goto('/');
+
+    await showTab(page, 'Ассистент');
     await drawZone(page);
 
     await expect(panel(page).getByText('Ответа пока нет')).toBeVisible();
@@ -98,6 +101,7 @@ test.describe('ассистент в браузере', () => {
     // правка плана подняла бы ревизию, и панель отметила бы ответ устаревшим.
     await candidates.first().hover();
     await expect(panel(page).getByText('числа устарели')).toHaveCount(0);
+    await showTab(page, 'Инвентаризация');
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     expect(errors).toEqual([]);
@@ -107,7 +111,9 @@ test.describe('ассистент в браузере', () => {
     // Находка jury 19.09: по «Всё помещение» ассистент ставил рабочее место
     // оператора в зону очереди клиентов и не говорил, в какой зоне вариант.
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Инвентаризация');
     await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
 
     await panel(page).getByLabel('Объект').selectOption('ot_workplace');
@@ -152,12 +158,14 @@ test.describe('ассистент в браузере', () => {
 
   test('план изменили после ответа — панель говорит, что числа устарели', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await drawZone(page);
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
     await expect(panel(page).locator('.advice__sentence')).toBeVisible();
     await expect(panel(page).getByText('числа устарели')).toHaveCount(0);
 
     // Любая правка плана делает ответ устаревшим.
+    await showTab(page, 'Библиотека');
     await page.locator('.library__item').first().click();
     await clickCanvas(page, 300, 260);
 
@@ -165,6 +173,7 @@ test.describe('ассистент в браузере', () => {
 
     // Другой документ — другой план: ответ про прежние id не показывается вовсе.
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Инвентаризация');
     await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
     await expect(panel(page).locator('.advice__sentence')).toHaveCount(0);
     await expect(panel(page).getByText('Ответа пока нет')).toBeVisible();
@@ -172,6 +181,7 @@ test.describe('ассистент в браузере', () => {
 
   test('сценарий комплектования называет правило и его источник', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await drawZone(page);
 
     await panel(page).getByLabel('Сценарий').selectOption('equipment');
@@ -191,6 +201,7 @@ test.describe('ассистент в браузере', () => {
 
   test('комплектование демо называет оборудование и зону рядом с числами', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
     await panel(page).getByLabel('Сценарий').selectOption('equipment');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
@@ -206,8 +217,10 @@ test.describe('ассистент в браузере', () => {
     // «Объектов 52 → 52» — сравнивал текущий план с ним же. «Было» — это
     // открытый или последний сохранённый план, а не то, что на экране сейчас.
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
     // Первая таблица панели — объекты; вторая — разрез по зонам.
+    await showTab(page, 'Инвентаризация');
     const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
     await expect(rows).toHaveCount(53);
 
@@ -243,6 +256,7 @@ test.describe('ассистент в браузере', () => {
 
   test('сценарий сравнения на неизменном плане не выдумывает изменений', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await drawZone(page);
 
     await panel(page).getByLabel('Сценарий').selectOption('compare');

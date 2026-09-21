@@ -13,6 +13,7 @@ import { expect, test, type Page } from './fixtures';
 import { validatePlan } from '../../src/domain/validation';
 import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
+import { showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Calibration = { scale: number; origin: Screen };
@@ -45,6 +46,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function placeFromLibrary(page: Page, label: string, x: number, y: number): Promise<void> {
+  await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, x, y);
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
@@ -56,6 +58,7 @@ async function selectRow(page: Page, index: number): Promise<void> {
 }
 
 async function selectByLabel(page: Page, label: string): Promise<void> {
+  await showTab(page, 'Инвентаризация');
   await page.getByLabel('Инвентаризация').locator('.table__link', { hasText: label }).first().click();
 }
 
@@ -286,6 +289,7 @@ test.describe('жесты над оборудованием', () => {
 
   test('повторный клик по активному типу отменяет установку', async ({ page }) => {
     await page.goto('/');
+    await showTab(page, 'Библиотека');
     const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
     await libraryItem.click();
     await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
@@ -304,6 +308,7 @@ test.describe('жесты над оборудованием', () => {
     page,
   }) => {
     await page.goto('/');
+    await showTab(page, 'Библиотека');
     const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
     await libraryItem.click();
     await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
@@ -359,6 +364,7 @@ test.describe('жесты над оборудованием', () => {
   test('сразу после установки выбранный объект можно перетащить', async ({ page }) => {
     await page.goto('/');
     const centre: Screen = { x: 420, y: 330 };
+    await showTab(page, 'Библиотека');
     await page.locator('.library__item', { hasText: RACK }).first().click();
     await clickCanvas(page, centre.x, centre.y);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
@@ -380,6 +386,7 @@ test.describe('жесты над оборудованием', () => {
   test('отклонённая установка оставляет тип активным для повторной попытки', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Запереть слой Основной' }).click();
+    await showTab(page, 'Библиотека');
     const libraryItem = page.locator('.library__item', { hasText: RACK }).first();
     await libraryItem.click();
     await clickCanvas(page, 420, 330);
@@ -558,6 +565,7 @@ test.describe('жесты над оборудованием', () => {
     await selectRow(page, 0);
     // Грань стены 14,875 хранится как есть, а не округляется в стену (14,88).
     expect((await numberOf(page, 'X, м')) + width / 2).toBeCloseTo(face, 9);
+    await showTab(page, 'Проверка');
     await expect(page.getByLabel('Проверка плана')).not.toContainText('пересекает стену');
   });
 
