@@ -254,6 +254,21 @@ export function isSimplePolygon(polygon: Polygon): boolean {
   return true;
 }
 
+/**
+ * Area of a ring for human eyes: a number only when the ring actually has an
+ * area, `null` otherwise (D-242).
+ *
+ * `polygonArea` does not fail on a self-crossing ring, it measures something
+ * else: the halves of a bow tie come with opposite signs and cancel out to
+ * zero. In a card or a summary such a zero reads as a measured fact, so
+ * everything that shows an area to the user asks here and not `polygonArea`.
+ * The gate is `isSimplePolygon`, the same one `measurePlan` and validation use:
+ * a ring the areas panel refuses to measure is not measured in a card either.
+ */
+export function ringArea(polygon: Polygon): number | null {
+  return isSimplePolygon(polygon) ? polygonArea(polygon) : null;
+}
+
 /** Euclidean length of the segment `from → to`. */
 export function segmentLength(from: Point, to: Point): number {
   return Math.hypot(to[0] - from[0], to[1] - from[1]);
