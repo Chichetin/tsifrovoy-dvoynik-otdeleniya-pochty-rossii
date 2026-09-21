@@ -486,7 +486,13 @@ export function App(): React.JSX.Element {
           {view === '3d' ? <View3D document={document} selection={selection} /> : null}
         </main>
 
+        {/* Правая колонка работает в двух состояниях, а не показывает всё
+            сразу: выбран объект — на месте только его «Свойства», чтобы
+            карточка не тонула среди пяти других разделов и не приходилось
+            прокручивать до неё; выбора нет — «Свойства» не занимают место
+            строкой «ничего не выбрано», и колонка отдана обзору плана. */}
         <aside className="shell__side shell__side--wide" data-tour="side-right">
+          {selection === null ? null : (
           <Section
             id="properties"
             title="Свойства"
@@ -501,6 +507,9 @@ export function App(): React.JSX.Element {
               gesturePreview={gesturePreview}
             />
           </Section>
+          )}
+          {selection !== null ? null : (
+          <>
           <Section
             id="assistant"
             title="Ассистент"
@@ -555,6 +564,8 @@ export function App(): React.JSX.Element {
           >
             <CatalogPanel document={document} onCommand={dispatch} />
           </Section>
+          </>
+          )}
         </aside>
       </div>
 

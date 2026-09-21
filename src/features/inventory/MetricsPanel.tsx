@@ -11,6 +11,7 @@ import type { Issue, Metrics, PlanDocument, Result } from '../../contracts/model
 import type { FocusSink } from '../../contracts/ui';
 import { formatArea, formatNumber } from '../../domain/number-format';
 import { useResizableColumns } from './resizable-columns';
+import { orderZonesByNesting } from './zone-tree';
 
 export type MetricsPanelProps = {
   document: PlanDocument;
@@ -48,7 +49,19 @@ export function MetricsPanel({
   }
 
   const { room, zones } = metrics.value;
-  const named = plan.zones.map((zone) => ({ zone, area: zones[zone.id] }));
+  // Имя родителя нужно вслух: отступ и значок — только для глаза, а строка
+  // «вложенная зона входит в площадь родителя» под таблицей относится и к тем,
+  // кто читает её скринридером.
+  const zoneNames = new Map(plan.zones.map((zone) => [zone.id, zone.name]));
+  const named = orderZonesByNesting(plan.zones).map(({ zone, depth }) => ({
+    zone,
+    depth,
+    parentName:
+      zone.parentId === undefined || zone.parentId === null
+        ? undefined
+        : zoneNames.get(zone.parentId),
+    area: zones[zone.id],
+  }));
 
   return (
     <section className="panel" aria-label="Площади">
@@ -95,14 +108,24 @@ export function MetricsPanel({
             </tr>
           </thead>
           <tbody>
-            {named.map(({ zone, area }) => (
-              <tr key={zone.id}>
+            {named.map(({ zone, depth, parentName, area }) => (
+              <tr key={zone.id} data-depth={depth}>
                 <td>
                   <button
                     type="button"
-                    className="table__link"
+                    className="table__link metrics__zone"
+                    aria-label={
+                      parentName === undefined ? undefined : `${zone.name}, внутри зоны ${parentName}`
+                    }
+                    // Отступ — на кнопке, а не на ячейке: так подчёркивание
+                    // названия начинается там же, где текст, и вложенность
+                    // видно даже при узкой колонке.
+                    style={depth === 0 ? undefined : { marginInlineStart: `${depth * 12}px` }}
                     onClick={() => onFocus({ kind: 'zone', id: zone.id })}
                   >
+                    {/* Отступа мало, когда колонку сузили мышью до нескольких
+                        символов: значок говорит о вложенности сам по себе. */}
+                    {depth === 0 ? null : <span aria-hidden="true" className="metrics__nested">└ </span>}
                     {zone.name}
                   </button>
                 </td>
