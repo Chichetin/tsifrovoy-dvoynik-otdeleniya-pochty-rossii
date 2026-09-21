@@ -157,6 +157,8 @@ export type InformationLayerProps = {
 
 export type LibraryPanelProps = {
   catalog: Catalog;
+  /** Type armed for the next canvas click, or null in selection mode. */
+  activeTypeId: Id | null;
   /** Selects object.place; the app routes the following world click. */
   onTool: (tool: Tool) => void;
 };

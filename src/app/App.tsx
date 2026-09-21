@@ -206,7 +206,25 @@ export function App(): React.JSX.Element {
   );
 
   const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
-  const equipmentTool = useEquipmentToolController({ document, session, onCommand: dispatchAndSelect });
+  const placedType = useRef<Id | null>(null);
+  const dispatchEquipmentCommand = useCallback(
+    (command: Command): Result<PlanDocument> => {
+      const result = dispatchAndSelect(command);
+      // Remember an accepted placement until pointer-up. Keeping the placement
+      // tool through the matching click prevents that same click from falling
+      // through to the room selection layer after React re-renders.
+      if (result.ok && tool.kind === 'object.place' && command.type === 'object.put') {
+        placedType.current = tool.typeId;
+      }
+      return result;
+    },
+    [dispatchAndSelect, tool.kind],
+  );
+  const equipmentTool = useEquipmentToolController({
+    document,
+    session,
+    onCommand: dispatchEquipmentCommand,
+  });
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
@@ -383,7 +401,11 @@ export function App(): React.JSX.Element {
             onCommand={dispatch}
             onSelect={select}
           />
-          <LibraryPanel catalog={document.catalog} onTool={setTool} />
+          <LibraryPanel
+            catalog={document.catalog}
+            activeTypeId={tool.kind === 'object.place' ? tool.typeId : null}
+            onTool={setTool}
+          />
           <button
             type="button"
             className="shell__tour"
@@ -409,6 +431,19 @@ export function App(): React.JSX.Element {
             onPointer={(event) => {
               planTool.handlePointer(event);
               equipmentTool.handlePointer(event);
+              if (event.phase === 'up' && placedType.current !== null) {
+                const completedType = placedType.current;
+                placedType.current = null;
+                // Browser click follows pointer-up. Disarm after it, so the
+                // placement click cannot also select the room underneath.
+                window.setTimeout(() => {
+                  setTool((current) =>
+                    current.kind === 'object.place' && current.typeId === completedType
+                      ? { kind: 'select' }
+                      : current,
+                  );
+                }, 0);
+              }
             }}
             onViewport={setViewport}
             onSelect={select}

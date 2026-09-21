@@ -915,6 +915,12 @@ body {
   background: var(--ground);
 }
 
+.library__item.is-selected {
+  border-color: var(--accent);
+  background: var(--color-accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 .library__item:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
