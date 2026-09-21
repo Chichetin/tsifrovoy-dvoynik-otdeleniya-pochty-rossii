@@ -206,7 +206,7 @@ test.describe('карточка свойств', () => {
     plan.objects[0].typeId = 'ot_team_counter';
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await page.getByTestId('plan-file-input').setInputFiles({
       name: 'custom-type.json',
       mimeType: 'application/json',

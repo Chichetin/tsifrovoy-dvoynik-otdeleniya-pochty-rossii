@@ -84,7 +84,7 @@ async function savePlan(page: Page): Promise<string> {
 
 async function newPlan(page: Page): Promise<void> {
   page.once('dialog', (dialog) => void dialog.accept());
-  await page.getByRole('button', { name: 'Новый' }).click();
+  await page.getByRole('button', { name: 'Создать новый' }).click();
   await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 }
 

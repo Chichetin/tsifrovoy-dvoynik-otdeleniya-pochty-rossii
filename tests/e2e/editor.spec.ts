@@ -85,7 +85,7 @@ test.describe('сквозной сценарий редактора', () => {
 
     // Новый план стирает всё — это состояние, из которого открываем файл.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     // Повторное открытие: зона, объект и их идентификаторы на месте.
