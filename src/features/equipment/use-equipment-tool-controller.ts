@@ -13,6 +13,7 @@ import { takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { nextObjectId } from './selection-edit';
 import { snapPosition } from './transform';
+import { isWallMounted, wallMountPlacement } from './wall-mount';
 
 export const useEquipmentToolController: UsePlanToolController = ({
   document: plan,
@@ -41,6 +42,14 @@ export const useEquipmentToolController: UsePlanToolController = ({
       // снова» must not offer them. Один генератор с вставкой из буфера
       // (`nextObjectId`): два номерователя рядом рано или поздно выдадут один id.
       const taken = takenIds(plan, session.retired);
+      // Настенное оборудование (D-228) прижимается к ближайшей стене и
+      // смотрит внутрь помещения: камера с `rotation_deg: 0` направляла бы
+      // сектор обзора в стену, куда бы её ни поставили. Остальные типы
+      // ставятся ровно под курсором, как раньше; повернуть руками можно и то,
+      // и другое.
+      const placement = isWallMounted(type)
+        ? wallMountPlacement(plan.walls, plan.room.boundary, type.defaultSize_m, event.point)
+        : null;
       onCommand({
         type: 'object.put',
         object: {
@@ -48,9 +57,9 @@ export const useEquipmentToolController: UsePlanToolController = ({
           typeId: type.id,
           label: type.label,
           // Centimetres, like every other gesture: the file stays readable.
-          position: snapPosition(event.point),
+          position: placement?.position ?? snapPosition(event.point),
           size_m: type.defaultSize_m,
-          rotation_deg: 0,
+          rotation_deg: placement?.rotation_deg ?? 0,
           base_m: type.defaultBase_m,
           height_m: type.defaultHeight_m,
           zoneId: null,

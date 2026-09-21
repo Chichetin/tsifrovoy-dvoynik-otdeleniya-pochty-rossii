@@ -229,14 +229,20 @@ test.describe('перечень оборудования', () => {
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify(plan)),
     });
-    await expect(inventoryRows(page)).toHaveCount(1000, { timeout: 180_000 });
+    // Тысяча строк перерисовывается не мгновенно, и столько же времени это
+    // занимает после фильтра, сколько при загрузке: под полной параллельной
+    // нагрузкой на слабой машине стандартные 5 с не хватало, и набор краснел
+    // тестом, который в одиночку проходит. Ожидаемое число строк остаётся
+    // точным (D-176) — растёт только терпение.
+    const RENDER_TIMEOUT_MS = 180_000;
+    await expect(inventoryRows(page)).toHaveCount(1000, { timeout: RENDER_TIMEOUT_MS });
     await expect(chips(page)).toHaveCount(counts.size);
 
     await search(page).fill(typeId);
-    await expect(inventoryRows(page)).toHaveCount(count);
+    await expect(inventoryRows(page)).toHaveCount(count, { timeout: RENDER_TIMEOUT_MS });
 
     await search(page).fill('');
-    await expect(inventoryRows(page)).toHaveCount(1000);
+    await expect(inventoryRows(page)).toHaveCount(1000, { timeout: RENDER_TIMEOUT_MS });
   });
 
   test('колонка «Инв. №» показывает номера и сортирует перечень', async ({ page }) => {
