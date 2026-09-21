@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * D-255: the chat panel — asking, the live work log, the verified answer with
+ * D-258: the chat panel — asking, the live work log, the verified answer with
  * clickable ids, the actions and their stale state.
  */
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';

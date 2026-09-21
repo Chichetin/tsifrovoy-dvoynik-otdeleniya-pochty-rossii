@@ -1,5 +1,5 @@
 /**
- * Assembly of an agent answer (D-255), shared by the server loop and the
+ * Assembly of an agent answer (D-258), shared by the server loop and the
  * browser's model-free path so both produce exactly the same shape.
  */
 

@@ -1,5 +1,5 @@
 /**
- * Tools of the plan agent (D-255): the only way the model sees the plan.
+ * Tools of the plan agent (D-258): the only way the model sees the plan.
  *
  * Read tools return what the calculation produced — areas, placements, stocking
  * rules, validation, the diff with the opened plan — rounded to centimetres so

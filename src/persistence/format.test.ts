@@ -132,7 +132,7 @@ describe('readPlanFile', () => {
     const encoded = encodePlan(result.value.plan);
     expect(encoded.ok).toBe(true);
     if (!encoded.ok) return;
-    // И читается обратно уже как наш формат — то, что увидит проверяющий после «Сохранить».
+    // И читается обратно уже как наш формат — то, что увидит проверяющий после «Экспорт → JSON».
     expect(detectPlanFormat(encoded.value)).toBe('ours');
   });
 

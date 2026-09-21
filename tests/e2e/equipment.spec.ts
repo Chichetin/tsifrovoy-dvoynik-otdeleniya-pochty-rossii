@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 import { validatePlan } from '../../src/domain/validation';
 import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
@@ -75,7 +75,7 @@ async function numberOf(page: Page, label: string): Promise<number> {
 async function savePlan(page: Page): Promise<string> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();

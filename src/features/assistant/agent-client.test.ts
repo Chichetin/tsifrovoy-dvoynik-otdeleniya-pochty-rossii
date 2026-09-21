@@ -1,5 +1,5 @@
 /**
- * D-255: the browser transport of the agent — the NDJSON stream, the local
+ * D-258: the browser transport of the agent — the NDJSON stream, the local
  * answer when there is no server, and the context limits.
  */
 import { describe, expect, test } from 'vitest';

@@ -1,5 +1,5 @@
 /**
- * The check between the model's prose and the screen (D-255).
+ * The check between the model's prose and the screen (D-258).
  *
  * The model may phrase the answer freely, but every identifier it writes must
  * exist in the plan or its catalog, and every number must be

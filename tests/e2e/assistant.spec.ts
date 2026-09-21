@@ -7,12 +7,12 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, exportPlan, test, type Page } from './fixtures';
 import { calculateAdvice } from '../../src/domain/advice';
 import { showTab } from './side-tabs';
 
 /**
- * D-255: агент по плану. Без сервера отвечает расчёт в браузере — это сценарий
+ * D-258: агент по плану. Без сервера отвечает расчёт в браузере — это сценарий
  * проверяющего без ключа; с «моделью» поток подменён, чтобы проверить шаги,
  * проверенный текст и действия детерминированно.
  */
@@ -42,7 +42,7 @@ test('агент без сервера: вопрос → шаги → «Прим
   await showTab(page, 'Инвентаризация');
   await expect(rows).toHaveCount(54);
 
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Сохранить', exact: true }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), exportPlan(page, 'JSON')]);
   const saved = testInfo.outputPath('agent-roundtrip.json');
   await download.saveAs(saved);
   await page.getByTestId('plan-file-input').setInputFiles(saved);
@@ -329,7 +329,7 @@ test.describe('ассистент в браузере', () => {
     // «удалено 1», а не «удалено 2» от исходного файла.
     await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Сохранить' }).click(),
+      exportPlan(page, 'JSON'),
     ]);
     await showTab(page, 'Инвентаризация');
     await rows.first().locator('.table__link').first().click();

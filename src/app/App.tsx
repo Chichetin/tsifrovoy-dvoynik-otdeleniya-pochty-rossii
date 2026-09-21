@@ -114,7 +114,7 @@ export function App(): React.JSX.Element {
   // A new plan starts at revision 0 too, so comparing revisions cannot reject
   // a late answer from the document that was open before «Новый».
   const adviceRequestSequence = useRef(0);
-  // D-255: the conversation with the plan agent — interface state, never in
+  // D-258: the conversation with the plan agent — interface state, never in
   // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
   const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
   const [agentActionStatus, setAgentActionStatus] = useState<string | null>(null);
@@ -287,7 +287,7 @@ export function App(): React.JSX.Element {
     [baseline, document, revision],
   );
 
-  // D-255: ring on the plan without selecting — the agent points, the
+  // D-258: ring on the plan without selecting — the agent points, the
   // person decides what to pick.
   const highlight = useCallback((ref: Ref) => {
     focusSequence.current += 1;

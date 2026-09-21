@@ -1,5 +1,5 @@
 /**
- * D-255: the browser side of the plan agent.
+ * D-258: the browser side of the plan agent.
  *
  * Reads the NDJSON stream of `/api/assistant/agent`: each tool call is passed
  * on as it arrives, then the answer. When the server is not there — `npm run

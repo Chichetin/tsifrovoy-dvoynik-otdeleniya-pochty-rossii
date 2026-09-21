@@ -61,4 +61,13 @@ describe('View3D: подпись под сценой', () => {
     screen.getByRole('button', { name: /Рабочее место 1/ }).click();
     expect(onSelect).toHaveBeenCalledWith({ kind: 'object', id: 'eq_work_1' });
   });
+
+  test('выбор из общей сессии назван явно и ведёт к панели свойств', () => {
+    render(<View3D document={plan} selection={{ kind: 'object', id: 'eq_work_1' }} onSelect={vi.fn()} />);
+
+    expect(screen.getByTestId('view3d-selection').textContent).toContain(
+      'Выбрано: Рабочее место 1. Свойства можно изменить в панели справа.',
+    );
+    expect(caption()).toContain('Кликните по объекту в сцене или в списке');
+  });
 });

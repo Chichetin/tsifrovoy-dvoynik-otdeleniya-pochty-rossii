@@ -40,6 +40,7 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
   const objectsShown = scene.prisms.filter((prism) => prism.kind === 'object').length;
   const hiddenCount =
     document.zones.length - zonesShown + (document.objects.length - objectsShown);
+  const selectedPrism = listed.find((prism) => isSelected(prism, selection));
 
   return (
     <section className="view3d" aria-label="3D-вид" data-testid="view3d">
@@ -65,6 +66,15 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
       </div>
 
       <aside className="view3d__side">
+        <p className="view3d__hint" role="status">
+          Кликните по объекту в сцене или в списке: он выделится, а его свойства откроются справа.
+          Перетаскиванием вращайте вид, колёсиком приближайте.
+        </p>
+        {selectedPrism ? (
+          <p className="view3d__selection" data-testid="view3d-selection">
+            Выбрано: <strong>{selectedPrism.label}</strong>. Свойства можно изменить в панели справа.
+          </p>
+        ) : null}
         <p className="view3d__caption">
           Условные объёмы из текущего плана: коробки по размеру и высоте объекта, зоны —
           цветом пола, стены с проёмами. Без своего состояния: изменили план в 2D — 3D

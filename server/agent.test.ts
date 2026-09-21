@@ -1,5 +1,5 @@
 /**
- * D-255: the agent loop and its route with a scripted model. The provider is
+ * D-258: the agent loop and its route with a scripted model. The provider is
  * replaced by a list of turns, so every branch — tools, the text check, the one
  * repair, the fallback — is exercised without a network.
  */

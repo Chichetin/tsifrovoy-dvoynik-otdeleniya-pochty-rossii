@@ -15,7 +15,7 @@ HTTP API, серверная конфигурация, клиент Qwen/DeepSee
 
 - `main.ts` — A05; там же `stopOnSignals` — остановка по `SIGTERM`/`SIGINT` с доведением запросов в полёте (D-203), тест `main.test.ts`.
 - `advice-route.ts` — A05.
-- `agent.ts`, `agent-route.ts` — агент по плану (D-255): цикл «модель → инструменты → проверка текста» и NDJSON-поток `POST /api/assistant/agent`; `createLlmChat` в `llm-client.ts` — вызов с `tools`.
+- `agent.ts`, `agent-route.ts` — агент по плану (D-258): цикл «модель → инструменты → проверка текста» и NDJSON-поток `POST /api/assistant/agent`; `createLlmChat` в `llm-client.ts` — вызов с `tools`.
 - `llm-client.ts` — A05.
 - `config.ts` — A05.
 

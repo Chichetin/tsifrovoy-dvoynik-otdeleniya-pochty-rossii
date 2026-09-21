@@ -7,7 +7,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page , exportPlan } from './fixtures';
 import { showTab } from './side-tabs';
 
 const card = (page: Page) => page.getByLabel('Свойства');
@@ -36,7 +36,7 @@ async function placeFromLibrary(page: Page, label: string, x: number, y: number)
 async function savePlan(page: Page): Promise<string> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();
@@ -89,7 +89,7 @@ test.describe('карточка свойств', () => {
 
     const download = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Сохранить' }).click(),
+      exportPlan(page, 'JSON'),
     ]).then(([event]) => event);
     expect(download.suggestedFilename()).toBe('ОПС-115534-Тестовое.json');
     const saved = JSON.parse(readFileSync((await download.path()) as string, 'utf8'));

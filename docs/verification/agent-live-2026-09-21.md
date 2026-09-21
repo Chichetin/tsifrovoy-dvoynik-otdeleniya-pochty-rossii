@@ -1,4 +1,4 @@
-# Живой прогон агента по плану (D-255), 21.09.2026
+# Живой прогон агента по плану (D-258), 21.09.2026
 
 Модель: DeepSeek-V4-Flash через OpenAI-совместимый API Yandex Cloud AI Studio
 (`LLM_ENDPOINT=https://llm.api.cloud.yandex.net/v1/chat/completions`, ключ в `.env`,

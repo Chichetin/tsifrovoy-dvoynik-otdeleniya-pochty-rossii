@@ -1,5 +1,5 @@
 /**
- * D-255: the agent loop. The model reads the plan through tools, attaches
+ * D-258: the agent loop. The model reads the plan through tools, attaches
  * interface actions, and writes the answer; code runs every tool and checks
  * every id and number of the final text against what the tools returned.
  *

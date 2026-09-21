@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Circle, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
-import type { Point, Polygon } from '../../contracts/model';
+import type { Point, Polygon, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
 import { focusViewport, planExtent, refExtent } from './focus';
@@ -79,6 +79,41 @@ export function EditorCanvas({
   // canvas captures the pointer. Keep a DOM mouse fallback for that button.
   const middleMousePanning = useRef<Point | null>(null);
   const userInteracted = useRef(false);
+  // Several wheel/pointer events can arrive before React re-renders. Each one
+  // must build on the latest viewport, not on the one from the last render,
+  // otherwise all but the last delta of a burst are lost.
+  const liveViewport = useRef(session.viewport);
+  const pendingPan = useRef<Point>([0, 0]);
+  // Zoom deltas add up exactly: exp(-a/k) * exp(-b/k) = exp(-(a+b)/k).
+  const pendingZoom = useRef<{ deltaY: number; anchor: Point } | null>(null);
+  const panFrame = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    liveViewport.current = session.viewport;
+  }, [session.viewport]);
+  useEffect(
+    () => () => {
+      if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
+    },
+    [],
+  );
+  const applyViewport = useCallback(
+    (next: Viewport): void => {
+      liveViewport.current = next;
+      onViewport(next);
+    },
+    [onViewport],
+  );
+  const flushPan = useCallback((): void => {
+    panFrame.current = null;
+    const delta = pendingPan.current;
+    const zoom = pendingZoom.current;
+    pendingPan.current = [0, 0];
+    pendingZoom.current = null;
+    let next = liveViewport.current;
+    if (delta[0] !== 0 || delta[1] !== 0) next = panBy(next, delta);
+    if (zoom !== null) next = zoomByWheel(next, zoom.anchor, zoom.deltaY);
+    if (next !== liveViewport.current) applyViewport(next);
+  }, [applyViewport]);
   /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
   const fitted = useRef<string | null>(null);
   /** Номер последнего запроса, подсветка которого уже погасла. */
@@ -202,14 +237,14 @@ export function EditorCanvas({
       const from = panning.current;
       if (from !== null) {
         panning.current = [event.evt.clientX, event.evt.clientY];
-        onViewport(
-          panBy(session.viewport, [event.evt.clientX - from[0], event.evt.clientY - from[1]]),
+        applyViewport(
+          panBy(liveViewport.current, [event.evt.clientX - from[0], event.evt.clientY - from[1]]),
         );
         return;
       }
       emit('move', event);
     },
-    [emit, onViewport, session.viewport],
+    [emit, applyViewport],
   );
 
   const handleUp = useCallback(
@@ -238,12 +273,18 @@ export function EditorCanvas({
           ctrlKey: event.evt.ctrlKey,
         }) === 'pan'
       ) {
-        onViewport(panBy(session.viewport, [event.evt.deltaX, event.evt.deltaY]));
-        return;
+        const pending = pendingPan.current;
+        pendingPan.current = [pending[0] + event.evt.deltaX, pending[1] + event.evt.deltaY];
+      } else {
+        const zoom = pendingZoom.current;
+        pendingZoom.current = {
+          deltaY: (zoom?.deltaY ?? 0) + event.evt.deltaY,
+          anchor: [position.x, position.y],
+        };
       }
-      onViewport(zoomByWheel(session.viewport, [position.x, position.y], event.evt.deltaY));
+      if (panFrame.current === null) panFrame.current = requestAnimationFrame(flushPan);
     },
-    [onViewport, session.viewport],
+    [flushPan],
   );
 
   // A library drag becomes the same `down` event as a click on the canvas.
@@ -298,7 +339,7 @@ export function EditorCanvas({
       const from = middleMousePanning.current;
       if (from === null) return;
       middleMousePanning.current = [event.clientX, event.clientY];
-      onViewport(panBy(session.viewport, [event.clientX - from[0], event.clientY - from[1]]));
+      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
     };
     const onMouseUp = (event: MouseEvent): void => {
       if (event.button === 1 || middleMousePanning.current !== null) {
@@ -315,7 +356,7 @@ export function EditorCanvas({
       const from = middleMousePanning.current;
       if (from === null) return;
       middleMousePanning.current = [event.clientX, event.clientY];
-      onViewport(panBy(session.viewport, [event.clientX - from[0], event.clientY - from[1]]));
+      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
     };
     const onPointerUp = (event: PointerEvent): void => {
       if (event.button === 1 || middleMousePanning.current !== null) {
@@ -337,7 +378,7 @@ export function EditorCanvas({
       window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', onPointerUp, true);
     };
-  }, [onViewport, session.viewport]);
+  }, [applyViewport]);
 
   // Escape cancels the drawing in progress; with nothing in progress it clears
   // the selection. Both are what a drawing tool is expected to do.
