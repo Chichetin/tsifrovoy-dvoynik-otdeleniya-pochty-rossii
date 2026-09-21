@@ -5,7 +5,7 @@
 
 import type { AgentAnswer, AgentStep } from '../../contracts/advice-chat';
 import type { PlanDocument } from '../../contracts/model';
-import { composeFallbackText, followUpCalls, routeAgentQuery, type AgentToolRecord } from './agent-fallback';
+import { composeFallbackText, followUpCalls, routeAgentQuery, widenCalls, type AgentToolRecord } from './agent-fallback';
 import { createAgentToolState, runAgentTool, type AgentToolState } from './agent-tools';
 
 export function finishAgentAnswer(
@@ -50,7 +50,9 @@ export function answerWithoutModel(
       onStep(outcome.step);
     }
   };
-  run(routeAgentQuery(plan, query, before !== null));
+  const routed = routeAgentQuery(plan, query, before !== null);
+  run(routed);
+  run(widenCalls(state, routed));
   run(followUpCalls(state));
   return finishAgentAnswer(state, revision, 'fallback', composeFallbackText(state, records, notes), steps, reason);
 }
