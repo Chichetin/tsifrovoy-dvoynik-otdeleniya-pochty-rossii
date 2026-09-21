@@ -329,7 +329,8 @@ F02 фиксирует следующие типы в `src/contracts/ui.ts`, а 
 
 ```ts
 type Tool =
-  | { kind: 'select' | 'pan' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
+  // 'measure' — линейка (D-256): единственный вид, который план не меняет
+  | { kind: 'select' | 'pan' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
   | { kind: 'object.place'; typeId: Id };
 type WorldPointer = {
   phase: 'down' | 'move' | 'up' | 'cancel'; point: Point;

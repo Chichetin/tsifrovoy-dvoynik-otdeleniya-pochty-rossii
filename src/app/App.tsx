@@ -33,6 +33,7 @@ import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
+import { MeasureLayer } from '../features/plan-tools/MeasureLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
@@ -475,6 +476,11 @@ export function App(): React.JSX.Element {
                 сам объект. */}
             <ZoneNameLayer document={document} viewport={viewport} />
             <InformationLayer document={document} session={session} />
+            {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
+                должен уходить под объект или под имя зоны. В план она ничего не
+                кладёт (D-256). Ниже находок намеренно: слой находок остаётся
+                предпоследним в сцене, как его ищет `issues-on-plan.spec.ts`. */}
+            <MeasureLayer viewport={viewport} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
             <IssueLayer issues={issues} focus={selection} viewport={viewport} />
