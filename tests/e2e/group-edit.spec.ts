@@ -15,10 +15,11 @@ import { expect, test, type Page } from './fixtures';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 
-/** Шаги из src/features/equipment/selection-edit.ts. */
+/** Шаги из src/features/equipment/selection-edit.ts и transform.ts. */
 const NUDGE_STEP_M = 0.5;
 const NUDGE_FINE_STEP_M = 0.05;
 const PASTE_OFFSET_M = [0.5, -0.5] as const;
+const ROTATION_SNAP_DEG = 15;
 
 const card = (page: Page) => page.getByLabel('Свойства');
 const inventoryRows = (page: Page) =>
@@ -65,6 +66,10 @@ async function expectPosition(page: Page, x: number, y: number): Promise<void> {
 async function zoneOf(page: Page): Promise<string> {
   const text = (await page.getByTestId('props-zone').textContent()) ?? '';
   return text.replace(/^Зона:\s*/, '').replace(/;.*$/, '').trim();
+}
+
+async function rotationOf(page: Page): Promise<number> {
+  return Number(await card(page).getByLabel('Поворот, °').inputValue());
 }
 
 async function savedPlan(page: Page): Promise<{ objects: { id: string; position: number[] }[] }> {
@@ -224,5 +229,75 @@ test.describe('правка выбранного с клавиатуры', () =>
     const plan = await savedPlan(page);
     expect(plan.objects).toHaveLength(54);
     expect(new Set(plan.objects.map((object) => object.id)).size).toBe(54);
+  });
+
+  test('R поворачивает на 15° по часовой, Shift+R — против, «Отменить» возвращает угол', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await placeFromLibrary(page, RACK, 420, 330);
+    await selectRow(page, 0);
+    const angle0 = await rotationOf(page);
+
+    await page.keyboard.press('r');
+    await expect.poll(() => rotationOf(page)).toBe((angle0 + ROTATION_SNAP_DEG) % 360);
+
+    await page.keyboard.press('Shift+r');
+    await expect.poll(() => rotationOf(page)).toBe(angle0);
+
+    await page.keyboard.press('Shift+r');
+    await expect.poll(() => rotationOf(page)).toBe((angle0 - ROTATION_SNAP_DEG + 360) % 360);
+
+    // Каждое нажатие — своя команда: «Отменить» снимает только последний поворот.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect.poll(() => rotationOf(page)).toBe(angle0);
+  });
+
+  test('R в поле карточки правит текст, а не поворачивает объект', async ({ page }) => {
+    await page.goto('/');
+    await placeFromLibrary(page, RACK, 420, 330);
+    await selectRow(page, 0);
+    const angle0 = await rotationOf(page);
+
+    await card(page).getByLabel('Название').click();
+    await page.keyboard.press('r');
+    await page.keyboard.press('Shift+r');
+
+    expect(await rotationOf(page)).toBe(angle0);
+  });
+
+  test('Ctrl+D дублирует без буфера: свежий id, смещение и пустой инвентарный номер', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await placeFromLibrary(page, RACK, 420, 330);
+    await selectRow(page, 0);
+    await card(page).getByLabel('Инвентарный номер').fill('INV-1');
+    // Ctrl+D — клавиша плана, не поля: увести фокус из карточки, как это
+    // сделал бы человек кликом по холсту, иначе нажатие достаётся полю
+    // (следующее поле по Tab — тоже поле ввода, isTypingTarget пропустит и его).
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    const [x0, y0] = await positionOf(page);
+
+    await page.keyboard.press('Control+d');
+
+    await expect(inventoryRows(page)).toHaveCount(2);
+    // Дубликат сразу выбран: карточка показывает его, не оригинал.
+    const [x1, y1] = await positionOf(page);
+    expect(x1).toBeCloseTo(x0 + PASTE_OFFSET_M[0], 5);
+    expect(y1).toBeCloseTo(y0 + PASTE_OFFSET_M[1], 5);
+    await expect(card(page).getByLabel('Инвентарный номер')).toHaveValue('');
+
+    const plan = await savedPlan(page);
+    expect(plan.objects).toHaveLength(2);
+    expect(new Set(plan.objects.map((object) => object.id)).size).toBe(2);
+
+    // Оригинал свой номер не потерял — обнулился только у дубликата.
+    await selectRow(page, 0);
+    await expect(card(page).getByLabel('Инвентарный номер')).toHaveValue('INV-1');
+
+    // Одно нажатие — одна команда: «Отменить» снимает дубликат целиком.
+    await page.getByRole('button', { name: 'Отменить' }).click();
+    await expect(inventoryRows(page)).toHaveCount(1);
   });
 });
