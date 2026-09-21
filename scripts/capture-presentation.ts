@@ -41,7 +41,7 @@ try {
 
   await page.getByRole('button', { name: '3D', exact: true }).click();
   await expect(page.getByLabel('3D-вид')).toBeVisible();
-  await expect(page.getByTestId('view3d-primitives').locator('li').first()).toBeVisible();
+  await expect(page.getByTestId('view3d')).toHaveAttribute('data-objects-count', '53');
   await expect(page.getByTestId('view3d-canvas')).toBeVisible();
   await page.screenshot({ path: join(dir, 'view3d.png'), animations: 'disabled' });
   if (errors.length) throw new Error(`Browser errors: ${errors.join('; ')}`);

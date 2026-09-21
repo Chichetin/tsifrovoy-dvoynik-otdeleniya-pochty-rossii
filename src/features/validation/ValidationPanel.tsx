@@ -6,9 +6,9 @@
  * spot on the plan.
  */
 
-import { useMemo, useState } from 'react';
-import type { Issue, PlanDocument } from '../../contracts/model';
-import type { ValidationPanelProps } from '../../contracts/ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Issue, PlanDocument, Ref } from '../../contracts/model';
+import type { FocusRequest, ValidationPanelProps } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import type { ValidationIssue } from '../../domain/validation';
 
@@ -19,16 +19,27 @@ import type { ValidationIssue } from '../../domain/validation';
 export type ValidationPanelViewProps = Omit<ValidationPanelProps, 'issues'> & {
   issues: ValidationIssue[];
   document?: PlanDocument;
+  /**
+   * A click on the plan's marker or an agent's ring (V02-marker-click):
+   * scrolls to and outlines every finding about this entity. `sequence`
+   * fires the scroll again for a repeated click on the same marker.
+   */
+  focus?: FocusRequest | null;
 };
 
 function order(issue: Issue): number {
   return issue.severity === 'error' ? 0 : 1;
 }
 
+function mentions(issue: ValidationIssue, ref: Ref): boolean {
+  return issue.refs.some((entry) => entry.kind === ref.kind && entry.id === ref.id);
+}
+
 export function ValidationPanel({
   issues,
   document: plan,
   onFocus,
+  focus,
 }: ValidationPanelViewProps): React.JSX.Element {
   const [showTechnical, setShowTechnical] = useState(false);
   // One index per document (D-202): names come from the plan itself, so a
@@ -37,6 +48,16 @@ export function ValidationPanel({
   const names = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const sorted = [...issues].sort((a, b) => order(a) - order(b));
   const errors = issues.filter((issue) => issue.severity === 'error').length;
+
+  // The column may be scrolled past the row a marker click asks about; the
+  // row comes to the viewer, the same way «Свойства» does for a card.
+  const firstMatch = useRef<HTMLLIElement>(null);
+  const matchIndex = focus == null ? -1 : sorted.findIndex((issue) => mentions(issue, focus.ref));
+  const focusSequence = focus?.sequence ?? null;
+  useEffect(() => {
+    if (focusSequence === null) return;
+    firstMatch.current?.scrollIntoView({ block: 'nearest' });
+  }, [focusSequence]);
 
   return (
     <section className="panel" aria-label="Проверка плана">
@@ -60,32 +81,40 @@ export function ValidationPanel({
             <span>Показать технические детали</span>
           </label>
           <ul className="issues">
-            {sorted.map((issue, index) => (
-              <li key={`${issue.code}-${index}`} className={`issues__item is-${issue.severity}`}>
-                <p className="issues__message">{issue.message}</p>
-                {issue.refs.length === 0 ? null : (
-                  <p className="issues__refs">
-                    {issue.refs.map((ref) => {
-                      const name = names.nameOf(ref);
-                      const label = name ?? ref.id;
-                      return (
-                        <button
-                          key={`${ref.kind}-${ref.id}`}
-                          type="button"
-                          className="table__link"
-                          title={`Показать на плане: ${label}`}
-                          data-ref-id={ref.id}
-                          onClick={() => onFocus(ref)}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </p>
-                )}
-                {showTechnical ? <TechnicalDetails issue={issue} /> : null}
-              </li>
-            ))}
+            {sorted.map((issue, index) => {
+              const isMatch = focus != null && mentions(issue, focus.ref);
+              return (
+                <li
+                  key={`${issue.code}-${index}`}
+                  ref={index === matchIndex ? firstMatch : undefined}
+                  className={`issues__item is-${issue.severity}${isMatch ? ' is-focused' : ''}`}
+                  aria-current={isMatch ? 'true' : undefined}
+                >
+                  <p className="issues__message">{issue.message}</p>
+                  {issue.refs.length === 0 ? null : (
+                    <p className="issues__refs">
+                      {issue.refs.map((ref) => {
+                        const name = names.nameOf(ref);
+                        const label = name ?? ref.id;
+                        return (
+                          <button
+                            key={`${ref.kind}-${ref.id}`}
+                            type="button"
+                            className="table__link"
+                            title={`Показать на плане: ${label}`}
+                            data-ref-id={ref.id}
+                            onClick={() => onFocus(ref)}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </p>
+                  )}
+                  {showTechnical ? <TechnicalDetails issue={issue} /> : null}
+                </li>
+              );
+            })}
           </ul>
         </>
       )}
