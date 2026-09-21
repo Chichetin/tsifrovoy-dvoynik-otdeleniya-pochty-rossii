@@ -40,7 +40,14 @@ const LEGEND_ROW = 18;
 const ZONE_NAME_FONT = 13;
 const ZONE_NAME_COLUMN = 118;
 const ZONE_NAME_LETTER_SPACING = 0.4;
-/** `1.25 * fontSize`, matching the line-height PlanGeometryLayer's wrap ends up with. */
+/**
+ * Height reserved per wrapped line of a zone name, in screen px. Konva's own
+ * default `lineHeight` is 1 — a real line is exactly `ZONE_NAME_FONT` (13) px
+ * tall — so this is a deliberate margin, not a measurement: `1.25×` covers
+ * glyph ascent/descent past the nominal font box, the same margin
+ * `labelWidth` already takes on width. A too-small reserve lets a two-line
+ * name's second line poke into whatever a caller places right below it.
+ */
 const ZONE_NAME_LINE_HEIGHT = Math.round(ZONE_NAME_FONT * 1.25);
 
 function numberAttribute(
@@ -78,8 +85,12 @@ function layerColor(type: LayerType): string {
  * the gap between its plain-text estimate and Konva's real measurement; the
  * explicit `letterSpacing` term on top accounts for the one difference that
  * margin was not sized for.
+ *
+ * Exported so `InformationLayer.test.tsx` can compute the same box the
+ * component itself uses, rather than a hand-rolled approximation that could
+ * drift from production and stop catching a regression (D-231 review).
  */
-function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
+export function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
   const upper = zone.name.toLocaleUpperCase('ru');
   const full = labelWidth(upper, ZONE_NAME_FONT) + upper.length * ZONE_NAME_LETTER_SPACING;
   const lines = Math.ceil(full / ZONE_NAME_COLUMN);
@@ -110,9 +121,9 @@ export function InformationLayer({
     () => new Map(plan.zones.map((zone) => [zone.id, zoneNameAnchor(zone.polygon, objectBoxes)])),
     [plan.zones, objectBoxes],
   );
-  // `zoneAnchors` is built from `plan.zones` itself, so every zone has an
-  // entry; the recompute below only guards the type against a stale map.
-  const anchorOf = (zone: Zone): Point => zoneAnchors.get(zone.id) ?? zoneNameAnchor(zone.polygon, objectBoxes);
+  // `zoneAnchors` is built from `plan.zones` itself right above, so every
+  // zone passed in below is already a key: the map is never missing one.
+  const anchorOf = (zone: Zone): Point => zoneAnchors.get(zone.id) as Point;
 
   const active: { id: Id; type: LayerType }[] = plan.layers
     .filter((layer) => layer.visible)

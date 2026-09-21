@@ -9,11 +9,6 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from './fixtures';
-import type { PlanDocument } from '../../src/contracts/model';
-import { parsePlanDocument } from '../../src/contracts/schema';
-import { boundingBox, footprint } from '../../src/domain/geometry';
-import { zoneLabelAnchor } from '../../src/features/plan-tools/zone-label';
-import { zoneNameAnchor } from '../../src/features/layers/zone-name-anchor';
 
 const panel = (page: Page) => page.getByLabel('Слои');
 const layerItem = (page: Page, name: string) =>
@@ -48,36 +43,13 @@ async function savePlan(page: Page): Promise<string> {
   return readFileSync(path as string, 'utf8');
 }
 
-/**
- * D-231: `InformationLayer` cannot import `zoneLabelAnchor`
- * (`src/features/plan-tools/zone-label.ts`, D-216) directly — features do
- * not import siblings — so it carries its own copy, `zoneNameAnchor`
- * (`src/features/layers/zone-name-anchor.ts`). This file sits outside
- * `src/features`, so it is free to import both and is the one place that
- * catches the two drifting apart: if `zoneLabelAnchor`'s rule changes without
- * a matching edit to the copy, this test fails on the next real demo plan
- * that exercises the changed branch, not just on hand-picked fixtures.
- */
-function demo(path: string): PlanDocument {
-  const parsed = parsePlanDocument(JSON.parse(readFileSync(path, 'utf8')));
-  if (!parsed.ok) throw new Error(`${path} не разобрался`);
-  return parsed.value;
-}
-
-test.describe('якорь имени зоны: копия в InformationLayer не расходится с оригиналом (D-216/D-231)', () => {
-  for (const path of ['demo/before.json', 'demo/after.json']) {
-    test(`совпадает с zoneLabelAnchor на ${path}`, () => {
-      const plan = demo(path);
-      const visibleLayers = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
-      const objectBoxes = plan.objects
-        .filter((object) => visibleLayers.has(object.layerId))
-        .map((object) => boundingBox(footprint(object)));
-      for (const zone of plan.zones) {
-        expect(zoneNameAnchor(zone.polygon, objectBoxes)).toEqual(zoneLabelAnchor(zone.polygon, objectBoxes));
-      }
-    });
-  }
-});
+// D-231: сторож на расхождение реального zoneLabelAnchor (D-216,
+// `src/features/plan-tools/zone-label.ts`) и его копии в InformationLayer
+// (`zoneNameAnchor`, `src/features/layers/zone-name-anchor.ts`) переехал в
+// `tests/zone-name-anchor-sync.test.ts` (по ревью MR !182): он не трогает
+// браузер, а `vitest.config.ts` уже включает `tests/**/*.test.ts` в обычный
+// `npm test`, так что расхождение ловится за секунды, а не за десять минут
+// полного `test:e2e`.
 
 test.describe('слои в браузере', () => {
   test('создать, переименовать, скрыть, запереть и удалить с переносом', async ({ page }) => {
