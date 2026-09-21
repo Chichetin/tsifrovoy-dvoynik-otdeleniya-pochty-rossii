@@ -877,15 +877,19 @@ test.describe('инструменты плана', () => {
     await clickAt(page, px(size, 0.5, 0.5));
     await expect(page.getByText(/Контур: тяните вершину/)).toBeVisible();
 
-    // Клик по нижнему ребру вставляет вершину. Где ребро на экране, редактор
-    // знает лучше теста: идём снизу вверх по оси, пока в файле не станет
-    // пять вершин, — это и есть попадание по ребру.
-    let boundaryAfter: Point[] = before.room.boundary;
-    for (const fy of [0.95, 0.93, 0.91, 0.89, 0.87, 0.85, 0.83]) {
-      await clickAt(page, px(size, 0.5, fy));
-      boundaryAfter = (await savePlan(page)).room.boundary;
-      if (boundaryAfter.length === 5) break;
-    }
+    // Клик по ребру напротив стены со входом вставляет вершину — точка
+    // берётся из сохранённого плана, а не подбором доли экрана: лаунчер
+    // ассистента стоит посередине низа колонки и по клику снимает выделение
+    // (D-258), а прежний перебор `fy` сверху вниз задевал его раньше, чем
+    // добирался до настоящего ребра, и рисовать вершину было уже не на чем.
+    const boundary = before.room.boundary;
+    const oppositeEdge = boundary
+      .map((point, index) => [point, boundary[(index + 1) % boundary.length]!] as const)
+      .find(([a, b]) => a[1] === b[1] && a[1] !== y);
+    if (oppositeEdge === undefined) throw new Error('нет ребра, отличного от стены входа');
+    const midX = (oppositeEdge[0][0] + oppositeEdge[1][0]) / 2;
+    await clickAt(page, await worldPixel(page, midX, oppositeEdge[0][1]));
+    const boundaryAfter = (await savePlan(page)).room.boundary;
     expect(boundaryAfter).toHaveLength(5);
 
     const after = await savePlan(page);
