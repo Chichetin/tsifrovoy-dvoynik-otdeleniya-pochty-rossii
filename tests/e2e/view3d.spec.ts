@@ -1,11 +1,14 @@
 /**
  * D01 в браузере: 3D-вид строится из того же документа, что и 2D.
  *
- * Пиксели не читаем: рядом с canvas стоит список примитивов с data-атрибутами,
- * по нему и проверяем, что объект из 2D появился в 3D. Три группы: обычный запуск
- * (canvas или честное сообщение о WebGL — что есть, то и проверяется), запуск с
- * программным WebGL (SwiftShader — canvas обязан появиться) и запуск с выключенным
- * WebGL (сообщение обязано появиться, 2D остаётся рабочим).
+ * Пиксели не читаем: секция `view3d` несёт число зон/объектов/стен сцены в
+ * data-атрибутах (`data-zones-count`, `data-objects-count`, `data-walls-count`),
+ * и по ним проверяется, что объект из 2D появился в 3D, а скрытый слой из него
+ * исчез. Соответствие конкретных `id`/поворотов/цветов документу проверяет
+ * `scene.test.ts` на чистой функции `buildScene`, без браузера. Три группы: обычный
+ * запуск (canvas или честное сообщение о WebGL — что есть, то и проверяется),
+ * запуск с программным WebGL (SwiftShader — canvas обязан появиться) и запуск с
+ * выключенным WebGL (сообщение обязано появиться, 2D остаётся рабочим).
  */
 
 import { readFileSync } from 'node:fs';
@@ -67,9 +70,9 @@ async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<
 const switchTo = (page: Page, view: '2D' | '3D') =>
   page.getByRole('group', { name: 'Вид плана' }).getByRole('button', { name: view, exact: true }).click();
 
-/** Строки списка примитивов: сам `li` несёт data-kind и data-id. */
-function prisms(page: Page, selector = ''): Locator {
-  return page.getByTestId('view3d-primitives').locator(`li${selector}`);
+/** Секция вида: число примитивов сцены живёт в её data-атрибутах, без видимого текста. */
+function sceneSection(page: Page): Locator {
+  return page.getByTestId('view3d');
 }
 
 /** Перечень объектов — первая таблица панели; дальше идут сводки по типам и зонам. */
@@ -90,28 +93,16 @@ function examplePlanFile(): { name: string; mimeType: string; buffer: Buffer } {
 }
 
 test.describe('3D-вид: обычный запуск', () => {
-  test('объект из 2D появляется в списке примитивов 3D; 2D остаётся доступным', async ({ page }) => {
+  test('объект из 2D виден в 3D по числу примитивов сцены; 2D остаётся доступным', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto('/');
 
-    const placed = await placeFirstLibraryItem(page, 320, 240);
+    await placeFirstLibraryItem(page, 320, 240);
     await switchTo(page, '3D');
-    await expect(page.getByTestId('view3d')).toBeVisible();
-    await expect(page.getByText('Условные объёмы из текущего плана')).toBeVisible();
-
-    // Объект, поставленный в 2D, — примитив с тем же id и подписью.
-    const objects = prisms(page, '[data-kind="object"]');
-    await expect(objects).toHaveCount(1);
-    await expect(objects).toContainText(placed);
-    expect(await objects.getAttribute('data-id')).toMatch(/^eq_/);
-
-    // Строка сцены — доступная альтернатива клику по объёму: выбирает тот же
-    // объект и открывает общую карточку свойств, без отдельного состояния 3D.
-    await objects.getByRole('button').click();
-    await expect(objects).toHaveAttribute('data-selected', 'true');
-    await expect(page.getByTestId('view3d-selection')).toContainText(placed);
-    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText(/^eq_/);
+    const section = sceneSection(page);
+    await expect(section).toBeVisible();
+    await expect(section).toHaveAttribute('data-objects-count', '1');
 
     // Что покажет этот браузер — canvas или сообщение о WebGL, — но что-то одно.
     const canvas = page.getByTestId('view3d-canvas');
@@ -127,28 +118,35 @@ test.describe('3D-вид: обычный запуск', () => {
 
     // И снова 3D: второй объект уже в сцене — состояние не хранится, сцена строится заново.
     await switchTo(page, '3D');
-    await expect(objects).toHaveCount(2);
+    await expect(section).toHaveAttribute('data-objects-count', '2');
     expect(errors).toEqual([]);
   });
 });
 
 test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
-  test('canvas создан, выбранный объект подсвечен в списке', async ({ playwright, browserName, baseURL }) => {
+  test('canvas создан; выбор из инвентаризации остаётся показан после переключения в 3D', async ({
+    playwright,
+    browserName,
+    baseURL,
+  }) => {
     await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
-    const errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto('/');
-    await placeFirstLibraryItem(page, 320, 240);
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto('/');
+      await placeFirstLibraryItem(page, 320, 240);
 
-    // Выбор через строку инвентаризации: 3D показывает общий selection.
-    await inventoryRows(page).first().getByRole('button').first().click();
+      // Выбор через строку инвентаризации: 3D показывает общий selection.
+      await inventoryRows(page).first().getByRole('button').first().click();
+      const selectedId = page.getByLabel('Свойства').getByTestId('props-id');
+      const id = await selectedId.textContent();
 
-    await switchTo(page, '3D');
-    await expect(page.getByTestId('view3d-canvas')).toBeVisible();
-    await expect(page.getByTestId('view3d-unavailable')).toHaveCount(0);
-    await expect(page.getByTestId('view3d-error')).toHaveCount(0);
-    await expect(prisms(page, '[data-selected="true"]')).toHaveCount(1);
-    expect(errors).toEqual([]);
+      await switchTo(page, '3D');
+      await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+      await expect(page.getByTestId('view3d-unavailable')).toHaveCount(0);
+      await expect(page.getByTestId('view3d-error')).toHaveCount(0);
+      // Карточка «Свойства» не перерисовывается заново при смене вида: выбор общий.
+      await expect(selectedId).toHaveText(id ?? '');
+      expect(errors).toEqual([]);
     });
   });
 
@@ -174,9 +172,9 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       }
 
       await expect(selectedId).toHaveText('eq_1');
-      await expect(prisms(page, '[data-kind="object"]')).toHaveAttribute('data-selected', 'true');
     });
   });
+
   test('двадцать переключений «2D / 3D» подряд: контекст жив, чёрного холста нет', async ({
     playwright,
     browserName,
@@ -207,7 +205,7 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       await expect(page.getByTestId('view3d-canvas')).toBeVisible();
       await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
       await expect(page.getByTestId('view3d-unavailable')).toHaveCount(0);
-      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+      await expect(sceneSection(page)).toHaveAttribute('data-objects-count', '1');
 
       // Главное: контекст последнего холста действительно живой, а не отобранный.
       const alive = await page.evaluate(() => {
@@ -223,35 +221,27 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
 
   test('демо-план организаторов: зоны и объекты примера видны в 3D', async ({ playwright, browserName, baseURL }) => {
     await withBrowser({ playwright, browserName, baseURL }, SWIFTSHADER_ARGS, async (page) => {
-    const errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto('/');
-    page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByTestId('plan-file-input').setInputFiles(examplePlanFile());
-    await expect(inventoryRows(page).first()).toBeVisible();
-    const inventoryCount = await inventoryRows(page).count();
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto('/');
+      page.once('dialog', (dialog) => void dialog.accept());
+      await page.getByTestId('plan-file-input').setInputFiles(examplePlanFile());
+      await expect(inventoryRows(page).first()).toBeVisible();
+      const inventoryCount = await inventoryRows(page).count();
 
-    await switchTo(page, '3D');
-    await expect(page.getByTestId('view3d-canvas')).toBeVisible();
-    const zones = prisms(page, '[data-kind="zone"]');
-    const objects = prisms(page, '[data-kind="object"]');
-    expect(await zones.count()).toBeGreaterThanOrEqual(3);
-    // Один объект — одна призма: список 3D совпадает с инвентаризацией.
-    await expect(objects).toHaveCount(inventoryCount);
-    const clientZone = prisms(page, '[data-id="z_client"]');
-    const kiosk = prisms(page, '[data-id="eq_kiosk"]');
-    await expect(clientZone).toHaveCount(1);
-    await expect(kiosk).toHaveCount(1);
-    // Технические id остаются связью в data-атрибутах, но не торчат в подписи.
-    await expect(clientZone).not.toContainText('z_client');
-    await expect(kiosk).not.toContainText('eq_kiosk');
-    // Подпись повторяет числа документа: сцена и план — одно состояние.
-    await expect(page.getByText(`объектов: ${inventoryCount}`)).toBeVisible();
+      await switchTo(page, '3D');
+      await expect(page.getByTestId('view3d-canvas')).toBeVisible();
+      const section = sceneSection(page);
+      // Один объект — одна призма: число в сцене совпадает с инвентаризацией.
+      await expect(section).toHaveAttribute('data-objects-count', String(inventoryCount));
+      await expect
+        .poll(async () => Number(await section.getAttribute('data-zones-count')))
+        .toBeGreaterThanOrEqual(3);
 
-    // Уход из 3D освобождает сцену: canvas удалён, ошибок в консоли нет.
-    await switchTo(page, '2D');
-    await expect(page.getByTestId('view3d-canvas')).toHaveCount(0);
-    expect(errors).toEqual([]);
+      // Уход из 3D освобождает сцену: canvas удалён, ошибок в консоли нет.
+      await switchTo(page, '2D');
+      await expect(page.getByTestId('view3d-canvas')).toHaveCount(0);
+      expect(errors).toEqual([]);
     });
   });
 });
@@ -264,21 +254,18 @@ test.describe('3D-вид: скрытые слои', () => {
     await placeFirstLibraryItem(page, 320, 240);
 
     await switchTo(page, '3D');
-    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
-    await expect(page.getByText('Скрытые слои не показаны')).toHaveCount(0);
+    const section = sceneSection(page);
+    await expect(section).toHaveAttribute('data-objects-count', '1');
 
     // «Глаз» в панели слоёв — то же действие, что прячет объект на холсте 2D.
     const eye = page.getByRole('button', { name: 'Показывать слой Основной' });
     await showTab(page, 'Слои');
     await eye.click();
-    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(0);
-    await expect(page.getByText('объектов: 0')).toBeVisible();
-    await expect(page.getByText('Скрытые слои не показаны')).toBeVisible();
+    await expect(section).toHaveAttribute('data-objects-count', '0');
 
     await showTab(page, 'Слои');
     await eye.click();
-    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
-    await expect(page.getByText('объектов: 1')).toBeVisible();
+    await expect(section).toHaveAttribute('data-objects-count', '1');
     expect(errors).toEqual([]);
   });
 });
@@ -315,8 +302,9 @@ test.describe('3D-вид: потеря контекста WebGL', () => {
       expect(['расширение', 'событие']).toContain(how);
 
       await expect(page.getByTestId('view3d-context-lost')).toContainText('WebGL');
-      // Список примитивов — данные, а не пиксели: он остаётся на месте.
-      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+      // Состав сцены — данные, а не пиксели: счётчик остаётся на месте.
+      const section = sceneSection(page);
+      await expect(section).toHaveAttribute('data-objects-count', '1');
       // И 2D-редактор, о котором говорит сообщение, действительно работает.
       await switchTo(page, '2D');
       await placeFirstLibraryItem(page, 420, 300);
@@ -326,7 +314,7 @@ test.describe('3D-вид: потеря контекста WebGL', () => {
       await switchTo(page, '3D');
       await expect(page.getByTestId('view3d-canvas')).toBeVisible();
       await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
-      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(2);
+      await expect(section).toHaveAttribute('data-objects-count', '2');
 
       // Контекст вернули на том же холсте — сцена пересобирается без перезагрузки.
       // Старый холст помечаем: после восстановления на его месте обязан стоять
@@ -350,7 +338,7 @@ test.describe('3D-вид: потеря контекста WebGL', () => {
       await expect(page.getByTestId('view3d-context-lost')).toHaveCount(0);
       await expect(page.getByTestId('view3d-canvas')).toBeVisible();
       await expect(page.locator('[data-testid="view3d-canvas"][data-stale="yes"]')).toHaveCount(0);
-      await expect(prisms(page, '[data-kind="object"]')).toHaveCount(2);
+      await expect(section).toHaveAttribute('data-objects-count', '2');
       expect(errors).toEqual([]);
     });
   });
@@ -359,21 +347,21 @@ test.describe('3D-вид: потеря контекста WebGL', () => {
 test.describe('3D-вид: WebGL выключен', () => {
   test('понятное сообщение вместо пустого экрана, 2D работает', async ({ playwright, browserName, baseURL }) => {
     await withBrowser({ playwright, browserName, baseURL }, NO_WEBGL_ARGS, async (page) => {
-    const errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
-    await page.goto('/');
-    await placeFirstLibraryItem(page, 320, 240);
+      const errors: string[] = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto('/');
+      await placeFirstLibraryItem(page, 320, 240);
 
-    await switchTo(page, '3D');
-    await expect(page.getByTestId('view3d-unavailable')).toContainText('WebGL');
-    await expect(page.getByTestId('view3d-canvas')).toHaveCount(0);
-    // Список примитивов есть и без WebGL: сцена как данные строится всегда.
-    await expect(prisms(page, '[data-kind="object"]')).toHaveCount(1);
+      await switchTo(page, '3D');
+      await expect(page.getByTestId('view3d-unavailable')).toContainText('WebGL');
+      await expect(page.getByTestId('view3d-canvas')).toHaveCount(0);
+      // Состав сцены есть и без WebGL: она как данные строится всегда.
+      await expect(sceneSection(page)).toHaveAttribute('data-objects-count', '1');
 
-    await switchTo(page, '2D');
-    await placeFirstLibraryItem(page, 420, 300);
-    await expect(inventoryRows(page)).toHaveCount(2);
-    expect(errors).toEqual([]);
+      await switchTo(page, '2D');
+      await placeFirstLibraryItem(page, 420, 300);
+      await expect(inventoryRows(page)).toHaveCount(2);
+      expect(errors).toEqual([]);
     });
   });
 });

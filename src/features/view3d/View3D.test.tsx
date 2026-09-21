@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
- * D01: подпись под сценой обязана говорить то же, что сама сцена. Со скрытым
- * слоем список примитивов пустеет, и если счётчики продолжают считать по
- * документу, подпись сообщает о зонах и объектах, которых на экране нет.
+ * D01: the section's data attributes are obligated to say the same thing the
+ * scene itself contains. There is no sidebar list any more — a hidden layer
+ * must still be provable without reading pixels, so `data-zones-count` and
+ * `data-objects-count` are counted from the scene's prisms, not the document.
  *
  * WebGL в jsdom нет, поэтому холст не монтируется: здесь проверяется ровно
  * текстовая половина вида — та, что и в браузере остаётся при любой беде с GPU.
@@ -24,50 +25,29 @@ const hidden: PlanDocument = {
   layers: plan.layers.map((layer) => ({ ...layer, visible: false })),
 };
 
-/** Подпись с переносами строк из JSX — сравнивать её удобно одной строкой. */
-function caption(): string {
-  return (screen.getByTestId('view3d').textContent ?? '').replace(/\s+/g, ' ');
-}
-
 afterEach(cleanup);
 
-describe('View3D: подпись под сценой', () => {
-  test('видимый слой: счётчики совпадают со списком примитивов, о скрытом молчим', () => {
+describe('View3D: состав сцены в data-атрибутах секции', () => {
+  test('видимый слой: счётчики совпадают со сценой', () => {
     render(<View3D document={plan} selection={null} onSelect={vi.fn()} />);
 
-    expect(caption()).toContain('Зон: 1, объектов: 1');
-    expect(caption()).not.toContain('Скрытые слои');
-    const list = screen.getByTestId('view3d-primitives');
-    expect(list.children).toHaveLength(2);
-    expect(list.textContent).toContain('Клиентская зона');
-    expect(list.textContent).toContain('Рабочее место 1');
-    expect(list.textContent).not.toContain('z_client');
-    expect(list.textContent).not.toContain('eq_work_1');
-    expect(list.querySelector('[data-id="z_client"]')).not.toBeNull();
-    expect(list.querySelector('[data-id="eq_work_1"]')).not.toBeNull();
+    const section = screen.getByTestId('view3d');
+    expect(section.getAttribute('data-zones-count')).toBe('1');
+    expect(section.getAttribute('data-objects-count')).toBe('1');
   });
 
-  test('слой выключен: в подписи нули и число элементов вне вида', () => {
+  test('слой выключен: счётчики падают до нуля, как на холсте 2D', () => {
     render(<View3D document={hidden} selection={null} onSelect={vi.fn()} />);
 
-    expect(caption()).toContain('Зон: 0, объектов: 0');
-    expect(caption()).toContain('элементов вне вида — 2');
-    expect(screen.getByTestId('view3d-primitives').children).toHaveLength(0);
-  });
-  test('кнопка примитива выбирает его через общую сессию', () => {
-    const onSelect = vi.fn();
-    render(<View3D document={plan} selection={null} onSelect={onSelect} />);
-
-    screen.getByRole('button', { name: /Рабочее место 1/ }).click();
-    expect(onSelect).toHaveBeenCalledWith({ kind: 'object', id: 'eq_work_1' });
+    const section = screen.getByTestId('view3d');
+    expect(section.getAttribute('data-zones-count')).toBe('0');
+    expect(section.getAttribute('data-objects-count')).toBe('0');
   });
 
-  test('выбор из общей сессии назван явно и ведёт к панели свойств', () => {
-    render(<View3D document={plan} selection={{ kind: 'object', id: 'eq_work_1' }} onSelect={vi.fn()} />);
+  test('без WebGL — понятное сообщение вместо пустого экрана, а не меню', () => {
+    render(<View3D document={plan} selection={null} onSelect={vi.fn()} />);
 
-    expect(screen.getByTestId('view3d-selection').textContent).toContain(
-      'Выбрано: Рабочее место 1. Свойства можно изменить в панели справа.',
-    );
-    expect(caption()).toContain('Кликните по объекту в сцене или в списке');
+    expect(screen.getByTestId('view3d-unavailable').textContent).toContain('WebGL');
+    expect(screen.queryByTestId('view3d-primitives')).toBeNull();
   });
 });
