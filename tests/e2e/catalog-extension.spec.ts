@@ -1,11 +1,11 @@
 /** Q01: a custom catalog type and layer survive the full browser/file cycle. */
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 async function save(page: Page): Promise<string> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([item]) => item);
   const file = await download.path();
   if (!file) throw new Error('Скачанный файл отсутствует');

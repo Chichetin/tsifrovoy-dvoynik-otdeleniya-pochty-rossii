@@ -40,9 +40,9 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
   expect(now.overflow, `шапка не шире окна: ${label}`).toBeLessThanOrEqual(0);
   expect(new Set(now.rowTops).size, `кнопки шапки в одну строку: ${label}`).toBe(1);
   const viewport = page.viewportSize();
-  const right = await page.getByRole('button', { name: 'Сохранить' }).boundingBox();
-  expect(right, 'кнопка «Сохранить» на экране').not.toBeNull();
-  expect(right!.x + right!.width, `«Сохранить» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
+  const right = await page.getByRole('button', { name: 'Экспорт' }).boundingBox();
+  expect(right, 'кнопка «Экспорт» на экране').not.toBeNull();
+  expect(right!.x + right!.width, `«Экспорт» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
 }
 
 for (const size of [

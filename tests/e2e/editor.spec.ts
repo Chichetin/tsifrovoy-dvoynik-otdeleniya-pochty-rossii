@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 /** Клик по холсту в пикселях от его левого верхнего угла. */
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
@@ -68,7 +68,7 @@ test.describe('сквозной сценарий редактора', () => {
     // Сохранение: файл уходит в загрузки, состояние становится «сохранено».
     const download = await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Сохранить' }).click(),
+      exportPlan(page, 'JSON'),
     ]).then(([event]) => event);
 
     const saved = await download.path();

@@ -5,7 +5,7 @@ import { cpus, loadavg, totalmem, platform, release } from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { expect, test } from '@playwright/test';
 import { BENCHMARK_SEED, CASES, generateBenchmark } from '../../scripts/generate-benchmark';
-import { skipOnboarding } from '../e2e/fixtures';
+import { skipOnboarding, exportPlan } from '../e2e/fixtures';
 
 const REPEATS = 5;
 const SERVER = process.env.PERF_SERVER === 'preview' ? 'preview' : 'dev';
@@ -163,7 +163,7 @@ for (const config of CASES) {
         const saveStarted = performance.now();
         const download = await Promise.all([
           page.waitForEvent('download'),
-          page.getByRole('button', { name: 'Сохранить' }).click(),
+          exportPlan(page, 'JSON'),
         ]).then(([item]) => item);
         const saved = await download.path();
         if (!saved) throw new Error('Браузер не сохранил файл');

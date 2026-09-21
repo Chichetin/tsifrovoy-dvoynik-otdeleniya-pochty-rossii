@@ -1,7 +1,7 @@
 /** Q01: one user's change must survive a real file download and page reload. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test } from './fixtures';
+import { expect, test, exportPlan } from './fixtures';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -27,7 +27,7 @@ test('готовый план → правка → файл → новая ст�
 
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([item]) => item);
   const file = await download.path();
   expect(file).not.toBeNull();
@@ -49,7 +49,7 @@ test('готовый план → правка → файл → новая ст�
 
   const again = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([item]) => item);
   const second = await again.path();
   expect(second).not.toBeNull();

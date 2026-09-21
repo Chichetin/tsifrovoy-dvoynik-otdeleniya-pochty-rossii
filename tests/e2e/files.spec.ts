@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
@@ -83,7 +83,7 @@ function secondPlanFile(): { name: string; mimeType: string; buffer: Buffer } {
 async function download(page: Page): Promise<string> {
   const event = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([download]) => download);
   const path = await event.path();
   expect(path).not.toBeNull();
@@ -370,7 +370,7 @@ test.describe('файлы плана', () => {
     expect(errors).toEqual([]);
   });
 
-  test('«Картинка» скачивает SVG плана и не выдаёт это за сохранение', async ({ page }) => {
+  test('«Экспорт → SVG» скачивает картинку плана и не выдаёт это за сохранение', async ({ page }) => {
     // Находка operator №6: руководителю нечем показать план, кроме скриншота.
     await page.goto('/');
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
@@ -385,7 +385,7 @@ test.describe('файлы плана', () => {
 
     const event = await Promise.all([
       page.waitForEvent('download'),
-      page.getByTestId('export-svg').click(),
+      exportPlan(page, 'SVG'),
     ]).then(([download]) => download);
     expect(event.suggestedFilename()).toMatch(/\.svg$/);
     const path = await event.path();
@@ -406,7 +406,7 @@ test.describe('файлы плана', () => {
     await expect(page.getByText('есть несохранённые правки')).toBeVisible();
   });
 
-  test('«Картинка» не возвращает содержимое скрытого слоя', async ({ page }) => {
+  test('«Экспорт → SVG» не возвращает содержимое скрытого слоя', async ({ page }) => {
     const source = JSON.parse(
       readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'),
     ) as {
@@ -425,7 +425,7 @@ test.describe('файлы плана', () => {
 
     const event = await Promise.all([
       page.waitForEvent('download'),
-      page.getByTestId('export-svg').click(),
+      exportPlan(page, 'SVG'),
     ]).then(([download]) => download);
     const path = await event.path();
     const svg = readFileSync(path as string, 'utf8');
@@ -433,5 +433,37 @@ test.describe('файлы плана', () => {
     expect(svg).toContain(`data-id="${source.room.id}"`);
     for (const zone of source.zones) expect(svg).not.toContain(`data-id="${zone.id}"`);
     for (const object of source.objects) expect(svg).not.toContain(`data-id="${object.id}"`);
+  });
+
+  test('«Экспорт → PNG» скачивает картинку, а меню слушается клавиатуры (D-254)', async ({ page }) => {
+    await page.goto('/');
+    await openFile(page, join(process.cwd(), 'demo', 'before.json'));
+    await expect(page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr')).toHaveCount(53);
+
+    // Меню открывается с клавиатуры и закрывается Escape, не выгружая ничего.
+    const trigger = page.getByRole('button', { name: 'Экспорт' });
+    await trigger.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('menu', { name: 'Экспорт' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: /JSON/ })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: /PNG/ })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu', { name: 'Экспорт' })).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+
+    const event = await Promise.all([
+      page.waitForEvent('download'),
+      exportPlan(page, 'PNG'),
+    ]).then(([download]) => download);
+    expect(event.suggestedFilename()).toMatch(/\.png$/);
+    const path = await event.path();
+    const png = readFileSync(path as string);
+    // Настоящий PNG: сигнатура файла и непустой растр.
+    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(png.byteLength).toBeGreaterThan(1000);
+
+    // Картинка — не сохранение.
+    await expect(page.getByText('есть несохранённые правки')).toHaveCount(0);
   });
 });

@@ -10,7 +10,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 /** Шаг стрелки из src/features/equipment/selection-edit.ts. */
@@ -78,7 +78,7 @@ type Saved = { objects: { id: string; position: [number, number] }[] };
 async function savedPlan(page: Page): Promise<Saved> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();

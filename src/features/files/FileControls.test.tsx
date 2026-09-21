@@ -18,6 +18,12 @@ import { DRAFT_KEY, type DraftStorage, type PlanDraft } from '../../persistence/
 import type { OpenedPlan } from '../../persistence/format';
 import { FileControls } from './FileControls';
 
+const pngRenderer = vi.hoisted(() => vi.fn<(plan: PlanDocument) => Promise<Blob>>());
+vi.mock('../../persistence/plan-png', async (original) => ({
+  ...(await original<typeof import('../../persistence/plan-png')>()),
+  renderPlanPng: pngRenderer,
+}));
+
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 /** План с зоной и объектом: «непустой документ», который есть что потерять. */
@@ -422,21 +428,169 @@ describe('FileControls: восстановление поверх открыто
   });
 });
 
-describe('FileControls: картинка плана', () => {
-  test('«Картинка» на свежей странице показывает результат, а не молчит', () => {
+describe('FileControls: меню «Экспорт»', () => {
+  function stubDownload() {
+    const url = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:file');
+    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloads.push(this.download);
+    });
+    const downloads: string[] = [];
+    return { url, revoke, click, downloads };
+  }
+
+  function openMenu(): HTMLElement {
+    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    fireEvent.click(trigger);
+    return screen.getByRole('menu', { name: 'Экспорт' });
+  }
+
+  test('кнопка объявляет меню, открывает его и ставит фокус на первый пункт', () => {
+    renderControls({ storage: null });
+    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('menu')).toBeNull();
+    // Прежних отдельных кнопок больше нет.
+    expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Картинка' })).toBeNull();
+
+    openMenu();
+
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const items = screen.getAllByRole('menuitem');
+    expect(items.map((item) => item.textContent)).toEqual([
+      expect.stringContaining('JSON'),
+      expect.stringContaining('PNG'),
+      expect.stringContaining('SVG'),
+    ]);
+    expect(document.activeElement).toBe(items[0]);
+  });
+
+  test('стрелки ходят по пунктам по кругу, Home и End — к краям', () => {
+    renderControls({ storage: null });
+    const menu = openMenu();
+    const items = screen.getAllByRole('menuitem');
+
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[1]);
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(menu, { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(items[2]);
+    fireEvent.keyDown(menu, { key: 'Home' });
+    expect(document.activeElement).toBe(items[0]);
+    fireEvent.keyDown(menu, { key: 'End' });
+    expect(document.activeElement).toBe(items[2]);
+  });
+
+  test('Escape закрывает меню и возвращает фокус на кнопку', () => {
+    renderControls({ storage: null });
+    const menu = openMenu();
+
+    fireEvent.keyDown(menu, { key: 'Escape' });
+
+    expect(screen.queryByRole('menu')).toBeNull();
+    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  test('щелчок мимо меню закрывает его, повторный щелчок по кнопке — тоже', () => {
+    renderControls({ storage: null });
+    openMenu();
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    openMenu();
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  test('«JSON» скачивает файл плана и отмечает план сохранённым', () => {
+    const { downloads, revoke } = stubDownload();
+    const { onExported } = renderControls({ storage: null, document: filled });
+    openMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
+
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]!.endsWith('.json')).toBe(true);
+    expect(revoke).toHaveBeenCalledWith('blob:file');
+    expect(onExported).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('files-notice').textContent).toContain('.json');
+    expect(screen.queryByRole('menu')).toBeNull();
+  });
+
+  test('«JSON» с планом, который не кодируется, — ошибка, а не успех', () => {
+    const { downloads } = stubDownload();
+    const { onExported } = renderControls({
+      storage: null,
+      encode: () => ({
+        ok: false,
+        issues: [{ code: 'SCHEMA_INVALID', severity: 'error', message: 'Нет помещения.', refs: [] }],
+      }),
+    });
+    openMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
+
+    expect(downloads).toEqual([]);
+    expect(onExported).not.toHaveBeenCalled();
+    const alert = screen.getByRole('alert');
+    expect(alert.textContent).toContain('План не сохранён');
+    // Код и текст находки — в раскрытии «Технические сведения» (D-253), не в строке для человека.
+    expect(alert.textContent).not.toContain('SCHEMA_INVALID');
+    expect(screen.getByTestId('file-error-details').textContent).toContain('SCHEMA_INVALID: Нет помещения.');
+  });
+
+  test('«PNG» скачивает картинку и не выдаёт её за сохранение', async () => {
+    const { downloads } = stubDownload();
+    pngRenderer.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+    const { onExported } = renderControls({ storage: null, document: filled });
+    openMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
+    expect(screen.getByTestId('files-loading').textContent).toContain('картинк');
+    await act(async () => {});
+
+    expect(pngRenderer).toHaveBeenCalledWith(filled);
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]!.endsWith('.png')).toBe(true);
+    expect(screen.getByTestId('files-notice').textContent).toContain('.png');
+    expect(onExported).not.toHaveBeenCalled();
+  });
+
+  test('отказ растеризации виден человеку и ничего не скачивает', async () => {
+    const { downloads } = stubDownload();
+    pngRenderer.mockRejectedValue(new Error('Растровый холст недоступен в этом браузере.'));
+    const { onExported } = renderControls({ storage: null, document: filled });
+    openMenu();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
+    await act(async () => {});
+
+    expect(downloads).toEqual([]);
+    expect(onExported).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+    expect(screen.getByRole('alert').textContent).toContain('Картинка PNG не выгружена');
+    expect(screen.getByRole('alert').textContent).toContain('Растровый холст недоступен');
+  });
+
+  test('«SVG» на свежей странице показывает результат, а не молчит', () => {
     // Ревью MR !73: до починки уведомление ставилось, но состояние оставалось
     // idle, и строка результата не рендерилась — файл уходил в загрузки молча.
-    const url = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:svg');
-    const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const { downloads, revoke } = stubDownload();
     const { onExported } = renderControls({ storage: null });
+    openMenu();
 
-    fireEvent.click(screen.getByTestId('export-svg'));
+    fireEvent.click(screen.getByRole('menuitem', { name: /SVG/ }));
 
-    expect(click).toHaveBeenCalledTimes(1);
-    expect(url).toHaveBeenCalledTimes(1);
-    expect(revoke).toHaveBeenCalledWith('blob:svg');
-    expect(screen.getByTestId('files-notice').textContent).toContain('Картинка');
+    expect(downloads).toHaveLength(1);
+    expect(revoke).toHaveBeenCalledWith('blob:file');
     expect(screen.getByTestId('files-notice').textContent).toContain('.svg');
     // Картинка — не сохранение.
     expect(onExported).not.toHaveBeenCalled();

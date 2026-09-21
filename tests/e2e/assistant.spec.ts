@@ -7,7 +7,7 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
@@ -230,7 +230,7 @@ test.describe('ассистент в браузере', () => {
     // «удалено 1», а не «удалено 2» от исходного файла.
     await Promise.all([
       page.waitForEvent('download'),
-      page.getByRole('button', { name: 'Сохранить' }).click(),
+      exportPlan(page, 'JSON'),
     ]);
     await rows.first().locator('.table__link').first().click();
     await page.keyboard.press('Delete');

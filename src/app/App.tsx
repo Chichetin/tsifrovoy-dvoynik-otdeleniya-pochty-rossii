@@ -407,6 +407,7 @@ export function App(): React.JSX.Element {
             3D
           </button>
         </div>
+        <div className="shell__right">
         <div className="shell__history" role="group" aria-label="История правок">
           <button type="button" className="shell__quiet" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
@@ -422,6 +423,21 @@ export function App(): React.JSX.Element {
             </svg>
             <span className="shell__label">Вернуть</span>
           </button>
+        </div>
+        {/* D-254: карта клавиш — иконка в шапке, без подписи: текстовая кнопка
+            возвращала перенос шапки на вторую строку при 1280 px. */}
+        <button
+          type="button"
+          className="shell__quiet shell__keys"
+          title="Горячие клавиши (?)"
+          aria-label="Горячие клавиши (?)"
+          onClick={hotkeysMap.show}
+        >
+          <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
+            <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
+            <path d="M4 6h.01M7 6h.01M10 6h.01M12.5 6h.01M4 8.5h.01M6.5 8.5h.01M9 8.5h.01M12 8.5h.01M5 10.8h6" />
+          </svg>
+        </button>
         </div>
         <div className="shell__anchor" data-tour="files">
         <FileControls
@@ -459,9 +475,6 @@ export function App(): React.JSX.Element {
             onClick={() => setTourOpen(true)}
           >
             Обучение
-          </button>
-          <button type="button" className="shell__tour" title="Список всех горячих клавиш" onClick={hotkeysMap.show}>
-            Горячие клавиши (?)
           </button>
         </aside>
 

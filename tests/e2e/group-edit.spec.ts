@@ -11,7 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 const RACK = 'Шкаф / стеллаж для посылок';
 
@@ -75,7 +75,7 @@ async function rotationOf(page: Page): Promise<number> {
 async function savedPlan(page: Page): Promise<{ objects: { id: string; position: number[] }[] }> {
   const download = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([event]) => event);
   const path = await download.path();
   expect(path).not.toBeNull();

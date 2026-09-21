@@ -229,9 +229,12 @@ body {
   grid-column: 4;
 }
 
-.shell__bar > .shell__history {
+.shell__bar > .shell__right {
   grid-row: 1;
   grid-column: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .shell__history {
@@ -555,6 +558,50 @@ body {
   gap: 6px;
 }
 
+/* D-254: «Экспорт» — одна кнопка вместо «Картинка» и «Сохранить»: шапка
+   обязана держаться в одну строку на 1280 px (tests/e2e/shell.spec.ts), а
+   выгрузка нужна реже, чем открытие плана. Меню всплывает под кнопкой. */
+.files__export {
+  position: relative;
+  display: inline-flex;
+}
+
+.files__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  min-width: 232px;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px rgb(28 40 51 / 18%);
+}
+
+.files__menu-item {
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-s, 4px);
+  background: transparent;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-s);
+  text-align: left;
+  cursor: pointer;
+}
+
+.files__menu-item:hover {
+  background: var(--color-accent-soft);
+}
+
+.files__menu-item:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .files__button.is-primary {
   border-color: var(--color-accent);
   background: var(--color-accent);
@@ -759,6 +806,18 @@ body {
 
   .shell__view .files__button {
     min-width: 36px;
+  }
+
+  /* D-254: в узком окне у файловых кнопок остаётся первое слово, а полное имя
+     живёт в `aria-label` и `title` — иначе шапка переносится на вторую строку
+     в самом длинном её состоянии (выбранная перегородка, `shell.spec.ts`). */
+  .files__word {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
   .toolbar__button:not([aria-pressed]) {

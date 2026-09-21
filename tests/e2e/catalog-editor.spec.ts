@@ -6,7 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, exportPlan } from './fixtures';
 
 const panel = (page: Page) => page.getByLabel('Справочник');
 
@@ -23,7 +23,7 @@ type SavedPlan = {
 async function savePlan(page: Page): Promise<SavedPlan> {
   const event = await Promise.all([
     page.waitForEvent('download'),
-    page.getByRole('button', { name: 'Сохранить' }).click(),
+    exportPlan(page, 'JSON'),
   ]).then(([d]) => d);
   return JSON.parse(readFileSync((await event.path()) as string, 'utf8'));
 }
