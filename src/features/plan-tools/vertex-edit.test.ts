@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Opening, Polygon, Wall, Zone } from '../../contracts/model';
 import {
   canCommitRing,
+  extrudeEdge,
   insertVertex,
   insertionOnEdge,
   moveOpeningTo,
@@ -218,5 +219,43 @@ describe('родитель новой зоны', () => {
         zones,
       ),
     ).toBeNull();
+  });
+});
+
+describe('выступ из ребра (D-232)', () => {
+  it('вершина появляется на том ребре, куда ткнули, и её место возвращается', () => {
+    // Низ квадрата — ребро 0 между (0,0) и (4,0).
+    const pulled = extrudeEdge(square, [2, 0.05]);
+    if (pulled === null) throw new Error('на середине ребра выступ должен начинаться');
+
+    expect(pulled.polygon).toHaveLength(square.length + 1);
+    expect(pulled.index).toBe(1);
+    expect(pulled.polygon[pulled.index]).toEqual([2, 0]);
+    // Остальные вершины на месте и в прежнем порядке.
+    expect(pulled.polygon.filter((_, at) => at !== pulled.index)).toEqual(square);
+  });
+
+  it('у самого угла выступ не начинается: там уже есть вершина', () => {
+    expect(extrudeEdge(square, [0.02, 0.02])).toBeNull();
+  });
+
+  it('вытянутая вершина двигается, а не плодит соседние', () => {
+    const pulled = extrudeEdge(square, [2, 0]);
+    if (pulled === null) throw new Error('выступ должен начинаться');
+
+    const shaped = moveVertex(pulled.polygon, pulled.index, [2, -1.5]);
+    expect(shaped).toHaveLength(square.length + 1);
+    expect(shaped[pulled.index]).toEqual([2, -1.5]);
+    // Выступ наружу квадрат не ломает: кольцо остаётся простым.
+    expect(canCommitRing(shaped)).toBe(true);
+  });
+
+  it('выступ, заведённый на другое ребро, кольцо не коммитит', () => {
+    const pulled = extrudeEdge(square, [2, 0]);
+    if (pulled === null) throw new Error('выступ должен начинаться');
+
+    // Тянем нижнюю вершину выше верхнего ребра — стороны пересекаются.
+    const crossed = moveVertex(pulled.polygon, pulled.index, [2, 6]);
+    expect(canCommitRing(crossed)).toBe(false);
   });
 });
