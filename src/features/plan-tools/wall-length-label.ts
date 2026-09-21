@@ -106,13 +106,11 @@ export function wallLengthLabel(
   let ny = (x2 - x1) / onScreen;
   const midX = (x1 + x2) / 2;
   const midY = (y1 + y2) / 2;
-  const side =
-    away === undefined
-      ? 0
-      : (() => {
-          const [ax, ay] = modelToScreen(away, viewport);
-          return nx * (ax - midX) + ny * (ay - midY);
-        })();
+  let side = 0;
+  if (away !== undefined) {
+    const [ax, ay] = modelToScreen(away, viewport);
+    side = nx * (ax - midX) + ny * (ay - midY);
+  }
   // Больше нуля — нормаль смотрит на `away`, значит подпись идёт в другую
   // сторону; ровно ноль (стена проходит через точку или её не дали) — вверх
   // экрана.
