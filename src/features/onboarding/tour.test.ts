@@ -50,8 +50,8 @@ describe('шаги обучения', () => {
 
   test('идут по сценарию проверяющего: открыть → изменить → проверить → сохранить и открыть заново', () => {
     const [open, edit, check, save] = TOUR_STEPS;
-    expect(open?.text).toContain('«Открыть»');
-    expect(open?.text).toContain('«Новый»');
+    expect(open?.text).toContain('«Открыть существующий»');
+    expect(open?.text).toContain('«Создать новый»');
     expect(edit?.targets).toContain('tools');
     expect(check?.text).toContain('Ассистент');
     expect(save?.text).toContain('«Сохранить»');

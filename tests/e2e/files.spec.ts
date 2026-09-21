@@ -3,7 +3,7 @@
  *
  * Сценарий D-058 — открыть готовый структурированный план — здесь проверяется
  * на том самом файле, который выложили организаторы: `example_plan.json` из
- * корня репозитория подаётся в кнопку «Открыть» как есть, без конвертации в
+ * корня репозитория подаётся в кнопку «Открыть существующий» как есть, без конвертации в
  * тесте. Дальше — скачать, открыть заново и получить тот же документ.
  *
  * Отдельно проверяется, что редактор не теряет работу и не подменяет открытый
@@ -26,7 +26,7 @@ const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
 /**
  * Черновик в localStorage держит план с нужным числом объектов. Подпись времени
  * у «черновик в браузере» появляется уже от стартового пустого плана, поэтому
- * ждать её после «Открыть» недостаточно: под нагрузкой перезагрузка успевала
+ * ждать её после «Открыть существующий» недостаточно: под нагрузкой перезагрузка успевала
  * раньше записи открытого файла, и предложение показывало прежний план.
  */
 async function draftHolds(page: Page, objects: number): Promise<void> {
@@ -91,7 +91,7 @@ async function download(page: Page): Promise<string> {
 }
 
 test.describe('файлы плана', () => {
-  test('«Новый» не пугает на пустом старте, но защищает поставленный объект', async ({ page }) => {
+  test('«Создать новый» не пугает на пустом старте, но защищает поставленный объект', async ({ page }) => {
     const dialogs: string[] = [];
     let accept = false;
     page.on('dialog', (dialog) => {
@@ -101,22 +101,22 @@ test.describe('файлы плана', () => {
     await page.goto('/');
     await expect(page.getByText('новый план не сохранён')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     expect(dialogs).toEqual([]);
     await placeFirstLibraryItem(page, 300, 260);
     await expect(inventoryRows(page)).toHaveCount(1);
 
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     expect(dialogs).toHaveLength(1);
     expect(dialogs[0]).toContain('Создать новый план?');
     await expect(inventoryRows(page)).toHaveCount(1);
 
     accept = true;
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(inventoryRows(page)).toHaveCount(0);
   });
 
-  test('кнопка «Открыть» принимает сырой пример организаторов', async ({ page }) => {
+  test('кнопка «Открыть существующий» принимает сырой пример организаторов', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
@@ -171,7 +171,7 @@ test.describe('файлы плана', () => {
 
     // Чистый лист, затем открываем скачанный файл.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     await openFile(page, first);
@@ -205,9 +205,9 @@ test.describe('файлы плана', () => {
     await details.locator('summary').click();
     await expect(details).toContainText('futureField');
     await expect(details).toContainText('futureAttr');
-    // «Новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
+    // «Создать новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Новый' }).click();
+    await page.getByRole('button', { name: 'Создать новый' }).click();
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
@@ -273,7 +273,7 @@ test.describe('файлы плана', () => {
     await expect(inventoryRows(page)).toHaveCount(12);
   });
 
-  test('после «Открыть» и правки черновик снова пишется: предлагают новый, а не старый', async ({
+  test('после «Открыть существующий» и правки черновик снова пишется: предлагают новый, а не старый', async ({
     page,
   }) => {
     await page.goto('/');

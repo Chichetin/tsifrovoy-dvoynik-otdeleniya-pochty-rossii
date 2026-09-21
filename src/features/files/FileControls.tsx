@@ -160,8 +160,8 @@ export function FileControls({
     return { opening, draft: comparable !== null && draftDiffers(comparable, opening) ? draft : null };
   });
   const [offered, setOffered] = useState<PlanDraft | null>(start.draft);
-  // Ответил ли пользователь на предложение действием с документом: «Новый»,
-  // «Открыть», «Восстановить», «Удалить». Пока нет — нетронутый стартовый план
+  // Ответил ли пользователь на предложение действием с документом: «Создать новый»,
+  // «Открыть существующий», «Восстановить», «Удалить». Пока нет — нетронутый стартовый план
   // в черновик не пишется, иначе он затрёт то, что мы предлагаем восстановить.
   const [answered, setAnswered] = useState<boolean>(start.draft === null);
   const [draftAt, setDraftAt] = useState<string | null>(null);
@@ -351,7 +351,7 @@ export function FileControls({
           setState({ status: 'idle' });
         }}
       >
-        Новый
+        Создать новый
       </button>
 
       <button
@@ -363,7 +363,7 @@ export function FileControls({
           input.current?.click();
         }}
       >
-        Открыть
+        Открыть существующий
       </button>
 
       <button
