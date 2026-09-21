@@ -3,7 +3,8 @@
  * to a closed tab.
  *
  * Every outcome is visible. A file that cannot be read leaves the open document
- * exactly where it was and says why, with the codes the reader returned; a save
+ * exactly where it was and says why in plain language; technical codes stay
+ * available in a collapsed detail only when somebody needs diagnostics; a save
  * claims nothing beyond "the browser was handed the file", because a page
  * cannot know what happened in the download folder; a draft says "в браузере",
  * because localStorage is not the disk.
@@ -68,11 +69,11 @@ const ORGANIZER_NOTE =
   'План импортирован из формата организаторов (example_plan.json) с допущениями команды. ' +
   'Кнопка «Сохранить» запишет его уже в формате редактора.';
 
-function describe(issues: Issue[]): string {
+function technicalDetails(issues: Issue[]): string[] {
   return issues
     .slice(0, 4)
     .map((issue) => `${issue.code}: ${issue.message}`)
-    .join('; ');
+    ;
 }
 
 /** Есть ли в плане что терять: помещение и слои даёт и пустой новый план. */
@@ -138,6 +139,7 @@ export function FileControls({
   useEffect(() => () => { openSequence.current += 1; }, []);
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<readonly string[]>([]);
   const [assumptions, setAssumptions] = useState<string[]>([]);
   const [dropped, setDropped] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
@@ -160,8 +162,8 @@ export function FileControls({
     return { opening, draft: comparable !== null && draftDiffers(comparable, opening) ? draft : null };
   });
   const [offered, setOffered] = useState<PlanDraft | null>(start.draft);
-  // Ответил ли пользователь на предложение действием с документом: «Новый»,
-  // «Открыть», «Восстановить», «Удалить». Пока нет — нетронутый стартовый план
+  // Ответил ли пользователь на предложение действием с документом: «Создать новый»,
+  // «Открыть существующий», «Восстановить», «Удалить». Пока нет — нетронутый стартовый план
   // в черновик не пишется, иначе он затрёт то, что мы предлагаем восстановить.
   const [answered, setAnswered] = useState<boolean>(start.draft === null);
   const [draftAt, setDraftAt] = useState<string | null>(null);
@@ -213,7 +215,13 @@ export function FileControls({
     setNotice(
       opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
     );
+    setErrorDetails([]);
     setState({ status: 'done' });
+  };
+
+  const showIssueError = (message: string, issues: Issue[]): void => {
+    setErrorDetails(technicalDetails(issues));
+    setState({ status: 'error', message });
   };
 
   const open = async (file: File): Promise<void> => {
@@ -225,12 +233,14 @@ export function FileControls({
           status: 'error',
           message: 'План изменён во время чтения файла. Открытие отменено, ваши правки сохранены.',
         });
+        setErrorDetails([]);
         return false;
       }
       return true;
     };
     setState({ status: 'loading' });
     setNotice(null);
+    setErrorDetails([]);
     let text: string;
     try {
       text = await file.text();
@@ -240,6 +250,7 @@ export function FileControls({
         status: 'error',
         message: `Файл не прочитался: ${error instanceof Error ? error.message : String(error)}`,
       });
+      setErrorDetails([]);
       return;
     }
 
@@ -250,7 +261,7 @@ export function FileControls({
       // Документ не сменился: допущения прежнего файла уже неверны для сообщения
       // об отказе, а список полей вне формата относится к оставшемуся плану.
       setAssumptions([]);
-      setState({ status: 'error', message: `План не открыт. ${describe(opened.issues)}` });
+      showIssueError('План не открыт: файл не соответствует поддерживаемому формату.', opened.issues);
       return;
     }
     accept(opened.value, 'file');
@@ -271,10 +282,7 @@ export function FileControls({
     if (!opened.ok) {
       // Черновик оказался мусором: открытый план не трогаем, черновик убираем.
       if (storage !== null) clearDraft(storage);
-      setState({
-        status: 'error',
-        message: `Черновик не восстановлен, план не изменён. ${describe(opened.issues)}`,
-      });
+      showIssueError('Черновик не восстановлен, текущий план не изменён.', opened.issues);
       return;
     }
     accept(opened.value, 'draft');
@@ -293,7 +301,7 @@ export function FileControls({
     setState({ status: 'loading' });
     const encoded = encode(plan);
     if (!encoded.ok) {
-      setState({ status: 'error', message: `План не сохранён. ${describe(encoded.issues)}` });
+      showIssueError('План не сохранён: сначала исправьте ошибки в его данных.', encoded.issues);
       return;
     }
 
@@ -348,10 +356,11 @@ export function FileControls({
           setAssumptions([]);
           setDropped([]);
           setNotice(null);
+          setErrorDetails([]);
           setState({ status: 'idle' });
         }}
       >
-        Новый
+        Создать новый
       </button>
 
       <button
@@ -363,7 +372,7 @@ export function FileControls({
           input.current?.click();
         }}
       >
-        Открыть
+        Открыть существующий
       </button>
 
       <button
@@ -462,9 +471,19 @@ export function FileControls({
       )}
 
       {state.status === 'error' ? (
-        <p className="files__error" role="alert">
-          {state.message}
-        </p>
+        <>
+          <p className="files__error" role="alert">
+            {state.message}
+          </p>
+          {errorDetails.length === 0 ? null : (
+            <details className="files__error-details" data-testid="file-error-details">
+              <summary>Технические сведения ({errorDetails.length})</summary>
+              <ul>
+                {errorDetails.map((detail) => <li key={detail}>{detail}</li>)}
+              </ul>
+            </details>
+          )}
+        </>
       ) : null}
     </div>
     </>
