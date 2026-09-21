@@ -1713,8 +1713,24 @@ span.inventory__num {
   margin: 2px 0;
 }
 
-.view3d__item--selected {
-  background: #fff3bf;
+.view3d__pick {
+  width: 100%;
+  padding: 3px 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-s);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.view3d__pick:hover {
+  border-color: var(--accent);
+  background: var(--color-hover);
+}
+
+.view3d__item--selected .view3d__pick {
+  border-color: var(--color-warning);
+  background: var(--color-warning-soft);
 }
 
 .view3d__swatch {

@@ -177,6 +177,14 @@ export function EquipmentLayer({
   // перенос остаются. Признак — из справочника, не список типов здесь.
   const selectedFixedSize =
     selectedObject !== null && isWallMounted(findObjectType(plan.catalog, selectedObject.typeId));
+  // On a thin or short object, 6 px handles from opposite sides overlap its
+  // centre. The top selection layer then catches a drag meant to move the
+  // object and turns it into a resize. Moving is the primary gesture; exact
+  // dimensions remain available in the properties card at every zoom.
+  const selectedHasRoomForResizeHandles =
+    selectedObject !== null &&
+    Math.min(selectedObject.size_m[0], selectedObject.size_m[1]) * viewport.scale >=
+      HANDLE_RADIUS_PX * 2 + 6;
   const clipboard = useRef<Clipboard | null>(null);
 
   // The group (marquee, Shift+click): visible members only, the primary among
@@ -798,7 +806,7 @@ export function EquipmentLayer({
         {!picking || isGroup || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
           ? null
           : [
-              ...(selectedFixedSize
+              ...(selectedFixedSize || !selectedHasRoomForResizeHandles
                 ? []
                 : RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle))),
               renderRotationHandle(selectedObject),

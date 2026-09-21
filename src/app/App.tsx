@@ -483,7 +483,9 @@ export function App(): React.JSX.Element {
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
             <IssueLayer issues={issues} focus={selection} viewport={viewport} />
           </EditorCanvas>
-          {view === '3d' ? <View3D document={document} selection={selection} /> : null}
+          {view === '3d' ? (
+            <View3D document={document} selection={selection} onSelect={select} />
+          ) : null}
         </main>
 
         {/* Правая колонка работает в двух состояниях, а не показывает всё
