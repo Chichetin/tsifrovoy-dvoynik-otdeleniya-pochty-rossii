@@ -247,3 +247,9 @@ export const calculateAdvice: CalculateAdvice = (plan, request) => {
 
   return placementAdvice(plan, request);
 };
+export { AGENT_TOOL_SPECS, createAgentToolState, isAgentTool, runAgentTool } from './agent-tools';
+export type { AgentToolOutcome, AgentToolState } from './agent-tools';
+export { agentEvidence, checkAgentText, describeProblems } from './agent-text';
+export type { AgentEvidence, AgentTextProblem } from './agent-text';
+export { composeFallbackText, routeAgentQuery } from './agent-fallback';
+export { answerWithoutModel, finishAgentAnswer } from './agent';
