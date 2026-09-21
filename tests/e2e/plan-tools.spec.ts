@@ -349,8 +349,10 @@ test.describe('инструменты плана', () => {
     await clickAt(page, px(size, 0.5, 0.5));
     await expect(page.getByText(/Контур: тяните вершину/)).toBeVisible();
     await dragAt(page, px(size, 0.08, 0.08), px(size, 0.2, 0.2));
-    await expect.poll(() => roomArea(page)).not.toBe(drawnRoom);
+    // Площади читаются со снятым выбором: пока помещение выбрано, правая
+    // колонка занята его свойствами и панели «Площади» в ней нет.
     await page.keyboard.press('Escape');
+    await expect.poll(() => roomArea(page)).not.toBe(drawnRoom);
 
     // Зона внутри зоны: вложенность берётся из геометрии, а не из формы.
     await drawRing(page, 'Зона', ring(size, OUTER));
@@ -358,28 +360,43 @@ test.describe('инструменты плана', () => {
     await drawRing(page, 'Зона', ring(size, INNER));
     await page.keyboard.press('Escape');
 
-    await clickAt(page, px(size, 0.45, 0.45));
+    const z2 = px(size, 0.45, 0.45);
+    await clickAt(page, z2);
     await expect(card.getByTestId('props-id')).toHaveText('z_2');
     await expect(card.getByLabel('Внутри зоны')).toHaveValue('z_1');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
 
+    /**
+     * Площадь зоны, пока зона выбрана. Панель «Площади» есть в правой колонке
+     * только без выбора — с выбором колонка занята свойствами. Поэтому выбор
+     * снимается на время чтения и возвращается кликом по той же зоне.
+     */
+    const zone2Area = async (): Promise<string> => {
+      await page.keyboard.press('Escape');
+      const value = await zoneArea(page, 'Зона 2');
+      await clickAt(page, z2);
+      return value;
+    };
+    const zone2AreaValue = async (): Promise<number> =>
+      Number((await zone2Area()).replace(/\s/g, '').replace(',', '.'));
+
     // Вершина переезжает: одна команда на жест, площадь зоны пересчитана.
-    const before = await zoneArea(page, 'Зона 2');
+    const before = await zone2Area();
     await dragAt(page, px(size, 0.3, 0.3), px(size, 0.38, 0.38));
-    await expect.poll(() => zoneArea(page, 'Зона 2')).not.toBe(before);
-    const moved = await zoneArea(page, 'Зона 2');
+    await expect.poll(zone2Area).not.toBe(before);
+    const moved = await zone2Area();
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
 
     // Клик по ребру добавляет вершину, двойной клик по ней — убирает. Новая
     // вершина садится на своё ребро: форма зоны от этого не меняется, и
     // площадь остаётся прежней с точностью до сантиметровой привязки.
-    const area = await zoneAreaValue(page, 'Зона 2');
+    const area = await zone2AreaValue();
     await clickAt(page, px(size, 0.45, 0.6));
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 5');
-    expect(Math.abs((await zoneAreaValue(page, 'Зона 2')) - area)).toBeLessThan(0.02);
+    expect(Math.abs((await zone2AreaValue()) - area)).toBeLessThan(0.02);
     await dblclickAt(page, px(size, 0.45, 0.6));
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
-    expect(await zoneArea(page, 'Зона 2')).toBe(moved);
+    expect(await zone2Area()).toBe(moved);
 
     // Повторное открытие: правка вершины пережила сохранение и загрузку.
     const file = await savePlanFile(page);
@@ -405,10 +422,12 @@ test.describe('инструменты плана', () => {
     const size = await openEditor(page);
     await drawPlan(page, size);
 
+    // Площадь снимается до выбора: с выбранной зоной колонка занята её
+    // свойствами, панели «Площади» в ней нет.
+    const before = await zoneArea(page, 'Зона 2');
     await clickAt(page, px(size, 0.45, 0.45));
     const card = page.getByLabel('Свойства');
     await expect(card.getByTestId('props-id')).toHaveText('z_2');
-    const before = await zoneArea(page, 'Зона 2');
 
     // Вершина уезжает за противоположное ребро: контур становится «бабочкой».
     await dragAt(page, px(size, 0.3, 0.3), px(size, 0.72, 0.45), async (active) => {
@@ -421,14 +440,20 @@ test.describe('инструменты плана', () => {
     });
 
     await expect(page.getByTestId('plan-tools-notice')).toContainText('самопересекается');
-    // Документ не испорчен: площадь прежняя, вершин столько же.
-    expect(await zoneArea(page, 'Зона 2')).toBe(before);
+    // Документ не испорчен: вершин столько же…
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
+    // …и площадь прежняя. Панель «Площади» видна только без выбора, поэтому
+    // выбор снимается и возвращается кликом по той же зоне.
+    await page.keyboard.press('Escape');
+    expect(await zoneArea(page, 'Зона 2')).toBe(before);
+    await clickAt(page, px(size, 0.45, 0.45));
+    await expect(card.getByTestId('props-id')).toHaveText('z_2');
 
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
+    // Выбор снят вместе с зоной: без выбора карточки свойств в колонке нет.
+    await expect(card).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -443,9 +468,10 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
 
     const card = page.getByLabel('Свойства');
+    // Площадь снимается до выбора: панель «Площади» видна только без него.
+    const before = await zoneArea(page, 'Зона 1');
     await clickAt(page, px(size, 0.5, 0.5));
     await expect(card.getByTestId('props-id')).toHaveText('z_1');
-    const before = await zoneArea(page, 'Зона 1');
 
     // Жест соседнего слоя: тянем вершину и посреди пути жмём Escape. Ручки
     // оборудования его не касаются — жест доходит до отпускания кнопки.
@@ -462,6 +488,8 @@ test.describe('инструменты плана', () => {
 
     // Выделение не снято: карточка выбранной зоны на месте.
     await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    // Дальше нужны площади, а их панель видна только без выбора.
+    await page.keyboard.press('Escape');
     await expect.poll(() => zoneArea(page, 'Зона 1')).not.toBe(before);
     const withEscape = await zoneAreaValue(page, 'Зона 1');
 
@@ -469,7 +497,11 @@ test.describe('инструменты плана', () => {
     // полпути — иначе вершина осталась бы в середине пути.
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect.poll(() => zoneArea(page, 'Зона 1')).toBe(before);
+    // Зону надо выбрать заново: ручки вершин есть только у выбранной.
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(card.getByTestId('props-id')).toHaveText('z_1');
     await dragAt(page, from, to);
+    await page.keyboard.press('Escape');
     expect(await zoneAreaValue(page, 'Зона 1')).toBeCloseTo(withEscape, 2);
   });
 
@@ -506,7 +538,8 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
+    // Выбор снят вместе с зоной: без выбора карточки свойств в колонке нет.
+    await expect(card).toHaveCount(0);
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));

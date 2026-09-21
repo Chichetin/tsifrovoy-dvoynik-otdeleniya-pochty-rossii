@@ -37,6 +37,7 @@ import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourO
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel } from '../features/validation/ValidationPanel';
@@ -478,6 +479,10 @@ export function App(): React.JSX.Element {
               preview={preview}
               onGesturePreview={gesturePreview.publish}
             />
+            {/* После оборудования — иначе объект, вставший на подпись, закрывает
+                название зоны целиком; полупрозрачность не даёт подписи закрыть
+                сам объект. */}
+            <ZoneNameLayer document={document} viewport={viewport} />
             <InformationLayer document={document} session={session} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}

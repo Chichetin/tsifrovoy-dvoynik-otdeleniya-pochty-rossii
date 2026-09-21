@@ -41,8 +41,16 @@ async function savePlan(page: Page): Promise<string> {
   return readFileSync(path as string, 'utf8');
 }
 
-/** Выбор объекта: по строке инвентаризации, а не попаданием мышью в фигуру. */
+/**
+ * Выбор объекта: по строке инвентаризации, а не попаданием мышью в фигуру.
+ *
+ * Поставленный объект уже выбран (D-147), а при выборе правая колонка
+ * показывает только «Свойства» — перечня в ней в этот момент нет. Тогда
+ * выбирать нечего: карточка уже открыта на нужном объекте.
+ */
 async function selectPlacedObject(page: Page): Promise<void> {
+  const card = page.getByLabel('Свойства');
+  if ((await card.count()) > 0) return;
   await page
     .getByLabel('Инвентаризация')
     .locator('table')
@@ -55,11 +63,11 @@ async function selectPlacedObject(page: Page): Promise<void> {
 }
 
 test.describe('карточка свойств', () => {
-  test('без выбора карточка объясняет, чего ждёт', async ({ page }) => {
+  test('без выбора карточки свойств в колонке нет — место отдано обзору плана', async ({ page }) => {
     await page.goto('/');
-    await expect(
-      card(page).getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
-    ).toBeVisible();
+    await expect(card(page)).toHaveCount(0);
+    // Вместо неё видны разделы обзора, а не пустая карточка «ничего не выбрано».
+    await expect(page.getByLabel('Инвентаризация')).toBeVisible();
   });
 
   test('карточка помещения: название плана становится именем файла, потолок поднимает наружные стены', async ({
@@ -149,8 +157,8 @@ test.describe('карточка свойств', () => {
   test('атрибуты зоны приходят из справочника и сохраняются', async ({ page }) => {
     await page.goto('/');
     await drawZone(page);
-    await page.locator('.table__link', { hasText: 'z_1' }).first().click();
-
+    // Нарисованная зона уже выбрана, и колонка показывает только её свойства:
+    // искать её строку в «Площадях» в этот момент негде и незачем.
     await expect(card(page).getByTestId('props-id')).toHaveText('z_1');
     await card(page).getByLabel('Название').fill('Клиентский зал');
     await card(page).getByLabel('Загрузка зоны, %').fill('65');

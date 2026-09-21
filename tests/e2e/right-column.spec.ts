@@ -1,11 +1,11 @@
 /**
  * UI-2Б в браузере: правая колонка — разделы, а не одна лента (D-217).
  *
- * По умолчанию все шесть разделов открыты (сценарий презентации и остальные
- * спеки этого набора этого не видят); заголовок — настоящая кнопка со
- * сводкой, сворачивает и разворачивает содержимое, не убирая его из DOM;
- * состояние живёт в localStorage; выбор объекта на плане разворачивает
- * «Свойства»; заголовки прилипают к верху колонки при прокрутке.
+ * Колонка работает в двух состояниях: без выбора — разделы обзора плана, с
+ * выбором — только «Свойства» выбранного. Заголовок остаётся настоящей
+ * кнопкой со сводкой: сворачивает и разворачивает содержимое, не убирая его
+ * из DOM, состояние живёт в localStorage, заголовки прилипают к верху колонки
+ * при прокрутке.
  */
 
 import { readFileSync } from 'node:fs';
@@ -14,7 +14,17 @@ import { expect, test, type Locator, type Page } from './fixtures';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 
-const SECTIONS = ['Свойства', 'Ассистент', 'Площади', 'Проверка', 'Инвентаризация', 'Справочник'] as const;
+/**
+ * Разделы обзора: видны, пока на плане ничего не выбрано. «Свойства» в этот
+ * список не входят — они появляются вместо всей колонки, когда выбор есть.
+ */
+const SECTIONS = ['Ассистент', 'Площади', 'Проверка', 'Инвентаризация', 'Справочник'] as const;
+
+/** Выбирает объект демо-плана из перечня — оттуда же, откуда его выберет сотрудник. */
+async function selectFromInventory(page: Page): Promise<void> {
+  await page.getByLabel('Инвентаризация').locator('tbody tr').first().getByRole('button').first().click();
+  await expect(page.getByLabel('Свойства').first()).toBeVisible();
+}
 
 const aside = (page: Page): Locator => page.locator('aside[data-tour="side-right"]');
 const header = (page: Page, title: string): Locator => aside(page).getByRole('button', { name: new RegExp(`^${title}`) });
@@ -26,17 +36,40 @@ async function openDemo(page: Page): Promise<void> {
   await expect(page.getByLabel('Инвентаризация').locator('tbody tr').first()).toBeVisible();
 }
 
-test('по умолчанию все разделы открыты: aria-expanded="true", содержимое видно', async ({ page }) => {
+test('без выбора колонка показывает обзор плана, «Свойств» в ней нет', async ({ page }) => {
   await openDemo(page);
   for (const title of SECTIONS) {
     const button = header(page, title);
     await expect(button).toHaveAttribute('aria-expanded', 'true');
   }
-  await expect(page.getByLabel('Свойства').first()).toBeVisible();
   await expect(page.getByLabel('Ассистент')).toBeVisible();
   await expect(page.getByLabel('Проверка плана')).toBeVisible();
   await expect(page.getByLabel('Инвентаризация')).toBeVisible();
   await expect(page.getByLabel('Справочник')).toBeVisible();
+  // Раздел не свёрнут, а не выведен вовсе: пустая карточка «ничего не
+  // выбрано» занимала место и отодвигала обзор вниз.
+  await expect(header(page, 'Свойства')).toHaveCount(0);
+});
+
+test('выбор объекта оставляет в колонке только «Свойства»', async ({ page }) => {
+  await openDemo(page);
+  await selectFromInventory(page);
+
+  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+  for (const title of SECTIONS) {
+    await expect(header(page, title)).toHaveCount(0);
+  }
+});
+
+test('снятие выбора возвращает обзор и убирает «Свойства»', async ({ page }) => {
+  await openDemo(page);
+  await selectFromInventory(page);
+  await page.keyboard.press('Escape');
+
+  await expect(header(page, 'Свойства')).toHaveCount(0);
+  for (const title of SECTIONS) {
+    await expect(header(page, title)).toBeVisible();
+  }
 });
 
 test('заголовок несёт сводку, взятую из уже посчитанных данных панели', async ({ page }) => {
@@ -50,8 +83,9 @@ test('заголовок несёт сводку, взятую из уже по�
   const issueCount = await page.getByLabel('Проверка плана').locator('.panel__count').first().innerText();
   await expect(header(page, 'Проверка')).toContainText(`${issueCount} наход`);
 
-  // Свойства: ничего не выбрано на свежеоткрытом плане.
-  await expect(header(page, 'Свойства')).toContainText('ничего не выбрано');
+  // Свойства: сводка называет выбранное — без выбора раздела в колонке нет.
+  await selectFromInventory(page);
+  await expect(header(page, 'Свойства')).not.toContainText('ничего не выбрано');
 });
 
 test('переименование выбранного объекта сразу видно в сводке «Свойства» (D-226: индекс имён строится по документу, а не пересобирается заново кэшированным)', async ({
@@ -174,7 +208,7 @@ test('состояние сворачивания живёт в localStorage и 
   await page.reload();
   await expect(header(page, 'Справочник')).toHaveAttribute('aria-expanded', 'false');
   // Остальные разделы не пострадали от чужой отметки.
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
+  await expect(header(page, 'Инвентаризация')).toHaveAttribute('aria-expanded', 'true');
 });
 
 test('разворачивание раздела, свёрнутого ещё до открытия страницы, тоже сохраняется — не только сворачивание (D-226)', async ({
@@ -197,12 +231,10 @@ test('разворачивание раздела, свёрнутого ещё �
   expect(JSON.parse(stored!)).toEqual({});
 });
 
-test('выбор объекта на плане разворачивает «Свойства», если раздел был свёрнут — без рывка прокрутки страницы', async ({
+test('выбор объекта показывает «Свойства» открытыми и не дёргает прокрутку страницы', async ({
   page,
 }) => {
   await openDemo(page);
-  await header(page, 'Свойства').click();
-  await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'false');
   const pageScrollBefore = await page.evaluate(() => window.scrollY);
 
   await page
@@ -215,7 +247,7 @@ test('выбор объекта на плане разворачивает «С�
 
   await expect(header(page, 'Свойства')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.getByLabel('Свойства').first()).toBeVisible();
-  // Раскрытие раздела не двигает саму страницу — рывка нет.
+  // Появление раздела не двигает саму страницу — рывка нет.
   expect(await page.evaluate(() => window.scrollY)).toBe(pageScrollBefore);
 });
 
