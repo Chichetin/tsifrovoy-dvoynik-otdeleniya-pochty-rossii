@@ -6,7 +6,7 @@
  */
 
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { LLM_ISSUE_CODES, createLlmClient, parseLlmJson } from './llm-client';
+import { LLM_ISSUE_CODES, createLlmClient } from './llm-client';
 
 const config = {
   provider: 'test-provider',
@@ -27,14 +27,6 @@ function answering(body: unknown, status = 200): void {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('A05: клиент провайдера', () => {
-  test('разбирает только JSON для ограниченных ответов разговора', () => {
-    expect(parseLlmJson('{"kind":"clarify"}')).toEqual({ ok: true, value: { kind: 'clarify' } });
-    expect(parseLlmJson('не JSON')).toMatchObject({
-      ok: false,
-      issues: [{ code: LLM_ISSUE_CODES.LLM_JSON_INVALID }],
-    });
-  });
-
   test('текст ответа возвращается как есть', async () => {
     answering({ choices: [{ message: { content: '{"explanations":[]}' }, finish_reason: 'stop' }] });
     const result = await createLlmClient(config)({ system: 's', user: 'u' });

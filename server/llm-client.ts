@@ -30,8 +30,6 @@ export const LLM_ISSUE_CODES = {
   LLM_HTTP_ERROR: 'LLM_HTTP_ERROR',
   /** The provider's body is not the OpenAI-compatible shape. */
   LLM_BODY_UNEXPECTED: 'LLM_BODY_UNEXPECTED',
-  /** A bounded assistant response was not valid JSON. */
-  LLM_JSON_INVALID: 'LLM_JSON_INVALID',
   /**
    * The answer has no text: a reasoning model spent `max_tokens` on
    * `reasoning_content` (finish_reason `length`), or the provider returned an
@@ -62,18 +60,6 @@ function issue(code: string, message: string): Issue {
 /** Text of a failure, safe to log: no key, no prompt, no plan. */
 function failure(code: string, message: string): Result<string> {
   return { ok: false, issues: [issue(code, message)] };
-}
-
-/** JSON is a transport boundary: callers still validate its exact schema. */
-export function parseLlmJson(value: string): Result<unknown> {
-  try {
-    return { ok: true, value: JSON.parse(value) as unknown };
-  } catch {
-    return {
-      ok: false,
-      issues: [issue(LLM_ISSUE_CODES.LLM_JSON_INVALID, 'Модель вернула ответ не в формате JSON.')],
-    };
-  }
 }
 
 export function createLlmClient(config: LlmConfig): LlmClient {
@@ -149,5 +135,124 @@ export function createLlmClient(config: LlmConfig): LlmClient {
       );
     }
     return { ok: true, value: content };
+  };
+}
+
+/**
+ * D-236: one turn of the agent loop — the whole conversation so far and the
+ * tools, back either the final text or the tool calls the model wants. The
+ * reasoning text of a thinking model travels back with its tool calls: some
+ * providers refuse the next turn without it.
+ */
+export type LlmToolCall = { id: string; name: string; arguments: string };
+
+export type LlmMessage =
+  | { role: 'system' | 'user'; content: string }
+  | { role: 'assistant'; content: string; toolCalls?: LlmToolCall[]; reasoning?: string }
+  | { role: 'tool'; toolCallId: string; content: string };
+
+export type LlmTool = { name: string; description: string; parameters: unknown };
+
+export type LlmTurn = { content: string; toolCalls: LlmToolCall[]; reasoning?: string };
+
+export type LlmChat = (request: { messages: LlmMessage[]; tools: LlmTool[] }) => Promise<Result<LlmTurn>>;
+
+const toolTurnSchema = z.object({
+  choices: z
+    .array(
+      z.object({
+        message: z.object({
+          content: z.string().nullable().optional(),
+          reasoning_content: z.string().nullable().optional(),
+          tool_calls: z
+            .array(
+              z.object({
+                id: z.string(),
+                function: z.object({ name: z.string(), arguments: z.string().nullable().optional() }),
+              }),
+            )
+            .nullable()
+            .optional(),
+        }),
+        finish_reason: z.string().nullable().optional(),
+      }),
+    )
+    .min(1),
+});
+
+function wireMessage(message: LlmMessage): unknown {
+  if (message.role === 'tool') return { role: 'tool', tool_call_id: message.toolCallId, content: message.content };
+  if (message.role !== 'assistant' || message.toolCalls === undefined || message.toolCalls.length === 0) {
+    return { role: message.role, content: message.content };
+  }
+  return {
+    role: 'assistant',
+    content: message.content,
+    ...(message.reasoning === undefined ? {} : { reasoning_content: message.reasoning }),
+    tool_calls: message.toolCalls.map((call) => ({
+      id: call.id,
+      type: 'function',
+      function: { name: call.name, arguments: call.arguments },
+    })),
+  };
+}
+
+export function createLlmChat(config: LlmConfig): LlmChat {
+  return async ({ messages, tools }) => {
+    const fail = (code: string, message: string): Result<LlmTurn> => ({ ok: false, issues: [issue(code, message)] });
+    let response: Response;
+    try {
+      response = await fetch(config.endpoint, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: messages.map(wireMessage),
+          tools: tools.map((tool) => ({ type: 'function', function: tool })),
+          tool_choice: 'auto',
+          temperature: 0,
+          max_tokens: config.maxOutputTokens,
+        }),
+        signal: AbortSignal.timeout(config.timeoutMs),
+      });
+    } catch (error) {
+      const timedOut = error instanceof Error && error.name === 'TimeoutError';
+      return timedOut
+        ? fail(LLM_ISSUE_CODES.LLM_TIMEOUT, `Провайдер ${config.provider} не ответил за ${config.timeoutMs} мс.`)
+        : fail(LLM_ISSUE_CODES.LLM_UNREACHABLE, `Не удалось обратиться к провайдеру ${config.provider}.`);
+    }
+    if (!response.ok) {
+      return fail(LLM_ISSUE_CODES.LLM_HTTP_ERROR, `Провайдер ${config.provider} ответил статусом ${response.status}.`);
+    }
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      return fail(LLM_ISSUE_CODES.LLM_BODY_UNEXPECTED, `Ответ провайдера ${config.provider} не является JSON.`);
+    }
+    const parsed = toolTurnSchema.safeParse(body);
+    if (!parsed.success) {
+      return fail(LLM_ISSUE_CODES.LLM_BODY_UNEXPECTED, `Ответ провайдера ${config.provider} не содержит choices[0].message.`);
+    }
+    const choice = parsed.data.choices[0];
+    const content = choice?.message.content?.trim() ?? '';
+    const toolCalls = (choice?.message.tool_calls ?? []).map((call) => ({
+      id: call.id,
+      name: call.function.name,
+      arguments: call.function.arguments ?? '{}',
+    }));
+    if (content === '' && toolCalls.length === 0) {
+      return fail(
+        LLM_ISSUE_CODES.LLM_EMPTY_CONTENT,
+        choice?.finish_reason === 'length'
+          ? `лимит ${config.maxOutputTokens} токенов ушёл на рассуждение, текста не осталось — поднимите LLM_MAX_OUTPUT_TOKENS.`
+          : 'пустой ответ.',
+      );
+    }
+    const reasoning = choice?.message.reasoning_content ?? undefined;
+    return { ok: true, value: { content, toolCalls, ...(reasoning === undefined || reasoning === null ? {} : { reasoning }) } };
   };
 }
