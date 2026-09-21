@@ -25,17 +25,28 @@ function withSize(width: number, depth: number) {
 }
 
 test('габарит типа записан с запятой, «м» не отрывается от числа', () => {
-  render(<LibraryPanel catalog={withSize(1.25, 0.6)} onTool={vi.fn()} />);
+  render(<LibraryPanel catalog={withSize(1.25, 0.6)} activeTypeId={null} onTool={vi.fn()} />);
   const size = screen.getByRole('button', { name: /Проверочный тип/ }).querySelector('.library__size');
   expect(size?.textContent).toBe('1,25×0,6\u00a0м');
 });
 
 test('поле поиска подписано, образец цвета скрыт от диктора', () => {
-  render(<LibraryPanel catalog={withSize(1, 1)} onTool={vi.fn()} />);
+  render(<LibraryPanel catalog={withSize(1, 1)} activeTypeId={null} onTool={vi.fn()} />);
   const search = screen.getByRole('searchbox', { name: 'Поиск в библиотеке' });
   fireEvent.change(search, { target: { value: 'нет такого' } });
   expect(screen.getByText('Ничего не найдено')).toBeTruthy();
   fireEvent.change(search, { target: { value: '' } });
   const swatch = document.querySelector('.library__swatch');
   expect(swatch?.getAttribute('aria-hidden')).toBe('true');
+});
+
+test('вооружённый тип заметно выделен и сообщён как нажатый', () => {
+  const sized = withSize(1, 1);
+  const onTool = vi.fn();
+  render(<LibraryPanel catalog={sized} activeTypeId="ot_sized" onTool={onTool} />);
+
+  const item = screen.getByRole('button', { name: /Проверочный тип/, pressed: true });
+  expect(item.classList.contains('is-selected')).toBe(true);
+  fireEvent.click(item);
+  expect(onTool).toHaveBeenCalledWith({ kind: 'select' });
 });

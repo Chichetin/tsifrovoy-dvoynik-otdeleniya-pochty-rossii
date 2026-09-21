@@ -18,7 +18,7 @@ function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
   return [...groups.entries()];
 }
 
-export function LibraryPanel({ catalog, onTool }: LibraryPanelProps): React.JSX.Element {
+export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProps): React.JSX.Element {
   const [query, setQuery] = useState('');
 
   const groups = useMemo(() => {
@@ -52,9 +52,16 @@ export function LibraryPanel({ catalog, onTool }: LibraryPanelProps): React.JSX.
               <li key={type.id}>
                 <button
                   type="button"
-                  className="library__item"
+                  className={`library__item${activeTypeId === type.id ? ' is-selected' : ''}`}
+                  aria-pressed={activeTypeId === type.id}
                   title={type.provenance}
-                  onClick={() => onTool({ kind: 'object.place', typeId: type.id })}
+                  onClick={() =>
+                    onTool(
+                      activeTypeId === type.id
+                        ? { kind: 'select' }
+                        : { kind: 'object.place', typeId: type.id },
+                    )
+                  }
                 >
                   <span className="library__swatch" style={{ background: type.color }} aria-hidden="true" />
                   <span className="library__label">{type.label}</span>

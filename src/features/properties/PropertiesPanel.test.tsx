@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
+import nested from '../../contracts/fixtures/nested.json';
 import type { Command } from '../../contracts/commands';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -24,6 +25,10 @@ afterEach(cleanup);
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 const plan: PlanDocument = parsed.value;
+
+const parsedNested = parsePlanDocument(nested);
+if (!parsedNested.ok) throw new Error('nested.json не разобрался');
+const nestedPlan: PlanDocument = parsedNested.value;
 
 const session = (selection: Ref | null): EditorSession => ({
   tool: { kind: 'select' },
@@ -271,5 +276,64 @@ describe('пустое состояние', () => {
     show({ kind: 'wall', id: 'w_gone' });
 
     expect(screen.getByText(/Выберите/)).toBeTruthy();
+  });
+});
+
+describe('смена типа зоны переименовывает её', () => {
+  /** Живая карточка на `nested.json`: там три типа зон, между которыми есть что переключать. */
+  function LiveNested({ selection }: { selection: Ref | null }): React.JSX.Element {
+    const [document, setDocument] = useState(nestedPlan);
+    const onCommand: CommandSink = (command) => {
+      const result = applyCommand(document, command);
+      if (result.ok) setDocument(result.value);
+      return result;
+    };
+    return <PropertiesPanel document={document} session={session(selection)} onCommand={onCommand} />;
+  }
+
+  test('название становится названием выбранного типа', () => {
+    render(<LiveNested selection={{ kind: 'zone', id: 'z_service' }} />);
+
+    fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_waiting' } });
+
+    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Зона ожидания');
+    expect(screen.getByLabelText<HTMLSelectElement>('Тип зоны').value).toBe('zt_waiting');
+  });
+
+  test('правка названия тип не трогает — связь односторонняя', () => {
+    render(<LiveNested selection={{ kind: 'zone', id: 'z_service' }} />);
+
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Склад посылок' } });
+
+    expect(screen.getByLabelText<HTMLSelectElement>('Тип зоны').value).toBe('zt_service');
+    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Склад посылок');
+  });
+
+  test('своё название перебивается сменой типа, а черновик поля не остаётся', () => {
+    render(<LiveNested selection={{ kind: 'zone', id: 'z_service' }} />);
+
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Склад посылок' } });
+    fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_client' } });
+
+    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Клиентская зона');
+  });
+
+  test('тип и имя меняются одной командой — одно «Отменить» вернёт оба', () => {
+    const { spy, commands } = sink();
+    render(
+      <PropertiesPanel
+        document={nestedPlan}
+        session={session({ kind: 'zone', id: 'z_service' })}
+        onCommand={spy}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_waiting' } });
+
+    expect(commands).toHaveLength(1);
+    const [command] = commands;
+    if (command?.type !== 'zone.put') throw new Error('ожидалась команда zone.put');
+    expect(command.zone.typeId).toBe('zt_waiting');
+    expect(command.zone.name).toBe('Зона ожидания');
   });
 });

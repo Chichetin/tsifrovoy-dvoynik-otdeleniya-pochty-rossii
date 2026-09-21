@@ -23,9 +23,27 @@ async function drawZone(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 
-const panel = (page: Page) => page.getByLabel('Ассистент');
+const panel = (page: Page) => page.getByLabel('Ассистент', { exact: true });
 
 test.describe('ассистент в браузере', () => {
+  test('плавающая кнопка открывает свёрнутую панель ассистента', async ({ page }) => {
+    await page.goto('/');
+    const assistant = panel(page);
+    const section = page.locator('.section').filter({ has: assistant });
+
+    await section.locator('.section__header').click();
+    await expect(assistant).toBeHidden();
+
+    const launcher = page.getByRole('button', { name: 'Открыть ассистента' });
+    await launcher.focus();
+    await expect(launcher).toBeFocused();
+    await launcher.click();
+
+    await expect(assistant).toBeVisible();
+    await expect(assistant.getByLabel('Сценарий')).toBeVisible();
+    await expect(assistant.getByRole('button', { name: 'Спросить' })).toBeVisible();
+  });
+
   test('лимит 429 на сервере оставляет рекомендации в режиме без LLM', async ({ page }) => {
     await page.route('**/api/advice', (route) =>
       route.fulfill({

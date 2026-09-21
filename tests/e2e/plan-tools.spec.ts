@@ -428,7 +428,11 @@ test.describe('инструменты плана', () => {
     // Удаление выбранной зоны и возврат отменой — один шаг истории.
     await page.getByRole('button', { name: 'Удалить зону' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
+    // Выбор снят вместе с зоной, и карточка свойств свернулась (D-236):
+    // объяснение осталось в DOM, но места в колонке не занимает.
+    await expect(
+      card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
+    ).not.toBeVisible();
 
     await page.getByRole('button', { name: 'Отменить' }).click();
     await expect(areas(page).locator('tbody tr')).toHaveCount(2);
@@ -506,7 +510,11 @@ test.describe('инструменты плана', () => {
     // Backspace удаляет выбранную зону так же, как Delete и кнопка панели.
     await page.keyboard.press('Backspace');
     await expect(areas(page).locator('tbody tr')).toHaveCount(1);
-    await expect(card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане')).toBeVisible();
+    // Выбор снят вместе с зоной, и карточка свойств свернулась (D-236):
+    // объяснение осталось в DOM, но места в колонке не занимает.
+    await expect(
+      card.getByText('Выберите помещение, зону, объект, перегородку или проём на плане'),
+    ).not.toBeVisible();
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));
