@@ -24,11 +24,12 @@ import { deleteIntent } from './delete-key';
 import { setNotice, useNotice } from './notice';
 
 /**
- * Первые два инструмента («Выбор», «Обзор») меняют, что видно и что выделено;
- * остальные создают геометрию плана. Разделитель между группами рисует стиль
+ * Первые три инструмента («Выбор», «Обзор», «Линейка») ничего не меняют в
+ * плане — они меняют, что видно, что выделено и что измерено; остальные
+ * создают геометрию плана. Разделитель между группами рисует стиль
  * (`toolbar__group-gap`), а не пустая кнопка — граница видна и без hover.
  */
-const VIEW_TOOL_COUNT = 2;
+const VIEW_TOOL_COUNT = 3;
 
 const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: string }[] = [
   { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
@@ -41,6 +42,11 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: str
     hint:
       'Двигать вид плана: средняя кнопка мыши или свайп двумя пальцами на тачпаде; ' +
       'колесо и Ctrl+колесо — масштаб',
+  },
+  {
+    kind: 'measure',
+    label: 'Линейка',
+    hint: 'Два клика: измерить расстояние; Esc убирает, Alt — без привязки. В план не попадает',
   },
   { kind: 'room.draw', label: 'Помещение', hint: 'Обвести границу по точкам; Alt — без привязки' },
   { kind: 'zone.draw', label: 'Зона', hint: 'Обвести зону; Alt — без привязки' },

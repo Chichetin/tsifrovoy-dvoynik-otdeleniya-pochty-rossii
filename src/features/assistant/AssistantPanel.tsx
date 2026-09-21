@@ -17,6 +17,7 @@ import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contr
 import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { renderExplanation } from '../../domain/advice';
+import { AgentChat } from './AgentChat';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
@@ -96,6 +97,11 @@ export function AssistantPanel({
   onPreview,
   onFocus,
   onAsk,
+  exchanges = [],
+  actionStatus = null,
+  onAskAgent,
+  onAgentAction,
+  onClearChat,
 }: AssistantPanelProps): React.JSX.Element {
   const [scenario, setScenario] = useState<Scenario>('place');
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
@@ -147,6 +153,22 @@ export function AssistantPanel({
   return (
     <section className="panel assistant" aria-label="Ассистент">
       <h2 className="panel__title">Ассистент</h2>
+
+      {onAskAgent === undefined || onAgentAction === undefined ? null : (
+        <>
+          <AgentChat
+            plan={plan}
+            revision={revision}
+            names={names}
+            exchanges={exchanges}
+            actionStatus={actionStatus}
+            onAsk={onAskAgent}
+            onAction={onAgentAction}
+            onClear={onClearChat ?? (() => undefined)}
+          />
+          <h3 className="agent__section">Расчёт по сценарию</h3>
+        </>
+      )}
 
       <div className="assistant__form">
         <label className="assistant__field">

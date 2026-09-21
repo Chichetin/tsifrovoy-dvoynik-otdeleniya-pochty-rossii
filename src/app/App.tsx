@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
+import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
@@ -19,6 +20,7 @@ import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { requestAdvice } from '../features/assistant/advice-client';
+import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
@@ -33,6 +35,7 @@ import { MetricsPanel } from '../features/inventory/MetricsPanel';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
+import { MeasureLayer } from '../features/plan-tools/MeasureLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
@@ -62,6 +65,10 @@ import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
+
+function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
+  return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
+}
 
 export function App(): React.JSX.Element {
   const [store, setStore] = useState(() => createPlanStore(createEmptyPlan(), 'new'));
@@ -108,6 +115,11 @@ export function App(): React.JSX.Element {
   // A new plan starts at revision 0 too, so comparing revisions cannot reject
   // a late answer from the document that was open before «Новый».
   const adviceRequestSequence = useRef(0);
+  // D-258: the conversation with the plan agent — interface state, never in
+  // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
+  const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
+  const [agentActionStatus, setAgentActionStatus] = useState<string | null>(null);
+  const agentSequence = useRef(0);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -309,6 +321,114 @@ export function App(): React.JSX.Element {
     [baseline, document, revision],
   );
 
+  // D-258: ring on the plan without selecting — the agent points, the
+  // person decides what to pick.
+  const highlight = useCallback((ref: Ref) => {
+    focusSequence.current += 1;
+    setFocus({ ref, sequence: focusSequence.current });
+  }, []);
+
+  const askAgent = useCallback(
+    (question: string) => {
+      const sequence = ++agentSequence.current;
+      const id = `ask-${sequence}`;
+      const update = (change: (exchange: AgentExchange) => AgentExchange): void => {
+        if (sequence !== agentSequence.current) return;
+        setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
+      };
+      setAgentActionStatus(null);
+      setExchanges((previous) => [...previous, { id, question, revision, steps: [], answer: null, error: null }]);
+      const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
+      void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
+        if (sequence !== agentSequence.current) return;
+        if (!result.ok) {
+          update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
+          return;
+        }
+        const answer = result.value;
+        update((exchange) => ({ ...exchange, answer }));
+        // The agent shows what it found: the offered variant ghosted on the
+        // plan, otherwise a ring round the first entity of the answer.
+        const offered = answer.actions.find((action) => action.kind === 'preview-candidate');
+        const candidate = offered === undefined ? null : candidateOf(answer, offered.recommendationId, offered.candidateId);
+        if (candidate !== null) {
+          setPreview(candidate);
+          if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
+        } else if (answer.refs[0] !== undefined) {
+          highlight(answer.refs[0]);
+        }
+      });
+    },
+    [baseline, document, exchanges, highlight, revision],
+  );
+
+  const runAgentAction = useCallback(
+    (action: AssistantAction, answer: AgentAnswer) => {
+      if (answer.revision !== revision) {
+        setAgentActionStatus('План изменился после ответа — спросите заново.');
+        return;
+      }
+      switch (action.kind) {
+        case 'focus': {
+          const exists = action.ref.kind === 'zone' ? document.zones.some((zone) => zone.id === action.ref.id) : document.objects.some((object) => object.id === action.ref.id);
+          if (!exists) {
+            setAgentActionStatus(`«${action.ref.id}» больше нет в плане.`);
+            return;
+          }
+          focusOn(action.ref);
+          setAgentActionStatus(null);
+          return;
+        }
+        case 'preview-candidate':
+        case 'apply-candidate': {
+          const candidate = candidateOf(answer, action.recommendationId, action.candidateId);
+          if (candidate === null) {
+            setAgentActionStatus('Вариант не найден в ответе — спросите заново.');
+            return;
+          }
+          if (action.kind === 'preview-candidate') {
+            setPreview(candidate);
+            if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
+            setAgentActionStatus('Вариант показан на плане полупрозрачно.');
+            return;
+          }
+          // The one edit an answer can lead to: the person pressed the button,
+          // and the variant goes in as an ordinary command with its undo step.
+          const result = dispatchAndSelect({ type: 'object.put', object: candidate.object });
+          setPreview(null);
+          setAgentActionStatus(
+            result.ok
+              ? `Применено: «${candidate.object.label}» поставлен на план. Отменить — Ctrl+Z.`
+              : `Не применено: ${result.issues.map((issue) => issue.message).join('; ')}`,
+          );
+          return;
+        }
+        case 'show-layer': {
+          const layer = document.layers.find((entry) => entry.id === action.layerId);
+          if (layer === undefined) {
+            setAgentActionStatus('Слоя больше нет в плане.');
+            return;
+          }
+          if (!layer.visible) dispatch({ type: 'layer.put', layer: { ...layer, visible: true } });
+          showLeftTab('layers');
+          setAgentActionStatus(`Слой «${layer.name}» включён.`);
+          return;
+        }
+        case 'open-panel':
+          showRightTab(action.panel);
+          return;
+      }
+    },
+    [dispatch, dispatchAndSelect, document, focusOn, highlight, revision, showLeftTab, showRightTab],
+  );
+
+  const clearChat = useCallback(() => {
+    agentSequence.current += 1;
+    setExchanges([]);
+    setAgentActionStatus(null);
+    setPreview(null);
+  }, []);
+
   // A recommendation belongs to the plan it was computed for: after «Открыть»
   // or «Новый» its ids point at objects that no longer exist, and «план
   // изменился» is too mild a warning for that — the answer goes away entirely.
@@ -319,6 +439,9 @@ export function App(): React.JSX.Element {
     setAdvice(null);
     setAdviceState({ status: 'idle' });
     setPreview(null);
+    agentSequence.current += 1;
+    setExchanges([]);
+    setAgentActionStatus(null);
   }, []);
 
   const replaceDocument = useCallback(
@@ -508,6 +631,11 @@ export function App(): React.JSX.Element {
                 сам объект. */}
             <ZoneNameLayer document={document} viewport={viewport} />
             <InformationLayer document={document} session={session} />
+            {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
+                должен уходить под объект или под имя зоны. В план она ничего не
+                кладёт (D-256). Ниже находок намеренно: слой находок остаётся
+                предпоследним в сцене, как его ищет `issues-on-plan.spec.ts`. */}
+            <MeasureLayer viewport={viewport} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
             <IssueLayer issues={issues} focus={selection} viewport={viewport} />
@@ -561,6 +689,11 @@ export function App(): React.JSX.Element {
                   onPreview={setPreview}
                   onFocus={focusOn}
                   onAsk={askAssistant}
+                  exchanges={exchanges}
+                  actionStatus={agentActionStatus}
+                  onAskAgent={askAgent}
+                  onAgentAction={runAgentAction}
+                  onClearChat={clearChat}
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,

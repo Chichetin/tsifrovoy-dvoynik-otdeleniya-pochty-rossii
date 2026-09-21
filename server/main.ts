@@ -14,8 +14,9 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { LIMITS } from '../src/contracts/model';
 import { registerAdviceRoutes } from './advice-route';
+import { registerAgentRoute } from './agent-route';
 import { describeConfig, readConfig, publicModelName } from './config';
-import { createLlmClient } from './llm-client';
+import { createLlmChat, createLlmClient } from './llm-client';
 
 export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const config = readConfig(env);
@@ -32,6 +33,12 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
     llmLabel: config.llm === null ? null : `${config.llm.provider}/${publicModelName(config.llm.model)}`,
     llmProvider: config.llm === null ? null : config.llm.provider,
     rateLimit: config.rateLimit,
+  });
+  registerAgentRoute(app, {
+    chat: config.llm === null ? null : createLlmChat(config.llm),
+    rateLimit: config.rateLimit,
+    // One exchange is a few model calls; three provider timeouts bound it.
+    deadlineMs: (config.llm?.timeoutMs ?? 0) * 3,
   });
 
   const staticDir = config.staticDir ?? resolve(process.cwd(), 'dist');

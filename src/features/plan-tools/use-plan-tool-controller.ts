@@ -22,6 +22,7 @@ import type { ToolController, ToolKind, UsePlanToolController, WorldPointer } fr
 import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
+import { getMeasurement, setMeasurement } from './measure';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
   NO_WALL_UNDER_POINTER_NOTICE,
@@ -47,6 +48,10 @@ const DRAWING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
   'room.draw',
   'zone.draw',
   'wall.draw',
+  // Линейка ставит точку туда же, куда её ставит рисование, и теми же
+  // правилами привязки: измерение, начатое в сантиметре от угла, меряет не то,
+  // что видит пользователь.
+  'measure',
 ]);
 
 export const usePlanToolController: UsePlanToolController = ({
@@ -65,12 +70,29 @@ export const usePlanToolController: UsePlanToolController = ({
   const tolerance = SNAP.tolerance_px / scale;
 
   // Маркер принадлежит текущему инструменту: сменили инструмент или ушли с
-  // холста — подсказки нет (D-224).
-  useEffect(() => () => setSnapHint(null), [kind]);
+  // холста — подсказки нет (D-224). Измерение принадлежит линейке ровно так
+  // же: с другим инструментом в руках отрезок на холсте нечем ни продолжить,
+  // ни сбросить.
+  useEffect(
+    () => () => {
+      setSnapHint(null);
+      setMeasurement(null);
+    },
+    [kind],
+  );
+
+  // Открыли другой план — измерение прежнего с холста уходит: отрезок,
+  // померенный по старым стенам, поверх нового плана читается как дефект.
+  // План опознаётся по id и имени, как в `PlanTools.tsx`, а не по ссылке:
+  // иначе измерение стирала бы любая правка плана.
+  useEffect(() => {
+    setMeasurement(null);
+  }, [plan.id, plan.name]);
 
   const cancel = useCallback(() => {
     setDraft(null);
     setSnapHint(null);
+    setMeasurement(null);
   }, []);
 
   /** Returns false when the ring was refused and the draft has to stay. */
@@ -182,18 +204,63 @@ export const usePlanToolController: UsePlanToolController = ({
     [guides, kind, tolerance],
   );
 
+  /**
+   * Куда сядет точка жеста. То же правило, что у рисования (D-209, D-211): по
+   * направляющим и сетке, `Alt` оставляет точку под курсором, остальное
+   * хранится до сантиметра. Вынесено, потому что теперь по нему садятся и
+   * вершина контура, и конец линейки, а два правила привязки в одном
+   * редакторе — это две разные линейки.
+   */
+  const settle = useCallback(
+    (event: WorldPointer): Point =>
+      event.alt
+        ? roundPoint(event.point)
+        : snapHint(event.point, guides, SNAP.grid_m, tolerance).point,
+    [guides, tolerance],
+  );
+
+  /**
+   * Линейка: первый клик ставит начало, второй заканчивает измерение, третий
+   * начинает новое. Пока измерение не закончено, второй конец идёт за
+   * курсором. В документ отсюда не уходит ничего.
+   */
+  const measure = useCallback(
+    (event: WorldPointer): void => {
+      const current = getMeasurement();
+      const point = settle(event);
+      if (event.phase === 'move') {
+        if (current === null || current.fixed) return;
+        setMeasurement({ ...current, to: point });
+        return;
+      }
+      if (current === null || current.fixed) {
+        setMeasurement({ from: point, to: point, fixed: false });
+        return;
+      }
+      setMeasurement({ ...current, to: point, fixed: true });
+    },
+    [settle],
+  );
+
   const handlePointer = useCallback(
     (event: WorldPointer): void => {
       if (event.phase === 'cancel') {
         setDraft(null);
         setSnapHint(null);
+        setMeasurement(null);
         return;
       }
       if (event.phase === 'move') {
         showTarget(event);
+        if (kind === 'measure') measure(event);
         return;
       }
       if (event.phase !== 'down') return;
+
+      if (kind === 'measure') {
+        measure(event);
+        return;
+      }
 
       if (kind === 'opening.place') {
         placeOpening(event.point);
@@ -208,9 +275,7 @@ export const usePlanToolController: UsePlanToolController = ({
       //
       // The same call the marker under the cursor is drawn from (D-224): what
       // was promised before the click is what the click does.
-      const point = event.alt
-        ? roundPoint(event.point)
-        : snapHint(event.point, guides, SNAP.grid_m, tolerance).point;
+      const point = settle(event);
 
       if (kind === 'wall.draw') {
         const start = draft?.[0];
@@ -249,7 +314,7 @@ export const usePlanToolController: UsePlanToolController = ({
       }
       setDraft([...current, point]);
     },
-    [commit, draft, drawWall, guides, kind, placeOpening, showTarget, tolerance],
+    [commit, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
   );
 
   return { handlePointer, cancel, draft };

@@ -118,7 +118,7 @@ function userPrompt(recommendations: Recommendation[], query: string | undefined
 }
 
 /** A window counter. Enough to keep one demo from burning the whole balance. */
-function createLimiter(rateLimit: { max: number; windowMs: number }): () => boolean {
+export function createLimiter(rateLimit: { max: number; windowMs: number }): () => boolean {
   let windowStart = 0;
   let used = 0;
   return () => {

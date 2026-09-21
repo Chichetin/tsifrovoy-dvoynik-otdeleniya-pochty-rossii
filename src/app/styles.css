@@ -1382,7 +1382,8 @@ span.inventory__num {
 }
 
 .assistant__field select,
-.assistant__field input {
+.assistant__field input,
+.assistant__field textarea {
   padding: 5px 6px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1393,11 +1394,63 @@ span.inventory__num {
 }
 
 .assistant__field select:focus-visible,
-.assistant__field input:focus-visible {
+.assistant__field input:focus-visible,
+.assistant__field textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 0;
   border-color: var(--accent);
 }
+
+/* D-258: the agent chat reads as a work log — question, the tools run (a
+   monospace column on a rule, live while the agent works), then the answer
+   with its check mark and actions. Colours only repeat what the words say. */
+.agent { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
+.agent__intro p { margin: 0 0 var(--space-2); font-size: var(--text-s); color: var(--muted); line-height: 1.45; }
+.agent__examples { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+.agent__example {
+  width: 100%; padding: 6px 8px; border: 1px dashed var(--color-line-strong); border-radius: var(--radius-m);
+  background: var(--surface); color: var(--accent); font: inherit; font-size: var(--text-s); text-align: left; cursor: pointer;
+}
+.agent__example:hover { border-style: solid; background: var(--color-accent-soft); }
+.agent__history { display: grid; gap: var(--space-3); max-height: 56vh; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; }
+.agent__exchange { display: grid; gap: var(--space-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
+.agent__exchange:last-child { border-bottom: none; padding-bottom: 0; }
+.agent__question { margin: 0; font-size: var(--text-m); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.agent__who { display: block; font-size: var(--text-xs); font-weight: 400; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.agent__steps {
+  display: grid; gap: 2px; margin: 0; padding: 2px 0 2px 10px; border-left: 2px solid var(--color-line-strong);
+  list-style: none; font-family: var(--font-code); font-size: var(--text-xs); color: var(--muted); line-height: 1.45;
+}
+.agent__steps li { overflow-wrap: anywhere; }
+.agent__steps li.is-failed { color: var(--warning); }
+.agent__steps li.is-working { color: var(--accent); }
+.agent__tick { display: inline-block; width: 1.4em; color: var(--color-success); }
+.agent__steps li.is-failed .agent__tick { color: var(--warning); }
+.agent__steps li.is-working .agent__tick { color: var(--accent); }
+.agent__log summary { cursor: pointer; font-size: var(--text-xs); color: var(--muted); }
+.agent__log[open] summary { margin-bottom: var(--space-1); }
+.agent__answer { display: grid; gap: var(--space-2); padding-left: 10px; border-left: 3px solid var(--color-success); }
+.agent__answer.is-fallback { border-left-color: var(--warning); }
+.agent__text p { margin: 0 0 6px; font-size: var(--text-m); line-height: 1.5; }
+.agent__text p:last-child { margin-bottom: 0; }
+.agent__id {
+  padding: 0 3px; border: 1px solid var(--color-line); border-radius: var(--radius-s); background: var(--ground);
+  color: var(--accent); font-family: var(--font-code); font-size: 0.86em; cursor: pointer;
+}
+.agent__id:hover:not(:disabled) { border-color: var(--accent); background: var(--color-accent-soft); }
+.agent__id:disabled { color: var(--muted); cursor: default; }
+.agent__mode { margin: 0; font-size: var(--text-xs); color: var(--color-success); }
+.agent__answer.is-fallback .agent__mode { color: var(--warning); }
+.agent__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.agent__actions .files__button { max-width: 100%; height: auto; padding: 5px 10px; white-space: normal; text-align: left; }
+.agent__status { margin: 0; min-height: 1em; font-size: var(--text-xs); color: var(--muted); }
+.agent__status:empty { min-height: 0; }
+.agent__form { display: grid; gap: 6px; }
+.agent__form textarea { width: 100%; min-height: 52px; resize: vertical; }
+.agent__form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.agent__hint { font-size: var(--text-xs); color: var(--muted); }
+.agent__section { margin: var(--space-2) 0; padding-top: var(--space-3); border-top: 1px solid var(--line); font-size: var(--text-s); }
+.agent__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 /* The mode is read, not decoded from a colour: dark text on a tint, the kind
    of answer said in words, the colour only repeats it on the left edge. */
@@ -1908,6 +1961,25 @@ span.inventory__num {
 .view3d__caption {
   margin: 0 0 8px;
   color: var(--muted, #555);
+}
+
+.view3d__hint,
+.view3d__selection {
+  margin: 0 0 8px;
+  padding: 8px;
+  border-radius: var(--radius-s);
+  line-height: 1.4;
+}
+
+.view3d__hint {
+  color: var(--muted, #555);
+  background: var(--color-hover);
+}
+
+.view3d__selection {
+  color: var(--color-text, #202124);
+  background: var(--color-warning-soft);
+  border: 1px solid var(--color-warning);
 }
 
 .view3d__list {

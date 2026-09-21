@@ -59,10 +59,11 @@ function renderLayer(
   plan: PlanDocument,
   selection: Ref | null,
   preview: Candidate | null,
+  tool: EditorSession['tool'] = { kind: 'select' },
 ): Konva.Stage {
   const stage = createRef<Konva.Stage>();
   const session: EditorSession = {
-    tool: { kind: 'select' },
+    tool,
     viewport: { origin: [0, 0], scale: 48 },
     selection,
     preview,
@@ -132,6 +133,21 @@ describe('ручки выбранного объекта', () => {
     expect(handleNames(plan, 'eq_bench_1')).toEqual(['handle-rotate']);
     // Соседний тип остался мебелью: запрет адресный, а не «всем без ручек».
     expect(handleNames(plan, 'eq_work_1')).toHaveLength(9);
+  });
+});
+
+describe('перетаскивание объекта', () => {
+  const draggable = (tool: EditorSession['tool']): boolean[] =>
+    renderLayer(planWith('rect'), null, null, tool)
+      .find((node: Konva.Node) => node.getClassName() === 'Group' && node.name().startsWith('equipment-'))
+      .map((group) => group.draggable());
+
+  test('под «Выбором» объект тянется', () => {
+    expect(draggable({ kind: 'select' })).toContain(true);
+  });
+
+  test('под линейкой (D-256) протяжка не двигает объект — измерение не меняет план', () => {
+    expect(draggable({ kind: 'measure' })).not.toContain(true);
   });
 });
 
