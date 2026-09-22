@@ -55,7 +55,7 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
   {
     title: 'Разное',
     entries: [
-      { keys: 'Enter', description: 'Замкнуть контур помещения или зоны (от трёх точек)' },
+      { keys: 'Enter', description: 'Замкнуть контур помещения или зоны (от трёх точек); для выделенного проёма — снять выделение, как «готово»' },
       { keys: 'Esc', description: 'Отменить текущий жест или рамку выделения' },
       { keys: '?', description: 'Показать или скрыть эту карту клавиш' },
     ],

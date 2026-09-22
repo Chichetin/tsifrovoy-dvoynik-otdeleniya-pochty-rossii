@@ -818,6 +818,67 @@ test.describe('инструменты плана', () => {
     expect(errors).toEqual([]);
   });
 
+  test('проём — фиксированной ширины: на плане только двигается, Enter и смена инструмента завершают его (D-267)', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const before = await savePlan(page);
+
+    // Своя перегородка, чтобы проём на ней был один и легко находился.
+    await page.getByRole('button', { name: 'Перегородка', exact: true }).click();
+    await clickAt(page, px(size, 0.45, 0.25));
+    await clickAt(page, px(size, 0.45, 0.75));
+
+    // Проём — клик по стене. Появляется сразу выделенным, шириной двери по
+    // умолчанию: на плане у него нет ручки шире одной — только двигать вдоль
+    // стены (D-267, п. 1).
+    await page.getByRole('button', { name: 'Проём', exact: true }).click();
+    const openingPoint = px(size, 0.45, 0.5);
+    await clickAt(page, openingPoint);
+    const withOpening = await savePlan(page);
+    const opening = withOpening.openings.find(
+      (entry) => !before.openings.some((old) => old.id === entry.id),
+    );
+    expect(opening).toBeDefined();
+    await expect(card.getByTestId('props-id')).toHaveText(opening!.id);
+    expect(await card.getByLabel('Ширина, м').inputValue()).toBe('0.9');
+
+    // Enter «завершает» проём — снимает выделение. Карточка «Свойства» без
+    // выделения не рендерится вовсе (D-249), поэтому её и не остаётся на странице.
+    await page.keyboard.press('Enter');
+    await expect(page.getByLabel('Свойства')).toHaveCount(0);
+
+    // Выбрать проём заново, чтобы проверить смену инструмента.
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, openingPoint);
+    await expect(card.getByTestId('props-id')).toHaveText(opening!.id);
+
+    // Заказ от 22.09: переключение на любой другой инструмент снимает
+    // выделение с проёма так же, как Enter.
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await expect(page.getByLabel('Свойства')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+    // Ширина правится только карточкой; в плане длина стены больше 0,9 м.
+    await clickAt(page, openingPoint);
+    await expect(card.getByTestId('props-id')).toHaveText(opening!.id);
+    await card.getByLabel('Ширина, м').fill('1.4');
+    const widened = await savePlan(page);
+    expect(widened.openings.find((entry) => entry.id === opening!.id)?.width_m).toBeCloseTo(1.4, 6);
+
+    // Шире собственной стены — отказ у самого поля, прежнее значение остаётся.
+    await card.getByLabel('Ширина, м').fill('100');
+    await expect(card.locator('.props__error')).toContainText('длины стены');
+    const rejected = await savePlan(page);
+    expect(rejected.openings.find((entry) => entry.id === opening!.id)?.width_m).toBeCloseTo(1.4, 6);
+
+    expect(errors).toEqual([]);
+  });
+
   test('свой контур помещения заменяет стены стартовой коробки, проём встаёт на новую стену', async ({ page }) => {
     // Находка operator'а 18.09: после «Помещение» стены и вход коробки 12×9
     // оставались на месте, проём на свой контур не ставился, а правило
