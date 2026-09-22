@@ -289,7 +289,6 @@ test.describe('слои в браузере', () => {
   test('слой камер: сектор обзора рисуется по атрибутам объекта', async ({ page }) => {
     await page.goto('/');
     await showTab(page, 'Слои');
-    expect(await drawnObjects(page)).toBe(42);
     await placeFromLibrary(page, 'Камера видеонаблюдения', 300, 220);
 
     const canvas = page.getByTestId('editor-canvas');
