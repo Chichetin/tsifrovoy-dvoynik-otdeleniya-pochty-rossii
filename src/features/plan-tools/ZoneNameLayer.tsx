@@ -25,7 +25,7 @@ import type { BoundingBox } from '../../domain/geometry';
 import { boundingBox, footprint, modelToScreen } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { zoneLabelAnchor } from './zone-label';
-import { zoneNameFill } from './zone-name-color';
+import { zoneNameStyle } from './zone-name-color';
 /**
  * Экспортированы, а не только локальные: `InformationLayer` (D-241) держит
  * свою копию этих трёх чисел для расчёта места под значение слоя рядом с
@@ -71,10 +71,10 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
     [plan.zones, objectBoxes],
   );
 
-  // Цвет по уровню вложенности (D-250); глубина — по всем зонам плана, а не
-  // только видимым: скрытый родитель не делает вложенную зону корнем.
-  const fills = useMemo(
-    () => new Map(plan.zones.map((zone) => [zone.id, zoneNameFill(zoneDepth(zone.id, plan.zones))])),
+  // Стиль по уровню вложенности (D-250, D-280); глубина — по всем зонам
+  // плана, а не только видимым: скрытый родитель не делает вложенную зону корнем.
+  const styles = useMemo(
+    () => new Map(plan.zones.map((zone) => [zone.id, zoneNameStyle(zoneDepth(zone.id, plan.zones))])),
     [plan.zones],
   );
 
@@ -86,6 +86,7 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
         const anchor = anchors.get(zone.id);
         if (anchor === undefined) return null;
         const [x, y] = modelToScreen(anchor, viewport);
+        const style = styles.get(zone.id) ?? zoneNameStyle(0);
         return (
           <Text
             key={`label-${zone.id}`}
@@ -97,9 +98,9 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
             align="center"
             text={zone.name.toLocaleUpperCase('ru')}
             fontSize={ZONE_LABEL_FONT_PX}
-            fontStyle="500"
+            fontStyle={style.fontStyle}
             letterSpacing={ZONE_LABEL_LETTER_SPACING}
-            fill={fills.get(zone.id) ?? zoneNameFill(0)}
+            fill={style.fill}
             opacity={ZONE_LABEL_OPACITY}
             listening={false}
           />
