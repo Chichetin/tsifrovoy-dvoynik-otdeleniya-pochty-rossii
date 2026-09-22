@@ -1917,6 +1917,15 @@ span.inventory__num {
   line-height: 1.4;
 }
 
+/* D-276: пометка условности видна без разворачивания «Что показывает слой». */
+.layers__caution {
+  margin: 4px 0 0;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .layers__about {
   margin-top: 2px;
   font-size: 12px;

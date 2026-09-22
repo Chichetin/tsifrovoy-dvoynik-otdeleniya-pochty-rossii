@@ -311,3 +311,24 @@ export function defaultAttributes(type: ObjectType | ZoneType): Attributes {
 export function rulesForObjectType(catalog: Catalog, typeId: Id): Rule[] {
   return catalog.rules.filter((rule) => rule.objectTypeId === typeId);
 }
+
+/**
+ * Attribute keys an information layer paints. A person types these values in
+ * for planning, so every field feeding a layer is marked as conditional
+ * wherever it is shown (D-276). The list comes from the catalog: a new layer in
+ * JSON brings its own keys along and needs no change here.
+ */
+export function informationAttributeKeys(catalog: Catalog): Set<string> {
+  const keys = new Set<string>();
+  for (const type of catalog.layerTypes) {
+    const representation = type.representation;
+    if (representation.kind === 'zone-heat' || representation.kind === 'zone-count') {
+      keys.add(representation.attribute);
+    }
+    if (representation.kind === 'object-field') {
+      keys.add(representation.angleAttribute);
+      keys.add(representation.rangeAttribute);
+    }
+  }
+  return keys;
+}
