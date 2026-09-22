@@ -206,6 +206,18 @@ describe('панель инструментов плана', () => {
     expect(screen.getByText(/Alt — без привязки/)).toBeDefined();
   });
 
+  it('выбранный проём подсказывает, что Enter завершает его (D-267)', () => {
+    show({ kind: 'opening', id: 'op_entrance' });
+    expect(screen.getByText(/тяните вдоль стены/)).toBeDefined();
+    expect(screen.getByText(/Enter — готово/)).toBeDefined();
+  });
+
+  it('подсказка инструмента «Проём» тоже называет Enter — готово', () => {
+    show(null);
+    const title = screen.getByRole('button', { name: 'Проём' }).getAttribute('title') ?? '';
+    expect(title).toContain('Enter — готово');
+  });
+
   it('отказ гаснет при смене выделения: он был про прошлую фигуру', () => {
     const rerender = showWith(plan, { kind: 'zone', id: 'z_hall' });
     act(() => setNotice(SELF_INTERSECTION_NOTICE));

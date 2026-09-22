@@ -13,14 +13,14 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import type Konva from 'konva';
 import { createRef } from 'react';
 import { Stage } from 'react-konva';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import type { EditorSession } from '../../contracts/ui';
+import type { EditorSession, Tool } from '../../contracts/ui';
 import { PlanGeometryLayer } from './PlanGeometryLayer';
 
 afterEach(cleanup);
@@ -94,5 +94,114 @@ describe('геометрия плана рисуется без буферног
       (shape) => shape.getAbsoluteOpacity() < 1 && shape.hasFill() && shape.hasStroke(),
     );
     expect(translucentFilled.length).toBeGreaterThan(0);
+  });
+});
+
+/** Тот же слой, но с управляемыми инструментом, выбором и черновиком —
+ * для проверки Enter и смены инструмента (D-267). */
+function renderLayer(
+  plan: PlanDocument,
+  opts: { tool?: Tool; selection?: Ref | null; draft?: [number, number][] | null },
+): { onSelect: ReturnType<typeof vi.fn>; rerender: (next: Partial<typeof opts>) => void } {
+  const onSelect = vi.fn();
+  const stage = createRef<Konva.Stage>();
+  const session = (o: typeof opts): EditorSession => ({
+    tool: o.tool ?? { kind: 'select' },
+    viewport: { origin: [0, 0], scale: 48 },
+    selection: o.selection ?? null,
+    preview: null,
+    focus: null,
+  });
+  const view = render(
+    <Stage ref={stage} width={800} height={600}>
+      <PlanGeometryLayer
+        document={plan}
+        session={session(opts)}
+        draft={opts.draft ?? null}
+        onCommand={() => ({ ok: true, value: plan })}
+        onSelect={onSelect}
+      />
+    </Stage>,
+  );
+  return {
+    onSelect,
+    rerender: (next) => {
+      const merged = { ...opts, ...next };
+      view.rerender(
+        <Stage ref={stage} width={800} height={600}>
+          <PlanGeometryLayer
+            document={plan}
+            session={session(merged)}
+            draft={merged.draft ?? null}
+            onCommand={() => ({ ok: true, value: plan })}
+            onSelect={onSelect}
+          />
+        </Stage>,
+      );
+    },
+  };
+}
+
+describe('Enter и смена инструмента завершают выделенный проём (D-267)', () => {
+  const plan = demo();
+  const opening: Ref = { kind: 'opening', id: 'op_entrance' };
+
+  test('Enter при выделенном проёме снимает выделение', () => {
+    const { onSelect } = renderLayer(plan, { selection: opening });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  test('Enter в поле ввода проём не трогает', () => {
+    const { onSelect } = renderLayer(plan, { selection: opening });
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onSelect).not.toHaveBeenCalled();
+    input.remove();
+  });
+
+  test('при черновике контура Enter не снимает выделение проёма', () => {
+    const { onSelect } = renderLayer(plan, {
+      selection: opening,
+      draft: [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+      ],
+    });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  test('Enter при выделенной зоне проём не снимает и её тоже не трогает', () => {
+    const zone = plan.zones[0];
+    if (zone === undefined) throw new Error('в демо нет зон');
+    const { onSelect } = renderLayer(plan, { selection: { kind: 'zone', id: zone.id } });
+    fireEvent.keyDown(window, { key: 'Enter' });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  test('смена инструмента снимает выделение с проёма', () => {
+    const { onSelect, rerender } = renderLayer(plan, { tool: { kind: 'select' }, selection: opening });
+    rerender({ tool: { kind: 'zone.draw' } });
+    expect(onSelect).toHaveBeenCalledWith(null);
+  });
+
+  test('тот же инструмент не снимает выделение: смены не было', () => {
+    const { onSelect, rerender } = renderLayer(plan, { tool: { kind: 'select' }, selection: opening });
+    rerender({ tool: { kind: 'select' } });
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  test('смена инструмента при выделенной зоне её не трогает — правило только про проём', () => {
+    const zone = plan.zones[0];
+    if (zone === undefined) throw new Error('в демо нет зон');
+    const { onSelect, rerender } = renderLayer(plan, {
+      tool: { kind: 'select' },
+      selection: { kind: 'zone', id: zone.id },
+    });
+    rerender({ tool: { kind: 'wall.draw' } });
+    expect(onSelect).not.toHaveBeenCalled();
   });
 });

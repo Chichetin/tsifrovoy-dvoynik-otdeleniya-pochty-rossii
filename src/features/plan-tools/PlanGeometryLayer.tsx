@@ -15,7 +15,7 @@
  * A ring dragged into a self-intersection is drawn red and never committed.
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Layer, Line, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
@@ -39,6 +39,7 @@ import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
 import { WALL_LABEL_FONT_PX, wallLengthLabel } from './wall-length-label';
 import { deleteIntent, isDeleteKey } from './delete-key';
+import { shouldFinishOpeningSelection } from './opening-focus';
 import { isTextTarget } from './text-target';
 import { currentExtrusion, endExtrusion, startExtrusion } from './extrude';
 import {
@@ -140,6 +141,34 @@ export function PlanGeometryLayer({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onCommand, onSelect, plan, selection]);
+
+  // Enter «завершает» выбранный проём — снимает выделение, как будто его
+  // только что окончательно поставили (заказ пользователя, D-267). Активный
+  // черновик контура или стены Enter не трогает: тот уже забрал его
+  // `use-plan-tool-controller.ts` (D-262).
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Enter' || event.repeat) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTextTarget(event.target)) return;
+      if (!shouldFinishOpeningSelection(selection, draft !== null)) return;
+      event.preventDefault();
+      onSelect(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [draft, onSelect, selection]);
+
+  // Смена инструмента снимает выделение с проёма так же, как Enter: карточка
+  // «Свойства», оставшаяся открытой под другим инструментом, показывала бы
+  // сущность, которую он не трогает (D-267). Другого выделения это не
+  // касается — оно живёт, пока пользователь его не снимет сам.
+  const previousToolKind = useRef(session.tool.kind);
+  useEffect(() => {
+    const changed = previousToolKind.current !== session.tool.kind;
+    previousToolKind.current = session.tool.kind;
+    if (changed && shouldFinishOpeningSelection(selection)) onSelect(null);
+  }, [session.tool.kind, selection, onSelect]);
 
   const pointerWorld = (event: Konva.KonvaEventObject<unknown>): Point | null => {
     const position = event.target.getStage()?.getPointerPosition();
