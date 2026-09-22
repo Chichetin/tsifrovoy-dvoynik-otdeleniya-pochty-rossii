@@ -61,6 +61,7 @@ function renderLayer(
   selection: Ref | null,
   preview: Candidate | null,
   tool: EditorSession['tool'] = { kind: 'select' },
+  hideHandlesFor: string | null = null,
 ): Konva.Stage {
   const stage = createRef<Konva.Stage>();
   const session: EditorSession = {
@@ -78,6 +79,7 @@ function renderLayer(
         onCommand={() => ({ ok: true, value: plan })}
         onSelect={() => undefined}
         preview={preview}
+        hideHandlesFor={hideHandlesFor}
       />
     </Stage>,
   );
@@ -94,8 +96,8 @@ function drawnSymbols(plan: PlanDocument, selection: Ref | null, preview: Candid
 }
 
 /** Имена ручек выбранного объекта на слое выделения. */
-function handleNames(plan: PlanDocument, objectId: string): string[] {
-  return renderLayer(plan, { kind: 'object', id: objectId }, null)
+function handleNames(plan: PlanDocument, objectId: string, hideHandlesFor: string | null = null): string[] {
+  return renderLayer(plan, { kind: 'object', id: objectId }, null, { kind: 'select' }, hideHandlesFor)
     .find((node: Konva.Node) => node.name().startsWith('handle-'))
     .map((node) => node.name());
 }
@@ -134,6 +136,13 @@ describe('ручки выбранного объекта', () => {
     expect(handleNames(plan, 'eq_bench_1')).toEqual(['handle-rotate']);
     // Соседний тип остался мебелью: запрет адресный, а не «всем без ручек».
     expect(handleNames(plan, 'eq_work_1')).toHaveLength(9);
+  });
+
+  test('в правке формы (D-290) у объекта нет ручек размера и поворота', () => {
+    const plan = planWith('rect');
+    expect(handleNames(plan, 'eq_bench_1', 'eq_bench_1')).toEqual([]);
+    // Скрытие адресное: режим другого объекта ручки выбранного не прячет.
+    expect(handleNames(plan, 'eq_bench_1', 'eq_work_1')).toHaveLength(9);
   });
 });
 

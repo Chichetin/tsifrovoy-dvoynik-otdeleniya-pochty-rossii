@@ -59,6 +59,8 @@ export type ObjectShapeLayerProps = {
   document: PlanDocument;
   session: EditorSession;
   onCommand: CommandSink;
+  /** Which object is in shape mode, or null (D-290): the app hides that object's resize and rotation handles. */
+  onEditingChange?: (id: Id | null) => void;
 };
 
 /** The object a double click landed on, by its group's name on the equipment layer. */
@@ -77,7 +79,12 @@ const ctrlOf = (evt: unknown): boolean =>
 const altOf = (evt: unknown): boolean =>
   typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
 
-export function ObjectShapeLayer({ document: plan, session, onCommand }: ObjectShapeLayerProps): React.JSX.Element {
+export function ObjectShapeLayer({
+  document: plan,
+  session,
+  onCommand,
+  onEditingChange,
+}: ObjectShapeLayerProps): React.JSX.Element {
   const { viewport, selection, tool } = session;
   const [editingId, setEditingId] = useState<Id | null>(null);
   const [dragged, setDragged] = useState<Polygon | null>(null);
@@ -106,6 +113,13 @@ export function ObjectShapeLayer({ document: plan, session, onCommand }: ObjectS
   useEffect(() => {
     if (!active && getNotice() === SHAPE_EDIT_NOTICE) setNotice(null);
   }, [active]);
+
+  // D-290: report the mode however it starts or ends, so the equipment layer
+  // hides this object's own handles only while the vertices are shown.
+  const editedId = active ? object.id : null;
+  useEffect(() => {
+    onEditingChange?.(editedId);
+  }, [editedId, onEditingChange]);
 
   // The stage's double click is the one way in: the object's own group is
   // drawn by the equipment layer, and a feature does not reach into another.
