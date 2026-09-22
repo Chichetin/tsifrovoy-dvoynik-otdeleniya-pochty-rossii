@@ -17,6 +17,7 @@ type Saved = {
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 const TYPE_NAME = 'Стойка угловая e2e';
+const RACK = 'Шкаф / стеллаж для посылок';
 const card = (page: Page) => page.getByLabel('Свойства');
 
 /** Two animation frames: Konva has drawn the scene and its hit canvas. */
@@ -85,6 +86,27 @@ test('форма вершиной → новый тип → объект это�
   await page.keyboard.press('Control+y');
   await expect(card(page).getByTestId('props-shape')).toContainText('Форма: своя, вершин — 4');
 
+  // «Своя фигура»: a type from the library, then a polygon by clicks, Enter closes it.
+  await showTab(page, 'Библиотека');
+  await page.locator('.library__item', { hasText: RACK }).first().click();
+  await page.getByRole('button', { name: 'Нарисовать свою фигуру' }).click();
+  await expect(page.getByTestId('shape-draw-hint')).toContainText(RACK);
+  const canvas = await page.getByTestId('editor-canvas').boundingBox();
+  if (canvas === null) throw new Error('холст не виден');
+  const base = { x: canvas.x + 120, y: canvas.y + canvas.height - 160 };
+  await page.keyboard.down('Alt');
+  for (const [dx, dy] of [[0, 0], [90, 0], [90, 40], [40, 40], [40, 90], [0, 90]] as const) {
+    await settle(page);
+    await page.mouse.click(base.x + dx, base.y + dy);
+  }
+  await page.keyboard.up('Alt');
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+
+  // Back to the edited object for the card.
+  await page.mouse.click(centre.x, centre.y);
+  await expect(card(page)).toHaveAttribute('data-entity-id', target.id);
+
   // Save the shape as a catalog type.
   await card(page).getByLabel('Название нового типа').fill(TYPE_NAME);
   await card(page).getByRole('button', { name: 'Сохранить форму как новый тип' }).click();
@@ -107,6 +129,11 @@ test('форма вершиной → новый тип → объект это�
   const edited = first.plan.objects.find((object) => object.id === target.id)!;
   expect(edited.outline).toEqual(type?.outline);
   expect(edited.size_m[0]).toBeGreaterThan(target.size_m[0]);
+  const drawn = first.plan.objects.filter(
+    (object) => object.id !== target.id && object.outline?.length === 6 && !demo.objects.some((known) => known.id === object.id),
+  );
+  expect(drawn).toHaveLength(1);
+  expect(first.plan.catalog.objectTypes.find((entry) => entry.id === drawn[0]!.typeId)?.label).toBe(RACK);
   const placed = first.plan.objects.filter((object) => object.typeId === type?.id);
   expect(placed).toHaveLength(1);
   expect(placed[0]!.outline).toEqual(type?.outline);

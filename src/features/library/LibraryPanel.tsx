@@ -21,6 +21,7 @@ function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
 
 export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProps): React.JSX.Element {
   const [query, setQuery] = useState('');
+  const [needType, setNeedType] = useState(false);
 
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -44,6 +45,23 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
         placeholder="Поиск по названию или категории"
         onChange={(event) => setQuery(event.target.value)}
       />
+      {/* D-279: the armed type is drawn as a polygon instead of placed as a box. */}
+      <button
+        type="button"
+        className="files__button library__shape"
+        title="Клики по плану ставят вершины; замкнуть — клик по первой точке, Enter или двойной клик"
+        onClick={() => {
+          setNeedType(activeTypeId === null);
+          if (activeTypeId !== null) onTool({ kind: 'shape.draw', typeId: activeTypeId });
+        }}
+      >
+        Нарисовать свою фигуру
+      </button>
+      {needType && activeTypeId === null ? (
+        <p className="panel__empty" role="status">
+          Сначала выберите тип в списке — фигура станет объектом этого типа.
+        </p>
+      ) : null}
       {groups.length === 0 ? <p className="panel__empty">Ничего не найдено</p> : null}
       {groups.map(([category, types]) => (
         <div key={category} className="library__group">

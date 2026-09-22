@@ -61,8 +61,10 @@ export const OPENING_WIDER_THAN_WALL_NOTICE =
 /** Shape mode of an object (D-279): what the handles do and how to leave. */
 export const SHAPE_EDIT_NOTICE =
   'Правка формы: тяните вершину, клик по середине ребра — новая вершина, двойной щелчок по вершине — удалить; Enter или Esc — готово';
+export const SHAPE_NO_TYPE_NOTICE =
+  'Сначала выберите тип в библиотеке, затем нажмите «Нарисовать свою фигуру»';
 export const SHAPE_TOO_SMALL_NOTICE =
-  'Форма получилась тоньше 10 см — правка отклонена, объект не изменён';
+  'Фигура получилась тоньше 10 см — не принята, план не изменён';
 
 export const NEAR_VERTEX_NOTICE =
   'Клик пришёлся у вершины — вершина не добавлена; кликните ближе к середине ребра';
