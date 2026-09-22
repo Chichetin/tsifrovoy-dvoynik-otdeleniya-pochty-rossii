@@ -85,7 +85,7 @@ export function App(): React.JSX.Element {
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
-  // D-273: the plaque keeps the refs and revision of the refusal, so it
+  // D-274: the plaque keeps the refs and revision of the refusal, so it
   // disappears by itself once the plan it spoke about is gone.
   const [lastError, setLastError] = useState<EditError | null>(null);
   const focusSequence = useRef(0);

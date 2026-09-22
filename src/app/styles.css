@@ -322,7 +322,7 @@ body {
   min-width: 0;
 }
 
-/* The cross is the one part of the plaque that takes clicks (D-273). */
+/* The cross is the one part of the plaque that takes clicks (D-274). */
 .shell__error-close {
   flex: none;
   display: inline-grid;
@@ -818,7 +818,7 @@ body {
   min-width: 0;
 }
 
-/* D-273: the file error is dismissed by hand, like the plaque over the canvas. */
+/* D-274: the file error is dismissed by hand, like the plaque over the canvas. */
 .files__error-close {
   flex: none;
   display: inline-grid;

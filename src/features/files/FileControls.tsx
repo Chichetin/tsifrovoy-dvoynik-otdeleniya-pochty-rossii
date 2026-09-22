@@ -153,7 +153,7 @@ export function FileControls({
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<readonly string[]>([]);
-  // D-273: a file error speaks about the plan as it was; the next edit of the
+  // D-274: a file error speaks about the plan as it was; the next edit of the
   // plan makes it stale. Adjusted during render, not in an effect: an error
   // raised later («план изменён во время чтения») stays until the next edit.
   const [seenRevision, setSeenRevision] = useState(revision);

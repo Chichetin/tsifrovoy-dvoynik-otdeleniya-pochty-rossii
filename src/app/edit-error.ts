@@ -2,7 +2,7 @@ import type { Issue, PlanDocument, Ref } from '../contracts/model';
 import { idOwners } from '../domain/commands';
 
 /**
- * The plaque over the canvas (D-273). `edit` — a refused command: it speaks
+ * The plaque over the canvas (D-274). `edit` — a refused command: it speaks
  * about the document at `revision` and about the entities in `refs`.
  * `document` — a note about the opened document as a whole (the team catalog
  * did not apply to the organizers' example): edits do not make it untrue.

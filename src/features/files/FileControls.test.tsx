@@ -234,7 +234,7 @@ describe('FileControls: замена текущего плана', () => {
     expect(screen.getByTestId('file-error-details').textContent).toContain('DOCUMENT_UNREADABLE: JSON оборван.');
   });
 
-  test('ошибку файла снимает крестик «Скрыть сообщение» вместе с раскрытием (D-273)', async () => {
+  test('ошибку файла снимает крестик «Скрыть сообщение» вместе с раскрытием (D-274)', async () => {
     renderControls({ storage: null, read: () => unreadable });
     await openBroken();
 
@@ -244,7 +244,7 @@ describe('FileControls: замена текущего плана', () => {
     expect(screen.queryByTestId('file-error-details')).toBeNull();
   });
 
-  test('ошибка файла пропадает сама, когда план правят дальше (D-273)', async () => {
+  test('ошибка файла пропадает сама, когда план правят дальше (D-274)', async () => {
     const { rerender } = renderControls({ storage: null, read: () => unreadable, revision: 3 });
     await openBroken();
     rerender({ revision: 3 });
