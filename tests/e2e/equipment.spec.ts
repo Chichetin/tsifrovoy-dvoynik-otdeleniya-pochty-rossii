@@ -218,15 +218,12 @@ test.describe('жесты над оборудованием', () => {
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
     await expect(inventoryRows(page)).toHaveCount(53);
 
-    const pictograms = await page.evaluate(() => {
-      type Stage = { find(selector: string): unknown[] };
-      const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
-      const kinds = ['cashier', 'terminal', 'rack', 'workplace', 'seat', 'printer'];
-      return Object.fromEntries(kinds.map((kind) => [kind, stage?.find(`.plan-pictogram-${kind}`).length ?? 0]));
-    });
-
     for (const kind of ['cashier', 'terminal', 'rack', 'workplace', 'seat', 'printer']) {
-      expect(pictograms[kind]).toBeGreaterThan(0);
+      await expect.poll(() => page.evaluate((name) => {
+        type Stage = { find(selector: string): unknown[] };
+        const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
+        return stage?.find(`.plan-pictogram-${name}`).length ?? 0;
+      }, kind)).toBeGreaterThan(0);
     }
   });
 
@@ -332,7 +329,15 @@ test.describe('жесты над оборудованием', () => {
     expect(w).toBeGreaterThanOrEqual(44);
     // Внутренняя часть следа, без обводки: тёмные пиксели здесь — только текст.
     const box = { x: centre.x - w / 2 + 4, y: centre.y - h / 2 + 4, w: w - 8, h: h - 8 };
-    await expect.poll(() => captionPixels(page, box)).toBeGreaterThan(30);
+    // The pictogram now occupies part of the badge; visible text still has
+    // dark pixels, but its area is smaller than before that change.
+    await expect.poll(() => captionPixels(page, box)).toBeGreaterThan(20);
+    const caption = await page.evaluate(() => {
+      type Node = { findOne(selector: string): Node | null; text(): string };
+      const stage = (window as unknown as { Konva?: { stages: Node[] } }).Konva?.stages[0];
+      return stage?.findOne('.label-eq_1')?.findOne('Text')?.text() ?? null;
+    });
+    expect(caption).toBe(RACK);
   });
 
   test('повторный клик по активному типу отменяет установку', async ({ page }) => {

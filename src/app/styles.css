@@ -349,6 +349,7 @@ body {
   overflow: hidden;
   background: var(--color-surface);
   border-right: 1px solid var(--color-line);
+  container-type: inline-size;
 }
 
 .shell__side--wide {
@@ -1329,6 +1330,23 @@ body {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* At the compact sidebar widths, put dimensions below the name instead of
+   letting the two columns collide. Tables retain readable columns and scroll. */
+@container (max-width: 230px) {
+  .library__item {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+
+  .library__swatch { grid-column: 1; grid-row: 1; }
+  .library__label { grid-column: 2; grid-row: 1; }
+  .library__size { grid-column: 2; grid-row: 2; }
+  .table { min-width: 340px; }
 }
 
 .table {
