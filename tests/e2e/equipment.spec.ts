@@ -274,6 +274,7 @@ test.describe('жесты над оборудованием', () => {
     await armLayerClearCounter(page);
     await selectRow(page, 0);
     await expect(card(page)).toHaveAttribute('data-entity-id', /^eq_/);
+    await expect(card(page).getByLabel('Тип оборудования')).toBeVisible();
     await page.waitForTimeout(300);
     const clears = await page.evaluate(
       () => (window as unknown as { __layerClears: Record<string, number> }).__layerClears,

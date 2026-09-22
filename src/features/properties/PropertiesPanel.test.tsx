@@ -234,6 +234,40 @@ describe('упрощённая карточка (D-278)', () => {
     expect(screen.getByTestId('props-zone').textContent).toBe('Зона: Клиентская зона');
   });
 
+  test('зона без имени (пустое или из пробелов) названа своим id, а не пустой строкой', () => {
+    for (const name of ['', '   ']) {
+      const unnamed: PlanDocument = {
+        ...plan,
+        zones: plan.zones.map((zone) => (zone.id === 'z_client' ? { ...zone, name } : zone)),
+      };
+      render(
+        <PropertiesPanel
+          document={unnamed}
+          session={session({ kind: 'object', id: 'eq_work_1' })}
+          onCommand={sink().spy}
+        />,
+      );
+      expect(screen.getByTestId('props-zone').textContent).toBe('Зона: z_client');
+      cleanup();
+    }
+  });
+
+  test('висячая ссылка на несуществующую зону — «Зона: вне зон»', () => {
+    const dangling: PlanDocument = {
+      ...plan,
+      objects: plan.objects.map((item) => (item.id === 'eq_work_1' ? { ...item, zoneId: 'z_missing' } : item)),
+    };
+    render(
+      <PropertiesPanel
+        document={dangling}
+        session={session({ kind: 'object', id: 'eq_work_1' })}
+        onCommand={sink().spy}
+      />,
+    );
+
+    expect(screen.getByTestId('props-zone').textContent).toBe('Зона: вне зон');
+  });
+
   test('объект вне зон — «Зона: вне зон»', () => {
     const outside: PlanDocument = {
       ...plan,

@@ -144,14 +144,16 @@ test('расстановка из библиотеки оставляет биб
 
   // Новый объект выбран: кнопка внизу колонки возвращает его карточку.
   await page.getByRole('button', { name: 'Свойства выбранного' }).click();
-  await expect(propsCard(page)).toContainText('объект; не меняется');
+  await expect(propsCard(page)).toHaveAttribute('data-entity-id', /^eq_/);
+  await expect(propsCard(page).getByLabel('Тип оборудования')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toHaveCount(0);
   await sideTab(page, 'Библиотека').click();
   await expect(propsCard(page)).toHaveCount(0);
 
   await canvas.click({ position: at });
   await expect(propsCard(page)).toBeVisible();
-  await expect(propsCard(page)).toContainText('объект; не меняется');
+  await expect(propsCard(page)).toHaveAttribute('data-entity-id', /^eq_/);
+  await expect(propsCard(page).getByLabel('Тип оборудования')).toBeVisible();
   await expect(page.getByLabel('Библиотека оборудования')).toBeHidden();
 });
 

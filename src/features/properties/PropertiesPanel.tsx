@@ -86,9 +86,15 @@ function attributeValue(attributes: Attributes, def: AttributeDef): string {
  */
 const CONDITIONAL_HINT = 'Условное число для планирования, не измерение';
 
-/** The card names the zone as the plan does; an object outside every zone says so. */
+/**
+ * The card names the zone as the plan does; an object outside every zone (or
+ * pointing at a zone that is gone) says so. A blank name falls back to the id,
+ * as in the inventory list: an empty «Зона: » tells nothing.
+ */
 function zoneName(plan: PlanDocument, zoneId: string | null): string {
-  return plan.zones.find((zone) => zone.id === zoneId)?.name ?? 'вне зон';
+  const zone = plan.zones.find((item) => item.id === zoneId);
+  if (zone === undefined) return 'вне зон';
+  return zone.name.trim() === '' ? zone.id : zone.name;
 }
 
 export function PropertiesPanel({
