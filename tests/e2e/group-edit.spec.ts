@@ -223,6 +223,8 @@ test.describe('правка выбранного с клавиатуры', () =>
     await selectRow(page, 0);
     const zone = await zoneOf(page);
     expect(zone).not.toBe('вне зон');
+    const number = await card(page).getByLabel('Инвентарный номер').inputValue();
+    expect(number).not.toBe('');
     await page.keyboard.press('Control+c');
     await page.keyboard.press('Control+v');
 
@@ -230,6 +232,8 @@ test.describe('правка выбранного с клавиатуры', () =>
     // Копия вставлена рядом с оригиналом, и её зона пересчитана по месту, а не
     // скопирована: `pasteObjects` отдаёт zoneId=null, зону ставит object.put.
     await expect.poll(() => zoneOf(page)).toBe(zone);
+    // Инвентарный номер — ярлык физического предмета: копия его не получает (D-266).
+    await expect(card(page).getByLabel('Инвентарный номер')).toHaveValue('');
 
     const [x0, y0] = await positionOf(page);
     await page.keyboard.press('ArrowRight');
@@ -238,6 +242,31 @@ test.describe('правка выбранного с клавиатуры', () =>
     const plan = await savedPlan(page);
     expect(plan.objects).toHaveLength(54);
     expect(new Set(plan.objects.map((object) => object.id)).size).toBe(54);
+  });
+
+  test('на демо-плане: чужой инвентарный номер у копии — находка «Проверки» с обоими объектами', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await openDemo(page);
+    await selectRow(page, 0);
+    const number = await card(page).getByLabel('Инвентарный номер').inputValue();
+    await page.keyboard.press('Control+c');
+    await page.keyboard.press('Control+v');
+    await expect(inventoryRows(page)).toHaveCount(54);
+
+    await showTab(page, 'Проверка');
+    const validation = page.getByLabel('Проверка плана');
+    await expect(validation.getByText(/уже присвоен/)).toHaveCount(0);
+
+    // Специалист вписал копии номер оригинала — проверка это видит.
+    await card(page).getByLabel('Инвентарный номер').fill(number);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await showTab(page, 'Проверка');
+    const finding = validation.locator('.issues__item', { hasText: `«${number}»` });
+    await expect(finding).toHaveCount(1);
+    await expect(finding).toContainText('уже присвоен');
+    await expect(finding.locator('button[data-ref-id]')).toHaveCount(2);
   });
 
   test('R поворачивает на 15° по часовой, Shift+R — против, «Отменить» возвращает угол', async ({

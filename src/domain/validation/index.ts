@@ -44,6 +44,7 @@ import {
   openingCentre,
   segmentLength,
 } from '../geometry';
+import { NBSP, formatLength, formatShort } from '../number-format';
 import { RELATION_ISSUE_CODES, relationIssues } from '../relations';
 
 /** UI metadata kept outside the persisted, shared Issue contract. */
@@ -67,6 +68,8 @@ export const VALIDATION_ISSUE_CODES = {
   OBJECT_COLLISION: 'OBJECT_COLLISION',
   /** An object runs into a solid part of a wall. */
   OBJECT_HITS_WALL: 'OBJECT_HITS_WALL',
+  /** Two objects carry the same non-empty inventory number. */
+  OBJECT_DUPLICATE_INVENTORY_NUMBER: 'OBJECT_DUPLICATE_INVENTORY_NUMBER',
   /** Fewer objects of a type than a stocking rule requires. */
   RULE_COUNT_BELOW_MIN: 'RULE_COUNT_BELOW_MIN',
   /** More objects of a type than a stocking rule allows. */
@@ -134,6 +137,7 @@ export function validatePlan(plan: PlanDocument): ValidationIssue[] {
     ...placement,
     ...collisionIssues(plan),
     ...wallIssues(plan),
+    ...inventoryNumberIssues(plan),
     ...ruleIssues(plan),
     ...withoutRepeats(relationIssues(plan), placement),
   ];
@@ -371,6 +375,57 @@ function wallIssues(plan: PlanDocument): Issue[] {
   return issues;
 }
 
+/**
+ * Attribute key of the inventory number: the same string as in
+ * `data/catalog/object-types.json` and `INVENTORY_NUMBER_KEY` of the inventory
+ * list. Domain code cannot import a feature, so the key is repeated here.
+ */
+const INVENTORY_NUMBER_KEY = 'inventoryNumber';
+
+/** Read the way the inventory list reads it: trimmed string or finite number. */
+function inventoryNumberOf(object: Equipment): string | null {
+  const value = object.attributes[INVENTORY_NUMBER_KEY];
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+/**
+ * An inventory number names one physical item, so two objects with the same
+ * number are one mistake in the inventory (D-266). Every repeat is reported
+ * against the first holder in plan order: the repeat comes first in `refs`
+ * and its footprint is highlighted, because the later object is usually the
+ * copy that needs a number of its own. A warning, not an error: the plan's
+ * geometry is intact, the attribute is typed by a person.
+ */
+function inventoryNumberIssues(plan: PlanDocument): Issue[] {
+  const firstHolder = new Map<string, Equipment>();
+  const issues: Issue[] = [];
+  for (const object of plan.objects) {
+    const number = inventoryNumberOf(object);
+    if (number === null) continue;
+    const first = firstHolder.get(number);
+    if (first === undefined) {
+      firstHolder.set(number, object);
+      continue;
+    }
+    issues.push(
+      issue(
+        VALIDATION_ISSUE_CODES.OBJECT_DUPLICATE_INVENTORY_NUMBER,
+        'warning',
+        `Инвентарный номер «${number}» у объекта «${object.label}» уже присвоен объекту «${first.label}»: у каждого предмета свой номер.`,
+        [
+          { kind: 'object', id: object.id },
+          { kind: 'object', id: first.id },
+        ],
+        footprint(object),
+      ),
+    );
+  }
+  return issues;
+}
+
 function isPhysical(catalog: Catalog, object: Equipment): boolean {
   // An unknown type is treated as solid: the schema refuses such a document on
   // load, and during an edit a silent "not physical" would hide a collision.
@@ -475,7 +530,7 @@ function distanceRuleIssues(
       issue(
         VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE,
         severityOf(rule),
-        `Объект «${object.label}» в ${best.toFixed(2)} м от ${openingName(nearest.opening)} при норме не более ${rule.maxDistance_m} м. ${ruleNote(rule)}`,
+        `Объект «${object.label}» в ${formatLength(best)} от ${openingName(nearest.opening)} при норме не более ${formatShort(rule.maxDistance_m, 2)}${NBSP}м. ${ruleNote(rule)}`,
         [
           { kind: 'object', id: object.id },
           { kind: 'opening', id: nearest.opening.id },

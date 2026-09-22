@@ -302,7 +302,7 @@ describe('пустое состояние', () => {
   });
 });
 
-describe('смена типа зоны переименовывает её', () => {
+describe('смена типа зоны переименовывает её, если название типовое', () => {
   /** Живая карточка на `nested.json`: там три типа зон, между которыми есть что переключать. */
   function LiveNested({ selection }: { selection: Ref | null }): React.JSX.Element {
     const [document, setDocument] = useState(nestedPlan);
@@ -332,13 +332,60 @@ describe('смена типа зоны переименовывает её', () 
     expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Склад посылок');
   });
 
-  test('своё название перебивается сменой типа, а черновик поля не остаётся', () => {
+  test('введённое руками название смена типа не затирает (D-265)', () => {
     render(<LiveNested selection={{ kind: 'zone', id: 'z_service' }} />);
 
-    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Склад посылок' } });
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Операционный зал' } });
+    fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_waiting' } });
+
+    expect(screen.getByLabelText<HTMLSelectElement>('Тип зоны').value).toBe('zt_waiting');
+    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Операционный зал');
+  });
+
+  test('автоматическое имя новой зоны «Зона N» заменяется названием типа', () => {
+    const { spy, commands } = sink();
+    const document: PlanDocument = {
+      ...nestedPlan,
+      zones: nestedPlan.zones.map((zone) => (zone.id === 'z_service' ? { ...zone, name: 'Зона 4' } : zone)),
+    };
+    render(<PropertiesPanel document={document} session={session({ kind: 'zone', id: 'z_service' })} onCommand={spy} />);
+
     fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_client' } });
 
-    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Клиентская зона');
+    const [command] = commands;
+    if (command?.type !== 'zone.put') throw new Error('ожидалась команда zone.put');
+    expect(command.zone.name).toBe('Клиентская зона');
+  });
+
+  test('пустое название заменяется названием типа', () => {
+    const { spy, commands } = sink();
+    const document: PlanDocument = {
+      ...nestedPlan,
+      zones: nestedPlan.zones.map((zone) => (zone.id === 'z_service' ? { ...zone, name: '  ' } : zone)),
+    };
+    render(<PropertiesPanel document={document} session={session({ kind: 'zone', id: 'z_service' })} onCommand={spy} />);
+
+    fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_waiting' } });
+
+    const [command] = commands;
+    if (command?.type !== 'zone.put') throw new Error('ожидалась команда zone.put');
+    expect(command.zone.name).toBe('Зона ожидания');
+  });
+
+  test('название, совпадающее с подписью другого типа, но не прежнего, сохраняется', () => {
+    const { spy, commands } = sink();
+    const document: PlanDocument = {
+      ...nestedPlan,
+      zones: nestedPlan.zones.map((zone) => (zone.id === 'z_service' ? { ...zone, name: 'Клиентская зона' } : zone)),
+    };
+    render(<PropertiesPanel document={document} session={session({ kind: 'zone', id: 'z_service' })} onCommand={spy} />);
+
+    fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_waiting' } });
+
+    const [command] = commands;
+    if (command?.type !== 'zone.put') throw new Error('ожидалась команда zone.put');
+    expect(command.zone.typeId).toBe('zt_waiting');
+    expect(command.zone.name).toBe('Клиентская зона');
   });
 
   test('тип и имя меняются одной командой — одно «Отменить» вернёт оба', () => {

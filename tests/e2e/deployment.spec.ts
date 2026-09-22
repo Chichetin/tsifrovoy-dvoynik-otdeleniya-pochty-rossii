@@ -126,7 +126,8 @@ test.describe('развёрнутый сервис', () => {
     // искала «Спросить» в скрытой панели и валилась по таймауту на живом деплое.
     await showTab(page, 'Ассистент');
 
-    const panel = page.getByLabel('Ассистент');
+    // `exact`: рядом есть плавающая кнопка «Ассистент» с тем же именем.
+    const panel = page.getByLabel('Ассистент', { exact: true });
     await panel.getByRole('button', { name: 'Спросить' }).click();
 
     // Ответ пришёл с сервера: mode=llm, если на сервере задан ключ провайдера,
