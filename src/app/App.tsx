@@ -15,6 +15,7 @@ import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
+import { modelToScreen } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
 import {
   mountScopeLayer,
@@ -28,6 +29,8 @@ import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { planExtent } from '../features/editor/focus';
+import { fitToExtent } from '../features/editor/viewport';
 import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
@@ -139,13 +142,47 @@ export function App(): React.JSX.Element {
       }));
     });
   };
-  const resizeStart = useRef<{ side: PanelSide; x: number; width: number } | null>(null);
+  type CanvasBeforeResize = { width: number; height: number; fitted: boolean };
+  const resizeStart = useRef<{ side: PanelSide; x: number; width: number; canvas: CanvasBeforeResize | null } | null>(null);
+  const canvasBeforeResize = (): CanvasBeforeResize | null => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect === undefined) return null;
+    const size = { width: rect.width, height: rect.height };
+    const extent = planExtent(document);
+    const fitted = fitToExtent(extent, size);
+    return {
+      ...size,
+      fitted: Math.abs(viewport.scale - fitted.scale) < fitted.scale * 0.02 &&
+        extent.every((point) => {
+          const [x, y] = modelToScreen(point, viewport);
+          return x >= 0 && x <= size.width && y >= 0 && y <= size.height;
+        }),
+    };
+  };
+  const reframeAfterResize = (before: CanvasBeforeResize | null): void => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (before === null || rect === undefined || Math.abs(rect.width - before.width) < 1) return;
+    const after = { width: rect.width, height: rect.height };
+    if (before.fitted) {
+      setViewport(fitToExtent(planExtent(document), after));
+    } else {
+      // A deliberately zoomed view keeps its scale and the same world point
+      // under the centre of the canvas while the side panel moves.
+      setViewport((current) => ({
+        ...current,
+        origin: [
+          current.origin[0] + (after.width - before.width) / 2,
+          current.origin[1] + (after.height - before.height) / 2,
+        ],
+      }));
+    }
+  };
   useEffect(() => {
     try { window.localStorage.setItem(PANEL_WIDTHS_KEY, JSON.stringify(panelWidths)); } catch { /* private mode */ }
   }, [panelWidths]);
   const startResize = (side: PanelSide, event: React.PointerEvent<HTMLDivElement>): void => {
     if (event.button !== 0) return;
-    resizeStart.current = { side, x: event.clientX, width: panelWidths[side] };
+    resizeStart.current = { side, x: event.clientX, width: panelWidths[side], canvas: canvasBeforeResize() };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
   const moveResize = (side: PanelSide, event: React.PointerEvent<HTMLDivElement>): void => {
@@ -159,7 +196,9 @@ export function App(): React.JSX.Element {
     }));
   };
   const stopResize = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const start = resizeStart.current;
     resizeStart.current = null;
+    if (start !== null) reframeAfterResize(start.canvas);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
   const resizeByKey = (side: PanelSide, event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -168,6 +207,7 @@ export function App(): React.JSX.Element {
     const step = event.key === 'ArrowLeft' ? -16 * direction : event.key === 'ArrowRight' ? 16 * direction : 0;
     if (step === 0 && event.key !== 'Home' && event.key !== 'End') return;
     event.preventDefault();
+    const before = canvasBeforeResize();
     const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
     setPanelWidths((current) => ({
       ...current,
@@ -178,6 +218,7 @@ export function App(): React.JSX.Element {
         current[side === 'left' ? 'right' : 'left'],
       ),
     }));
+    window.requestAnimationFrame(() => reframeAfterResize(before));
   };
   // D-274: the plaque keeps the refs and revision of the refusal, so it
   // disappears by itself once the plan it spoke about is gone.
