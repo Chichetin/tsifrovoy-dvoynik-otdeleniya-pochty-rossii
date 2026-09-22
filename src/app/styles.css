@@ -1800,6 +1800,13 @@ span.inventory__num {
   margin-bottom: 8px;
 }
 
+/* Вид плана, а не содержимое: отделено от списка слоёв чертой. */
+.layers__view {
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
 .layers__add select {
   flex: 1;
   min-width: 0;

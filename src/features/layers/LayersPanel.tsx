@@ -72,6 +72,12 @@ function Icon({ name }: { name: IconName }): React.JSX.Element {
  * visibility. View state held by the app, never a command: hiding a group
  * writes nothing to the plan and leaves undo alone.
  */
+/** Значки типов на плане: состояние вида, как и группы объектов выше. */
+export type PictogramsView = {
+  shown: boolean;
+  onToggle: () => void;
+};
+
 export type ObjectMountsView = {
   layerId: Id;
   hidden: ReadonlySet<ObjectMount>;
@@ -89,7 +95,11 @@ export function LayersPanel({
   onCommand,
   onSelect,
   objectMounts,
-}: LayersPanelProps & { objectMounts?: ObjectMountsView }): React.JSX.Element {
+  pictograms,
+}: LayersPanelProps & {
+  objectMounts?: ObjectMountsView;
+  pictograms?: PictogramsView;
+}): React.JSX.Element {
   const [newTypeId, setNewTypeId] = useState<string>('');
 
   const ordered = plan.layers.slice().sort((a, b) => a.order - b.order);
@@ -327,6 +337,30 @@ export function LayersPanel({
   return (
     <section className="panel layers" aria-label="Слои">
       <h2 className="panel__title">Слои</h2>
+
+      {pictograms === undefined ? null : (
+        <div className="layers__view" role="group" aria-label="Вид плана">
+          {/* Та же нажимаемая кнопка, что у видимости слоя: ничего не пишет в
+              план и не попадает в отмену — только что показано на экране. */}
+          <button
+            type="button"
+            className="layers__visible"
+            aria-label="Показывать значки объектов"
+            title={
+              pictograms.shown
+                ? 'Значки показаны — оставить только цвет, форму и подписи'
+                : 'Значки скрыты — показать'
+            }
+            aria-pressed={pictograms.shown}
+            onClick={pictograms.onToggle}
+          >
+            <span className="layers__check" aria-hidden="true">
+              {pictograms.shown ? '✓' : ''}
+            </span>
+            Значки объектов
+          </button>
+        </div>
+      )}
 
       <div className="layers__add">
         <select

@@ -227,9 +227,16 @@ export function EquipmentLayer({
   preview,
   onGesturePreview,
   hideHandlesFor = null,
+  pictograms = true,
 }: EquipmentLayerProps & {
   /** The object whose shape is being edited (D-290): its resize and rotation handles step aside. */
   hideHandlesFor?: Id | null;
+  /**
+   * Показывать условные значки типов. Состояние вида, не документа: выключение
+   * оставляет цвет, форму и подписи — так план читают те, кому привычнее
+   * чистые фигуры (переключатель в панели слоёв).
+   */
+  pictograms?: boolean;
 }): React.JSX.Element {
   const { viewport, selection } = session;
   const names = useMemo(() => planIndex(plan), [plan]);
@@ -728,7 +735,7 @@ export function EquipmentLayer({
         />
         {hasCaption ? null : (
           <EquipmentPictogram
-            kind={planPictogram(object.typeId)}
+            kind={pictograms ? planPictogram(object.typeId) : null}
             width={current.size_m[0] * viewport.scale}
             height={current.size_m[1] * viewport.scale}
             opacity={ghost ? 0.45 : 0.9}
@@ -871,7 +878,7 @@ export function EquipmentLayer({
           .map((object) => {
             const label = objectLabel(shown(object), viewport);
             if (label === null) return null;
-            const kind = planPictogram(object.typeId);
+            const kind = pictograms ? planPictogram(object.typeId) : null;
             // The symbol and the name share one badge. A separate floating
             // marker used to cover the caption on the busy demo plan.
             const iconSpace = kind === null ? 0 : 24;
