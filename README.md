@@ -179,17 +179,17 @@ scripts/measure-advice.ts`, медиана трёх прогонов) поиск
 > 4,7 с. Набор держит пороги: выбор < 400 мс, zoom < 300 мс
 > ([отчёт](docs/verification/performance-2026-09-19-d187.md)).
 
-**Прогон проверок 22.09.2026** (Linux, AMD Ryzen 7 4800H). Unit, типы, lint и сборка —
-на `a100c0c`, Node 26.8.1; полный браузерный прогон — на `8e67322`, в `a100c0c` после него
-вошли только удаление боковой панели 3D и `.env.example`:
+**Прогон проверок 22.09.2026** на коммите сдачи `92f6c40`: всё ниже снято на одном и том же
+состоянии дерева, Windows 10 и Node 22:
 
 | Команда | Результат |
 |---|---|
-| `npm test` | 88 файлов passed, 1 skipped; 1264 теста passed, 1 skipped (13,3 с) |
+| `npm test` | 91 файл passed, 1 skipped; 1326 тестов passed, 1 skipped (34,3 с) |
 | `npm run typecheck` | без ошибок |
 | `npm run lint` | без ошибок |
-| `npm run build` | 298 модулей, собрано за 0,75 с |
-| `DEV_PORT=5301 npx playwright test` (на `8e67322`) | 185 passed, 5 skipped, 0 failed (3,7 мин) |
+| `npm run build` | 300 модулей, собрано за 1,27 с |
+| `DEV_PORT=5320 npx playwright test` | 195 passed, 5 skipped, 0 failed (5,8 мин) |
+| `DEPLOY_URL=http://158.160.157.55:8080 npx playwright test tests/e2e/deployment.spec.ts` | 5 passed по публичному адресу, живой ответ модели 39 с |
 
 Прежние прогоны: 20.09.2026 на `095a23f` (Windows 10, Pentium G3220) — 942 unit, 124 e2e;
 19.09.2026 на `5d54986` — 669 unit, 82 e2e.
