@@ -1,5 +1,8 @@
 # The submitted demo files must have identical bytes on Windows and Linux.
 demo/* text eol=lf
+# Те же планы, которые сервис раздаёт по /demo/*.json: они сверяются с demo/*.json
+# побайтово (tests/public-demo-sync.test.ts), поэтому переносы строк те же.
+public/demo/* text eol=lf
 *.pdf binary
 # Скрипты уезжают на Linux-машину: собранные на Windows с CRLF, они падают на
 # возврате каретки в строке с shebang.
