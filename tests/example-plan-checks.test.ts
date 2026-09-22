@@ -133,7 +133,9 @@ describe('известные ошибки примера находятся', ()
     // Вход d_main занимает 1.5 м стены; расстояние меряется до его середины
     // (0.75, 7.5), а не до края — от терминала в (0.6, 0.6) это 6.90 м.
     const message = far[0]?.message ?? '';
-    expect(message).toContain('6.90 м от главного входа');
+    // Запятая и неразрывный пробел — как в остальном интерфейсе (formatLength).
+    expect(message).toContain('6,90\u00A0м от главного входа');
+    expect(message).toContain('не более 3\u00A0м');
     expect(message).not.toContain('d_main');
     expect(far[0]?.refs.map((ref) => ref.id)).toContain('d_main');
     expect(message).toContain('материалы организаторов');

@@ -163,7 +163,7 @@ describe('duplicateObjects', () => {
 
   test('без инвентарного номера у источника копия его тоже не получает', () => {
     const [copy] = duplicateObjects([object({ attributes: { condition: 'исправно' } })], new Set<Id>(['eq_1']));
-    expect(copy?.attributes.inventoryNumber).toBeNull();
+    expect(copy?.attributes).not.toHaveProperty('inventoryNumber');
   });
 
   test('группа дублируется одним и тем же шагом смещения, без общего счётчика', () => {
@@ -238,6 +238,21 @@ describe('pasteObjects', () => {
     expect(copy?.rotation_deg).toBe(37);
     expect(copy?.attributes).toEqual(source.attributes);
     expect(copy?.layerId).toBe(source.layerId);
+  });
+
+  test('инвентарный номер не переносится на копию, остальные атрибуты — да', () => {
+    const source = object({ attributes: { condition: 'исправно', inventoryNumber: 'ИНВ-ДЕМО-010' } });
+    const copies = pasteObjects([source, { ...source, id: 'eq_2' }], new Set<Id>(['eq_1', 'eq_2']), 2);
+    expect(copies.map((copy) => copy.attributes.inventoryNumber)).toEqual([null, null]);
+    expect(copies.map((copy) => copy.attributes.condition)).toEqual(['исправно', 'исправно']);
+    // Буфер — снимок: источник не теряет номер оттого, что его вставили.
+    expect(source.attributes.inventoryNumber).toBe('ИНВ-ДЕМО-010');
+  });
+
+  test('у типа без инвентарного номера копия не получает этот атрибут', () => {
+    const source = object({ attributes: { condition: 'исправно' } });
+    const [copy] = pasteObjects([source], new Set<Id>(['eq_1']));
+    expect(copy?.attributes).toEqual({ condition: 'исправно' });
   });
 });
 
