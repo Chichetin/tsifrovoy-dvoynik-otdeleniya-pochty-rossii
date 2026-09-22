@@ -180,12 +180,12 @@ test('клик по кружочку маркера открывает нахо�
   expect(markerPoint).not.toBeNull();
 
   // Выбор другого объекта прямо на плане — тем же путём, каким жюри выберет
-  // мышью — сворачивает правую колонку до «Свойств» (D-260).
+  // мышью: «Свойства» слева, правая колонка не трогается (D-268).
   const otherPoint = await nodeCentre(page, '.equipment-eq_back_wp');
   expect(otherPoint).not.toBeNull();
   await clickOnCanvas(page, otherPoint as { x: number; y: number });
   await expect(card(page).getByTestId('props-id')).toHaveText('eq_back_wp');
-  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'false');
+  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
 
   // Во время рисования клик по тому же месту остаётся клик инструмента:
   // список не открывается и выбор на плане не меняется. Escape здесь не

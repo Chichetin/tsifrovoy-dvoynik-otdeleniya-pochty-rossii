@@ -4,7 +4,8 @@
  *
  * Справа ряд «Ассистент / Площади / Проверка / Инвентаризация / Справочник»,
  * видна одна панель; слева «Библиотека / Слои». «Свойства» — не вкладка:
- * без выбора карточки нет, при выборе она стоит над вкладками, «×» снимает
+ * без выбора карточки нет, при выборе она встаёт в левую колонку вместо
+ * открытой вкладки (D-268), правые вкладки не трогает, «×» снимает
  * выделение. Выбранная вкладка живёт в localStorage и переживает
  * перезагрузку, в план не попадает.
  */
@@ -20,7 +21,9 @@ const TABS_KEY = 'ops-twin.side-tabs.v1';
 const RIGHT = ['Ассистент', 'Площади', 'Проверка', 'Инвентаризация', 'Справочник'] as const;
 
 const aside = (page: Page): Locator => page.locator('aside[data-tour="side-right"]');
-const propsCard = (page: Page): Locator => aside(page).getByRole('region', { name: 'Свойства' });
+const leftAside = (page: Page): Locator => page.locator('aside[data-tour="side-left"]');
+const propsCard = (page: Page): Locator => leftAside(page).getByRole('region', { name: 'Свойства' });
+const band = (page: Page): Locator => leftAside(page).locator('.shell__props-band');
 const closeProps = (page: Page): Locator => page.getByRole('button', { name: 'Снять выделение' });
 const inventoryRows = (page: Page): Locator => page.getByLabel('Инвентаризация').locator('tbody tr');
 
@@ -60,31 +63,119 @@ test('без выбора карточки «Свойства» нет вовс�
   await expect(propsCard(page)).toHaveCount(0);
   await expect(closeProps(page)).toHaveCount(0);
   await expect(page.getByRole('tab', { name: /^Свойства/ })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toHaveCount(0);
 });
 
-test('выбор показывает карточку над вкладками, открытая вкладка не меняется (D-249)', async ({ page }) => {
+test('выбор ставит «Свойства» в левую колонку вместо библиотеки; справа вкладки на месте (D-268)', async ({ page }) => {
   await openDemo(page);
   await selectFirstObject(page);
 
-  // The card scrolls on its own (capped height): measure its box, not the
-  // taller section inside it.
-  const card = (await aside(page).locator('.shell__props').boundingBox())!;
-  const tabs = (await page.getByRole('tablist', { name: 'Панели справа' }).boundingBox())!;
-  expect(card.y + card.height).toBeLessThanOrEqual(tabs.y + 1);
+  await expect(band(page)).toHaveText('Свойства — вместо библиотеки');
+  await expect(page.getByLabel('Библиотека оборудования')).toBeHidden();
+  // Ряд левых вкладок виден, ни одна не выбрана: колонку заняла карточка.
+  await expect(sideTab(page, 'Библиотека')).toBeVisible();
+  await expect(sideTab(page, 'Библиотека')).toHaveAttribute('aria-selected', 'false');
+  await expect(sideTab(page, 'Слои')).toHaveAttribute('aria-selected', 'false');
+  // Справа ничего не свернулось и карточки нет.
+  await expect(aside(page).getByRole('region', { name: 'Свойства' })).toHaveCount(0);
   await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
   await expect(inventoryRows(page).first()).toBeVisible();
 });
 
-test('«×» снимает выделение, и карточка исчезает (D-249)', async ({ page }) => {
+test('«×» снимает выделение: колонка возвращается к своей вкладке, фокус — на неё (D-268)', async ({ page }) => {
   await openDemo(page);
   await selectFirstObject(page);
 
   await closeProps(page).click();
 
   await expect(propsCard(page)).toHaveCount(0);
-  await expect(page.locator('.table__row.is-selected, tr.is-selected')).toHaveCount(0);
+  await expect(page.getByLabel('Библиотека оборудования')).toBeVisible();
+  await expect(sideTab(page, 'Библиотека')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Библиотека')).toBeFocused();
   await expect(inventoryRows(page).first()).toBeVisible();
 });
+
+test('вкладка слева возвращает панель, выделение остаётся; новый выбор снова показывает карточку (D-268)', async ({
+  page,
+}) => {
+  await openDemo(page);
+  await selectFirstObject(page);
+  const rows = await inventoryRows(page).count();
+
+  await sideTab(page, 'Слои').click();
+  await expect(page.getByLabel('Слои', { exact: true })).toBeVisible();
+  await expect(propsCard(page)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toBeVisible();
+  // Выделение осталось: Delete удаляет выбранный объект.
+  await page.keyboard.press('Delete');
+  await expect(inventoryRows(page)).toHaveCount(rows - 1);
+
+  // Новый выбор — карточка снова слева, теперь вместо слоёв.
+  await inventoryRows(page).nth(1).locator('.table__link').first().click();
+  await expect(propsCard(page)).toBeVisible();
+  await expect(band(page)).toHaveText('Свойства — вместо слоёв');
+
+  await page.keyboard.press('Escape');
+  await expect(propsCard(page)).toHaveCount(0);
+  await expect(sideTab(page, 'Слои')).toHaveAttribute('aria-selected', 'true');
+});
+
+test('расстановка из библиотеки оставляет библиотеку; клик по новому объекту открывает его карточку (D-268)', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const canvas = page.getByTestId('editor-canvas');
+  const box = (await canvas.boundingBox())!;
+  const at = { x: Math.round(box.width / 2), y: Math.round(box.height / 2) };
+
+  await page.locator('.library__item').first().click();
+  await canvas.click({ position: at });
+  await expect(page.getByRole('button', { name: 'Выбор', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(inventoryRows(page)).toHaveCount(1);
+  await expect(propsCard(page)).toHaveCount(0);
+  await expect(page.getByLabel('Библиотека оборудования')).toBeVisible();
+  await expect(sideTab(page, 'Библиотека')).toHaveAttribute('aria-selected', 'true');
+
+  // Новый объект выбран: кнопка внизу колонки возвращает его карточку.
+  await page.getByRole('button', { name: 'Свойства выбранного' }).click();
+  await expect(propsCard(page)).toContainText('Свойства объекта');
+  await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toHaveCount(0);
+  await sideTab(page, 'Библиотека').click();
+  await expect(propsCard(page)).toHaveCount(0);
+
+  await canvas.click({ position: at });
+  await expect(propsCard(page)).toBeVisible();
+  await expect(propsCard(page)).toContainText('Свойства объекта');
+  await expect(page.getByLabel('Библиотека оборудования')).toBeHidden();
+});
+
+for (const size of [
+  { width: 1280, height: 800 },
+  { width: 1440, height: 900 },
+]) {
+  test(`карточка объекта помещается в левую колонку без горизонтальной прокрутки, ${size.width}×${size.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    await openDemo(page);
+    const canvasBefore = (await page.getByTestId('editor-canvas').boundingBox())!;
+    await selectFirstObject(page);
+
+    const body = leftAside(page).locator('.shell__props-body');
+    const overflow = await body.evaluate((element) => {
+      const edge = element.getBoundingClientRect().right;
+      const sticking = [...element.querySelectorAll('input, select, textarea, button, label, dt, dd, p, h2, h3')]
+        .filter((child) => child.getBoundingClientRect().width > 0)
+        .filter((child) => child.getBoundingClientRect().right > edge + 0.5)
+        .map((child) => child.outerHTML.slice(0, 80));
+      return { scroll: element.scrollWidth - element.clientWidth, sticking };
+    });
+    expect(overflow).toEqual({ scroll: 0, sticking: [] });
+    // Холст не прыгает: колонка не меняет ширину, когда в ней карточка.
+    const canvasAfter = (await page.getByTestId('editor-canvas').boundingBox())!;
+    expect(canvasAfter).toEqual(canvasBefore);
+  });
+}
 
 test('Escape снимает выделение так же, как «×»', async ({ page }) => {
   await openDemo(page);

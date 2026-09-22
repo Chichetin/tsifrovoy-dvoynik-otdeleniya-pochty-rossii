@@ -9,7 +9,7 @@
  */
 
 import { expect, test, type Page } from './fixtures';
-import { showTab } from './side-tabs';
+import { showProps, showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Calibration = { scale: number; origin: Screen };
@@ -61,6 +61,8 @@ async function place(page: Page, label: string, view: Calibration, x: number, y:
   await page.locator('.library__item', { hasText: label }).first().click();
   await clickCanvas(page, toScreen(view, x, y));
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+  // Поставленный объект выбран, но библиотека остаётся на месте (D-268).
+  await showProps(page);
 }
 
 async function onPage(page: Page, point: Screen): Promise<Screen> {
