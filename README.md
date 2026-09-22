@@ -194,25 +194,33 @@ scripts/measure-advice.ts`, медиана трёх прогонов) поиск
 > 4,7 с. Набор держит пороги: выбор < 400 мс, zoom < 300 мс
 > ([отчёт](docs/verification/performance-2026-09-19-d187.md)).
 
-**Прогон проверок 22.09.2026** на коммите сдачи `92f6c40`: всё ниже снято на одном и том же
-состоянии дерева, Windows 10 и Node 22:
+**Прогон проверок 22.09.2026** на коммите сдачи `78dd7d2`: всё ниже снято на одном и том же
+состоянии дерева. Машина замера — AMD Ryzen 5 7535HS (12 потоков), 7,2 ГБ ОЗУ,
+Windows 11, Node 24:
 
 | Команда | Результат |
 |---|---|
-| `npm test` | 91 файл passed, 1 skipped; 1326 тестов passed, 1 skipped (34,3 с) |
+| `npm test` | 100 файлов passed, 1 skipped; 1454 теста passed, 1 skipped (65,3 с) |
 | `npm run typecheck` | без ошибок |
 | `npm run lint` | без ошибок |
-| `npm run build` | 300 модулей, собрано за 1,27 с |
-| `DEV_PORT=5320 npx playwright test` | 195 passed, 5 skipped, 0 failed (5,8 мин) |
-| `DEPLOY_URL=http://158.160.157.55:8080 npx playwright test tests/e2e/deployment.spec.ts` | 5 passed по публичному адресу, живой ответ модели 39 с |
+| `npm run build` | 307 модулей, собрано за 782 мс |
+| `DEV_PORT=5419 npx playwright test` | 209 сценариев: 201 passed, 5 skipped, 4 вышли за таймаут теста 30 с (6,6–9,4 мин) |
+| `DEPLOY_URL=http://158.160.157.55:8080 npx playwright test tests/e2e/deployment.spec.ts` | 5 passed по публичному адресу (49,7 с), включая живой ответ модели и «открыть → сохранить» на развёрнутом сервисе |
 
-Прежние прогоны: 20.09.2026 на `095a23f` (Windows 10, Pentium G3220) — 942 unit, 124 e2e;
-19.09.2026 на `5d54986` — 669 unit, 82 e2e.
+Четыре сценария, не уложившиеся в таймаут, — `custom-shape.spec.ts:76`,
+`focus.spec.ts:213`, `inventory.spec.ts:106` и `layers.spec.ts:348`. Это предел машины
+замера, а не дефект плана или редактора: запущенные отдельно те же файлы дают 13 passed
+за 1,6 мин, а в полном прогоне падают по `Test timeout of 30000ms exceeded`. Playwright
+по умолчанию берёт воркеров по числу ядер, и 12 параллельных Chromium не помещаются в
+7,2 ГБ ОЗУ; повтор (`--retries=1`) результата не менял — упирается в память, а не в
+везение. На другой машине 22.09 тот же набор прошёл целиком: `92f6c40` — 195 passed,
+5 skipped, 0 failed.
+
+Прежние прогоны: 22.09.2026 на `92f6c40` — 1326 unit, 195 e2e; 20.09.2026 на `095a23f`
+(Windows 10, Pentium G3220) — 942 unit, 124 e2e; 19.09.2026 на `5d54986` — 669 unit, 82 e2e.
 
 Пропущенные браузерные сценарии — деплойные (`tests/e2e/deployment.spec.ts`):
-без `DEPLOY_URL` они не запускаются. Публичный URL в этом прогоне не
-проверялся отдельно: 22.09 по адресу <http://158.160.157.55:8080> `DEPLOY_URL=… npx playwright test
-tests/e2e/deployment.spec.ts` — 5 passed, включая живой ответ модели за 27,8 с.
+без `DEPLOY_URL` они не запускаются.
 Ассистент в остальных браузерных сценариях работает
 в запасном режиме без API-сервера; отдельный живой прогон настоящей модели —
 [запись 19.09](docs/verification/llm-live-2026-09-19.md). Перед сдачей нужен
@@ -496,8 +504,8 @@ LLM_PROVIDER=… LLM_ENDPOINT=… LLM_MODEL=… LLM_API_KEY=… npm test -- serv
 
 ### Чем это проверено
 
-106 unit-тестов (`npx vitest run src/domain/advice server/advice-route.test.ts` →
-6 файлов, 106 passed, 22.09.2026) и 11 браузерных сценариев в `tests/e2e/assistant.spec.ts`:
+121 unit-тест (`npx vitest run src/domain/advice server/advice-route.test.ts` →
+6 файлов, 121 passed, 22.09.2026, коммит `78dd7d2`) и 11 браузерных сценариев в `tests/e2e/assistant.spec.ts`:
 агент без сервера и с моделью (вопрос → шаги → «Применить» → сохранить → открыть заново),
 кнопка перехода к ассистенту, поиск места дважды, комплектование дважды, сравнение дважды,
 устаревание ответа после правки плана, лимит 429 на сервере. Корпус `src/contracts/fixtures/advice.json`
