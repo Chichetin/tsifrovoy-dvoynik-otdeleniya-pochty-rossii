@@ -123,6 +123,18 @@ describe('LayersPanel', () => {
     expect(bar.style.background).toContain('linear-gradient');
   });
 
+  test('у включённого информационного слоя пометка условности видна сразу (D-276)', () => {
+    renderPanel(demo(['l_lt_heat']));
+    const heat = item('Тепловая нагрузка зон');
+    const caution = heat.querySelector('.layers__caution') as HTMLElement | null;
+    expect(caution?.textContent).toBe('Числа условные: их вписывает человек, это не измерение');
+    // Пометка — не внутри «Что показывает слой»: её видно без разворачивания.
+    expect(caution?.closest('details')).toBeNull();
+    // У выключенного слоя и у обычного пометки нет: чисел на плане тоже нет.
+    expect(item('Сотрудники по зонам').querySelector('.layers__caution')).toBeNull();
+    expect(item('Основной').querySelector('.layers__caution')).toBeNull();
+  });
+
   test('у выключенного информационного слоя легенды нет, у обычного — никогда', () => {
     renderPanel(demo(['l_lt_staff']));
     // Раскрытие «Что показывает слой» — тоже group, поэтому легенду ищем по имени.

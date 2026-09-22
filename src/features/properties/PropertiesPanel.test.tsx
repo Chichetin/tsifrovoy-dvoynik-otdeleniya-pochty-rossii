@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
+import before from '../../../demo/before.json';
 import minimal from '../../contracts/fixtures/minimal.json';
 import nested from '../../contracts/fixtures/nested.json';
 import type { Command } from '../../contracts/commands';
@@ -25,6 +26,10 @@ afterEach(cleanup);
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 const plan: PlanDocument = parsed.value;
+
+const parsedDemo = parsePlanDocument(before);
+if (!parsedDemo.ok) throw new Error('demo/before.json не разобрался');
+const demoPlan: PlanDocument = parsedDemo.value;
 
 const parsedNested = parsePlanDocument(nested);
 if (!parsedNested.ok) throw new Error('nested.json не разобрался');
@@ -428,5 +433,36 @@ describe('смена типа зоны переименовывает её, ес
     if (command?.type !== 'zone.put') throw new Error('ожидалась команда zone.put');
     expect(command.zone.typeId).toBe('zt_waiting');
     expect(command.zone.name).toBe('Зона ожидания');
+  });
+});
+
+describe('атрибуты информационных слоёв помечены условными (D-276)', () => {
+  const hintOf = (label: string): string | null => {
+    const input = screen.getByLabelText(label);
+    const field = input.closest('label');
+    return field?.querySelector('.props__hint')?.textContent ?? null;
+  };
+
+  const showZone = (): void => {
+    const zone = demoPlan.zones.find((item) => item.attributes['loadPercent'] !== undefined);
+    if (zone === undefined) throw new Error('в demo/before.json нет зоны с загрузкой');
+    render(
+      <PropertiesPanel
+        document={demoPlan}
+        session={session({ kind: 'zone', id: zone.id })}
+        onCommand={sink().spy}
+      />,
+    );
+  };
+
+  test('«Загрузка зоны, %» и «Сотрудников в смене» подписаны как условные', () => {
+    showZone();
+    expect(hintOf('Загрузка зоны, %')).toBe('Условное число для планирования, не измерение');
+    expect(hintOf('Сотрудников в смене')).toBe('Условное число для планирования, не измерение');
+  });
+
+  test('обычный атрибут зоны пометки не получает', () => {
+    showZone();
+    expect(hintOf('Открыта для клиентов')).toBeNull();
   });
 });
