@@ -64,7 +64,7 @@ function Live({ selection }: { selection: Ref | null }): React.JSX.Element {
 }
 
 describe('заголовок карточки (D-272)', () => {
-  test('у карточки нет своего заголовка — его даёт полоса «Свойства»; имя региона остаётся', () => {
+  test('у карточки нет своих заголовков вида «Свойства объекта» — единственный заголовок даёт полоса в App; имя региона «Свойства» остаётся', () => {
     const zone = plan.zones[0];
     const object = plan.objects[0];
     if (zone === undefined || object === undefined) throw new Error('в minimal.json нет зон или объектов');
@@ -80,6 +80,7 @@ describe('заголовок карточки (D-272)', () => {
       show(pick);
       expect(screen.getByRole('region', { name: 'Свойства' })).toBeTruthy();
       expect(screen.queryAllByRole('heading')).toHaveLength(0);
+      expect(screen.queryByText(/^Свойства/)).toBeNull();
       cleanup();
     }
   });

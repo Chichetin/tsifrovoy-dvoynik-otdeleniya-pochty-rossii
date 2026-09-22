@@ -71,8 +71,11 @@ test('выбор ставит «Свойства» в левую колонку 
   await selectFirstObject(page);
 
   await expect(band(page)).toHaveText('Свойства');
-  // D-272: подпись полосы — единственный заголовок; своего в карточке нет.
+  // D-272: подпись полосы — единственный заголовок «Свойства»; своих
+  // заголовков («Свойства объекта» и т. п.) в карточке нет.
   await expect(propsCard(page).getByRole('heading')).toHaveCount(0);
+  await expect(leftAside(page).getByRole('heading', { name: /Свойства/ })).toHaveCount(1);
+  await expect(band(page).getByRole('heading', { name: 'Свойства', exact: true })).toBeVisible();
   await expect(closeProps(page)).toBeVisible();
   await expect(page.getByLabel('Библиотека оборудования')).toBeHidden();
   // Ряд левых вкладок виден, ни одна не выбрана: колонку заняла карточка.

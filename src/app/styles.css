@@ -1010,8 +1010,10 @@ body {
 /* D-268 (replaces D-249's card above the right tabs): «Свойства» stand in
    the left column in place of its open tab. The tab row stays above with no
    tab selected; the card fills the rest and scrolls on its own. The accent
-   frame and the band «Свойства — вместо …» say the card is standing in for
-   a panel, not a panel of its own. Accent-strong on accent-soft is 7.8:1. */
+   frame and the band say the card is standing in for a panel, not a panel
+   of its own. D-272: the band reads just «Свойства» and is the card's only
+   heading (role="heading" on the caption); the card itself has no title.
+   Accent-strong on accent-soft is 7.8:1. */
 .side-tabs.is-collapsed {
   flex: 0 0 auto;
 }
