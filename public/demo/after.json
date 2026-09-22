@@ -1,0 +1,2657 @@
+{
+  "schemaVersion": 1,
+  "id": "plan_demo_ops_synthetic",
+  "name": "Демо-ОПС «Синтетическое» — учебное отделение",
+  "room": {
+    "id": "room_main",
+    "boundary": [
+      [
+        0,
+        0
+      ],
+      [
+        15,
+        0
+      ],
+      [
+        15,
+        10
+      ],
+      [
+        6,
+        10
+      ],
+      [
+        6,
+        7
+      ],
+      [
+        0,
+        7
+      ]
+    ],
+    "ceilingHeight_m": 3
+  },
+  "walls": [
+    {
+      "id": "w_south",
+      "from": [
+        0,
+        0
+      ],
+      "to": [
+        15,
+        0
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_east",
+      "from": [
+        15,
+        0
+      ],
+      "to": [
+        15,
+        10
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_north",
+      "from": [
+        15,
+        10
+      ],
+      "to": [
+        6,
+        10
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_notch_east",
+      "from": [
+        6,
+        10
+      ],
+      "to": [
+        6,
+        7
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_notch_south",
+      "from": [
+        6,
+        7
+      ],
+      "to": [
+        0,
+        7
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_west",
+      "from": [
+        0,
+        7
+      ],
+      "to": [
+        0,
+        0
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_hall_back",
+      "from": [
+        9.3,
+        0
+      ],
+      "to": [
+        9.3,
+        7
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_staff",
+      "from": [
+        6,
+        7
+      ],
+      "to": [
+        9.3,
+        7
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    },
+    {
+      "id": "w_storage",
+      "from": [
+        9.3,
+        6.2
+      ],
+      "to": [
+        15,
+        6.2
+      ],
+      "thickness_m": 0.25,
+      "height_m": 3
+    }
+  ],
+  "openings": [
+    {
+      "id": "op_entrance",
+      "wallId": "w_south",
+      "offset_m": 6.3,
+      "width_m": 1.6,
+      "kind": "entrance",
+      "sill_m": 0,
+      "height_m": 2.1
+    },
+    {
+      "id": "op_window_south",
+      "wallId": "w_south",
+      "offset_m": 1.5,
+      "width_m": 2,
+      "kind": "window",
+      "sill_m": 0.9,
+      "height_m": 1.5
+    },
+    {
+      "id": "op_window_east",
+      "wallId": "w_east",
+      "offset_m": 2,
+      "width_m": 1.4,
+      "kind": "window",
+      "sill_m": 0.9,
+      "height_m": 1.5
+    },
+    {
+      "id": "op_door_back",
+      "wallId": "w_hall_back",
+      "offset_m": 5.4,
+      "width_m": 0.9,
+      "kind": "door",
+      "sill_m": 0,
+      "height_m": 2.1
+    },
+    {
+      "id": "op_door_staff",
+      "wallId": "w_staff",
+      "offset_m": 1.2,
+      "width_m": 0.9,
+      "kind": "door",
+      "sill_m": 0,
+      "height_m": 2.1
+    },
+    {
+      "id": "op_door_storage",
+      "wallId": "w_storage",
+      "offset_m": 3,
+      "width_m": 0.9,
+      "kind": "door",
+      "sill_m": 0,
+      "height_m": 2.1
+    }
+  ],
+  "layers": [
+    {
+      "id": "l_base",
+      "name": "Основной",
+      "visible": true,
+      "locked": false,
+      "order": 0,
+      "typeId": null
+    },
+    {
+      "id": "l_lt_cameras",
+      "name": "Камеры и зоны обзора",
+      "visible": false,
+      "locked": false,
+      "order": 1,
+      "typeId": "lt_cameras"
+    },
+    {
+      "id": "l_lt_heat",
+      "name": "Тепловая нагрузка зон",
+      "visible": false,
+      "locked": false,
+      "order": 2,
+      "typeId": "lt_heat"
+    },
+    {
+      "id": "l_lt_staff",
+      "name": "Сотрудники по зонам",
+      "visible": false,
+      "locked": false,
+      "order": 3,
+      "typeId": "lt_staff"
+    },
+    {
+      "id": "l_lt_queue",
+      "name": "Очередь по зонам",
+      "visible": false,
+      "locked": false,
+      "order": 4,
+      "typeId": "lt_queue"
+    }
+  ],
+  "zones": [
+    {
+      "id": "z_client",
+      "typeId": "zt_client",
+      "name": "Клиентский зал",
+      "polygon": [
+        [
+          0,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          9,
+          7
+        ],
+        [
+          0,
+          7
+        ]
+      ],
+      "parentId": null,
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 65,
+        "publicAccess": true,
+        "staffCount": 3
+      }
+    },
+    {
+      "id": "z_entrance",
+      "typeId": "zt_entrance",
+      "name": "Входная группа",
+      "polygon": [
+        [
+          5.2,
+          0
+        ],
+        [
+          9,
+          0
+        ],
+        [
+          9,
+          2.4
+        ],
+        [
+          5.2,
+          2.4
+        ]
+      ],
+      "parentId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 40,
+        "staffCount": 0
+      }
+    },
+    {
+      "id": "z_waiting",
+      "typeId": "zt_waiting",
+      "name": "Зона ожидания",
+      "polygon": [
+        [
+          0.2,
+          0.3
+        ],
+        [
+          4.8,
+          0.3
+        ],
+        [
+          4.8,
+          3.4
+        ],
+        [
+          0.2,
+          3.4
+        ]
+      ],
+      "parentId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 55,
+        "queueLength": 4,
+        "seatsPlanned": 6,
+        "staffCount": 0
+      }
+    },
+    {
+      "id": "z_queue",
+      "typeId": "zt_queue",
+      "name": "Зона очереди",
+      "polygon": [
+        [
+          5,
+          2.6
+        ],
+        [
+          8.8,
+          2.6
+        ],
+        [
+          8.8,
+          4.6
+        ],
+        [
+          5,
+          4.6
+        ]
+      ],
+      "parentId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 70,
+        "queueLength": 7,
+        "staffCount": 0
+      }
+    },
+    {
+      "id": "z_back",
+      "typeId": "zt_service",
+      "name": "Служебная зона",
+      "polygon": [
+        [
+          9.6,
+          0
+        ],
+        [
+          15,
+          0
+        ],
+        [
+          15,
+          6.2
+        ],
+        [
+          9.6,
+          6.2
+        ]
+      ],
+      "parentId": null,
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 50,
+        "publicAccess": false,
+        "staffCount": 2
+      }
+    },
+    {
+      "id": "z_storage",
+      "typeId": "zt_storage",
+      "name": "Хранение и посылки",
+      "polygon": [
+        [
+          9.6,
+          6.2
+        ],
+        [
+          15,
+          6.2
+        ],
+        [
+          15,
+          8.6
+        ],
+        [
+          9.6,
+          8.6
+        ]
+      ],
+      "parentId": null,
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 45,
+        "staffCount": 1
+      }
+    },
+    {
+      "id": "z_utility",
+      "typeId": "zt_utility",
+      "name": "Инженерное помещение",
+      "polygon": [
+        [
+          9.6,
+          8.6
+        ],
+        [
+          15,
+          8.6
+        ],
+        [
+          15,
+          10
+        ],
+        [
+          9.6,
+          10
+        ]
+      ],
+      "parentId": null,
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 20,
+        "staffCount": 0
+      }
+    },
+    {
+      "id": "z_staff",
+      "typeId": "zt_staff",
+      "name": "Комната персонала",
+      "polygon": [
+        [
+          6.2,
+          7.2
+        ],
+        [
+          9,
+          7.2
+        ],
+        [
+          9,
+          10
+        ],
+        [
+          6.2,
+          10
+        ]
+      ],
+      "parentId": null,
+      "layerId": "l_base",
+      "attributes": {
+        "loadPercent": 30,
+        "staffCount": 1
+      }
+    }
+  ],
+  "objects": [
+    {
+      "id": "eq_1",
+      "typeId": "ot_queue_terminal",
+      "label": "Терминал электронной очереди",
+      "position": [
+        7.9,
+        2.1
+      ],
+      "size_m": [
+        0.5,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.4,
+      "zoneId": "z_entrance",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-001"
+      }
+    },
+    {
+      "id": "eq_2",
+      "typeId": "ot_info_stand",
+      "label": "Стенд навигации по услугам",
+      "position": [
+        5.8,
+        0.45
+      ],
+      "size_m": [
+        0.9,
+        0.2
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.8,
+      "zoneId": "z_entrance",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-002"
+      }
+    },
+    {
+      "id": "eq_3",
+      "typeId": "ot_mailbox",
+      "label": "Ящик для писем",
+      "position": [
+        8.6,
+        0.45
+      ],
+      "size_m": [
+        0.4,
+        0.3
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.2,
+      "zoneId": "z_entrance",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-003"
+      }
+    },
+    {
+      "id": "eq_4",
+      "typeId": "ot_payment_terminal",
+      "label": "Терминал оплаты у входа",
+      "position": [
+        8.5,
+        1.7
+      ],
+      "size_m": [
+        0.6,
+        0.6
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.5,
+      "zoneId": "z_entrance",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-004"
+      }
+    },
+    {
+      "id": "eq_5",
+      "typeId": "ot_media_panel",
+      "label": "Медиапанель у входа",
+      "position": [
+        6.6,
+        0.25
+      ],
+      "size_m": [
+        1,
+        0.1
+      ],
+      "rotation_deg": 0,
+      "base_m": 1.8,
+      "height_m": 0.6,
+      "zoneId": "z_entrance",
+      "layerId": "l_base",
+      "attributes": {
+        "diagonalInch": 43,
+        "inventoryNumber": "ИНВ-ДЕМО-005"
+      }
+    },
+    {
+      "id": "eq_6",
+      "typeId": "ot_bench",
+      "label": "Скамья ожидания 1",
+      "position": [
+        2.2,
+        0.75
+      ],
+      "size_m": [
+        1.6,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.45,
+      "zoneId": "z_waiting",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-006",
+        "seats": 3
+      }
+    },
+    {
+      "id": "eq_7",
+      "typeId": "ot_info_display",
+      "label": "Табло над зоной ожидания",
+      "position": [
+        2.4,
+        3.3
+      ],
+      "size_m": [
+        1.1,
+        0.1
+      ],
+      "rotation_deg": 0,
+      "base_m": 2,
+      "height_m": 0.65,
+      "zoneId": "z_waiting",
+      "layerId": "l_base",
+      "attributes": {
+        "diagonalInch": 55,
+        "inventoryNumber": "ИНВ-ДЕМО-007"
+      }
+    },
+    {
+      "id": "eq_9",
+      "typeId": "ot_bench",
+      "label": "Скамья у зоны очереди",
+      "position": [
+        6,
+        3
+      ],
+      "size_m": [
+        1.6,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.45,
+      "zoneId": "z_queue",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-009",
+        "seats": 3
+      }
+    },
+    {
+      "id": "eq_10",
+      "typeId": "ot_cashier_window",
+      "label": "Окно 1 — приём и выдача",
+      "position": [
+        1.5,
+        5.2
+      ],
+      "size_m": [
+        1.6,
+        0.9
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.1,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-010",
+        "windowNumber": 1
+      }
+    },
+    {
+      "id": "eq_11",
+      "typeId": "ot_cashier_window",
+      "label": "Окно 2 — платежи",
+      "position": [
+        3.5,
+        5.2
+      ],
+      "size_m": [
+        1.6,
+        0.9
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.1,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-011",
+        "windowNumber": 2
+      }
+    },
+    {
+      "id": "eq_12",
+      "typeId": "ot_cashier_window",
+      "label": "Окно 3 — универсальное",
+      "position": [
+        5.5,
+        5.2
+      ],
+      "size_m": [
+        1.6,
+        0.9
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.1,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-012",
+        "windowNumber": 3
+      }
+    },
+    {
+      "id": "eq_13",
+      "typeId": "ot_workplace",
+      "label": "Рабочее место оператора 1",
+      "position": [
+        1.5,
+        6.4
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "hasLegRecess": true,
+        "inventoryNumber": "ИНВ-ДЕМО-013",
+        "seatNumber": 1
+      }
+    },
+    {
+      "id": "eq_14",
+      "typeId": "ot_workplace",
+      "label": "Рабочее место оператора 2",
+      "position": [
+        3.5,
+        6.4
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "hasLegRecess": true,
+        "inventoryNumber": "ИНВ-ДЕМО-014",
+        "seatNumber": 2
+      }
+    },
+    {
+      "id": "eq_15",
+      "typeId": "ot_workplace",
+      "label": "Рабочее место оператора 3",
+      "position": [
+        5.5,
+        6.4
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "hasLegRecess": false,
+        "inventoryNumber": "ИНВ-ДЕМО-015",
+        "seatNumber": 3
+      }
+    },
+    {
+      "id": "eq_16",
+      "typeId": "ot_computer",
+      "label": "Компьютер оператора 1",
+      "position": [
+        1.5,
+        6.4
+      ],
+      "size_m": [
+        0.4,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.45,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-016"
+      }
+    },
+    {
+      "id": "eq_17",
+      "typeId": "ot_computer",
+      "label": "Компьютер оператора 2",
+      "position": [
+        3.5,
+        6.4
+      ],
+      "size_m": [
+        0.4,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.45,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-017"
+      }
+    },
+    {
+      "id": "eq_18",
+      "typeId": "ot_computer",
+      "label": "Компьютер оператора 3",
+      "position": [
+        5.5,
+        6.4
+      ],
+      "size_m": [
+        0.4,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.45,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-018"
+      }
+    },
+    {
+      "id": "eq_19",
+      "typeId": "ot_pos_terminal",
+      "label": "Кассовый терминал окна 1",
+      "position": [
+        1.9,
+        6.4
+      ],
+      "size_m": [
+        0.2,
+        0.3
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.2,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-019"
+      }
+    },
+    {
+      "id": "eq_20",
+      "typeId": "ot_pos_terminal",
+      "label": "Кассовый терминал окна 2",
+      "position": [
+        3.9,
+        6.4
+      ],
+      "size_m": [
+        0.2,
+        0.3
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.2,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-020"
+      }
+    },
+    {
+      "id": "eq_21",
+      "typeId": "ot_pos_terminal",
+      "label": "Кассовый терминал окна 3",
+      "position": [
+        5.9,
+        6.4
+      ],
+      "size_m": [
+        0.2,
+        0.3
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.2,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-021"
+      }
+    },
+    {
+      "id": "eq_22",
+      "typeId": "ot_scales",
+      "label": "Весы на линии обслуживания",
+      "position": [
+        1.05,
+        6.4
+      ],
+      "size_m": [
+        0.4,
+        0.35
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.12,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-022",
+        "maxWeightKg": 30
+      }
+    },
+    {
+      "id": "eq_23",
+      "typeId": "ot_label_printer",
+      "label": "Принтер этикеток окна 2",
+      "position": [
+        3.05,
+        6.4
+      ],
+      "size_m": [
+        0.25,
+        0.2
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.2,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-023"
+      }
+    },
+    {
+      "id": "eq_24",
+      "typeId": "ot_socket",
+      "label": "Розетка RJ-45 клиентского зала",
+      "position": [
+        0.35,
+        4
+      ],
+      "size_m": [
+        0.08,
+        0.02
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.3,
+      "height_m": 0.08,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-024",
+        "kind": "RJ-45"
+      }
+    },
+    {
+      "id": "eq_25",
+      "typeId": "ot_camera",
+      "label": "Камера зала (вход)",
+      "position": [
+        8.7,
+        6.7
+      ],
+      "size_m": [
+        0.15,
+        0.15
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.6,
+      "height_m": 0.15,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-025",
+        "viewAngleDeg": 90,
+        "viewRangeM": 8
+      }
+    },
+    {
+      "id": "eq_26",
+      "typeId": "ot_camera",
+      "label": "Камера зоны ожидания",
+      "position": [
+        0.5,
+        0.5
+      ],
+      "size_m": [
+        0.15,
+        0.15
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.6,
+      "height_m": 0.15,
+      "zoneId": "z_waiting",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-026",
+        "viewAngleDeg": 100,
+        "viewRangeM": 6
+      }
+    },
+    {
+      "id": "eq_27",
+      "typeId": "ot_fire_sensor",
+      "label": "Датчик пожарной сигнализации зала",
+      "position": [
+        4.5,
+        4.5
+      ],
+      "size_m": [
+        0.12,
+        0.12
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.9,
+      "height_m": 0.05,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-027"
+      }
+    },
+    {
+      "id": "eq_28",
+      "typeId": "ot_workplace",
+      "label": "Рабочее место сортировки",
+      "position": [
+        10.2,
+        1.2
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 90,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "hasLegRecess": false,
+        "inventoryNumber": "ИНВ-ДЕМО-028",
+        "seatNumber": 4
+      }
+    },
+    {
+      "id": "eq_29",
+      "typeId": "ot_workplace",
+      "label": "Рабочее место начальника смены",
+      "position": [
+        10.2,
+        3
+      ],
+      "size_m": [
+        1.4,
+        0.8
+      ],
+      "rotation_deg": 90,
+      "base_m": 0,
+      "height_m": 0.75,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "hasLegRecess": true,
+        "inventoryNumber": "ИНВ-ДЕМО-029",
+        "seatNumber": 5
+      }
+    },
+    {
+      "id": "eq_30",
+      "typeId": "ot_chair",
+      "label": "Кресло сортировки",
+      "position": [
+        11.2,
+        1.2
+      ],
+      "size_m": [
+        0.6,
+        0.6
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.1,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-030"
+      }
+    },
+    {
+      "id": "eq_31",
+      "typeId": "ot_chair",
+      "label": "Кресло начальника смены",
+      "position": [
+        11.2,
+        3
+      ],
+      "size_m": [
+        0.6,
+        0.6
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.1,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-031"
+      }
+    },
+    {
+      "id": "eq_32",
+      "typeId": "ot_computer",
+      "label": "Компьютер сортировки",
+      "position": [
+        10.2,
+        1.2
+      ],
+      "size_m": [
+        0.4,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.45,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-032"
+      }
+    },
+    {
+      "id": "eq_33",
+      "typeId": "ot_printer",
+      "label": "МФУ служебной зоны",
+      "position": [
+        10.2,
+        3
+      ],
+      "size_m": [
+        0.5,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.4,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-033",
+        "isColor": false
+      }
+    },
+    {
+      "id": "eq_34",
+      "typeId": "ot_scales",
+      "label": "Весы приёма посылок",
+      "position": [
+        10.2,
+        0.75
+      ],
+      "size_m": [
+        0.4,
+        0.35
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.75,
+      "height_m": 0.12,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-034",
+        "maxWeightKg": 50
+      }
+    },
+    {
+      "id": "eq_35",
+      "typeId": "ot_parcel_rack",
+      "label": "Стеллаж приёма посылок",
+      "position": [
+        13,
+        0.5
+      ],
+      "size_m": [
+        1.2,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 2,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-035",
+        "shelves": 5
+      }
+    },
+    {
+      "id": "eq_36",
+      "typeId": "ot_goods_rack",
+      "label": "Стеллаж товаров служебной зоны",
+      "position": [
+        13,
+        5.8
+      ],
+      "size_m": [
+        1,
+        0.4
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.8,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-036",
+        "shelves": 4
+      }
+    },
+    {
+      "id": "eq_37",
+      "typeId": "ot_switchboard",
+      "label": "Электрощит служебной зоны",
+      "position": [
+        14.5,
+        5
+      ],
+      "size_m": [
+        0.6,
+        0.25
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.8,
+      "height_m": 0.9,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-037"
+      }
+    },
+    {
+      "id": "eq_38",
+      "typeId": "ot_alarm_panel",
+      "label": "Панель охранной сигнализации",
+      "position": [
+        9.8,
+        0.6
+      ],
+      "size_m": [
+        0.3,
+        0.1
+      ],
+      "rotation_deg": 0,
+      "base_m": 1.4,
+      "height_m": 0.4,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-038"
+      }
+    },
+    {
+      "id": "eq_39",
+      "typeId": "ot_camera",
+      "label": "Камера служебной зоны",
+      "position": [
+        14.5,
+        0.4
+      ],
+      "size_m": [
+        0.15,
+        0.15
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.6,
+      "height_m": 0.15,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-039",
+        "viewAngleDeg": 90,
+        "viewRangeM": 7
+      }
+    },
+    {
+      "id": "eq_40",
+      "typeId": "ot_fire_sensor",
+      "label": "Датчик пожарной сигнализации служебной зоны",
+      "position": [
+        12,
+        3
+      ],
+      "size_m": [
+        0.12,
+        0.12
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.9,
+      "height_m": 0.05,
+      "zoneId": "z_back",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-040"
+      }
+    },
+    {
+      "id": "eq_41",
+      "typeId": "ot_parcel_rack",
+      "label": "Стеллаж посылок 1",
+      "position": [
+        10.6,
+        6.7
+      ],
+      "size_m": [
+        1.2,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 2,
+      "zoneId": "z_storage",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-041",
+        "shelves": 5
+      }
+    },
+    {
+      "id": "eq_42",
+      "typeId": "ot_parcel_rack",
+      "label": "Стеллаж посылок 2",
+      "position": [
+        12.2,
+        6.7
+      ],
+      "size_m": [
+        1.2,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 2,
+      "zoneId": "z_storage",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-042",
+        "shelves": 5
+      }
+    },
+    {
+      "id": "eq_43",
+      "typeId": "ot_parcel_rack",
+      "label": "Стеллаж посылок 3",
+      "position": [
+        13.8,
+        6.7
+      ],
+      "size_m": [
+        1.2,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 2,
+      "zoneId": "z_storage",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-043",
+        "shelves": 5
+      }
+    },
+    {
+      "id": "eq_44",
+      "typeId": "ot_goods_rack",
+      "label": "Стеллаж хранения бланков",
+      "position": [
+        10.5,
+        8.2
+      ],
+      "size_m": [
+        1,
+        0.4
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.8,
+      "zoneId": "z_storage",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-044",
+        "shelves": 4
+      }
+    },
+    {
+      "id": "eq_45",
+      "typeId": "ot_camera",
+      "label": "Камера хранения",
+      "position": [
+        14.6,
+        8.4
+      ],
+      "size_m": [
+        0.15,
+        0.15
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.6,
+      "height_m": 0.15,
+      "zoneId": "z_storage",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-045",
+        "viewAngleDeg": 90,
+        "viewRangeM": 6
+      }
+    },
+    {
+      "id": "eq_46",
+      "typeId": "ot_fire_sensor",
+      "label": "Датчик пожарной сигнализации хранения",
+      "position": [
+        12,
+        7.4
+      ],
+      "size_m": [
+        0.12,
+        0.12
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.9,
+      "height_m": 0.05,
+      "zoneId": "z_storage",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-046"
+      }
+    },
+    {
+      "id": "eq_47",
+      "typeId": "ot_hvac",
+      "label": "Вентиляционная установка",
+      "position": [
+        12,
+        9.5
+      ],
+      "size_m": [
+        0.8,
+        0.6
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.4,
+      "height_m": 0.4,
+      "zoneId": "z_utility",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-047"
+      }
+    },
+    {
+      "id": "eq_48",
+      "typeId": "ot_water_heater",
+      "label": "Водонагреватель",
+      "position": [
+        10.4,
+        9.5
+      ],
+      "size_m": [
+        0.45,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 1.2,
+      "height_m": 0.9,
+      "zoneId": "z_utility",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-048"
+      }
+    },
+    {
+      "id": "eq_49",
+      "typeId": "ot_switchboard",
+      "label": "Вводной электрощит",
+      "position": [
+        14.4,
+        9.4
+      ],
+      "size_m": [
+        0.6,
+        0.25
+      ],
+      "rotation_deg": 0,
+      "base_m": 0.8,
+      "height_m": 0.9,
+      "zoneId": "z_utility",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-049"
+      }
+    },
+    {
+      "id": "eq_50",
+      "typeId": "ot_bench",
+      "label": "Диван комнаты персонала",
+      "position": [
+        7.5,
+        9.5
+      ],
+      "size_m": [
+        1.6,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.45,
+      "zoneId": "z_staff",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-050",
+        "seats": 3
+      }
+    },
+    {
+      "id": "eq_51",
+      "typeId": "ot_chair",
+      "label": "Кресло комнаты персонала",
+      "position": [
+        6.7,
+        7.8
+      ],
+      "size_m": [
+        0.6,
+        0.6
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 1.1,
+      "zoneId": "z_staff",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-051"
+      }
+    },
+    {
+      "id": "eq_52",
+      "typeId": "ot_water_heater",
+      "label": "Водонагреватель комнаты персонала",
+      "position": [
+        8.7,
+        7.5
+      ],
+      "size_m": [
+        0.45,
+        0.45
+      ],
+      "rotation_deg": 0,
+      "base_m": 1.2,
+      "height_m": 0.9,
+      "zoneId": "z_staff",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-052"
+      }
+    },
+    {
+      "id": "eq_53",
+      "typeId": "ot_fire_sensor",
+      "label": "Датчик пожарной сигнализации комнаты персонала",
+      "position": [
+        7.6,
+        8.6
+      ],
+      "size_m": [
+        0.12,
+        0.12
+      ],
+      "rotation_deg": 0,
+      "base_m": 2.9,
+      "height_m": 0.05,
+      "zoneId": "z_staff",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-053"
+      }
+    },
+    {
+      "id": "eq_54",
+      "typeId": "ot_bench",
+      "label": "Скамья ожидания 2",
+      "position": [
+        2.2,
+        2
+      ],
+      "size_m": [
+        1.6,
+        0.5
+      ],
+      "rotation_deg": 0,
+      "base_m": 0,
+      "height_m": 0.45,
+      "zoneId": "z_waiting",
+      "layerId": "l_base",
+      "attributes": {
+        "inventoryNumber": "ИНВ-ДЕМО-054",
+        "seats": 3
+      }
+    }
+  ],
+  "catalog": {
+    "version": "1.0.0",
+    "objectTypes": [
+      {
+        "id": "ot_workplace",
+        "label": "Рабочее место оператора",
+        "category": "Рабочее место оператора",
+        "defaultSize_m": [
+          1.4,
+          0.8
+        ],
+        "defaultHeight_m": 0.75,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#4C6EF5",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "seatNumber",
+            "label": "Номер места",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "hasLegRecess",
+            "label": "Выемка для ног",
+            "type": "boolean",
+            "required": false,
+            "default": true
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Высота 0,75 м взята из диапазона 0,7–0,9 м перечня."
+      },
+      {
+        "id": "ot_chair",
+        "label": "Кресло оператора",
+        "category": "Рабочее место оператора",
+        "defaultSize_m": [
+          0.6,
+          0.6
+        ],
+        "defaultHeight_m": 1.1,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "circle",
+        "color": "#748FFC",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+      },
+      {
+        "id": "ot_computer",
+        "label": "Компьютер",
+        "category": "Рабочее место оператора",
+        "defaultSize_m": [
+          0.4,
+          0.45
+        ],
+        "defaultHeight_m": 0.45,
+        "defaultBase_m": 0.75,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#5C7CFA",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+      },
+      {
+        "id": "ot_pos_terminal",
+        "label": "Кассовый терминал",
+        "category": "Рабочее место оператора",
+        "defaultSize_m": [
+          0.2,
+          0.3
+        ],
+        "defaultHeight_m": 0.2,
+        "defaultBase_m": 0.75,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#3B5BDB",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+      },
+      {
+        "id": "ot_printer",
+        "label": "Принтер / МФУ",
+        "category": "Рабочее место оператора",
+        "defaultSize_m": [
+          0.5,
+          0.45
+        ],
+        "defaultHeight_m": 0.4,
+        "defaultBase_m": 0.75,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#1971C2",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "isColor",
+            "label": "Цветная печать",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+      },
+      {
+        "id": "ot_label_printer",
+        "label": "Принтер этикеток",
+        "category": "Рабочее место оператора",
+        "defaultSize_m": [
+          0.25,
+          0.2
+        ],
+        "defaultHeight_m": 0.2,
+        "defaultBase_m": 0.75,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#1864AB",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Стоит на столе, пол не занимает."
+      },
+      {
+        "id": "ot_cashier_window",
+        "label": "Кассовое окно / операционная касса",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          1.6,
+          0.9
+        ],
+        "defaultHeight_m": 1.1,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#0CA678",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "windowNumber",
+            "label": "Номер окна",
+            "type": "number",
+            "required": true,
+            "default": 1
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+      },
+      {
+        "id": "ot_payment_terminal",
+        "label": "Стойка с терминалом оплаты",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          0.6,
+          0.6
+        ],
+        "defaultHeight_m": 1.5,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#12B886",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+      },
+      {
+        "id": "ot_queue_terminal",
+        "label": "Терминал управления очередью",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          0.5,
+          0.5
+        ],
+        "defaultHeight_m": 1.4,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#087F5B",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Перечень требует размещение у входа, радиус не более 3 м — правило rule_queue_terminal_entrance."
+      },
+      {
+        "id": "ot_mailbox",
+        "label": "Почтовый ящик для сбора корреспонденции",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          0.4,
+          0.3
+        ],
+        "defaultHeight_m": 1.2,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#099268",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Перечень располагает его в тамбуре или у входа."
+      },
+      {
+        "id": "ot_info_display",
+        "label": "Центральное информационное табло",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          1.1,
+          0.1
+        ],
+        "defaultHeight_m": 0.65,
+        "defaultBase_m": 2,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#F76707",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "diagonalInch",
+            "label": "Диагональ, дюймы",
+            "type": "number",
+            "required": false,
+            "default": 45
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Монитор 42–48\" по перечню; висит на стене, пол не занимает."
+      },
+      {
+        "id": "ot_media_panel",
+        "label": "Медиапанель",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          1,
+          0.1
+        ],
+        "defaultHeight_m": 0.6,
+        "defaultBase_m": 1.8,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#E8590C",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "diagonalInch",
+            "label": "Диагональ, дюймы",
+            "type": "number",
+            "required": false,
+            "default": 43
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Телевизор 40–46\" по перечню; висит на стене."
+      },
+      {
+        "id": "ot_bench",
+        "label": "Скамья / кресла для ожидания",
+        "category": "Зона обслуживания клиентов",
+        "defaultSize_m": [
+          1.6,
+          0.5
+        ],
+        "defaultHeight_m": 0.45,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#F59F00",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "seats",
+            "label": "Мест",
+            "type": "number",
+            "required": false,
+            "default": 3
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+      },
+      {
+        "id": "ot_camera",
+        "label": "Камера видеонаблюдения",
+        "category": "Безопасность и коммуникации",
+        "defaultSize_m": [
+          0.15,
+          0.15
+        ],
+        "defaultHeight_m": 0.15,
+        "defaultBase_m": 2.6,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "triangle",
+        "color": "#7048E8",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "viewAngleDeg",
+            "label": "Угол обзора, °",
+            "type": "number",
+            "required": false,
+            "default": 90
+          },
+          {
+            "key": "viewRangeM",
+            "label": "Дальность обзора, м",
+            "type": "number",
+            "required": false,
+            "default": 6
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Крепится под потолком, пол не занимает."
+      },
+      {
+        "id": "ot_alarm_panel",
+        "label": "Панель охранно-тревожной сигнализации",
+        "category": "Безопасность и коммуникации",
+        "defaultSize_m": [
+          0.3,
+          0.1
+        ],
+        "defaultHeight_m": 0.4,
+        "defaultBase_m": 1.4,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#5F3DC4",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенная, пол не занимает."
+      },
+      {
+        "id": "ot_fire_sensor",
+        "label": "Датчик пожарной сигнализации",
+        "category": "Безопасность и коммуникации",
+        "defaultSize_m": [
+          0.12,
+          0.12
+        ],
+        "defaultHeight_m": 0.05,
+        "defaultBase_m": 2.9,
+        "physical": false,
+        "occupiesFloor": false,
+        "symbol": "circle",
+        "color": "#9775FA",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Потолочный датчик; в проверке пересечений не участвует."
+      },
+      {
+        "id": "ot_socket",
+        "label": "Розетка (силовая или RJ-45)",
+        "category": "Безопасность и коммуникации",
+        "defaultSize_m": [
+          0.08,
+          0.02
+        ],
+        "defaultHeight_m": 0.08,
+        "defaultBase_m": 0.3,
+        "physical": false,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#B197FC",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "kind",
+            "label": "Тип",
+            "type": "string",
+            "required": false,
+            "default": "power"
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенная точка подключения; в пересечениях не участвует."
+      },
+      {
+        "id": "ot_parcel_rack",
+        "label": "Шкаф / стеллаж для посылок",
+        "category": "Вспомогательные элементы",
+        "defaultSize_m": [
+          1.2,
+          0.5
+        ],
+        "defaultHeight_m": 2,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#E03131",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "shelves",
+            "label": "Полок",
+            "type": "number",
+            "required": false,
+            "default": 5
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+      },
+      {
+        "id": "ot_goods_rack",
+        "label": "Стеллаж для товаров",
+        "category": "Вспомогательные элементы",
+        "defaultSize_m": [
+          1,
+          0.4
+        ],
+        "defaultHeight_m": 1.8,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#C92A2A",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "shelves",
+            "label": "Полок",
+            "type": "number",
+            "required": false,
+            "default": 4
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Канцтовары и сувениры по перечню."
+      },
+      {
+        "id": "ot_scales",
+        "label": "Весы",
+        "category": "Вспомогательные элементы",
+        "defaultSize_m": [
+          0.4,
+          0.35
+        ],
+        "defaultHeight_m": 0.12,
+        "defaultBase_m": 0.75,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#A61E4D",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "maxWeightKg",
+            "label": "Предел взвешивания, кг",
+            "type": "number",
+            "required": false,
+            "default": 30
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настольные; напольные добавляются правкой справочника."
+      },
+      {
+        "id": "ot_info_stand",
+        "label": "Информационный стенд / навигация",
+        "category": "Вспомогательные элементы",
+        "defaultSize_m": [
+          0.9,
+          0.2
+        ],
+        "defaultHeight_m": 1.8,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#D6336C",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России."
+      },
+      {
+        "id": "ot_ramp",
+        "label": "Пандус при входе",
+        "category": "Вспомогательные элементы",
+        "defaultSize_m": [
+          1.2,
+          3
+        ],
+        "defaultHeight_m": 0.15,
+        "defaultBase_m": 0,
+        "physical": true,
+        "occupiesFloor": true,
+        "symbol": "rect",
+        "color": "#868E96",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          },
+          {
+            "key": "requirement",
+            "label": "Требование перечня",
+            "type": "string",
+            "required": false,
+            "default": "ширина от 1,2 м, уклон до 1:12"
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Ширина 1,2 м — минимум из перечня; уклон геометрией плана не проверяется."
+      },
+      {
+        "id": "ot_switchboard",
+        "label": "Электрощит",
+        "category": "Инженерное оборудование",
+        "defaultSize_m": [
+          0.6,
+          0.25
+        ],
+        "defaultHeight_m": 0.9,
+        "defaultBase_m": 0.8,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#495057",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенный, пол не занимает."
+      },
+      {
+        "id": "ot_hvac",
+        "label": "Вентиляционная установка",
+        "category": "Инженерное оборудование",
+        "defaultSize_m": [
+          0.8,
+          0.6
+        ],
+        "defaultHeight_m": 0.4,
+        "defaultBase_m": 2.4,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "rect",
+        "color": "#343A40",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Под потолком, пол не занимает."
+      },
+      {
+        "id": "ot_water_heater",
+        "label": "Водонагреватель",
+        "category": "Инженерное оборудование",
+        "defaultSize_m": [
+          0.45,
+          0.45
+        ],
+        "defaultHeight_m": 0.9,
+        "defaultBase_m": 1.2,
+        "physical": true,
+        "occupiesFloor": false,
+        "symbol": "circle",
+        "color": "#212529",
+        "attributes": [
+          {
+            "key": "inventoryNumber",
+            "label": "Инвентарный номер",
+            "type": "string",
+            "required": false
+          }
+        ],
+        "provenance": "Перечень оборудования ОПС (материал организаторов). Синтетическое допущение команды: размеры выбраны для демонстрации, не норматив Почты России. Настенный, пол не занимает."
+      }
+    ],
+    "zoneTypes": [
+      {
+        "id": "zt_client",
+        "label": "Клиентская зона",
+        "color": "#E7F5FF",
+        "attributes": [
+          {
+            "key": "publicAccess",
+            "label": "Открыта для клиентов",
+            "type": "boolean",
+            "required": false,
+            "default": true
+          },
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_waiting",
+        "label": "Зона ожидания",
+        "color": "#FFF4E6",
+        "attributes": [
+          {
+            "key": "seatsPlanned",
+            "label": "Мест по плану",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "queueLength",
+            "label": "Человек в очереди",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_queue",
+        "label": "Зона очереди",
+        "color": "#FFF0F6",
+        "attributes": [
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "queueLength",
+            "label": "Человек в очереди",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_entrance",
+        "label": "Входная группа",
+        "color": "#F8F0FC",
+        "attributes": [
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_service",
+        "label": "Служебная зона",
+        "color": "#F1F3F5",
+        "attributes": [
+          {
+            "key": "publicAccess",
+            "label": "Открыта для клиентов",
+            "type": "boolean",
+            "required": false,
+            "default": false
+          },
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_storage",
+        "label": "Хранение и посылки",
+        "color": "#FFF5F5",
+        "attributes": [
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_staff",
+        "label": "Комната персонала",
+        "color": "#EBFBEE",
+        "attributes": [
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          }
+        ]
+      },
+      {
+        "id": "zt_utility",
+        "label": "Инженерное помещение",
+        "color": "#E9ECEF",
+        "attributes": [
+          {
+            "key": "loadPercent",
+            "label": "Загрузка зоны, %",
+            "type": "number",
+            "required": false
+          },
+          {
+            "key": "staffCount",
+            "label": "Сотрудников в смене",
+            "type": "number",
+            "required": false
+          }
+        ]
+      }
+    ],
+    "layerTypes": [
+      {
+        "id": "lt_cameras",
+        "label": "Камеры и зоны обзора",
+        "representation": {
+          "kind": "object-field",
+          "objectTypeIds": [
+            "ot_camera"
+          ],
+          "angleAttribute": "viewAngleDeg",
+          "rangeAttribute": "viewRangeM",
+          "angle_deg": 90,
+          "range_m": 6,
+          "color": "#7048E8"
+        },
+        "note": "Сектор обзора условный: строится по углу и дальности из атрибутов камеры. Допущение команды для планирования покрытия, а не паспорт устройства; видео не подключается."
+      },
+      {
+        "id": "lt_heat",
+        "label": "Тепловая нагрузка зон",
+        "representation": {
+          "kind": "zone-heat",
+          "attribute": "loadPercent",
+          "unit": "%",
+          "max": 100,
+          "colors": [
+            "#D3F9D8",
+            "#FA5252"
+          ]
+        },
+        "note": "Загрузка зоны проставляется руками в атрибуте зоны. Это не измерение и не видеоаналитика."
+      },
+      {
+        "id": "lt_staff",
+        "label": "Сотрудники по зонам",
+        "representation": {
+          "kind": "zone-count",
+          "attribute": "staffCount",
+          "unit": "чел.",
+          "color": "#1971C2"
+        },
+        "note": "Сотрудники в смене проставляются руками в атрибуте зоны. Персональные данные не используются."
+      },
+      {
+        "id": "lt_queue",
+        "label": "Очередь по зонам",
+        "representation": {
+          "kind": "zone-heat",
+          "attribute": "queueLength",
+          "unit": "чел.",
+          "max": 12,
+          "colors": [
+            "#E7F5FF",
+            "#F76707"
+          ]
+        },
+        "note": "Длина очереди проставляется руками в атрибуте зоны. Слой добавлен правкой справочника, без изменения кода."
+      }
+    ],
+    "rules": [
+      {
+        "id": "rule_queue_terminal_entrance",
+        "kind": "distance-to-entrance",
+        "source": "organizer-material",
+        "rationale": "Перечень оборудования ОПС: терминал управления очередью размещается у входа, радиус не более 3 м.",
+        "objectTypeId": "ot_queue_terminal",
+        "maxDistance_m": 3,
+        "entranceId": null
+      },
+      {
+        "id": "rule_workplace_min",
+        "kind": "count",
+        "source": "team-assumption",
+        "rationale": "Правило команды: в клиентской зоне не меньше одного рабочего места оператора.",
+        "zoneTypeId": "zt_client",
+        "objectTypeId": "ot_workplace",
+        "scope": "inclusive",
+        "min": 1,
+        "max": null
+      },
+      {
+        "id": "rule_cashier_min",
+        "kind": "count",
+        "source": "team-assumption",
+        "rationale": "Правило команды: не меньше одного кассового окна на клиентскую зону.",
+        "zoneTypeId": "zt_client",
+        "objectTypeId": "ot_cashier_window",
+        "scope": "inclusive",
+        "min": 1,
+        "max": null
+      },
+      {
+        "id": "rule_bench_min",
+        "kind": "count",
+        "source": "team-assumption",
+        "rationale": "Правило команды: в зоне ожидания не меньше двух мест ожидания.",
+        "zoneTypeId": "zt_waiting",
+        "objectTypeId": "ot_bench",
+        "scope": "direct",
+        "min": 2,
+        "max": null
+      },
+      {
+        "id": "rule_camera_min",
+        "kind": "count",
+        "source": "team-assumption",
+        "rationale": "Правило команды: не меньше одной камеры на служебную зону.",
+        "zoneTypeId": "zt_service",
+        "objectTypeId": "ot_camera",
+        "scope": "inclusive",
+        "min": 1,
+        "max": null
+      },
+      {
+        "id": "rule_info_display_max",
+        "kind": "count",
+        "source": "team-assumption",
+        "rationale": "Правило команды: одно центральное информационное табло на клиентскую зону, второе избыточно.",
+        "zoneTypeId": "zt_client",
+        "objectTypeId": "ot_info_display",
+        "scope": "inclusive",
+        "min": null,
+        "max": 1
+      }
+    ]
+  },
+  "extensions": {}
+}
