@@ -18,7 +18,10 @@ const restrict = (files, ...patterns) => ({
 });
 
 export default tseslint.config(
-  { ignores: ['dist', 'playwright-report', 'test-results', '.claude'] },
+  // `build` — вывод `npm run build:server` (собранный сервер для образа, D-090).
+  // Он лежит рядом с исходниками и делал `npm run lint` красным у всякого, кто
+  // собирал сервер локально: это артефакт сборки, а не наш код.
+  { ignores: ['dist', 'build', 'playwright-report', 'test-results', '.claude'] },
   js.configs.recommended,
   tseslint.configs.recommended,
   reactHooks.configs.flat.recommended,
