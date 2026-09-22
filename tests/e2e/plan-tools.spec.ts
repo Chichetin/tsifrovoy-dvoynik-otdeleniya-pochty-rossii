@@ -1079,4 +1079,32 @@ test.describe('инструменты плана', () => {
     // ни в историю (кнопка «Вернуть» гаснет только после новой правки).
     expect(await savePlan(page)).toEqual(drawn);
   });
+
+  test('подсказка правки контура видна, только пока работа идёт на холсте под «Выбором» (D-282)', async ({
+    page,
+  }) => {
+    const size = await openEditor(page);
+    const card = page.getByLabel('Свойства');
+    const hint = page.getByText(/Контур: тяните вершину/);
+
+    // Выбор кликом по полу: человек у холста — подсказка на месте.
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(card).toHaveAttribute('data-entity-id', 'room_main');
+    await expect(hint).toBeVisible();
+
+    // Ушёл в поле карточки — выделение то же, подсказки нет.
+    await card.getByLabel('Название плана').click();
+    await expect(card).toHaveAttribute('data-entity-id', 'room_main');
+    await expect(hint).toHaveCount(0);
+
+    // Вернулся к холсту — снова видна.
+    await clickAt(page, px(size, 0.5, 0.5));
+    await expect(hint).toBeVisible();
+
+    // Другой инструмент — ручек контура нет, и подсказки тоже.
+    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await expect(hint).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  });
 });

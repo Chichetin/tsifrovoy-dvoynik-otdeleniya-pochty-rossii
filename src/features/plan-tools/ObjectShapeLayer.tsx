@@ -34,6 +34,7 @@ import {
   SELF_INTERSECTION_NOTICE,
   SHAPE_EDIT_NOTICE,
   SHAPE_TOO_SMALL_NOTICE,
+  getNotice,
   setNotice,
 } from './notice';
 import { reshapeObject } from './object-shape';
@@ -98,6 +99,13 @@ export function ObjectShapeLayer({ document: plan, session, onCommand }: ObjectS
     setEditingId(null);
     setDragged(null);
   }
+
+  // D-282: the mode's line leaves with the mode, however it ended — another
+  // tool or a hidden layer ends it without a key press. A refusal printed for
+  // something else is not this layer's to clear.
+  useEffect(() => {
+    if (!active && getNotice() === SHAPE_EDIT_NOTICE) setNotice(null);
+  }, [active]);
 
   // The stage's double click is the one way in: the object's own group is
   // drawn by the equipment layer, and a feature does not reach into another.
