@@ -11,6 +11,7 @@
 
 import type { Equipment, Id, Opening, PlanDocument, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
+import { objectOutline } from '../../contracts/outline';
 import { toWorld } from './coordinates';
 import {
   settle,
@@ -28,10 +29,18 @@ import {
   polygonArea,
   polygonContains,
   polygonsOverlap,
-  rectangleCorners,
   segmentLength,
 } from './polygons';
 
+export {
+  CIRCLE_OUTLINE_VERTICES,
+  UNIT_SQUARE,
+  objectOutline,
+  sameOutline,
+  symbolOutline,
+  typeOutline,
+  withTypeOutline,
+} from '../../contracts/outline';
 export {
   degToRad,
   modelToScreen,
@@ -184,10 +193,16 @@ export function intervalsOverlap(a: HeightInterval, b: HeightInterval): boolean 
   return high - low > TOLERANCE.coordinate_m;
 }
 
-/** Floor projection of a rotated object, as a world polygon. */
+/**
+ * Floor projection of a rotated object, as a world polygon: its outline
+ * (D-277) scaled by `size_m`, turned and placed. Loading has already given
+ * every object its type's shape, so a circle is checked as a circle here.
+ */
 export function footprint(object: Equipment): Polygon {
-  const local = rectangleCorners([0, 0], object.size_m);
-  return local.map((corner) => toWorld(object.position, corner, object.rotation_deg));
+  const [width, depth] = object.size_m;
+  return objectOutline(object).map(([u, v]) =>
+    toWorld(object.position, [u * width, v * depth], object.rotation_deg),
+  );
 }
 
 export function contains(container: Polygon, shape: Polygon): boolean {

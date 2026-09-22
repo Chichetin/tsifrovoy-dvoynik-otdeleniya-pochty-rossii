@@ -15,11 +15,19 @@
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
 import Konva from 'konva';
-import type { Equipment, Id, Point } from '../../contracts/model';
+import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
-import { SNAP, footprint, modelToScreen, objectGuides, screenToModel, snapObjectCentre } from '../../domain/geometry';
+import {
+  SNAP,
+  footprint,
+  modelToScreen,
+  objectGuides,
+  objectOutline,
+  screenToModel,
+  snapObjectCentre,
+} from '../../domain/geometry';
 import type { AxisSnap } from '../../domain/geometry';
 import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
@@ -103,7 +111,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 type EquipmentSymbolProps = {
-  symbol: string | undefined;
+  /** Outline in fractions of the size, model frame (Y up), see contracts/outline.ts. */
+  outline: Polygon;
   width: number;
   height: number;
   fill: string;
@@ -113,35 +122,31 @@ type EquipmentSymbolProps = {
 };
 
 /**
- * The catalog symbol as a Konva shape centred on its group's origin; no behaviour.
- * Memoised on its primitive props: react-konva repaints a whole layer as soon as
- * one node gets a "new" prop, and a `points` array built on every render is
- * always new. With the memo a click elsewhere leaves a thousand shapes untouched.
+ * The object's outline (D-277) as a Konva shape centred on its group's origin;
+ * no behaviour. The shape comes from the document — the loader has already
+ * given every object its type's outline — so a round table, a triangle camera
+ * and an L-shaped desk are one closed line, the same ring the checks use.
+ * Memoised on its props: react-konva repaints a whole layer as soon as
+ * one node gets a "new" prop; the outline array belongs to the document and
+ * keeps its identity, and the points are rebuilt only when it or the size changes.
+ * With the memo a click elsewhere leaves a thousand shapes untouched.
  * `perfectDrawEnabled: false` (D-187): a translucent shape with fill and stroke
  * is otherwise painted through a stage-sized buffer canvas — one clear and one
  * full-canvas copy per object on every redraw of the layer (zoom, pan, drag,
  * open). Before/after numbers: docs/verification/performance-2026-09-19-d187.md.
  */
 const EquipmentSymbol = memo(function EquipmentSymbol({
-  symbol,
+  outline,
   width,
   height,
   ...style
 }: EquipmentSymbolProps): React.JSX.Element {
-  const paint = { ...style, perfectDrawEnabled: false };
-  if (symbol === 'circle') {
-    return <Circle radius={Math.max(width, height) / 2} {...paint} />;
-  }
-  if (symbol === 'triangle') {
-    return (
-      <Line
-        points={[0, -height / 2, width / 2, height / 2, -width / 2, height / 2]}
-        closed
-        {...paint}
-      />
-    );
-  }
-  return <Rect width={width} height={height} offsetX={width / 2} offsetY={height / 2} {...paint} />;
+  // Model Y is up, the group's local Y is down: the one flip, at the vertex.
+  const points = useMemo(
+    () => outline.flatMap(([u, v]) => [u * width, -v * height]),
+    [outline, width, height],
+  );
+  return <Line points={points} closed perfectDrawEnabled={false} {...style} />;
 });
 
 export function EquipmentLayer({
@@ -638,7 +643,7 @@ export function EquipmentLayer({
         }}
       >
         <EquipmentSymbol
-          symbol={type?.symbol}
+          outline={objectOutline(current)}
           width={current.size_m[0] * viewport.scale}
           height={current.size_m[1] * viewport.scale}
           fill={type?.color ?? FALLBACK_COLOR}

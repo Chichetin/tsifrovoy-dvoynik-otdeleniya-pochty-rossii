@@ -43,16 +43,17 @@ afterAll(() => {
 });
 
 function planWith(symbol: ObjectSymbol): PlanDocument {
-  const parsed = parsePlanDocument(nested);
-  if (!parsed.ok) throw new Error('nested.json не разобрался');
-  const plan = parsed.value;
-  return {
-    ...plan,
+  // The symbol is set before parsing, as in a file: loading turns it into
+  // each object's outline (D-277), and that outline is what the layer draws.
+  const parsed = parsePlanDocument({
+    ...nested,
     catalog: {
-      ...plan.catalog,
-      objectTypes: plan.catalog.objectTypes.map((type) => ({ ...type, symbol })),
+      ...nested.catalog,
+      objectTypes: nested.catalog.objectTypes.map((type) => ({ ...type, symbol })),
     },
-  };
+  });
+  if (!parsed.ok) throw new Error('nested.json не разобрался');
+  return parsed.value;
 }
 
 function renderLayer(
@@ -176,4 +177,37 @@ describe('символ оборудования рисуется без буфе
       }
     });
   }
+});
+
+describe('форма объекта на плане — его контур (D-277)', () => {
+  const pointsOf = (plan: PlanDocument, id: string): number[] => {
+    const group = renderLayer(plan, null, null).findOne(
+      (node: Konva.Node) => node.getClassName() === 'Group' && node.name() === `equipment-${id}`,
+    ) as Konva.Group | undefined;
+    if (group === undefined) throw new Error(id);
+    const shape = group.getChildren()[0] as Konva.Line;
+    expect(shape.getClassName()).toBe('Line');
+    expect(shape.closed()).toBe(true);
+    return shape.points();
+  };
+
+  test('круг — 24 вершины эллипса, треугольник — вершиной вверх по экрану', () => {
+    const round = planWith('circle');
+    expect(pointsOf(round, round.objects[0]!.id)).toHaveLength(48);
+    const triangle = planWith('triangle');
+    const first = triangle.objects[0]!;
+    const [apexX, apexY] = pointsOf(triangle, first.id);
+    expect(apexX).toBeCloseTo(0, 9);
+    // Screen Y is down: the apex (local +Y in the model) is above the centre.
+    expect(apexY).toBeCloseTo((-first.size_m[1] * 48) / 2, 9);
+  });
+
+  test('Г-образный контур объекта рисуется вершина в вершину в пикселях его размера', () => {
+    const plan = planWith('rect');
+    const first = plan.objects[0]!;
+    const outline: [number, number][] = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0], [0, 0], [0, 0.5], [-0.5, 0.5]];
+    const shaped = { ...plan, objects: plan.objects.map((o) => (o.id === first.id ? { ...o, outline } : o)) };
+    const [w, h] = first.size_m;
+    expect(pointsOf(shaped, first.id)).toEqual(outline.flatMap(([u, v]) => [u * w * 48, -v * h * 48]));
+  });
 });

@@ -52,7 +52,7 @@ export type ValidationIssue = Issue & { ruleIds?: Id[] };
 
 /** Codes owned by this module. */
 export const VALIDATION_ISSUE_CODES = {
-  /** A polygon self-intersects, so nothing can be computed on it. */
+  /** A polygon (room, zone or object outline) self-intersects, so nothing can be computed on it. */
   POLYGON_UNUSABLE: 'POLYGON_UNUSABLE',
   /** A zone reaches outside the room. */
   ZONE_OUTSIDE_ROOM: 'ZONE_OUTSIDE_ROOM',
@@ -184,6 +184,22 @@ function unusableGeometry(plan: PlanDocument): Issue[] {
         `Контур зоны «${zone.name}» пересекает сам себя: расчёты по нему невозможны.`,
         [{ kind: 'zone', id: zone.id }],
         zone.polygon,
+      ),
+    );
+  }
+  // An outline of its own (D-277) can cross itself like a zone can; a
+  // rectangle never does, so only objects that carry an outline are checked.
+  for (const object of plan.objects) {
+    if (object.outline === undefined) continue;
+    const shape = footprint(object);
+    if (isSimplePolygon(shape)) continue;
+    issues.push(
+      issue(
+        VALIDATION_ISSUE_CODES.POLYGON_UNUSABLE,
+        'error',
+        `Контур объекта «${object.label}» пересекает сам себя: расчёты по нему невозможны.`,
+        [{ kind: 'object', id: object.id }],
+        shape,
       ),
     );
   }

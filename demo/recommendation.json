@@ -5,7 +5,7 @@
   "llm": {
     "provider": "deepseek-via-yandex-ai-studio",
     "model": "gpt://<folder_ID>/deepseek-v4-flash",
-    "date": "2026-09-20"
+    "date": "2026-09-22"
   },
   "generatedBy": "npx tsx demo/build.ts",
   "planId": "plan_demo_ops_synthetic",
@@ -205,7 +205,7 @@
               "id": "adv_ot_bench_1.area.free.current",
               "metric": "area.free",
               "phase": "current",
-              "value": 114.49,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -218,7 +218,7 @@
               "id": "adv_ot_bench_1.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 113.69,
+              "value": 113.931426,
               "unit": "m2",
               "refs": [
                 {
@@ -296,7 +296,7 @@
               "id": "adv_ot_bench_2.area.free.current",
               "metric": "area.free",
               "phase": "current",
-              "value": 114.49,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -309,7 +309,7 @@
               "id": "adv_ot_bench_2.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 113.69,
+              "value": 113.931426,
               "unit": "m2",
               "refs": [
                 {
@@ -387,7 +387,7 @@
               "id": "adv_ot_bench_3.area.free.current",
               "metric": "area.free",
               "phase": "current",
-              "value": 114.49,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -400,7 +400,7 @@
               "id": "adv_ot_bench_3.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 113.69,
+              "value": 113.931426,
               "unit": "m2",
               "refs": [
                 {
@@ -443,7 +443,7 @@
           "id": "adv_place_ot_bench_z_waiting.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -482,7 +482,7 @@
           "id": "adv_ot_bench_1.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -495,7 +495,7 @@
           "id": "adv_ot_bench_1.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 113.69,
+          "value": 113.931426,
           "unit": "m2",
           "refs": [
             {
@@ -547,7 +547,7 @@
           "id": "adv_ot_bench_2.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -560,7 +560,7 @@
           "id": "adv_ot_bench_2.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 113.69,
+          "value": 113.931426,
           "unit": "m2",
           "refs": [
             {
@@ -612,7 +612,7 @@
           "id": "adv_ot_bench_3.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -625,7 +625,7 @@
           "id": "adv_ot_bench_3.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 113.69,
+          "value": 113.931426,
           "unit": "m2",
           "refs": [
             {
@@ -727,7 +727,7 @@
               "id": "adv_ot_queue_terminal_1.area.free.current",
               "metric": "area.free",
               "phase": "current",
-              "value": 114.49,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -740,7 +740,7 @@
               "id": "adv_ot_queue_terminal_1.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 114.24,
+              "value": 114.481426,
               "unit": "m2",
               "refs": [
                 {
@@ -816,7 +816,7 @@
               "id": "adv_ot_queue_terminal_2.area.free.current",
               "metric": "area.free",
               "phase": "current",
-              "value": 114.49,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -829,7 +829,7 @@
               "id": "adv_ot_queue_terminal_2.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 114.24,
+              "value": 114.481426,
               "unit": "m2",
               "refs": [
                 {
@@ -905,7 +905,7 @@
               "id": "adv_ot_queue_terminal_3.area.free.current",
               "metric": "area.free",
               "phase": "current",
-              "value": 114.49,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -918,7 +918,7 @@
               "id": "adv_ot_queue_terminal_3.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 114.24,
+              "value": 114.481426,
               "unit": "m2",
               "refs": [
                 {
@@ -961,7 +961,7 @@
           "id": "adv_place_ot_queue_terminal_z_entrance.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1000,7 +1000,7 @@
           "id": "adv_ot_queue_terminal_1.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1013,7 +1013,7 @@
           "id": "adv_ot_queue_terminal_1.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 114.24,
+          "value": 114.481426,
           "unit": "m2",
           "refs": [
             {
@@ -1065,7 +1065,7 @@
           "id": "adv_ot_queue_terminal_2.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1078,7 +1078,7 @@
           "id": "adv_ot_queue_terminal_2.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 114.24,
+          "value": 114.481426,
           "unit": "m2",
           "refs": [
             {
@@ -1130,7 +1130,7 @@
           "id": "adv_ot_queue_terminal_3.area.free.current",
           "metric": "area.free",
           "phase": "current",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1143,7 +1143,7 @@
           "id": "adv_ot_queue_terminal_3.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 114.24,
+          "value": 114.481426,
           "unit": "m2",
           "refs": [
             {
@@ -1250,7 +1250,7 @@
           "id": "adv_compare.area.occupied.before",
           "metric": "area.occupied",
           "phase": "before",
-          "value": 17.51,
+          "value": 17.268574,
           "unit": "m2",
           "refs": [
             {
@@ -1263,7 +1263,7 @@
           "id": "adv_compare.area.occupied.after",
           "metric": "area.occupied",
           "phase": "after",
-          "value": 18.31,
+          "value": 18.068574,
           "unit": "m2",
           "refs": [
             {
@@ -1289,7 +1289,7 @@
           "id": "adv_compare.area.free.before",
           "metric": "area.free",
           "phase": "before",
-          "value": 114.49,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1302,7 +1302,7 @@
           "id": "adv_compare.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 113.69,
+          "value": 113.931426,
           "unit": "m2",
           "refs": [
             {
@@ -1498,9 +1498,9 @@
   "texts": {
     "adv_rule_bench_min_z_waiting_missing": "Не хватает оборудования: 1 при минимуме 2. Разница: 1.",
     "adv_rule_info_display_max_z_client_excess": "Оборудования больше нормы: 2 при максимуме 1. Разница: 1.",
-    "adv_place_ot_bench_z_waiting": "Место найдено: Скамья / кресла для ожидания, размер 1,60 × 0,50 м, центр 2,20; 2,00, поворот 0°. Свободная площадь: 114,49 → 113,69 м². Объектов этого типа: 3 → 4.",
-    "adv_place_ot_queue_terminal_z_entrance": "Место найдено: Терминал управления очередью, размер 0,50 × 0,50 м, центр 7,90; 2,10, поворот 0°. Свободная площадь: 114,49 → 114,24 м². Объектов этого типа: 1 → 2.",
-    "adv_compare": "Планировка изменилась. Свободная площадь: 114,49 → 113,69 м² (−0,80 м²). Изменения объектов: добавлено 1, удалено 1, перемещено 1."
+    "adv_place_ot_bench_z_waiting": "Место найдено: Скамья / кресла для ожидания, размер 1,60 × 0,50 м, центр 2,20; 2,00, поворот 0°. Свободная площадь: 114,73 → 113,93 м². Объектов этого типа: 3 → 4.",
+    "adv_place_ot_queue_terminal_z_entrance": "Место найдено: Терминал управления очередью, размер 0,50 × 0,50 м, центр 7,90; 2,10, поворот 0°. Свободная площадь: 114,73 → 114,48 м². Объектов этого типа: 1 → 2.",
+    "adv_compare": "Планировка изменилась. Свободная площадь: 114,73 → 113,93 м² (−0,80 м²). Изменения объектов: добавлено 1, удалено 1, перемещено 1."
   },
   "applied": [
     {
@@ -1529,15 +1529,15 @@
     {
       "metric": "area.free",
       "unit": "m2",
-      "before": 114.49,
-      "after": 113.69,
+      "before": 114.73,
+      "after": 113.93,
       "delta": -0.8
     },
     {
       "metric": "area.occupied",
       "unit": "m2",
-      "before": 17.51,
-      "after": 18.31,
+      "before": 17.27,
+      "after": 18.07,
       "delta": 0.8
     },
     {

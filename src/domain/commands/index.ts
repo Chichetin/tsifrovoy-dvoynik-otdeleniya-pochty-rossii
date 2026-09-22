@@ -26,7 +26,8 @@ import type {
 import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
-import { normalizeAngle, wallLength } from '../geometry';
+import { normalizeAngle, sameOutline, typeOutline, wallLength, withTypeOutline } from '../geometry';
+import { normalizeOutline, outlineFits } from '../../contracts/outline';
 import { formatLength } from '../number-format';
 import { hasZoneCycle, parentZoneFor, reconcileZones } from '../relations';
 import { nextFreeId } from './ids';
@@ -404,6 +405,7 @@ function putObject(plan: PlanDocument, object: PlanDocument['objects'][number]):
     { ok: Number.isFinite(object.rotation_deg), field: 'rotation_deg' },
     { ok: nonNegative(object.base_m), field: 'base_m' },
     { ok: positive(object.height_m), field: 'height_m' },
+    { ok: object.outline === undefined || outlineFits(object.outline), field: 'outline' },
   ]);
   if (!numbers.ok) return numbers;
 
@@ -419,12 +421,33 @@ function putObject(plan: PlanDocument, object: PlanDocument['objects'][number]):
   const attributes = normaliseAttributes(objectType.attributes, object.attributes, ref);
   if (!attributes.ok) return attributes;
 
+  const previousType =
+    existing === undefined ? undefined : plan.catalog.objectTypes.find((type) => type.id === existing.typeId);
   const objects = replaceById(plan.objects, {
-    ...object,
+    ...shapedObject(object, previousType, objectType),
     rotation_deg: normaliseRotation(object.rotation_deg),
     attributes: attributes.value,
   });
   return withRelations({ ...plan, objects });
+}
+
+/**
+ * The shape an object keeps after a put or a catalog change (D-277). An object
+ * without an outline takes its type's; an object whose outline is exactly its
+ * previous type's inherited it, so it follows the type it has now. An outline
+ * of its own — an L-shaped desk among plain ones — stays as it is.
+ */
+function shapedObject(
+  object: PlanDocument['objects'][number],
+  previousType: PlanDocument['catalog']['objectTypes'][number] | undefined,
+  type: PlanDocument['catalog']['objectTypes'][number],
+): PlanDocument['objects'][number] {
+  if (object.outline === undefined) return withTypeOutline(object, type);
+  if (previousType !== undefined && sameOutline(object.outline, typeOutline(previousType))) {
+    return withTypeOutline(object, type);
+  }
+  const outline = normalizeOutline(object.outline);
+  return outline === object.outline ? object : { ...object, outline };
 }
 
 function deleteObject(plan: PlanDocument, id: Id): Result<PlanDocument> {
@@ -542,7 +565,9 @@ function replaceCatalog(plan: PlanDocument, catalog: Catalog): Result<PlanDocume
       kind: 'object',
       id: object.id,
     });
-    if (attributes.ok) objects.push({ ...object, attributes: attributes.value });
+    // A type whose shape changed takes along the objects that inherited it.
+    const previousType = plan.catalog.objectTypes.find((item) => item.id === object.typeId);
+    if (attributes.ok) objects.push({ ...shapedObject(object, previousType, type), attributes: attributes.value });
     else issues.push(...attributes.issues);
   }
 

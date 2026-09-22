@@ -509,3 +509,34 @@ describe('инвентарные номера', () => {
     expect(duplicates(withObjects(['A-1', 'A-2', 'a-1']))).toEqual([]);
   });
 });
+
+describe('контуры объектов в проверке (D-277)', () => {
+  test('план с круглым, треугольным и Г-образным объектами проверяется без ошибок', () => {
+    expect(validatePlan(loadPlan('outline.json'))).toEqual([]);
+  });
+
+  test('тумба в вырезе Г-образного стола — не столкновение; в его плече — столкновение', () => {
+    const plan = loadPlan('outline.json');
+    const desk = plan.objects.find((object) => object.id === 'eq_corner_desk')!;
+    // The desk spans [1.2, 2.8]²; its cut-out is the upper-right quarter.
+    const pedestal: Equipment = { ...desk, id: 'eq_pedestal', label: 'Тумба', typeId: 'ot_workplace', position: [2.4, 2.4], size_m: [0.6, 0.6] };
+    delete pedestal.outline;
+    const inNotch = validatePlan({ ...plan, objects: [...plan.objects, pedestal] });
+    expect(codesOf(inNotch)).not.toContain(VALIDATION_ISSUE_CODES.OBJECT_COLLISION);
+    const inArm = validatePlan({ ...plan, objects: [...plan.objects, { ...pedestal, position: [1.6, 2.4] as Point }] });
+    expect(codesOf(inArm)).toContain(VALIDATION_ISSUE_CODES.OBJECT_COLLISION);
+  });
+
+  test('самопересекающийся контур объекта сообщается и подсвечивается на плане', () => {
+    const plan = loadPlan('outline.json');
+    const bowtie: Point[] = [[-0.5, -0.5], [0.5, 0.5], [0.5, -0.5], [-0.5, 0.5]];
+    const broken = {
+      ...plan,
+      objects: plan.objects.map((object) => (object.id === 'eq_trapezoid' ? { ...object, outline: bowtie } : object)),
+    };
+    const issues = validatePlan(broken);
+    expect(codesOf(issues)).toEqual([VALIDATION_ISSUE_CODES.POLYGON_UNUSABLE]);
+    expect(issues[0]?.refs).toEqual([{ kind: 'object', id: 'eq_trapezoid' }]);
+    expect(issues[0]?.polygon).toHaveLength(4);
+  });
+});

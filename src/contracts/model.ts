@@ -71,6 +71,12 @@ export type Equipment = {
   zoneId: Id | null;
   layerId: Id;
   attributes: Attributes;
+  /**
+   * Own floor shape (D-277): a ring in fractions of `size_m`, local frame
+   * before rotation, box exactly [-0.5, 0.5]. Absent — the full rectangle.
+   * Loading fills it from the type (outline, then symbol), see outline.ts.
+   */
+  outline?: Polygon;
 };
 
 export type Wall = {
@@ -118,6 +124,11 @@ export type ObjectType = {
   /** Counts towards occupied floor area. */
   occupiesFloor: boolean;
   symbol: ObjectSymbol;
+  /**
+   * Floor shape of the type (D-277), same frame as `Equipment.outline`; wins
+   * over `symbol`. A new object of the type starts with it.
+   */
+  outline?: Polygon;
   color: string;
   attributes: AttributeDef[];
   /** Where the defaults come from; synthetic assumptions say so here. */

@@ -17,8 +17,9 @@
 - `advice-chat.ts` — агент по плану (D-258): имена инструментов, действия ответа (`focus`, `preview-candidate`, `apply-candidate`, `show-layer`, `open-panel`), ответ `AgentAnswer`, события NDJSON-потока, схема тела `POST /api/assistant/agent` и пределы контекста.
 - `advice-semantics.ts` — словарь допустимости объяснений: какие факты обязателен каждый `reasonCode` и каким шаблоном он произносится.
 - `ui.ts` — props панелей и стыки инструментов редактора; единственный файл, где разрешены типы React.
+- `outline.ts` — форма объекта (D-277): контур в долях `size_m`, порядок «объект → тип → `symbol` → прямоугольник», `withTypeOutline` для постановки из справочника и загрузки, `outlineFits`/`normalizeOutline` для схемы и команд. Единственное место, где `symbol` превращается в многоугольник.
 - `schema.ts` — разбор входа, лимиты и структурные проверки. Геометрические ошибки намеренно пропускаются: план должен открыться для исправления (D-013).
-- `fixtures/` — `minimal`, `nested`, `rotated`, `invalid-links`, `collision`, `future-version`, `advice`.
+- `fixtures/` — `minimal`, `nested`, `rotated`, `invalid-links`, `collision`, `future-version`, `advice`, `outline` (Г-образный тип, круг и треугольник по символу, собственный контур объекта).
 - `contracts.test.ts` — заморозка поведения: что принимается, что отклоняется и с каким кодом.
 
 [Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md) · [План задач](../../docs/plans/2026-09-16-parallel-plan.md)

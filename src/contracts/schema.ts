@@ -20,6 +20,7 @@ import {
   type Ref,
   type Result,
 } from './model';
+import { normalizeOutline, outlineFits, withTypeOutline } from './outline';
 
 const finiteNumber = z.number().finite();
 const positiveNumber = finiteNumber.positive();
@@ -28,6 +29,18 @@ const idSchema = z.string().min(1);
 const pointSchema = z.tuple([finiteNumber, finiteNumber]);
 const sizeSchema = z.tuple([positiveNumber, positiveNumber]);
 const polygonSchema = z.array(pointSchema).min(3).max(LIMITS.maxPolygonVertices);
+
+/**
+ * Object outline (D-277): fractions of `size_m`, box spanning [-0.5, 0.5].
+ * A box that misses by rounding is rescaled; a box that misses by more means
+ * `size_m` would lie about the extent, and the file is refused. Self-crossing
+ * is geometry, not structure: it opens and is reported by validation (D-013).
+ */
+const outlineSchema = polygonSchema
+  .refine(outlineFits, {
+    message: 'Контур объекта задаётся в долях габарита: его рамка должна занимать ровно от −0,5 до 0,5 по обеим осям.',
+  })
+  .transform(normalizeOutline);
 
 const attributesSchema = z.record(
   z.string(),
@@ -72,6 +85,7 @@ const equipmentSchema = z.object({
   zoneId: idSchema.nullable(),
   layerId: idSchema,
   attributes: attributesSchema,
+  outline: outlineSchema.optional(),
 });
 
 const wallSchema = z.object({
@@ -110,6 +124,7 @@ const objectTypeSchema = z.object({
   physical: z.boolean(),
   occupiesFloor: z.boolean(),
   symbol: z.enum(['rect', 'circle', 'triangle']),
+  outline: outlineSchema.optional(),
   color: z.string(),
   attributes: z.array(attributeDefSchema),
   provenance: z.string(),
@@ -412,6 +427,22 @@ function collectLimitIssues(plan: PlanDocument): Issue[] {
 }
 
 /**
+ * Every object leaves the parser with its shape (D-277): an object without its
+ * own outline takes its type's, so geometry never has to consult the catalog
+ * and a file written before outlines shows circles and triangles as they are.
+ */
+function withObjectOutlines(plan: PlanDocument): PlanDocument {
+  if (plan.objects.every((object) => object.outline !== undefined)) return plan;
+  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
+  return {
+    ...plan,
+    objects: plan.objects.map((object) =>
+      object.outline === undefined ? withTypeOutline(object, types.get(object.typeId)) : object,
+    ),
+  };
+}
+
+/**
  * Validates structure and references. Geometry correctness is not decided here:
  * a structurally sound but geometrically broken plan must open for repair.
  */
@@ -446,7 +477,7 @@ export function parsePlanDocument(input: unknown): Result<PlanDocument> {
     };
   }
 
-  const plan = parsed.data;
+  const plan = withObjectOutlines(parsed.data);
   const issues = [
     ...collectDuplicateIds(plan),
     ...collectCatalogDuplicates(plan),

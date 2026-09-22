@@ -58,7 +58,7 @@ function expectRefused(text: string): Issue[] {
   return result.issues;
 }
 
-const READABLE = ['minimal.json', 'nested.json', 'rotated.json', 'collision.json'];
+const READABLE = ['minimal.json', 'nested.json', 'rotated.json', 'collision.json', 'outline.json'];
 
 describe('round-trip', () => {
   test.each(READABLE)('%s: encode → decode возвращает тот же документ', (name) => {
@@ -79,6 +79,33 @@ describe('round-trip', () => {
 
     // Сохранить → открыть → сохранить: файл в ZIP не «дрожит» между прогонами.
     expect(encodeOrThrow(reopened.value)).toBe(once);
+  });
+
+  test('контуры (D-277): свой контур объекта и контур типа переживают сохранение и открытие', () => {
+    const plan = decodeFixture('outline.json');
+    const text = encodeOrThrow(plan);
+    const reopened = decodePlan(text);
+    if (!reopened.ok) throw new Error('не открылся');
+    const byId = (id: string) => reopened.value.objects.find((object) => object.id === id);
+    expect(byId('eq_trapezoid')?.outline).toEqual([[-0.5, -0.5], [0.5, -0.5], [0.25, 0.5], [-0.25, 0.5]]);
+    expect(byId('eq_corner_desk')?.outline).toEqual(
+      reopened.value.catalog.objectTypes.find((type) => type.id === 'ot_corner_desk')?.outline,
+    );
+    // The circle of a symbol-only type is written into the object: the file
+    // says what the checks saw, whatever the catalog of the next reader.
+    expect(byId('eq_round_table')?.outline).toHaveLength(24);
+    const written = JSON.parse(text) as {
+      objects: Record<string, unknown>[];
+      catalog: { objectTypes: Record<string, unknown>[] };
+    };
+    expect(Object.keys(written.catalog.objectTypes.find((type) => type.id === 'ot_corner_desk')!)).toEqual([
+      'id', 'label', 'category', 'defaultSize_m', 'defaultHeight_m', 'defaultBase_m', 'physical', 'occupiesFloor',
+      'symbol', 'outline', 'color', 'attributes', 'provenance',
+    ]);
+    // A rectangle keeps a plain file: no field for the default shape.
+    expect(written.catalog.objectTypes.find((type) => type.id === 'ot_workplace')).not.toHaveProperty('outline');
+    expect(Object.keys(written.objects.find((object) => object.id === 'eq_trapezoid')!).at(-1)).toBe('outline');
+    expect(encodeOrThrow(decodeFixture('minimal.json'))).not.toContain('"outline"');
   });
 
   test('порядок ключей в файле не зависит от порядка ключей в памяти', () => {
