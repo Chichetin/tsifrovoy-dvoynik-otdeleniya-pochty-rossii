@@ -13,7 +13,7 @@ import { expect, test, type Page, exportPlan } from './fixtures';
 import { validatePlan } from '../../src/domain/validation';
 import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
-import { showTab } from './side-tabs';
+import { showProps, showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Calibration = { scale: number; origin: Screen };
@@ -213,6 +213,8 @@ test.describe('жесты над оборудованием', () => {
     await expect(inventoryRows(page)).toHaveCount(1);
     await expect(inventoryRows(page).first()).toContainText(RACK);
     await expect(page.locator('.library__item', { hasText: RACK }).first()).toHaveAttribute('aria-pressed', 'false');
+    // Библиотека остаётся на месте, карточка — по кнопке (D-268).
+    await showProps(page);
     await expect(card(page)).toContainText(RACK);
   });
 
@@ -335,7 +337,9 @@ test.describe('жесты над оборудованием', () => {
     await expect(libraryItem).toHaveClass(/is-selected/);
     const centre: Screen = { x: 420, y: 330 };
     await clickCanvas(page, centre.x, centre.y);
-    // Карточка сразу показывает новый объект, а инструмент вернулся к выбору.
+    // Новый объект выбран, а инструмент вернулся к выбору; библиотека
+    // остаётся на месте, карточка — по кнопке (D-268).
+    await showProps(page);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
     await expect(page.getByRole('button', { name: 'Выбор', exact: true })).toHaveAttribute(
       'aria-pressed',
@@ -353,11 +357,14 @@ test.describe('жесты над оборудованием', () => {
     await expect(inventoryRows(page)).toHaveCount(1);
 
     // Повторная установка требует явного нового выбора типа.
+    await showTab(page, 'Библиотека');
     await libraryItem.click();
     await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
     await clickCanvas(page, 300, 260);
+    await showProps(page);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
     await expect(inventoryRows(page)).toHaveCount(2);
+    await showTab(page, 'Библиотека');
     await libraryItem.click();
     await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
     // Тот же тип уже стоит под указателем: выбираем существующий, не кладём дубль.
@@ -377,6 +384,7 @@ test.describe('жесты над оборудованием', () => {
 
     // За пределами допуска постановка продолжается тем же активным инструментом.
     await clickCanvas(page, nearLeft - 4, centre.y);
+    await showProps(page);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
     await expect(inventoryRows(page)).toHaveCount(3);
   });
@@ -387,6 +395,7 @@ test.describe('жесты над оборудованием', () => {
     await showTab(page, 'Библиотека');
     await page.locator('.library__item', { hasText: RACK }).first().click();
     await clickCanvas(page, centre.x, centre.y);
+    await showProps(page);
     await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
     const x0 = await numberOf(page, 'X, м');
     const width0 = await numberOf(page, 'Ширина, м');

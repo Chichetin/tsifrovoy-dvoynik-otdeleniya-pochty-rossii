@@ -69,6 +69,8 @@ test.describe('слои в браузере', () => {
 
     await showTab(page, 'Слои');
     await drawZone(page);
+    // Нарисованная зона выбрана, её «Свойства» встали вместо слоёв (D-268).
+    await showTab(page, 'Слои');
     await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
 
     // В панели две таблицы: перечень объектов и разрез по зонам. Нужна первая.
@@ -200,6 +202,8 @@ test.describe('слои в браузере', () => {
     await page.goto('/');
     await showTab(page, 'Слои');
     await drawZone(page);
+    // Нарисованная зона выбрана, её «Свойства» встали вместо слоёв (D-268).
+    await showTab(page, 'Слои');
 
     const heat = layerItem(page, 'Тепловая нагрузка зон');
     // Подпись об источнике чисел стоит рядом со слоем, а не в документации.
@@ -274,6 +278,8 @@ test.describe('слои в браузере', () => {
     await page.goto('/');
     await showTab(page, 'Слои');
     await drawZone(page);
+    // Нарисованная зона выбрана, её «Свойства» встали вместо слоёв (D-268).
+    await showTab(page, 'Слои');
 
     const staff = layerItem(page, 'Сотрудники по зонам');
     await staff.getByRole('button', { name: 'Показывать слой Сотрудники по зонам' }).click();

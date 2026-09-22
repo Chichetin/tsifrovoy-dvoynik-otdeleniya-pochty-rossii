@@ -60,6 +60,7 @@ import {
   type RightTab,
 } from './side-tabs';
 import { SideTabs } from './SideTabs';
+import { replacedTitle, sameRef, showsPropsCard } from './props-column';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
 import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
@@ -151,13 +152,11 @@ export function App(): React.JSX.Element {
   // The launcher is deliberately only an entry point: the right-column panel
   // remains the one place where assistant state and future chat history live.
   // It switches the column to the assistant tab — a hidden panel is not
-  // "opened" by scrolling to it.
-  // With a selection the column shows only «Свойства»; the launcher drops it
-  // so the assistant tab is actually visible.
+  // "opened" by scrolling to it. Since D-268 «Свойства» live on the left, so
+  // the selection stays: the assistant can be asked about what is selected.
   const openAssistant = useCallback(() => {
-    store.getState().select(null);
     showRightTab('assistant');
-  }, [showRightTab, store]);
+  }, [showRightTab]);
 
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
@@ -165,6 +164,19 @@ export function App(): React.JSX.Element {
     () => ({ tool, viewport, selection, selected, preview, focus, retired }),
     [tool, viewport, selection, selected, preview, focus, retired],
   );
+
+  // D-268: «Свойства» stand in the left column in place of its open tab. The
+  // one piece of state is the selection the card was sent away for (a click
+  // on «Библиотека»/«Слои», a fresh placement): for it the tab stays, and any
+  // new pick shows the card again.
+  const [propsHiddenFor, setPropsHiddenFor] = useState<Ref | null>(null);
+  const propsShown = showsPropsCard(selection, propsHiddenFor);
+  // `null` when already `null` is a bail-out: a repeated pick mid-gesture does
+  // not re-render the app.
+  const showPropsAgain = useCallback(() => setPropsHiddenFor(null), []);
+  const keepLeftTab = useCallback((ref: Ref | null) => {
+    setPropsHiddenFor((prev) => (sameRef(prev, ref) ? prev : ref));
+  }, []);
 
   const select = useCallback(
     (ref: Ref | null) => {
@@ -175,8 +187,27 @@ export function App(): React.JSX.Element {
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
       store.getState().selectMany(ids);
+      showPropsAgain();
     },
-    [store],
+    [showPropsAgain, store],
+  );
+  // A tab click on the left while the card stands there brings the panel back
+  // and keeps the selection; so does a panel opened by the assistant.
+  const revealLeftTab = useCallback(
+    (left: LeftTab) => {
+      keepLeftTab(store.getState().selection);
+      showLeftTab(left);
+    },
+    [keepLeftTab, showLeftTab, store],
+  );
+  // A pick made inside the left column (a row of «Слои») must not cover the
+  // very panel it was made in.
+  const selectFromLeft = useCallback(
+    (ref: Ref | null) => {
+      select(ref);
+      keepLeftTab(ref);
+    },
+    [keepLeftTab, select],
   );
 
   const dispatch = useCallback(
@@ -217,47 +248,32 @@ export function App(): React.JSX.Element {
       focusSequence.current += 1;
       setFocus({ ref, sequence: focusSequence.current });
       select(ref);
+      showPropsAgain();
     },
-    [select],
+    [select, showPropsAgain],
   );
 
-  // A pick on the plan (2D or 3D) shows only «Свойства» on the right. A pick
-  // from a panel row or a fresh placement keeps the tabs in view, so the next
-  // row is one click away.
-  const [pickedOnPlan, setPickedOnPlan] = useState<Ref | null>(null);
+  // A pick on the plan (2D or 3D) is a new pick: the card comes back to the
+  // left column even for the entity it was sent away for.
   const selectOnPlan = useCallback(
     (ref: Ref | null) => {
       select(ref);
-      // Same pick again (a click on the already selected room while editing its
-      // outline) must not re-render the app mid-gesture.
-      setPickedOnPlan((prev) =>
-        prev?.kind === ref?.kind && prev?.id === ref?.id ? prev : ref,
-      );
+      showPropsAgain();
     },
-    [select],
+    [select, showPropsAgain],
   );
-  // A tab click while «Свойства» fill the column brings the panels back; the
-  // selection stays.
-  const showRightPanel = useCallback(
-    (right: RightTab) => {
-      setPickedOnPlan(null);
-      showRightTab(right);
-    },
-    [showRightTab],
-  );
-  const propsOnly =
-    selection !== null &&
-    pickedOnPlan !== null &&
-    pickedOnPlan.kind === selection.kind &&
-    pickedOnPlan.id === selection.id;
+  // «×» drops the selection; the card goes and the column shows its tab
+  // again, so focus lands on that tab rather than on the removed button.
+  const closeProps = useCallback(() => {
+    select(null);
+    window.document.getElementById(`side-left-tab-${tabs.left}`)?.focus();
+  }, [select, tabs.left]);
 
-  // A click on an issue marker (V02-marker-click) is a request for the list,
-  // not a plain pick: it takes the panel path of a row click, not
-  // `selectOnPlan`, so the tabs stay open (D-260's collapse is for a plain
-  // pick on the plan) with «Проверка» in front.
+  // A click on an issue marker (V02-marker-click) is a request for the list:
+  // the selection goes to the card on the left, «Проверка» comes to the front
+  // on the right.
   const focusFromMarker = useCallback(
     (ref: Ref) => {
-      setPickedOnPlan(null);
       focusOn(ref);
       showRightTab('validation');
     },
@@ -274,10 +290,14 @@ export function App(): React.JSX.Element {
       // through to the room selection layer after React re-renders.
       if (result.ok && tool.kind === 'object.place' && command.type === 'object.put') {
         placedType.current = tool.typeId;
+        // D-268: a placement from the library keeps the library open — the
+        // next item is usually placed right after. The new object's card
+        // opens with a click on it.
+        keepLeftTab({ kind: 'object', id: command.object.id });
       }
       return result;
     },
-    [dispatchAndSelect, tool],
+    [dispatchAndSelect, keepLeftTab, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
@@ -423,7 +443,7 @@ export function App(): React.JSX.Element {
             return;
           }
           if (!layer.visible) dispatch({ type: 'layer.put', layer: { ...layer, visible: true } });
-          showLeftTab('layers');
+          revealLeftTab('layers');
           setAgentActionStatus(`Слой «${layer.name}» включён.`);
           return;
         }
@@ -432,7 +452,7 @@ export function App(): React.JSX.Element {
           return;
       }
     },
-    [dispatch, dispatchAndSelect, document, focusOn, highlight, revision, showLeftTab, showRightTab],
+    [dispatch, dispatchAndSelect, document, focusOn, highlight, revision, revealLeftTab, showRightTab],
   );
 
   const clearChat = useCallback(() => {
@@ -569,10 +589,11 @@ export function App(): React.JSX.Element {
             idPrefix="side-left"
             tabs={LEFT_TABS}
             active={tabs.left}
-            onSelect={showLeftTab}
+            onSelect={revealLeftTab}
+            collapsed={propsShown}
             panels={{
               layers: (
-                <LayersPanel document={document} session={session} onCommand={dispatch} onSelect={select} />
+                <LayersPanel document={document} session={session} onCommand={dispatch} onSelect={selectFromLeft} />
               ),
               library: (
                 <LibraryPanel
@@ -583,7 +604,49 @@ export function App(): React.JSX.Element {
               ),
             }}
           />
+          {/* D-268: «Свойства» stand in for the open left tab; the band says
+              which one, and «×» drops the selection (the same as Escape on
+              the canvas). The card itself is the region «Свойства». */}
+          {propsShown ? (
+            <div className="shell__props">
+              <div className="shell__props-band">
+                <span className="shell__props-caption">{replacedTitle(tabs.left)}</span>
+                <button
+                  type="button"
+                  className="shell__props-close"
+                  aria-label="Снять выделение"
+                  title="Снять выделение (Esc)"
+                  onClick={closeProps}
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
+                </button>
+              </div>
+              <div className="shell__props-body">
+                <PropertiesPanel
+                  document={document}
+                  session={session}
+                  onCommand={dispatch}
+                  gesturePreview={gesturePreview}
+                />
+              </div>
+            </div>
+          ) : null}
           <div className="shell__side-foot">
+            {/* D-268: the selection outlived its card (a tab click, a fresh
+                placement) — one click brings the card back. In the foot, so
+                the library under the pointer does not shift. */}
+            {selection !== null && selection.kind !== 'layer' && !propsShown ? (
+              <button
+                type="button"
+                className="shell__props-return"
+                title="Вернуть карточку «Свойства» выбранного на место вкладки"
+                onClick={showPropsAgain}
+              >
+                Свойства выбранного
+              </button>
+            ) : null}
             <button
               type="button"
               className="shell__tour"
@@ -683,38 +746,12 @@ export function App(): React.JSX.Element {
         </main>
 
         <aside className="shell__side shell__side--wide" data-tour="side-right">
-          {/* D-249: «Свойства» are not a tab and have no collapsed state —
-              without a selection there is nothing to show, so the card is not
-              rendered at all; with one it sits above the tabs, and «×» drops
-              the selection (the same as Escape on the canvas). */}
-          {selection === null ? null : (
-            <div className="shell__props">
-              <button
-                type="button"
-                className="shell__props-close"
-                aria-label="Снять выделение"
-                title="Снять выделение (Esc)"
-                onClick={() => select(null)}
-              >
-                <svg viewBox="0 0 16 16" aria-hidden="true">
-                  <path d="M4 4l8 8M12 4l-8 8" />
-                </svg>
-              </button>
-              <PropertiesPanel
-                document={document}
-                session={session}
-                onCommand={dispatch}
-                gesturePreview={gesturePreview}
-              />
-            </div>
-          )}
           <SideTabs
             label="Панели справа"
             idPrefix="side-right"
             tabs={RIGHT_TABS}
             active={tabs.right}
-            onSelect={showRightPanel}
-            collapsed={propsOnly}
+            onSelect={showRightTab}
             badges={{ validation: validationBadge }}
             panels={{
               assistant: (
