@@ -8,6 +8,7 @@
 import { useMemo, useState } from 'react';
 import type { ObjectType } from '../../contracts/model';
 import type { LibraryPanelProps } from '../../contracts/ui';
+import { typeOutline } from '../../contracts/outline';
 import { formatShort, NBSP } from '../../domain/number-format';
 
 function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
@@ -71,7 +72,22 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                     )
                   }
                 >
-                  <span className="library__swatch" style={{ background: type.color }} aria-hidden="true" />
+                  {typeOutline(type) === undefined ? (
+                    <span className="library__swatch" style={{ background: type.color }} aria-hidden="true" />
+                  ) : (
+                    // A shaped type (D-277/D-279) shows its own outline: model Y is up, SVG's is down.
+                    <svg
+                      className="library__swatch library__swatch--shape"
+                      viewBox="-0.55 -0.55 1.1 1.1"
+                      aria-hidden="true"
+                      data-testid={`library-shape-${type.id}`}
+                    >
+                      <polygon
+                        points={typeOutline(type)!.map(([u, v]) => `${u},${-v}`).join(' ')}
+                        fill={type.color}
+                      />
+                    </svg>
+                  )}
                   <span className="library__label">{type.label}</span>
                   <span className="library__size">
                     {formatShort(type.defaultSize_m[0], 2)}×{formatShort(type.defaultSize_m[1], 2)}

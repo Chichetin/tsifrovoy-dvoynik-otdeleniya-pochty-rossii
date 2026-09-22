@@ -64,3 +64,16 @@ test('перетаскивание типа вооружает тот же ин�
   expect(setData).toHaveBeenCalledWith('text/plain', 'ot_sized');
   expect(item.getAttribute('draggable')).toBe('true');
 });
+
+test('тип с формой показывает свой контур вместо квадрата (D-279)', () => {
+  const sized = withSize(1, 1);
+  const shaped = {
+    ...sized,
+    objectTypes: [{ ...sized.objectTypes[0]!, outline: [[0, 0.5], [-0.5, -0.5], [0.5, -0.5]] as [number, number][] }],
+  };
+  render(<LibraryPanel catalog={shaped} activeTypeId={null} onTool={vi.fn()} />);
+  const icon = screen.getByTestId('library-shape-ot_sized');
+  expect(icon.getAttribute('aria-hidden')).toBe('true');
+  // Model Y is up, SVG's is down: the apex at +0.5 is drawn at the top.
+  expect(icon.querySelector('polygon')?.getAttribute('points')).toBe('0,-0.5 -0.5,0.5 0.5,0.5');
+});

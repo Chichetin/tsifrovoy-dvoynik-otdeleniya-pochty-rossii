@@ -1279,6 +1279,10 @@ body {
   flex: none;
 }
 
+.library__swatch--shape {
+  border-radius: 0;
+}
+
 .library__label {
   flex: 1;
   min-width: 0;
@@ -2052,6 +2056,14 @@ span.inventory__num {
 .props__label {
   font-size: 12px;
   color: var(--muted);
+}
+
+.props__shape {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0 0 8px;
 }
 
 .props__hint {

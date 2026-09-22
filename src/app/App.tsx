@@ -43,6 +43,7 @@ import { LibraryPanel } from '../features/library/LibraryPanel';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
 import { MeasureLayer } from '../features/plan-tools/MeasureLayer';
+import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
@@ -814,6 +815,9 @@ export function App(): React.JSX.Element {
                 название зоны целиком; полупрозрачность не даёт подписи закрыть
                 сам объект. */}
             <ZoneNameLayer document={shownDocument} viewport={viewport} />
+            {/* Правка формы объекта (D-279) — над оборудованием: её ручки
+                должны перехватывать жест раньше переноса и размера объекта. */}
+            <ObjectShapeLayer document={document} session={session} onCommand={dispatch} />
             <InformationLayer document={document} session={session} />
             {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                 должен уходить под объект или под имя зоны. В план она ничего не
