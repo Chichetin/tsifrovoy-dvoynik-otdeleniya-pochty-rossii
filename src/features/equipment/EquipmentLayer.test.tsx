@@ -188,6 +188,23 @@ describe('символ оборудования рисуется без буфе
   }
 });
 
+describe('пиктограммы на готовом 2D-плане', () => {
+  test('рабочее место получает значок поверх своей геометрической формы', () => {
+    const plan = planWith('rect');
+    const first = plan.objects[0];
+    if (first === undefined) throw new Error('В фикстуре нет рабочего места');
+    const stage = renderLayer(plan, null, null);
+    const icon = stage.findOne('.plan-pictogram-workplace');
+    const badge = stage.findOne(`.plan-pictogram-badge-${first.id}`);
+    expect(icon).toBeDefined();
+    expect(badge).toBeDefined();
+    // Пиктограмма только объясняет форму; ни она, ни её контрастный бейдж
+    // не ловят клик вместо объекта.
+    expect(icon?.listening()).toBe(false);
+    expect(badge?.listening()).toBe(false);
+  });
+});
+
 describe('форма объекта на плане — его контур (D-277)', () => {
   const pointsOf = (plan: PlanDocument, id: string): number[] => {
     const group = renderLayer(plan, null, null).findOne(
