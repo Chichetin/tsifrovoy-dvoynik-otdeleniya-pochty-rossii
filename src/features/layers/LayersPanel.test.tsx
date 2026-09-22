@@ -144,9 +144,7 @@ describe('LayersPanel', () => {
     expect(about?.open).toBe(false);
     expect(about?.querySelector('summary')?.textContent).toBe('Что показывает слой');
     // Полный текст справочника не потерян — он внутри раскрытия.
-    // demo/before.json несёт свою встроенную копию каталога (умышленно не
-    // тронута, D-265) — в ней у note ещё старый текст с префиксом.
-    expect(about?.textContent).toContain('загрузка зоны проставляется руками');
+    expect(about?.textContent).toContain('Загрузка зоны проставляется руками');
     expect(about?.textContent).toContain('поверх всего плана');
   });
 
