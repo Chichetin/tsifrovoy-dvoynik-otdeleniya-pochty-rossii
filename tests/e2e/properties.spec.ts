@@ -224,3 +224,46 @@ test.describe('карточка свойств', () => {
     expect(saved.objects[0].attributes.selfService).toBe(true);
   });
 });
+
+test.describe('карточка свойств помещается в колонку (D-265)', () => {
+  for (const width of [1280, 1440]) {
+    test(`на ${width} px правый край каждого поля — внутри карточки`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+      await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
+      await selectPlacedObject(page);
+      await expect(card(page).getByLabel('Y, м')).toBeVisible();
+
+      const cardBox = await card(page).boundingBox();
+      if (cardBox === null) throw new Error('карточка не отрисована');
+      expect(cardBox.x + cardBox.width).toBeLessThanOrEqual(width);
+
+      const fields = card(page).locator('input:visible, select:visible');
+      const count = await fields.count();
+      expect(count).toBeGreaterThan(5);
+      const overflow: string[] = [];
+      for (let index = 0; index < count; index += 1) {
+        const box = await fields.nth(index).boundingBox();
+        const label = (await fields.nth(index).getAttribute('aria-label')) ?? `#${index}`;
+        if (box !== null && box.x + box.width > cardBox.x + cardBox.width + 0.5) {
+          overflow.push(`${label}: ${Math.round(box.x + box.width)} > ${Math.round(cardBox.x + cardBox.width)}`);
+        }
+      }
+      expect(overflow).toEqual([]);
+    });
+  }
+
+  test('ручное название зоны переживает смену типа', async ({ page }) => {
+    await page.goto('/');
+    await drawZone(page);
+    await clickCanvas(page, 300, 260);
+    await expect(card(page).getByLabel('Тип зоны')).toBeVisible();
+
+    await card(page).getByLabel('Название').fill('Операционный зал');
+    await card(page).getByLabel('Тип зоны').selectOption({ label: 'Зона ожидания' });
+
+    await expect(card(page).getByLabel('Название')).toHaveValue('Операционный зал');
+    await expect(card(page).getByLabel('Тип зоны')).toHaveValue('zt_waiting');
+    expect(JSON.parse(await savePlan(page)).zones[0].name).toBe('Операционный зал');
+  });
+});
