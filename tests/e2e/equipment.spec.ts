@@ -723,7 +723,7 @@ test.describe('жесты над оборудованием', () => {
       mimeType: 'application/json',
       buffer: Buffer.from(JSON.stringify(imported.value)),
     });
-    await expect(page.getByText('сохранено')).toBeVisible();
+    await expect(page.getByTestId('files-notice')).toContainText('открыт');
 
     // Вид спрашивается после открытия файла: холст уже вписал в себя план.
     const view = await canvasView(page);

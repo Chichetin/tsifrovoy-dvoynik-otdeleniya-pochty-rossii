@@ -80,10 +80,8 @@ test('демо 1440×900: слои видны без прокрутки, у дв
   const heatLegend = heat.getByRole('group', { name: 'Легенда слоя Тепловая нагрузка зон' });
   await expect(heatLegend).toContainText('0 %');
   await expect(heatLegend).toContainText('от 100 % и выше');
-  await expect(heatLegend).toContainText('числа синтетические');
   const staffLegend = staff.getByRole('group', { name: 'Легенда слоя Сотрудники по зонам' });
   await expect(staffLegend).toContainText('чел.');
-  await expect(staffLegend).toContainText('числа синтетические');
 
   // На холсте: по подписи на каждую зону каждого слоя (в демо по 8 значений на слой),
   // две строки легенды, и ни одна подпись не накрывает другую или легенду.

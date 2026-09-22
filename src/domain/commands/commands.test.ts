@@ -769,6 +769,30 @@ describe('applyCommand: стены, проёмы и справочник', () =>
     expect(codes(result)).toContain(CONTRACT_ISSUE_CODES.BROKEN_REF);
   });
 
+  test('проём шире стены отклоняется: ширина — единственное поле, которым её правят', () => {
+    const plan = minimalPlan(); // w_north: от (0, 8) до (10, 8) — 10 м
+    const before = structuredClone(plan);
+
+    const result = applyCommand(plan, {
+      type: 'opening.put',
+      opening: { ...plan.openings[0]!, width_m: 11 },
+    });
+
+    expect(codes(result)).toContain(COMMAND_ISSUE_CODES.OPENING_TOO_WIDE);
+    expect(result.ok ? [] : result.issues.map((issue) => issue.path)).toContain('/width_m');
+    expect(plan).toEqual(before);
+  });
+
+  test('проём вровень со стеной проходит', () => {
+    const plan = expectOk(
+      applyCommand(minimalPlan(), {
+        type: 'opening.put',
+        opening: { ...minimalPlan().openings[0]!, offset_m: 0, width_m: 10 },
+      }),
+    );
+    expect(plan.openings[0]?.width_m).toBe(10);
+  });
+
   test('стена и проём добавляются и удаляются по отдельности', () => {
     let plan = expectOk(
       applyCommand(minimalPlan(), {

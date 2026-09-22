@@ -26,7 +26,8 @@ import type {
 import type { Command } from '../../contracts/commands';
 import { CONTRACT_ISSUE_CODES, LIMITS } from '../../contracts/model';
 import { validateCatalog } from '../catalog';
-import { normalizeAngle } from '../geometry';
+import { normalizeAngle, wallLength } from '../geometry';
+import { formatLength } from '../number-format';
 import { hasZoneCycle, parentZoneFor, reconcileZones } from '../relations';
 import { nextFreeId } from './ids';
 import { outerWallIds, rebuildOuterWalls } from './room-walls';
@@ -58,6 +59,8 @@ export const COMMAND_ISSUE_CODES = {
   CEILING_INVALID: 'CEILING_INVALID',
   /** A batch with no commands: nothing to apply, nothing to undo. */
   BATCH_EMPTY: 'BATCH_EMPTY',
+  /** opening.put with a width_m longer than the wall it sits on. */
+  OPENING_TOO_WIDE: 'OPENING_TOO_WIDE',
 } as const;
 
 export type CommandIssueCode =
@@ -633,7 +636,8 @@ export function applyCommand(
     case 'opening.put': {
       const free = checkIdFree(plan, command.opening.id, 'opening');
       if (!free.ok) return free;
-      if (!plan.walls.some((wall) => wall.id === command.opening.wallId)) {
+      const wall = plan.walls.find((entry) => entry.id === command.opening.wallId);
+      if (wall === undefined) {
         return fail(
           CONTRACT_ISSUE_CODES.BROKEN_REF,
           `Стена «${command.opening.wallId}» для проёма не существует.`,
@@ -648,6 +652,20 @@ export function applyCommand(
         { ok: positive(command.opening.height_m), field: 'height_m' },
       ]);
       if (!numbers.ok) return numbers;
+      // Проём не может быть шире собственной стены: ширина — единственное
+      // место, где её правят (заказ пользователя, D-267), а стена, которой
+      // не хватило бы длины, — не то, что можно построить.
+      if (command.opening.width_m > wallLength(wall)) {
+        return failWith([
+          {
+            code: COMMAND_ISSUE_CODES.OPENING_TOO_WIDE,
+            severity: 'error',
+            message: `Ширина проёма ${formatLength(command.opening.width_m)} больше длины стены «${wall.id}» (${formatLength(wallLength(wall))}).`,
+            refs: [ref],
+            path: '/width_m',
+          },
+        ]);
+      }
       return {
         ok: true,
         value: { ...plan, openings: replaceById(plan.openings, command.opening) },

@@ -144,7 +144,7 @@ test('в файл плана обучение не попадает: сохра�
   for (let step = 1; step < 4; step += 1) await dialog.getByRole('button', { name: 'Далее' }).click();
   await dialog.getByRole('button', { name: 'Готово' }).click();
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-  await expect(page.locator('.files__status').first()).toHaveText('сохранено');
+  await expect(page.getByTestId('files-notice')).toContainText('открыт');
   const withTour = await savedText(page);
 
   const context = await browser.newContext();
@@ -153,7 +153,7 @@ test('в файл плана обучение не попадает: сохра�
     const other = await context.newPage();
     await other.goto(page.url());
     await other.getByTestId('plan-file-input').setInputFiles(DEMO);
-    await expect(other.locator('.files__status').first()).toHaveText('сохранено');
+    await expect(other.getByTestId('files-notice')).toContainText('открыт');
     const withoutTour = await savedText(other);
     expect(withTour).toBe(withoutTour);
   } finally {

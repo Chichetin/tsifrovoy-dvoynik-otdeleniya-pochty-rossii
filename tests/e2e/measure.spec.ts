@@ -11,7 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Page, expectUnsavedEdits } from './fixtures';
 
 type Pixel = { x: number; y: number };
 
@@ -82,14 +82,14 @@ test('линейка меряет расстояние между двумя т�
 
 test('измерение не трогает план: он остаётся сохранённым', async ({ page }) => {
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
-  await expect(page.getByText('сохранено')).toBeVisible();
+  await expectUnsavedEdits(page, false);
 
   await page.getByRole('button', { name: 'Линейка' }).click();
   await clickWorld(page, 2, 2);
   await clickWorld(page, 6, 4);
   expect(await measureCaption(page)).not.toBeNull();
 
-  await expect(page.getByText('сохранено')).toBeVisible();
+  await expectUnsavedEdits(page, false);
 });
 
 test('демо-план: каждая подпись длины равна настоящей длине своей стены', async ({ page }) => {
