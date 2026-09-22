@@ -223,11 +223,15 @@ body {
 
 /* A refused edit is a plaque at the top right of the canvas, next to where
    the hand is, and it does not push the plan down. */
+/* D-291: отказ правки и сообщения о файле — две плашки над одним холстом, и
+   они наезжали друг на друга: белая полоса файла закрывала верхнюю строку
+   красной. Отказ опускается ниже полосы (её высота — `--strip-row`) и лежит
+   над ней по z: полоса бывает пустой, а отказ надо прочитать целиком. */
 .shell__error {
   position: absolute;
-  top: var(--space-2);
+  top: calc(var(--strip-row) + var(--space-2));
   right: var(--space-3);
-  z-index: 1;
+  z-index: 26;
   display: flex;
   gap: var(--space-2);
   max-width: min(560px, 60%);
@@ -486,10 +490,12 @@ body {
 
 /* Hints and refusals of the plan tools: a plaque over the top left of the
    canvas, under the header. It is positioned against the header, so its
-   appearance changes nothing in the layout, and it lets clicks through. */
+   appearance changes nothing in the layout, and it lets clicks through.
+   D-291: ниже полосы сообщений о файле — они делят одну полосу под шапкой, и
+   полоса закрывала подсказку сверху. */
 .toolbar__hints {
   position: absolute;
-  top: calc(100% + var(--space-2));
+  top: calc(100% + var(--strip-row) + var(--space-2));
   left: calc(var(--side-left) + var(--space-3));
   z-index: 1;
   display: grid;

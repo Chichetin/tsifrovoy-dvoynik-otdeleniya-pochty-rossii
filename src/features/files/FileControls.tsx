@@ -66,6 +66,13 @@ export type FileControlsProps = {
   storage?: DraftStorage | null;
 };
 
+/**
+ * D-291: сколько живёт полоса сообщений о файле. Раньше она висела над планом
+ * постоянно — менялась только надпись. Успешное сообщение само уходит через
+ * этот срок; ошибка не уходит по времени никогда (см. `useEffect` ниже).
+ */
+const NOTICE_LIFETIME_MS = 7_000;
+
 /** Сколько нарушений физики показать в окне отказа: остальное — во вкладке «Проверка». */
 const PHYSICS_SHOWN = 5;
 
@@ -503,6 +510,30 @@ export function FileControls({
     else if (event.key === 'Home') focusAt(0);
     else if (event.key === 'End') focusAt(items.length - 1);
   };
+
+  /**
+   * D-291: сообщение об успехе — «План … открыт», «Файл … передан браузеру»,
+   * допущения импорта и поля вне формата — само уходит через
+   * `NOTICE_LIFETIME_MS` после появления. Отсчёт заводится заново на каждое
+   * новое сообщение (`notice` и списки в зависимостях), поэтому вторая подряд
+   * выгрузка не гасит полосу по таймеру первой.
+   *
+   * Ошибка по времени не уходит: у файловой ошибки есть свой крестик и она
+   * снимается следующей правкой плана (D-274), а ошибка записи черновика
+   * держится, пока запись не удалась — гасить её молча значит соврать, что
+   * работа сохраняется.
+   */
+  useEffect(() => {
+    if (state.status !== 'done') return;
+    if (notice === null && dropped.length === 0 && assumptions.length === 0) return;
+    const timer = window.setTimeout(() => {
+      setState({ status: 'idle' });
+      setNotice(null);
+      setDropped([]);
+      setAssumptions([]);
+    }, NOTICE_LIFETIME_MS);
+    return () => window.clearTimeout(timer);
+  }, [state, notice, dropped, assumptions]);
 
   // Полоса сообщений существует, только когда в ней что-то есть (D-288).
   const hasMessages =

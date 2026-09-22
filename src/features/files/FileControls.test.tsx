@@ -781,3 +781,72 @@ describe('FileControls: отказ сохранить план с нарушен
     expect(downloads.filter((name) => name.endsWith('.png'))).toHaveLength(1);
   });
 });
+
+/**
+ * D-291: полоса сообщений о файле не висит над планом постоянно. Успех уходит
+ * сам через семь секунд, ошибка — никогда по времени: её гасит крестик или
+ * следующая правка плана (D-274).
+ */
+describe('FileControls: сообщение о файле живёт семь секунд', () => {
+  function waitLifetime(): void {
+    act(() => {
+      vi.advanceTimersByTime(7_000);
+    });
+  }
+
+  test('«План … открыт» исчезает, полосы больше нет', async () => {
+    renderControls({ storage: null });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), {
+        target: { files: [new File([JSON.stringify(filled)], 'plan.json', { type: 'application/json' })] },
+      });
+    });
+    expect(screen.getByTestId('files-notice').textContent).toContain('открыт');
+
+    waitLifetime();
+
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+    expect(document.querySelector('.files__messages')).toBeNull();
+  });
+
+  test('новое сообщение заводит отсчёт заново', async () => {
+    const { rerender } = renderControls({ storage: null });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), {
+        target: { files: [new File([JSON.stringify(filled)], 'plan.json', { type: 'application/json' })] },
+      });
+    });
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(screen.getByTestId('files-notice')).toBeTruthy();
+
+    // Вторая выгрузка через пять секунд: полоса живёт свои семь, а не две.
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:file');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    rerender({ document: filled });
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
+    expect(screen.getByTestId('files-notice').textContent).toContain('.json');
+
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    expect(screen.getByTestId('files-notice').textContent).toContain('.json');
+
+    waitLifetime();
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+  });
+
+  test('ошибка файла по времени не уходит', async () => {
+    renderControls({ storage: null, read: () => unreadable });
+    await openBroken();
+    expect(screen.getByRole('alert').textContent).toContain('План не открыт');
+
+    waitLifetime();
+    waitLifetime();
+
+    expect(screen.getByRole('alert').textContent).toContain('План не открыт');
+  });
+});

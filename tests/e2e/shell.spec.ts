@@ -203,3 +203,45 @@ test('вторичный текст читается: контраст не ни
   const aliasColor = await page.locator('.panel__note, .panel__empty').first().evaluate((el) => getComputedStyle(el).color);
   expect(aliasColor).toBe('rgb(86, 98, 110)');
 });
+
+/**
+ * D-291: три плашки живут над одним холстом — полоса сообщений о файле
+ * (`.files__messages`), подсказка инструмента (`.toolbar__hints`) и отказ
+ * правки (`.shell__error`). Полоса файла закрывала верхнюю строку красного
+ * отказа, и прочитать его было нельзя. Проверяется не стиль, а факт: их
+ * прямоугольники не пересекаются.
+ */
+test('плашки над холстом не наезжают друг на друга', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
+  // Полоса о файле: «План … открыт».
+  await expect(page.getByTestId('files-notice')).toBeVisible();
+
+  // Отказ правки: скамья на занятое место демо-плана (физика, D-286).
+  await showTab(page, 'Библиотека');
+  await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
+  await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 300 } });
+  const refusal = page.locator('.shell__error');
+  await expect(refusal).toContainText('занимают одно место');
+
+  const boxes = await page.evaluate(() => {
+    const rect = (selector: string): DOMRect | null => {
+      const node = document.querySelector<HTMLElement>(selector);
+      return node === null ? null : node.getBoundingClientRect();
+    };
+    return {
+      strip: rect('.files__messages'),
+      error: rect('.shell__error'),
+      hints: rect('.toolbar__hints'),
+    };
+  });
+
+  const apart = (a: DOMRect | null, b: DOMRect | null): boolean =>
+    a === null || b === null || a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+
+  expect(boxes.strip, 'полоса сообщений о файле видна').not.toBeNull();
+  expect(boxes.error, 'отказ правки виден').not.toBeNull();
+  expect(apart(boxes.strip, boxes.error), 'полоса файла не наезжает на отказ правки').toBe(true);
+  expect(apart(boxes.strip, boxes.hints), 'полоса файла не наезжает на подсказку инструмента').toBe(true);
+  expect(apart(boxes.error, boxes.hints), 'отказ правки не наезжает на подсказку инструмента').toBe(true);
+});
