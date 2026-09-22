@@ -25,11 +25,36 @@
 import { useEffect, useRef } from 'react';
 import { isHotkeysMapHotkey, type HotkeyEvent } from '../features/editor/hotkeys';
 import { HOTKEYS_MAP } from './hotkeys-map';
+import { hotkeyAlternatives, type HotkeyToken } from './hotkey-chord';
 
 export type HotkeysMapDialogProps = {
   open: boolean;
   onClose: () => void;
 };
+
+function tokenNode(token: HotkeyToken, index: number): React.JSX.Element {
+  if (token.kind === 'key') return <kbd key={index} className="hotkeys-map__key">{token.label}</kbd>;
+  if (token.kind === 'plus') return <span key={index} className="hotkeys-map__plus" aria-hidden="true">+</span>;
+  return <span key={index} className="hotkeys-map__word">затем</span>;
+}
+
+/**
+ * Every key is its own <kbd> block; the whole line stays one accessible name
+ * through `aria-label` on <dt>, so a screen reader announces «Ctrl+Shift+Z или
+ * Ctrl+Y» instead of a string of separate blocks. «+» is purely visual.
+ */
+function HotkeyKeys({ keys }: { keys: string }): React.JSX.Element {
+  return (
+    <dt className="hotkeys-map__keys" aria-label={keys}>
+      {hotkeyAlternatives(keys).map((alternative, index) => (
+        <span key={index} className="hotkeys-map__alternative">
+          {index > 0 && <span className="hotkeys-map__word">или</span>}
+          {alternative.map(tokenNode)}
+        </span>
+      ))}
+    </dt>
+  );
+}
 
 function focusables(dialog: HTMLElement): HTMLElement[] {
   return Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).filter((button) => !button.disabled);
@@ -87,21 +112,21 @@ export function HotkeysMapDialog({ open, onClose }: HotkeysMapDialogProps): Reac
             ×
           </button>
         </div>
-        {HOTKEYS_MAP.map((group) => (
-          <section key={group.title} className="hotkeys-map__group">
-            <h3 className="hotkeys-map__group-title">{group.title}</h3>
-            <dl className="hotkeys-map__list">
-              {group.entries.map((entry) => (
-                <div key={entry.keys} className="hotkeys-map__row">
-                  <dt className="hotkeys-map__keys">
-                    <kbd>{entry.keys}</kbd>
-                  </dt>
-                  <dd className="hotkeys-map__description">{entry.description}</dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ))}
+        <div className="hotkeys-map__groups">
+          {HOTKEYS_MAP.map((group) => (
+            <section key={group.title} className="hotkeys-map__group">
+              <h3 className="hotkeys-map__group-title">{group.title}</h3>
+              <dl className="hotkeys-map__list">
+                {group.entries.map((entry) => (
+                  <div key={entry.keys} className="hotkeys-map__row">
+                    <HotkeyKeys keys={entry.keys} />
+                    <dd className="hotkeys-map__description">{entry.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );
