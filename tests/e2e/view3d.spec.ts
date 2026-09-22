@@ -137,15 +137,15 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
 
       // Выбор через строку инвентаризации: 3D показывает общий selection.
       await inventoryRows(page).first().getByRole('button').first().click();
-      const selectedId = page.getByLabel('Свойства').getByTestId('props-id');
-      const id = await selectedId.textContent();
+      const selected = page.getByLabel('Свойства');
+      const id = await selected.getAttribute('data-entity-id');
 
       await switchTo(page, '3D');
       await expect(page.getByTestId('view3d-canvas')).toBeVisible();
       await expect(page.getByTestId('view3d-unavailable')).toHaveCount(0);
       await expect(page.getByTestId('view3d-error')).toHaveCount(0);
       // Карточка «Свойства» не перерисовывается заново при смене вида: выбор общий.
-      await expect(selectedId).toHaveText(id ?? '');
+      await expect(selected).toHaveAttribute('data-entity-id', id ?? '');
       expect(errors).toEqual([]);
     });
   });
@@ -158,20 +158,20 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       await page.getByTestId('editor-canvas').click();
       // Сначала выбираем фон, чтобы последующий выбор точно пришёл из 3D.
       await page.getByTestId('editor-canvas').click({ position: { x: 80, y: 120 } });
-      await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+      await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'room_main');
 
       await switchTo(page, '3D');
       const canvas = page.getByTestId('view3d-canvas');
       await expect(canvas).toBeVisible();
       const box = await canvas.boundingBox();
       if (box === null) throw new Error('3D canvas не измерился');
-      const selectedId = page.getByLabel('Свойства').getByTestId('props-id');
+      const selected = page.getByLabel('Свойства');
       for (let offset = -80; offset <= 20; offset += 5) {
         await canvas.click({ position: { x: box.width / 2, y: box.height / 2 + offset } });
-        if ((await selectedId.textContent()) === 'eq_1') break;
+        if ((await selected.getAttribute('data-entity-id')) === 'eq_1') break;
       }
 
-      await expect(selectedId).toHaveText('eq_1');
+      await expect(selected).toHaveAttribute('data-entity-id', 'eq_1');
     });
   });
 

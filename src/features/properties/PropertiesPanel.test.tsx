@@ -208,12 +208,89 @@ describe('живые координаты объекта', () => {
     expect((screen.getByLabelText('Y, м') as HTMLInputElement).value).toBe(String(object.position[1]));
   });
 });
+describe('упрощённая карточка (D-278)', () => {
+  test('блока «Идентификатор» нет ни у одного вида сущности, id остаётся только атрибутом карточки', () => {
+    const picks: Ref[] = [
+      { kind: 'room', id: plan.room.id },
+      { kind: 'zone', id: 'z_client' },
+      { kind: 'object', id: 'eq_work_1' },
+      { kind: 'wall', id: 'w_north' },
+      { kind: 'opening', id: 'op_entrance' },
+    ];
+    for (const pick of picks) {
+      show(pick);
+      const card = screen.getByLabelText('Свойства');
+      expect(card.getAttribute('data-entity-id')).toBe(pick.id);
+      expect(card.textContent).not.toContain('Идентификатор');
+      expect(card.textContent).not.toContain('не меняется');
+      expect(screen.queryByTestId('props-id')).toBeNull();
+      cleanup();
+    }
+  });
+
+  test('зона объекта названа по имени зоны, без id и без «пересчитывается по геометрии»', () => {
+    show({ kind: 'object', id: 'eq_work_1' });
+
+    expect(screen.getByTestId('props-zone').textContent).toBe('Зона: Клиентская зона');
+  });
+
+  test('зона без имени (пустое или из пробелов) названа своим id, а не пустой строкой', () => {
+    for (const name of ['', '   ']) {
+      const unnamed: PlanDocument = {
+        ...plan,
+        zones: plan.zones.map((zone) => (zone.id === 'z_client' ? { ...zone, name } : zone)),
+      };
+      render(
+        <PropertiesPanel
+          document={unnamed}
+          session={session({ kind: 'object', id: 'eq_work_1' })}
+          onCommand={sink().spy}
+        />,
+      );
+      expect(screen.getByTestId('props-zone').textContent).toBe('Зона: z_client');
+      cleanup();
+    }
+  });
+
+  test('висячая ссылка на несуществующую зону — «Зона: вне зон»', () => {
+    const dangling: PlanDocument = {
+      ...plan,
+      objects: plan.objects.map((item) => (item.id === 'eq_work_1' ? { ...item, zoneId: 'z_missing' } : item)),
+    };
+    render(
+      <PropertiesPanel
+        document={dangling}
+        session={session({ kind: 'object', id: 'eq_work_1' })}
+        onCommand={sink().spy}
+      />,
+    );
+
+    expect(screen.getByTestId('props-zone').textContent).toBe('Зона: вне зон');
+  });
+
+  test('объект вне зон — «Зона: вне зон»', () => {
+    const outside: PlanDocument = {
+      ...plan,
+      objects: plan.objects.map((item) => (item.id === 'eq_work_1' ? { ...item, zoneId: null } : item)),
+    };
+    render(
+      <PropertiesPanel
+        document={outside}
+        session={session({ kind: 'object', id: 'eq_work_1' })}
+        onCommand={sink().spy}
+      />,
+    );
+
+    expect(screen.getByTestId('props-zone').textContent).toBe('Зона: вне зон');
+  });
+});
+
 describe('карточка перегородки', () => {
   test('выбранная перегородка показывает свою карточку, а не пустое состояние', () => {
     show({ kind: 'wall', id: 'w_north' });
 
-    expect(screen.getByText(/^перегородка;/)).toBeTruthy();
-    expect(screen.getByTestId('props-id').textContent).toBe('w_north');
+    expect(screen.getByLabelText('Толщина, м')).toBeTruthy();
+    expect(screen.getByLabelText('Свойства').getAttribute('data-entity-id')).toBe('w_north');
   });
 
   test('толщина и высота уходят командой wall.put', () => {
@@ -263,8 +340,8 @@ describe('карточка проёма', () => {
   test('выбранный проём показывает свою карточку', () => {
     show({ kind: 'opening', id: 'op_entrance' });
 
-    expect(screen.getByText(/^проём;/)).toBeTruthy();
-    expect(screen.getByTestId('props-id').textContent).toBe('op_entrance');
+    expect(screen.getByLabelText('Вид')).toBeTruthy();
+    expect(screen.getByLabelText('Свойства').getAttribute('data-entity-id')).toBe('op_entrance');
   });
 
   test('вид проёма меняется командой opening.put', () => {

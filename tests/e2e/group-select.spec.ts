@@ -136,7 +136,8 @@ test.describe('групповой выбор', () => {
     // Обычный клик — выбор одного: заметки о группе нет.
     await canvas(page).click({ position: { x: 420, y: 300 } });
     await expect(groupNote(page)).toHaveCount(0);
-    await expect(card(page)).toContainText('объект; не меняется');
+    await expect(card(page)).toHaveAttribute('data-entity-id', /^eq_/);
+    await expect(card(page).getByLabel('Тип оборудования')).toBeVisible();
   });
 
   test('Ctrl+C и Ctrl+V копируют группу одним шагом истории', async ({ page }) => {
@@ -179,7 +180,8 @@ test.describe('групповой выбор', () => {
   test('пустая рамка снимает выбор и не выбирает пол под собой', async ({ page }) => {
     await threeRacks(page);
     await canvas(page).click({ position: { x: 420, y: 300 } });
-    await expect(card(page)).toContainText('объект; не меняется');
+    await expect(card(page)).toHaveAttribute('data-entity-id', /^eq_/);
+    await expect(card(page).getByLabel('Тип оборудования')).toBeVisible();
 
     await drag(page, [100, 380], [200, 420]);
 

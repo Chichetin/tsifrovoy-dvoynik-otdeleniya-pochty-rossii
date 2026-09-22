@@ -20,6 +20,7 @@ import type {
   Issue,
   Opening,
   OpeningKind,
+  PlanDocument,
   Wall,
   Zone,
 } from '../../contracts/model';
@@ -84,6 +85,17 @@ function attributeValue(attributes: Attributes, def: AttributeDef): string {
  * (D-276). Какие это поля — решает справочник слоёв, не список в коде.
  */
 const CONDITIONAL_HINT = 'Условное число для планирования, не измерение';
+
+/**
+ * The card names the zone as the plan does; an object outside every zone (or
+ * pointing at a zone that is gone) says so. A blank name falls back to the id,
+ * as in the inventory list: an empty «Зона: » tells nothing.
+ */
+function zoneName(plan: PlanDocument, zoneId: string | null): string {
+  const zone = plan.zones.find((item) => item.id === zoneId);
+  if (zone === undefined) return 'вне зон';
+  return zone.name.trim() === '' ? zone.id : zone.name;
+}
 
 export function PropertiesPanel({
   document: plan,
@@ -300,14 +312,6 @@ export function PropertiesPanel({
       </select>,
     );
 
-  const identity = (id: string, kind: string): React.JSX.Element => (
-    <p className="props__id">
-      <span className="props__label">Идентификатор</span>
-      <code data-testid="props-id">{id}</code>
-      <span className="props__hint">{kind}; не меняется — по нему связаны инвентаризация и рекомендации</span>
-    </p>
-  );
-
   if (room !== undefined) {
     // Название плана живёт здесь, а не в отдельной шапке: помещение — это и
     // есть план для сотрудника, а имя файла берётся из названия (D-152).
@@ -321,8 +325,7 @@ export function PropertiesPanel({
         ? `Контур пересекает сам себя: площадь по нему не считается. Вершин ${room.boundary.length}`
         : `Площадь по контуру ${formatArea(area)}, вершин ${room.boundary.length}`;
     return (
-      <section ref={card} className="panel props" aria-label="Свойства">
-        {identity(room.id, 'помещение')}
+      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={room.id}>
 
         {field(
           'name',
@@ -369,8 +372,7 @@ export function PropertiesPanel({
   if (zone !== undefined) {
     const type = findZoneType(plan.catalog, zone.typeId);
     return (
-      <section ref={card} className="panel props" aria-label="Свойства">
-        {identity(zone.id, 'зона')}
+      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={zone.id}>
 
         {field(
           'name',
@@ -461,14 +463,13 @@ export function PropertiesPanel({
     const groupMembers = plan.objects.filter((item) => session.selected?.has(item.id) ?? false);
     const groupArea = groupMembers.reduce((sum, item) => sum + footprintArea(item), 0);
     return (
-      <section ref={card} className="panel props" aria-label="Свойства">
+      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={object.id}>
         {groupMembers.length > 1 ? (
           <p className="props__hint" data-testid="props-group">
             Выбрано объектов: {groupMembers.length}, суммарно {formatArea(groupArea)}. Стрелки, Delete,
             Ctrl+C и перетаскивание действуют на всю группу; карточка показывает главный.
           </p>
         ) : null}
-        {identity(object.id, 'объект')}
 
         {field(
           'label',
@@ -540,8 +541,8 @@ export function PropertiesPanel({
 
         {layerSelect(object.layerId, (layerId) => ({ ...object, layerId }))}
 
-        <p className="props__hint" data-testid="props-zone">
-          Зона: {object.zoneId ?? 'вне зон'}; пересчитывается по геометрии
+        <p className="props__line" data-testid="props-zone">
+          Зона: {zoneName(plan, object.zoneId)}
         </p>
 
         {type === null
@@ -559,8 +560,7 @@ export function PropertiesPanel({
     const openings = plan.openings.filter((entry) => entry.wallId === wall.id);
     const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
     return (
-      <section ref={card} className="panel props" aria-label="Свойства">
-        {identity(wall.id, 'перегородка')}
+      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={wall.id}>
 
         <div className="props__pair">
           {numberField('thickness_m', 'Толщина, м', wall.thickness_m, (next) => ({
@@ -593,8 +593,7 @@ export function PropertiesPanel({
     const hostLength =
       host === undefined ? null : Math.hypot(host.to[0] - host.from[0], host.to[1] - host.from[1]);
     return (
-      <section ref={card} className="panel props" aria-label="Свойства">
-        {identity(opening.id, 'проём')}
+      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={opening.id}>
 
         {field(
           'kind',

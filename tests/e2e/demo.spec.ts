@@ -86,8 +86,8 @@ test.describe('демо-комплект из ZIP', () => {
 
     // Карточка объекта показывает его id, зону и атрибут из справочника.
     await selectByLabel(page, 'Окно 1 — приём и выдача');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_10');
-    await expect(card(page).getByTestId('props-zone')).toContainText('z_client');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_10');
+    await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Клиентский зал');
     await expect(card(page).getByLabel('Номер окна')).toHaveValue('1');
     await expect(card(page).getByLabel('Инвентарный номер')).toHaveValue('ИНВ-ДЕМО-010');
 
@@ -98,8 +98,8 @@ test.describe('демо-комплект из ZIP', () => {
     await openFromArchive(page, 'after.json');
     await expect(inventoryRows(page)).toHaveCount(53);
     await selectByLabel(page, 'Скамья ожидания 2');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_54');
-    await expect(card(page).getByTestId('props-zone')).toContainText('z_waiting');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_54');
+    await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Зона ожидания');
     await expect(card(page).getByLabel('Мест')).toHaveValue('3');
     await expect(
       page.getByLabel('Инвентаризация').locator('.table__link', {
@@ -128,27 +128,27 @@ test.describe('демо-комплект из ZIP', () => {
     await expect(inventoryRows(page)).toHaveCount(54);
 
     await selectByLabel(page, 'Скамья / кресла для ожидания');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_54');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_54');
     await card(page).getByLabel('X, м').fill('2.2');
     await card(page).getByLabel('Y, м').fill('2');
     await card(page).getByLabel('Поворот, °').fill('0');
     await card(page).getByLabel('Название').fill('Скамья ожидания 2');
     await card(page).getByLabel('Инвентарный номер').fill('ИНВ-ДЕМО-054');
     await card(page).getByLabel('Мест').fill('3');
-    await expect(card(page).getByTestId('props-zone')).toContainText('z_waiting');
+    await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Зона ожидания');
 
     // 2. Лишнее табло — удалить.
     await selectByLabel(page, 'Табло над зоной очереди');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_8');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_8');
     await page.keyboard.press('Delete');
     await expect(inventoryRows(page)).toHaveCount(53);
 
     // 3. Терминал очереди — на место из рекомендации, тот же объект.
     await selectByLabel(page, 'Терминал электронной очереди');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await card(page).getByLabel('X, м').fill('7.9');
     await card(page).getByLabel('Y, м').fill('2.1');
-    await expect(card(page).getByTestId('props-zone')).toContainText('z_entrance');
+    await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Входная группа');
 
     const saved = await savePlan(page);
     const expected = JSON.parse(

@@ -91,7 +91,7 @@ for (const config of CASES) {
             let pressed: number | null = null;
             const onPointerDown = (): void => { pressed = performance.now(); };
             const observer = new MutationObserver(() => {
-              if (window.document.querySelector('[data-testid="props-id"]')?.textContent !== 'eq_0') return;
+              if (window.document.querySelector('[data-entity-id]')?.getAttribute('data-entity-id') !== 'eq_0') return;
               cleanup();
               if (pressed === null) {
                 reject(new Error('Q02: карточка объекта открылась без pointerdown'));
@@ -110,13 +110,19 @@ for (const config of CASES) {
               observer.disconnect();
             }
             window.document.addEventListener('pointerdown', onPointerDown, { capture: true, once: true });
-            observer.observe(window.document.body, { subtree: true, childList: true, characterData: true });
+            observer.observe(window.document.body, {
+              subtree: true,
+              childList: true,
+              characterData: true,
+              attributes: true,
+              attributeFilter: ['data-entity-id'],
+            });
           });
         }, INTERACTION_PROBE_TIMEOUT_MS);
         const selectStarted = performance.now();
         await rowButton.click();
         const selectMs = await page.evaluate(() => (window as unknown as Probe).q02);
-        await expect(page.getByTestId('props-id')).toHaveText('eq_0');
+        await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'eq_0');
         const selectWallMs = performance.now() - selectStarted;
 
         // Zoom redraws every shape of every layer: the cost a thousand objects

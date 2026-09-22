@@ -229,7 +229,7 @@ test.describe('инструменты плана', () => {
     await page.getByRole('button', { name: 'Зона', exact: true }).click();
     for (const point of left) await clickAt(page, point);
     await clickAt(page, left[0] as Pixel);
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
 
     // Вторая зона подряд, без «Выбора»: её первый угол — середина правого ребра
     // первой. Ручек и «широких» рёбер выбранной зоны под инструментом нет,
@@ -242,12 +242,12 @@ test.describe('инструменты плана', () => {
     ]);
     for (const point of right) await clickAt(page, point);
     await clickAt(page, right[0] as Pixel);
-    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_2');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
 
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await clickAt(page, px(size, 0.3, 0.3));
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
   });
 
@@ -267,7 +267,7 @@ test.describe('инструменты плана', () => {
     await expect(page.getByText(/нужно не меньше трёх точек/)).toBeVisible();
     await clickAt(page, triangle[2] as Pixel);
     await page.keyboard.press('Enter');
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 3');
 
     const saved = await savePlan(page);
@@ -287,7 +287,7 @@ test.describe('инструменты плана', () => {
     await page.getByRole('button', { name: 'Зона', exact: true }).click();
     for (const point of quad.slice(0, 3)) await clickAt(page, point);
     await dblclickAt(page, quad[3] as Pixel);
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
 
     const saved = await savePlan(page);
@@ -342,7 +342,7 @@ test.describe('инструменты плана', () => {
 
     // Выбрать помещение: пол между его контуром и внешней зоной.
     await clickAt(page, px(size, 0.12, 0.12));
-    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'room_main');
 
     // Середина первого ребра — и тянем её наружу на метр с зажатым Ctrl.
     const middle: Point = [(first[0] + second[0]) / 2, (first[1] + second[1]) / 2];
@@ -360,7 +360,7 @@ test.describe('инструменты плана', () => {
 
     // Ctrl + клик по этой же вершине убирает её, и контур возвращается к прежнему.
     await clickAt(page, px(size, 0.12, 0.12));
-    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'room_main');
     const handle = await worldPixel(page, added[0], added[1]);
     const onStage = await onPage(page, handle);
     await page.keyboard.down('Control');
@@ -380,7 +380,7 @@ test.describe('инструменты плана', () => {
 
     // Выбрать вложенную зону и потянуть её первую вершину в 5 см от вершины внешней.
     await clickAt(page, px(size, 0.45, 0.45));
-    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('z_2');
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'z_2');
     const from = await worldPixel(page, own[0], own[1]);
     const near = await worldPixel(page, target[0] + 0.05, target[1] + 0.05);
     await dragAt(page, from, near);
@@ -396,7 +396,7 @@ test.describe('инструменты плана', () => {
     const aim: Point = [midway(corner[0]), midway(corner[1])];
     // Пол между контуром и внешней зоной: выбирается помещение.
     await clickAt(page, px(size, 0.12, 0.12));
-    await expect(page.getByLabel('Свойства').getByTestId('props-id')).toHaveText('room_main');
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'room_main');
     await dragAt(page, await worldPixel(page, corner[0], corner[1]), await worldPixel(page, aim[0], aim[1]));
     await expect
       .poll(async () => {
@@ -449,7 +449,7 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
 
     await clickAt(page, px(size, 0.45, 0.45));
-    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_2');
     await expect(card.getByLabel('Внутри зоны')).toHaveValue('z_1');
     await expect(card.getByTestId('props-vertices')).toContainText('Вершин в контуре: 4');
 
@@ -513,7 +513,7 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
     // Левый край новой зоны лежит вне внешней: клик по нему выбирает только её.
     await clickAt(page, px(size, 0.15, 0.45));
-    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_2');
     await expect(card.getByLabel('Внутри зоны')).toHaveValue('');
     await expect(checks).toContainText('пересекаются, не вкладываясь');
 
@@ -523,7 +523,7 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
     await clickAt(page, px(size, 0.45, 0.45));
     // Отмена вернула id: это снова z_2, но уже вложенная зона, а не находка.
-    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_2');
     await expect(card.getByLabel('Внутри зоны')).toHaveValue('z_1');
     await expect(checks).not.toContainText('пересекаются, не вкладываясь');
   });
@@ -536,7 +536,7 @@ test.describe('инструменты плана', () => {
 
     await clickAt(page, px(size, 0.45, 0.45));
     const card = page.getByLabel('Свойства');
-    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_2');
     const before = await zoneArea(page, 'Зона 2');
 
     // Вершина уезжает за противоположное ребро: контур становится «бабочкой».
@@ -574,7 +574,7 @@ test.describe('инструменты плана', () => {
 
     const card = page.getByLabel('Свойства');
     await clickAt(page, px(size, 0.5, 0.5));
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     const before = await zoneArea(page, 'Зона 1');
 
     // Жест соседнего слоя: тянем вершину и посреди пути жмём Escape. Ручки
@@ -591,7 +591,7 @@ test.describe('инструменты плана', () => {
     await page.mouse.up();
 
     // Выделение не снято: карточка выбранной зоны на месте.
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     await expect.poll(() => zoneArea(page, 'Зона 1')).not.toBe(before);
     const withEscape = await zoneAreaValue(page, 'Зона 1');
 
@@ -611,14 +611,14 @@ test.describe('инструменты плана', () => {
     const notice = page.getByTestId('plan-tools-notice');
 
     await clickAt(page, px(size, 0.45, 0.45));
-    await expect(card.getByTestId('props-id')).toHaveText('z_2');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_2');
     // Отказ: вершина уезжает за противоположное ребро.
     await dragAt(page, px(size, 0.3, 0.3), px(size, 0.72, 0.45));
     await expect(notice).toContainText('самопересекается');
 
     // Выбрали другую зону — отказ был про прошлую, он гаснет.
     await clickAt(page, px(size, 0.25, 0.25));
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     await expect(notice).toHaveCount(0);
 
     // Клик у вершины не добавляет её: там целились в угол, а не в ребро.
@@ -641,7 +641,7 @@ test.describe('инструменты плана', () => {
 
     // Новый план гасит строку отказа вместе с планом, о котором она была.
     await clickAt(page, px(size, 0.5, 0.5));
-    await expect(card.getByTestId('props-id')).toHaveText('z_1');
+    await expect(card).toHaveAttribute('data-entity-id', 'z_1');
     await clickAt(page, px(size, 0.24, 0.2));
     await expect(notice).toContainText('вершин');
 
@@ -733,10 +733,9 @@ test.describe('инструменты плана', () => {
     // Подсказка инструмента обещает правку в карточке свойств — она открыта и
     // толщина уходит в модель, а не только в поле ввода.
     const props = page.getByLabel('Свойства');
-    // Своего заголовка у карточки нет (D-272): вид выбранного называет
-    // строка идентификатора, а «Толщина, м» есть только у стены.
-    await expect(props.getByText(/^перегородка;/)).toBeVisible();
-    await expect(props.getByTestId('props-id')).toHaveText(free.id);
+    // Своего заголовка у карточки нет (D-272), строки идентификатора тоже
+    // (D-278): выбранное называет атрибут карточки, а «Толщина, м» есть только у стены.
+    await expect(props).toHaveAttribute('data-entity-id', free.id);
     await props.getByLabel('Толщина, м').fill('0.35');
     const thicker = await savePlan(page);
     expect(thicker.walls.find((entry) => entry.id === free.id)?.thickness_m).toBeCloseTo(0.35, 6);
@@ -842,7 +841,7 @@ test.describe('инструменты плана', () => {
       (entry) => !before.openings.some((old) => old.id === entry.id),
     );
     expect(opening).toBeDefined();
-    await expect(card.getByTestId('props-id')).toHaveText(opening!.id);
+    await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     expect(await card.getByLabel('Ширина, м').inputValue()).toBe('0.9');
 
     // Enter «завершает» проём — снимает выделение. Карточка «Свойства» без
@@ -853,7 +852,7 @@ test.describe('инструменты плана', () => {
     // Выбрать проём заново, чтобы проверить смену инструмента.
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await clickAt(page, openingPoint);
-    await expect(card.getByTestId('props-id')).toHaveText(opening!.id);
+    await expect(card).toHaveAttribute('data-entity-id', opening!.id);
 
     // Заказ от 22.09: переключение на любой другой инструмент снимает
     // выделение с проёма так же, как Enter.
@@ -863,7 +862,7 @@ test.describe('инструменты плана', () => {
 
     // Ширина правится только карточкой; в плане длина стены больше 0,9 м.
     await clickAt(page, openingPoint);
-    await expect(card.getByTestId('props-id')).toHaveText(opening!.id);
+    await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     await card.getByLabel('Ширина, м').fill('1.4');
     const widened = await savePlan(page);
     expect(widened.openings.find((entry) => entry.id === opening!.id)?.width_m).toBeCloseTo(1.4, 6);

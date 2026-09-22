@@ -71,10 +71,10 @@ async function expectPosition(page: Page, x: number, y: number): Promise<void> {
   await expect.poll(async () => (await positionOf(page))[1]).toBeCloseTo(y, 5);
 }
 
-/** Зона объекта — подсказка карточки «Зона: …; пересчитывается по геометрии». */
+/** Зона объекта — строка карточки «Зона: <название зоны>» (D-278). */
 async function zoneOf(page: Page): Promise<string> {
   const text = (await page.getByTestId('props-zone').textContent()) ?? '';
-  return text.replace(/^Зона:\s*/, '').replace(/;.*$/, '').trim();
+  return text.replace(/^Зона:\s*/, '').trim();
 }
 
 async function rotationOf(page: Page): Promise<number> {
