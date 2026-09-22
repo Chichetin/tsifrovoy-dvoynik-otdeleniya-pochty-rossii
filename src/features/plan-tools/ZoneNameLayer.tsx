@@ -38,6 +38,13 @@ export const ZONE_LABEL_FONT_PX = 13;
 export const ZONE_LABEL_LETTER_SPACING = 0.4;
 export const ZONE_LABEL_BOX_WIDTH = 118;
 
+/**
+ * Непрозрачность подписи. 0,55 подобрано под самый трудный случай — тёмную
+ * заливку оборудования под названием: выше подпись начинает спорить с
+ * объектом за внимание, ниже — теряется на пёстром полу зоны.
+ */
+const ZONE_LABEL_OPACITY = 0.55;
+
 export type ZoneNameLayerProps = {
   document: PlanDocument;
   viewport: Viewport;
@@ -94,7 +101,7 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
             fontStyle={style.fontStyle}
             letterSpacing={ZONE_LABEL_LETTER_SPACING}
             fill={style.fill}
-            opacity={style.opacity}
+            opacity={ZONE_LABEL_OPACITY}
             listening={false}
           />
         );

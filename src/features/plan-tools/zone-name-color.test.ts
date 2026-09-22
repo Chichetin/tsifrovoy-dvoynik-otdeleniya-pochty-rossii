@@ -38,7 +38,6 @@ describe('zoneNameStyle (D-279)', () => {
     expect(root?.fontStyle).toBe('bold');
     expect(nested?.fontStyle).not.toBe('bold');
     expect(deeper?.fontStyle).toBe('normal');
-    expect(root?.opacity).toBeGreaterThan(nested?.opacity ?? 1);
     expect(root?.fill).toBe('#0055A6');
     expect(new Set([root?.fill, nested?.fill, deeper?.fill]).size).toBe(3);
   });
