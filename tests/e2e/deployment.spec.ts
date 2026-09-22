@@ -23,6 +23,14 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page, exportPlan } from './fixtures';
+import { showTab } from './side-tabs';
+
+/**
+ * Сколько ждать ответа ассистента на развёрнутом сервисе: рекомендованный
+ * бюджет модели `LLM_TIMEOUT_MS=60000` (D-206) плюс запас на сеть и разбор
+ * ответа. Без ключа ответ приходит сразу, и ожидание не тратится.
+ */
+const LLM_WAIT_MS = 75_000;
 
 /** Пусто — адрес деплоя не назвали, проверять нечего. */
 const DEPLOY_URL = (process.env.DEPLOY_URL ?? '').trim().replace(/\/+$/, '');
@@ -105,8 +113,18 @@ test.describe('развёрнутый сервис', () => {
   test('ассистент отвечает: с ключом — объяснение модели, без ключа — расчёт с пометкой «без LLM»', async ({
     page,
   }) => {
+    // Единственный тест набора, который ждёт живую модель. Без ключа ответ
+    // приходит мгновенно, с ключом рассуждающая модель думает 20–40 с при
+    // LLM_TIMEOUT_MS=60000, поэтому обычных 30 с теста и 5 с ожидания мало:
+    // на боевом адресе, где ключ как раз задан, проверка падала по таймауту,
+    // хотя сервис отвечал правильно.
+    test.setTimeout(LLM_WAIT_MS + 30_000);
     await page.goto('/');
     await drawZone(page);
+
+    // D-249: панели правой колонки — вкладки, видна одна. Без этого шага спека
+    // искала «Спросить» в скрытой панели и валилась по таймауту на живом деплое.
+    await showTab(page, 'Ассистент');
 
     const panel = page.getByLabel('Ассистент');
     await panel.getByRole('button', { name: 'Спросить' }).click();
@@ -115,6 +133,7 @@ test.describe('развёрнутый сервис', () => {
     // иначе mode=fallback с пометкой. Оба — рабочие режимы, пустой экран — дефект.
     await expect(panel.locator('.assistant__mode')).toContainText(
       /Без LLM|Объяснение модели проверено расчётом/,
+      { timeout: LLM_WAIT_MS },
     );
     await expect(panel.locator('.advice__sentence')).toContainText('Место найдено');
     await expect(panel.locator('.advice__candidates li').first()).toContainText('Свободно:');
