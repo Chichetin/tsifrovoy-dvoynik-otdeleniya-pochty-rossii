@@ -192,7 +192,7 @@ describe('LayersPanel', () => {
     expect(add.textContent).toBe('Добавить');
   });
 
-  test('D-273: под основным слоем — напольные и потолочные со счётом; щелчок не шлёт команду', () => {
+  test('D-275: под основным слоем — напольные и потолочные со счётом; щелчок не шлёт команду', () => {
     const plan = demo();
     const onToggle = vi.fn();
     const onCommand = vi.fn((): Result<PlanDocument> => ({ ok: true, value: plan }));
@@ -219,7 +219,7 @@ describe('LayersPanel', () => {
     expect(within(item('Камеры и зоны обзора')).queryByText(/Напольные объекты/)).toBeNull();
   });
 
-  test('D-273: основной слой скрыт — подпункты неактивны', () => {
+  test('D-275: основной слой скрыт — подпункты неактивны', () => {
     const plan = demo();
     const hiddenBase = {
       ...plan,

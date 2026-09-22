@@ -1,7 +1,7 @@
 import type { Equipment, Id, Layer, PlanDocument } from '../contracts/model';
 
 /**
- * Team rule, not a Post norm (D-273): an object whose bottom is at least this
+ * Team rule, not a Post norm (D-275): an object whose bottom is at least this
  * high above the floor hangs from the ceiling — cameras (2.6 m), fire sensors
  * (2.9), the HVAC unit (2.4), displays over the hall (2.0). Wall-mounted
  * things lower than that (media panel 1.8, alarm panel 1.4) count as floor.
@@ -67,4 +67,21 @@ export function withHiddenMounts(
     typeId: null,
   };
   return { ...plan, layers: [...plan.layers, viewLayer], objects };
+}
+
+/**
+ * The hidden groups after an object lands on the plan: its own group is shown
+ * again, so a freshly placed object is never invisible. Same set when nothing
+ * changes, so a state setter bails out.
+ */
+export function revealMountOf(
+  hidden: ReadonlySet<ObjectMount>,
+  layerId: Id,
+  object: Pick<Equipment, 'base_m' | 'layerId'>,
+): ReadonlySet<ObjectMount> {
+  const mount = objectMount(object);
+  if (object.layerId !== layerId || !hidden.has(mount)) return hidden;
+  const next = new Set(hidden);
+  next.delete(mount);
+  return next;
 }

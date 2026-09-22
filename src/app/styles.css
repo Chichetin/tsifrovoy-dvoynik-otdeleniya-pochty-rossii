@@ -1756,7 +1756,7 @@ span.inventory__num {
   color: var(--surface);
 }
 
-/* D-273: floor/ceiling groups nested under the base layer, indented like a sub-list. */
+/* D-275: floor/ceiling groups nested under the base layer, indented like a sub-list. */
 .layers__mounts {
   margin: 0;
   padding: 0 0 0 16px;

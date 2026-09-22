@@ -68,7 +68,7 @@ function Icon({ name }: { name: IconName }): React.JSX.Element {
 }
 
 /**
- * D-273: floor and ceiling objects of the base layer, each with its own
+ * D-275: floor and ceiling objects of the base layer, each with its own
  * visibility. View state held by the app, never a command: hiding a group
  * writes nothing to the plan and leaves undo alone.
  */

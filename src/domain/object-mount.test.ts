@@ -8,6 +8,7 @@ import {
   countByMount,
   mountScopeLayer,
   objectMount,
+  revealMountOf,
   withHiddenMounts,
 } from './object-mount';
 
@@ -74,5 +75,16 @@ describe('напольные и потолочные объекты', () => {
     const plan = demo('before.json');
     expect(withHiddenMounts(plan, 'l_base', new Set())).toBe(plan);
     expect(withHiddenMounts(plan, 'l_other', new Set(['ceiling', 'floor']))).toBe(plan);
+  });
+
+  test('поставленный объект скрытой группы открывает свою группу, чужую не трогает', () => {
+    const hidden = new Set(['ceiling', 'floor'] as const);
+    const camera = { base_m: 2.6, layerId: 'l_base' };
+    expect([...revealMountOf(hidden, 'l_base', camera)]).toEqual(['floor']);
+    expect([...revealMountOf(hidden, 'l_base', { base_m: 0, layerId: 'l_base' })]).toEqual(['ceiling']);
+    // Nothing to reveal — the very same set, so React skips the update.
+    const onlyFloor = new Set(['floor'] as const);
+    expect(revealMountOf(onlyFloor, 'l_base', camera)).toBe(onlyFloor);
+    expect(revealMountOf(hidden, 'l_base', { base_m: 2.6, layerId: 'l_other' })).toBe(hidden);
   });
 });

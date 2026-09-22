@@ -19,6 +19,7 @@ import { measurePlan } from '../domain/metrics';
 import {
   mountScopeLayer,
   objectMount,
+  revealMountOf,
   withHiddenMounts,
   type ObjectMount,
 } from '../domain/object-mount';
@@ -288,6 +289,8 @@ export function App(): React.JSX.Element {
 
   const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
   const placedType = useRef<Id | null>(null);
+  // D-275: hidden floor/ceiling groups (view state, see `shownDocument` below).
+  const [hiddenMounts, setHiddenMounts] = useState<ReadonlySet<ObjectMount>>(() => new Set());
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -300,10 +303,17 @@ export function App(): React.JSX.Element {
         // next item is usually placed right after. The new object's card
         // opens with a click on it.
         keepLeftTab({ kind: 'object', id: command.object.id });
+        // D-275: a placement into a hidden group shows that group — otherwise
+        // the new object is invisible and the next click places a duplicate.
+        const scope = mountScopeLayer(store.getState().document.layers);
+        if (scope !== undefined) {
+          const placed = command.object;
+          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
+        }
       }
       return result;
     },
-    [dispatchAndSelect, keepLeftTab, tool],
+    [dispatchAndSelect, keepLeftTab, store, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
@@ -311,11 +321,10 @@ export function App(): React.JSX.Element {
     onCommand: dispatchEquipmentCommand,
   });
 
-  // D-273: floor/ceiling groups of the base layer — view state like the tab
+  // D-275: floor/ceiling groups of the base layer — view state like the tab
   // choice, never in the plan and never in undo. The canvas and 3D draw a view
   // document where a hidden group sits on a hidden view-only layer; commands,
   // inventory and checks keep the real one.
-  const [hiddenMounts, setHiddenMounts] = useState<ReadonlySet<ObjectMount>>(() => new Set());
   const mountLayer = mountScopeLayer(document.layers);
   const shownDocument = useMemo(
     () =>
