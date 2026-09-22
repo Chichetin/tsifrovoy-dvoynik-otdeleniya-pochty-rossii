@@ -4,7 +4,7 @@
  *
  * Видимость — настоящий чекбокс с подписью; имя слоя не теряется при узкой
  * панели (полное имя в подсказке); у включённого информационного слоя есть
- * легенда из справочника и подпись «числа синтетические».
+ * легенда из справочника.
  */
 
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -110,7 +110,7 @@ describe('LayersPanel', () => {
     expect((remove as HTMLButtonElement).disabled).toBe(true);
   });
 
-  test('у включённого теплового слоя легенда: шкала, 0 … max, порог, «синтетические»', () => {
+  test('у включённого теплового слоя легенда: шкала, 0 … max, порог', () => {
     renderPanel(demo(['l_lt_heat']));
     const legend = within(item('Тепловая нагрузка зон')).getByRole('group', {
       name: 'Легенда слоя Тепловая нагрузка зон',
@@ -119,7 +119,6 @@ describe('LayersPanel', () => {
     expect(legend.textContent).toContain('0\u00a0%');
     expect(legend.textContent).toContain('100\u00a0%');
     expect(legend.textContent).toContain('от 100\u00a0% и выше');
-    expect(legend.textContent).toContain('числа синтетические');
     const bar = legend.querySelector('.layers__scale') as HTMLElement;
     expect(bar.style.background).toContain('linear-gradient');
   });
@@ -135,26 +134,26 @@ describe('LayersPanel', () => {
     expect(staff.textContent).toContain('чел.');
   });
 
-  test('карточка информационного слоя компактна: пояснение свёрнуто, «числа синтетические» видно всегда', () => {
+  test('карточка информационного слоя компактна: пояснение свёрнуто, строки меты нет', () => {
     renderPanel(demo());
     const heat = item('Тепловая нагрузка зон');
-    // Слой выключен, легенды нет, но строка об источнике чисел на виду.
-    expect(heat.querySelector('.layers__meta')?.textContent).toContain('числа синтетические');
+    // Слой выключен, легенды нет — и лишней строки под именем тоже нет, только раскрытие.
+    expect(heat.querySelector('.layers__meta')).toBeNull();
     const about = heat.querySelector('details');
     expect(about).not.toBeNull();
     expect(about?.open).toBe(false);
     expect(about?.querySelector('summary')?.textContent).toBe('Что показывает слой');
     // Полный текст справочника не потерян — он внутри раскрытия.
-    expect(about?.textContent).toContain('Числа синтетические: загрузка зоны');
+    expect(about?.textContent).toContain('Загрузка зоны проставляется руками');
     expect(about?.textContent).toContain('поверх всего плана');
   });
 
-  test('у включённого слоя «числа синтетические» говорит легенда, строка не дублирует её', () => {
+  test('у включённого информационного слоя меты тоже нет: легенда говорит сама', () => {
     renderPanel(demo(['l_lt_heat']));
     const heat = item('Тепловая нагрузка зон');
     expect(heat.querySelector('.layers__meta')).toBeNull();
     const legend = within(heat).getByRole('group', { name: 'Легенда слоя Тепловая нагрузка зон' });
-    expect(legend.textContent).toContain('числа синтетические');
+    expect(legend.textContent).not.toBe('');
   });
 
   test('обычный слой пояснения не прячет: зоны и объекты видны строкой', () => {

@@ -196,14 +196,14 @@ test.describe('слои в браузере', () => {
     await expect(page.locator('.shell__error')).toHaveCount(0);
   });
 
-  test('информационные слои: числа синтетические, план не меняется', async ({ page }) => {
+  test('информационные слои: источник чисел объяснён, план не меняется', async ({ page }) => {
     await page.goto('/');
     await showTab(page, 'Слои');
     await drawZone(page);
 
     const heat = layerItem(page, 'Тепловая нагрузка зон');
-    // Подпись об источнике чисел стоит рядом со слоем, а не в документации.
-    await expect(heat.locator('.layers__note')).toContainText('синтетические');
+    // Пояснение справочника (не UI-подпись) объясняет источник чисел рядом со слоем.
+    await expect(heat.locator('.layers__note')).toContainText('проставляется руками');
 
     const before = JSON.parse(await savePlan(page));
 
