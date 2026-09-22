@@ -77,3 +77,14 @@ test('тип с формой показывает свой контур вмес
   // Model Y is up, SVG's is down: the apex at +0.5 is drawn at the top.
   expect(icon.querySelector('polygon')?.getAttribute('points')).toBe('0,-0.5 -0.5,0.5 0.5,0.5');
 });
+
+test('«Нарисовать свою фигуру» берёт выбранный тип, без типа — подсказка, не молчание (D-279)', () => {
+  const onTool = vi.fn();
+  const { rerender } = render(<LibraryPanel catalog={withSize(1, 1)} activeTypeId={null} onTool={onTool} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Нарисовать свою фигуру' }));
+  expect(onTool).not.toHaveBeenCalled();
+  expect(screen.getByRole('status').textContent).toContain('Сначала выберите тип');
+  rerender(<LibraryPanel catalog={withSize(1, 1)} activeTypeId="ot_sized" onTool={onTool} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Нарисовать свою фигуру' }));
+  expect(onTool).toHaveBeenCalledWith({ kind: 'shape.draw', typeId: 'ot_sized' });
+});

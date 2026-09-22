@@ -1279,6 +1279,10 @@ body {
   flex: none;
 }
 
+.library__shape {
+  margin: 0 0 8px;
+}
+
 .library__swatch--shape {
   border-radius: 0;
 }

@@ -728,3 +728,50 @@ describe('замыкание контура с клавиатуры и двой�
     expect(hook.result.current.draft).toBeNull();
   });
 });
+
+describe('«Своя фигура» (D-279)', () => {
+  const desk = {
+    id: 'ot_desk',
+    label: 'Стол',
+    category: 'Мебель',
+    defaultSize_m: [1.2, 0.6] as Point,
+    defaultHeight_m: 0.75,
+    defaultBase_m: 0,
+    physical: true,
+    occupiesFloor: true,
+    symbol: 'rect' as const,
+    color: '#4C6EF5',
+    attributes: [],
+    provenance: 'Допущение команды',
+  };
+  const withDesk = (): PlanDocument => ({ ...planWith([]), catalog: { ...catalog, objectTypes: [desk] } });
+
+  it('замкнутый многоугольник становится объектом выбранного типа: габарит — рамка, центр — её середина', () => {
+    const { commands, click, plan } = setupApplying({ kind: 'shape.draw', typeId: 'ot_desk' }, withDesk());
+    click([1, 1]);
+    click([4, 1]);
+    click([4, 2]);
+    click([2, 3]);
+    click([1.05, 1.05]);
+    expect(commands).toHaveLength(1);
+    const placed = plan().objects[0];
+    expect(placed).toMatchObject({ typeId: 'ot_desk', label: 'Стол', position: [2.5, 2], size_m: [3, 2], rotation_deg: 0 });
+    expect(placed?.outline).toEqual([
+      [-0.5, -0.5],
+      [0.5, -0.5],
+      [0.5, 0],
+      [-0.166667, 0.5],
+    ]);
+  });
+
+  it('тип не найден в справочнике — объяснение, черновик на месте', () => {
+    const { commands, hook, click } = setup({ kind: 'shape.draw', typeId: 'ot_missing' }, withDesk());
+    click([1, 1]);
+    click([4, 1]);
+    click([4, 3]);
+    click([1.05, 1.05]);
+    expect(commands).toHaveLength(0);
+    expect(getNotice()).toMatch(/выберите тип в библиотеке/);
+    expect(hook.result.current.draft).toHaveLength(3);
+  });
+});

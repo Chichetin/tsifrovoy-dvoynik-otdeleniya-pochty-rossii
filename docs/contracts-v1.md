@@ -332,7 +332,9 @@ F02 фиксирует следующие типы в `src/contracts/ui.ts`, а 
 type Tool =
   // 'measure' — линейка (D-256): единственный вид, который план не меняет
   | { kind: 'select' | 'pan' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
-  | { kind: 'object.place'; typeId: Id };
+  | { kind: 'object.place'; typeId: Id }
+  // 'shape.draw' — «Своя фигура» (D-279): многоугольник кликами → объект typeId с этим контуром
+  | { kind: 'shape.draw'; typeId: Id };
 type WorldPointer = {
   phase: 'down' | 'move' | 'up' | 'cancel'; point: Point;
   shift: boolean; alt: boolean; button: number;
@@ -365,7 +367,7 @@ type EditorSession = {
 не масштабирует children второй раз. onPointer отдаёт мировые координаты; для cancel
 используется последняя точка жеста. U04 обрабатывает жест выбранной фигуры и прекращает
 всплытие события; пустой холст передаёт событие активному инструменту через app:
-room/zone/wall/opening → usePlanToolController.handlePointer (U03),
+room/zone/wall/opening/shape.draw → usePlanToolController.handlePointer (U03),
 object.place → useEquipmentToolController.handlePointer (U04); select/pan обрабатывает
 EditorCanvas. Escape вызывает cancel активного контроллера. Алгоритм рисования и
 создания оборудования не переносится в app. U07 только выбирает typeId и Tool;

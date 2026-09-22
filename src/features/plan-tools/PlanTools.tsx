@@ -31,7 +31,7 @@ import { setNotice, useNotice } from './notice';
  */
 const VIEW_TOOL_COUNT = 3;
 
-const TOOLS: { kind: Exclude<ToolKind, 'object.place'>; label: string; hint: string }[] = [
+const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: string; hint: string }[] = [
   { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
   {
     kind: 'pan',
@@ -95,6 +95,11 @@ export function PlanTools({
   const notice = useNotice();
   const intent = deleteIntent(session.selection, plan);
   const hint = editingHint(session.selection);
+  const tool = session.tool;
+  const shapeType =
+    tool.kind === 'shape.draw'
+      ? (plan.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId)
+      : null;
   const selected = selectionKey(session.selection);
   // Другой документ — это «Новый» или открытый файл: план опознаётся по id и
   // имени, а не по ссылке, иначе строку гасила бы любая правка.
@@ -148,11 +153,16 @@ export function PlanTools({
 
       {/* Hints live in a plaque over the canvas, not in the header row: a long
           line there wrapped the header and moved the plan (operator №16). */}
-      {session.tool.kind !== 'object.place' && hint === null && notice === null ? null : (
+      {session.tool.kind !== 'object.place' && shapeType === null && hint === null && notice === null ? null : (
         <div className="toolbar__hints">
           {session.tool.kind === 'object.place' ? (
             <span className="toolbar__note">Клик по плану ставит объект</span>
           ) : null}
+          {shapeType === null ? null : (
+            <span className="toolbar__note" data-testid="shape-draw-hint">
+              Своя фигура «{shapeType}»: клик — вершина; замкнуть — клик по первой точке, Enter или двойной клик; Esc — отмена; Alt — без привязки
+            </span>
+          )}
           {hint === null ? null : <span className="toolbar__note">{hint}</span>}
 
           {notice === null ? null : (

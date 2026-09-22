@@ -17,8 +17,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Point, Polygon } from '../../contracts/model';
+import type { Id, Point, Polygon } from '../../contracts/model';
 import type { ToolController, ToolKind, UsePlanToolController, WorldPointer } from '../../contracts/ui';
+import { defaultAttributes, findObjectType } from '../../domain/catalog';
 import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
@@ -28,10 +29,13 @@ import {
   NO_WALL_UNDER_POINTER_NOTICE,
   OPENING_WIDER_THAN_WALL_NOTICE,
   RING_TOO_FEW_POINTS_NOTICE,
+  SHAPE_NO_TYPE_NOTICE,
+  SHAPE_TOO_SMALL_NOTICE,
   WALL_TOO_SHORT_NOTICE,
   droppedOpeningNotice,
   setNotice,
 } from './notice';
+import { objectFromRing } from './object-shape';
 import { setSnapHint } from './snap-marker';
 import { isTextTarget } from './text-target';
 import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
@@ -41,7 +45,7 @@ import { createOpening, createWall, nearestWall } from './wall-draft';
 const CLOSE_RADIUS_M = 0.4;
 
 /** Tools whose draft is a ring: Enter and a double click close it. */
-const RING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>(['room.draw', 'zone.draw']);
+const RING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>(['room.draw', 'zone.draw', 'shape.draw']);
 
 /** Konva puts its canvases into this container; a double click counts only there. */
 const CANVAS_SELECTOR = '.konvajs-content';
@@ -80,6 +84,7 @@ const DRAWING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
   'room.draw',
   'zone.draw',
   'wall.draw',
+  'shape.draw',
   // Линейка ставит точку туда же, куда её ставит рисование, и теми же
   // правилами привязки: измерение, начатое в сантиметре от угла, меряет не то,
   // что видит пользователь.
@@ -92,7 +97,8 @@ export const usePlanToolController: UsePlanToolController = ({
   onCommand,
 }): ToolController => {
   const [draft, setDraft] = useState<Point[] | null>(null);
-  const kind = session.tool.kind;
+  const tool = session.tool;
+  const kind = tool.kind;
   const committing = useRef(false);
   const scale = session.viewport.scale;
 
@@ -127,6 +133,47 @@ export const usePlanToolController: UsePlanToolController = ({
     setMeasurement(null);
   }, []);
 
+  /**
+   * «Своя фигура» (D-279): the drawn ring is a new object of the armed type,
+   * its box the size, its centre the position, rotation 0 — everything else as
+   * a library placement gives it. false keeps the draft on screen.
+   */
+  const drawShape = useCallback(
+    (ring: Polygon, typeId: Id, taken: Set<Id>): boolean => {
+      const type = findObjectType(plan.catalog, typeId);
+      const layer =
+        editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
+      if (type === null || layer === undefined) {
+        setNotice(SHAPE_NO_TYPE_NOTICE);
+        return false;
+      }
+      const shaped = objectFromRing(
+        {
+          id: nextFreeId('eq_', taken),
+          typeId: type.id,
+          label: type.label,
+          position: [0, 0],
+          size_m: type.defaultSize_m,
+          rotation_deg: 0,
+          base_m: type.defaultBase_m,
+          height_m: type.defaultHeight_m,
+          zoneId: null,
+          layerId: layer.id,
+          attributes: defaultAttributes(type),
+        },
+        ring,
+      );
+      if (!shaped.ok) {
+        setNotice(shaped.reason === 'too-small' ? SHAPE_TOO_SMALL_NOTICE : DRAFT_SELF_INTERSECTION_NOTICE);
+        return false;
+      }
+      if (!onCommand({ type: 'object.put', object: shaped.object }).ok) return false;
+      setNotice(null);
+      return true;
+    },
+    [onCommand, plan.catalog, plan.layers],
+  );
+
   /** Returns false when the ring was refused and the draft has to stay. */
   const commit = useCallback(
     (ring: Polygon): boolean => {
@@ -152,6 +199,7 @@ export const usePlanToolController: UsePlanToolController = ({
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
         // One id space for the whole plan plus what a delete retired this session (D-198).
         const taken = takenIds(plan, session.retired);
+        if (tool.kind === 'shape.draw') return drawShape(ring, tool.typeId, taken);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
         // Every content layer locked: address the first one anyway, so the
@@ -181,7 +229,7 @@ export const usePlanToolController: UsePlanToolController = ({
         committing.current = false;
       }
     },
-    [kind, onCommand, plan, session.retired],
+    [drawShape, kind, onCommand, plan, session.retired, tool],
   );
 
   /**
@@ -373,7 +421,7 @@ export const usePlanToolController: UsePlanToolController = ({
         return;
       }
 
-      if (kind !== 'room.draw' && kind !== 'zone.draw') return;
+      if (!RING_TOOLS.has(kind)) return;
 
       const current = draft ?? [];
       const first = current[0];
