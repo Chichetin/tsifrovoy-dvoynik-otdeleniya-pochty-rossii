@@ -195,10 +195,10 @@ describe('пиктограммы на готовом 2D-плане', () => {
     if (first === undefined) throw new Error('В фикстуре нет рабочего места');
     const stage = renderLayer(plan, null, null);
     const icon = stage.findOne('.plan-pictogram-workplace');
-    const badge = stage.findOne(`.plan-pictogram-badge-${first.id}`);
+    const badge = stage.findOne(`.plan-pictogram-caption-${first.id}`);
     expect(icon).toBeDefined();
     expect(badge).toBeDefined();
-    // Пиктограмма только объясняет форму; ни она, ни её контрастный бейдж
+    // Пиктограмма только объясняет форму; ни она, ни её подпись
     // не ловят клик вместо объекта.
     expect(icon?.listening()).toBe(false);
     expect(badge?.listening()).toBe(false);
