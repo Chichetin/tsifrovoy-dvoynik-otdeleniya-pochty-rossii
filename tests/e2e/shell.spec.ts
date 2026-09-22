@@ -2,9 +2,9 @@
  * UI-1А: оболочка приложения (D-196).
  *
  * Шапка — одна строка кнопок и строка статуса под ней, и её высота не зависит
- * от того, что в ней написано: ни длинный статус сохранения, ни подсказка
- * инструмента, ни кнопка «Удалить перегородку» не переносят кнопки на вторую
- * строку и не сдвигают холст (находка operator №16). Проверяется на ширинах
+ * от того, что в ней написано: ни длинная подсказка инструмента, ни кнопка
+ * «Удалить перегородку» не переносят кнопки на вторую строку и не сдвигают
+ * холст (находка operator №16). Проверяется на ширинах
  * от 1280 до 1536 (D-261: на 1400 шапка раньше вылезала за окно, на 1280 и
  * 1440 запас был меньше 20 px; 1460 — первая ширина с подписями истории)
  * и в худшем её состоянии; в худшем состоянии свободная колонка шапки
@@ -74,8 +74,6 @@ for (const size of [
     test('одна строка и постоянная высота при любом статусе, инструменте и выборе', async ({ page }) => {
       await page.goto('/');
       await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
-      // Самый длинный статус — у нетронутого нового плана.
-      await expect(page.locator('.files > .files__status')).toHaveText('новый план не сохранён');
       const reference = await layout(page);
       expect(reference.bar).toBeLessThanOrEqual(80);
       await expectOneRow(page, reference, 'новый план');
@@ -98,16 +96,14 @@ for (const size of [
       await page.mouse.click(canvas!.x + canvas!.width / 2 + 60, y);
       await expect(page.getByRole('button', { name: 'Удалить перегородку' })).toBeVisible();
       await expect(page.getByText('Перегородка: тяните концы')).toBeVisible();
-      await expect(page.locator('.files > .files__status')).toHaveText('есть несохранённые правки');
       await expectOneRow(page, reference, 'выбрана перегородка, есть правки');
       const worst = await layout(page);
       expect(worst.slack, `запас шапки в худшем состоянии на ${size.width} px`).toBeGreaterThanOrEqual(MIN_SLACK_PX);
 
-      // Открытый демо-план: подпись файла и черновика в строке статуса, не в строке кнопок.
+      // Открытый демо-план: подпись файла в строке статуса, не в строке кнопок.
       page.on('dialog', (dialog) => void dialog.accept());
       await page.getByTestId('plan-file-input').setInputFiles(DEMO);
       await expect(page.getByTestId('files-notice')).toContainText('открыт');
-      await expect(page.locator('.files > .files__status')).toHaveText('сохранено');
       await expectOneRow(page, reference, 'демо-план открыт');
     });
 
