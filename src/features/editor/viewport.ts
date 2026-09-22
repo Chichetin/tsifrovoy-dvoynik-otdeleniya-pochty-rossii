@@ -51,6 +51,17 @@ export function wheelIntent(input: WheelInput): WheelIntent {
   return Math.abs(input.deltaY) < TRACKPAD_DELTA_LIMIT_PX ? 'pan' : 'zoom';
 }
 
+/**
+ * D-272: the screen shift for an accumulated two-finger swipe. The wheel delta
+ * says where the reader wants to scroll, so the plan moves the other way — the
+ * same as a page under the same fingers. Only the wheel/trackpad pan goes
+ * through here; drag pans (middle button, «Обзор») pass the pointer's own
+ * movement to `panBy` as is.
+ */
+export function wheelPan(delta: Point): Point {
+  return [-delta[0], -delta[1]];
+}
+
 export function clampScale(scale: number): number {
   if (!Number.isFinite(scale)) return SCALE_LIMITS.min;
   return Math.min(SCALE_LIMITS.max, Math.max(SCALE_LIMITS.min, scale));

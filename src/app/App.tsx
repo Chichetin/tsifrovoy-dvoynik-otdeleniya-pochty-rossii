@@ -60,7 +60,7 @@ import {
   type RightTab,
 } from './side-tabs';
 import { SideTabs } from './SideTabs';
-import { replacedTitle, sameRef, showsPropsCard } from './props-column';
+import { sameRef, showsPropsCard } from './props-column';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
 import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
@@ -604,13 +604,20 @@ export function App(): React.JSX.Element {
               ),
             }}
           />
-          {/* D-268: «Свойства» stand in for the open left tab; the band says
-              which one, and «×» drops the selection (the same as Escape on
-              the canvas). The card itself is the region «Свойства». */}
+          {/* D-268: «Свойства» stand in for the open left tab; «×» drops the
+              selection (the same as Escape on the canvas). D-272: the band
+              is the card's only title and its only heading — the card has
+              none of its own and stays the region «Свойства» by its
+              aria-label (it renders the same without the band). */}
           {propsShown ? (
             <div className="shell__props">
               <div className="shell__props-band">
-                <span className="shell__props-caption">{replacedTitle(tabs.left)}</span>
+                {/* A heading by role, not an <h2>: the band keeps its look without
+                    new styles, and a screen reader's heading list finds the
+                    card by it — the card has no heading of its own. */}
+                <span className="shell__props-caption" role="heading" aria-level={2}>
+                  Свойства
+                </span>
                 <button
                   type="button"
                   className="shell__props-close"

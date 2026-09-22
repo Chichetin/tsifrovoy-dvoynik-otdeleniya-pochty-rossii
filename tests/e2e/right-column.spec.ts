@@ -70,7 +70,13 @@ test('выбор ставит «Свойства» в левую колонку 
   await openDemo(page);
   await selectFirstObject(page);
 
-  await expect(band(page)).toHaveText('Свойства — вместо библиотеки');
+  await expect(band(page)).toHaveText('Свойства');
+  // D-272: подпись полосы — единственный заголовок «Свойства»; своих
+  // заголовков («Свойства объекта» и т. п.) в карточке нет.
+  await expect(propsCard(page).getByRole('heading')).toHaveCount(0);
+  await expect(leftAside(page).getByRole('heading', { name: /Свойства/ })).toHaveCount(1);
+  await expect(band(page).getByRole('heading', { name: 'Свойства', exact: true })).toBeVisible();
+  await expect(closeProps(page)).toBeVisible();
   await expect(page.getByLabel('Библиотека оборудования')).toBeHidden();
   // Ряд левых вкладок виден, ни одна не выбрана: колонку заняла карточка.
   await expect(sideTab(page, 'Библиотека')).toBeVisible();
@@ -113,7 +119,7 @@ test('вкладка слева возвращает панель, выделе�
   // Новый выбор — карточка снова слева, теперь вместо слоёв.
   await inventoryRows(page).nth(1).locator('.table__link').first().click();
   await expect(propsCard(page)).toBeVisible();
-  await expect(band(page)).toHaveText('Свойства — вместо слоёв');
+  await expect(band(page)).toHaveText('Свойства');
 
   await page.keyboard.press('Escape');
   await expect(propsCard(page)).toHaveCount(0);
@@ -138,14 +144,14 @@ test('расстановка из библиотеки оставляет биб
 
   // Новый объект выбран: кнопка внизу колонки возвращает его карточку.
   await page.getByRole('button', { name: 'Свойства выбранного' }).click();
-  await expect(propsCard(page)).toContainText('Свойства объекта');
+  await expect(propsCard(page)).toContainText('объект; не меняется');
   await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toHaveCount(0);
   await sideTab(page, 'Библиотека').click();
   await expect(propsCard(page)).toHaveCount(0);
 
   await canvas.click({ position: at });
   await expect(propsCard(page)).toBeVisible();
-  await expect(propsCard(page)).toContainText('Свойства объекта');
+  await expect(propsCard(page)).toContainText('объект; не меняется');
   await expect(page.getByLabel('Библиотека оборудования')).toBeHidden();
 });
 

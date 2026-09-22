@@ -177,13 +177,17 @@ test.describe('холст показывает то, о чём спрашива�
     const { x, y, width, height } = box as { x: number; y: number; width: number; height: number };
     const centre = { x: x + width / 2, y: y + height / 2 };
 
-    const beforeSwipe = await target.getAttribute('data-visible');
+    const beforeSwipe = await visibleBox(page);
     const fittedScale = await scale(page);
     await page.mouse.move(centre.x, centre.y);
     // Playwright's small pixel wheel event models a smooth two-finger swipe.
     await page.mouse.wheel(18, 16);
     await expect.poll(() => scale(page)).toBe(fittedScale);
-    await expect.poll(() => target.getAttribute('data-visible')).not.toBe(beforeSwipe);
+    // D-272: свайп листает план, как страницу — дельта вправо-вниз уводит
+    // план влево-вверх, и в окне открывается мир правее (X растёт) и ниже
+    // (Y модели смотрит вверх, поэтому minY убывает).
+    await expect.poll(async () => (await visibleBox(page)).minX).toBeGreaterThan(beforeSwipe.minX);
+    expect((await visibleBox(page)).minY).toBeLessThan(beforeSwipe.minY);
 
     const beforeMouseWheel = await scale(page);
     await page.mouse.wheel(0, -120);
