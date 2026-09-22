@@ -112,14 +112,30 @@ ssh ubuntu@<публичный IP>
 Два способа, оба нормальные.
 
 **A. Архивом со своей машины** — не требует складывать доступы к GitLab на облачную
-машину, поэтому предпочтительнее. На своей машине, из каталога проекта:
+машину, поэтому предпочтительнее.
+
+На своей машине **обязательно из корня репозитория**: `git archive`, запущенный из
+подкаталога, кладёт в архив только его содержимое, и на машину уезжает, например,
+один каталог `docs` без `Dockerfile` и `compose.yaml` (проверено 22.09 — так и
+вышло).
 
 ```bash
-git archive --format=tar.gz -o /tmp/ops.tar.gz HEAD
+cd C:\Users\<пользователь>\PycharmProjects\Pochtatex
 ```
 
 ```bash
-scp /tmp/ops.tar.gz ubuntu@<публичный IP>:~
+git archive --format=tar.gz -o C:\tmp\ops.tar.gz HEAD
+```
+
+Проверить, что в архиве весь проект, а не один каталог — в списке должны быть
+`compose.yaml` и `Dockerfile`:
+
+```bash
+tar -tzf C:\tmp\ops.tar.gz | more
+```
+
+```bash
+scp C:\tmp\ops.tar.gz ubuntu@<публичный IP>:~
 ```
 
 Дальше на самой машине:
