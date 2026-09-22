@@ -83,14 +83,6 @@ const MOUNT_LABELS: Record<ObjectMount, string> = {
   ceiling: 'Потолочные объекты',
 };
 
-/**
- * Короткая пометка рядом с числами информационного слоя. Полное объяснение
- * лежит в `note` типа слоя и в README; здесь — одна строка, которую видно без
- * разворачивания, чтобы условный расчёт нельзя было прочитать как измерение
- * (D-276).
- */
-const CONDITIONAL_NOTE = 'Числа условные: их вписывает человек, это не измерение';
-
 export function LayersPanel({
   document: plan,
   session,
@@ -442,7 +434,7 @@ export function LayersPanel({
               {type === null ? null : (
                 <>
                   {layer.visible ? legendView(layer, type) : null}
-                  {layer.visible ? <p className="layers__caution">{CONDITIONAL_NOTE}</p> : null}
+                  {/* No "numbers are conditional" caution here — ever (D-281, participant's explicit ban). */}
                   <details className="layers__about">
                     <summary>Что показывает слой</summary>
                     <p className="layers__note">
