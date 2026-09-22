@@ -120,6 +120,7 @@ test.describe('развёрнутый сервис', () => {
     // хотя сервис отвечал правильно.
     test.setTimeout(LLM_WAIT_MS + 30_000);
     await page.goto('/');
+    await showTab(page, 'Ассистент');
     await drawZone(page);
 
     // D-249: панели правой колонки — вкладки, видна одна. Без этого шага спека
@@ -127,6 +128,7 @@ test.describe('развёрнутый сервис', () => {
     await showTab(page, 'Ассистент');
 
     const panel = page.getByLabel('Ассистент');
+    const panel = page.getByLabel('Ассистент', { exact: true });
     await panel.getByRole('button', { name: 'Спросить' }).click();
 
     // Ответ пришёл с сервера: mode=llm, если на сервере задан ключ провайдера,
