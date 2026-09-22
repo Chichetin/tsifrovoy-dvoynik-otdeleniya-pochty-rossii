@@ -221,7 +221,11 @@ test.describe('перечень оборудования', () => {
       .first()
       .click();
     // Свободный пол демо-плана: на занятое место объект теперь не встаёт (D-286).
-    await page.getByTestId('editor-canvas').click({ position: { x: 340, y: 447 } });
+    // Точка пересчитана 22.09 вместе с `demo.spec.ts`: после того как вписывание
+    // стало обновляться при смене ширины панелей, прежняя (340, 447) попала на
+    // занятое место и скамья не вставала. На холсте 664 × 671 масштаб «Вписать» —
+    // 40 px/м, и (120, 456) — это модель (2,2; 2), свободный пол зоны ожидания.
+    await page.getByTestId('editor-canvas').click({ position: { x: 120, y: 456 } });
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     await expect(inventoryRows(page)).toHaveCount(demo.objects.length + 1);
