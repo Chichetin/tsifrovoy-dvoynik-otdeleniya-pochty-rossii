@@ -284,8 +284,9 @@ curl http://127.0.0.1:8080/api/health # {"status":"ok","llm":{"configured":false
 ограничения (нет HTTPS, нет аутентификации, нет постоянного хранилища) —
 [docs/deployment.md](docs/deployment.md).
 
-**Адрес работающего сервиса для жюри — `TBD`:** хостинг ещё не выбран, адрес и сведения
-для доступа появятся здесь. Развёрнутый сервис проверяется браузерным сценарием:
+**Адрес работающего сервиса для жюри — `TBD`:** сервис разворачивается в Yandex Cloud,
+порядок действий — [docs/hosting-yandex-cloud.md](docs/hosting-yandex-cloud.md); адрес и
+сведения для доступа появятся здесь. Развёрнутый сервис проверяется браузерным сценарием:
 
 ```bash
 DEPLOY_URL=http://127.0.0.1:8080 npx playwright test tests/e2e/deployment.spec.ts
