@@ -1,7 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import { isPlanPictogramVisible, planPictogram, PLAN_PICTOGRAM_PATHS } from './plan-pictogram';
+import {
+  isPlanPictogramVisible,
+  planPictogram,
+  planPictogramNeedsBackdrop,
+  planPictogramSize,
+  PLAN_PICTOGRAM_MIN_PX,
+  PLAN_PICTOGRAM_PATHS,
+} from './plan-pictogram';
 
 describe('пиктограммы готового 2D-плана', () => {
   test('важные для посетителя и сотрудника объекты получают узнаваемый знак', () => {
@@ -19,9 +26,32 @@ describe('пиктограммы готового 2D-плана', () => {
   test('значок уходит на слишком мелком масштабе', () => {
     expect(isPlanPictogramVisible(42, 24)).toBe(true);
     expect(isPlanPictogramVisible(17, 24)).toBe(true);
-    expect(isPlanPictogramVisible(15, 24)).toBe(false);
-    expect(isPlanPictogramVisible(16, 9)).toBe(false);
-    expect(isPlanPictogramVisible(9, 40)).toBe(false);
+    // Сам объект ещё различим на экране — знак нужен тем более: без него
+    // камера, датчик и пинпад остаются безымянными точками.
+    expect(isPlanPictogramVisible(15, 24)).toBe(true);
+    expect(isPlanPictogramVisible(16, 9)).toBe(true);
+    expect(isPlanPictogramVisible(9, 40)).toBe(true);
+    // Ниже этого объект и сам не читается, а полсотни знаков превращают
+    // уменьшенный план в шум.
+    // Датчик дыма 0,12 м — 4,8 px во «Вписать»: знак нужен ему больше всех.
+    expect(isPlanPictogramVisible(4.8, 4.8)).toBe(true);
+    expect(isPlanPictogramVisible(3.5, 3.5)).toBe(false);
+    // Розетка 0,08 × 0,02 м — 3,2 px: ждёт приближения.
+    expect(isPlanPictogramVisible(3.2, 0.8)).toBe(false);
+  });
+
+  test('мелкий объект получает знак постоянного размера, как в экспорте', () => {
+    // Камера 0,15 × 0,15 м в масштабе «Вписать» — это 8,5 px: знак по размеру
+    // объекта был бы нечитаем, поэтому он не мельче PLAN_PICTOGRAM_MIN_PX.
+    expect(planPictogramSize(8.5, 8.5)).toBe(PLAN_PICTOGRAM_MIN_PX);
+    // Крупный объект по-прежнему несёт знак по своему размеру, с потолком 20.
+    expect(planPictogramSize(40, 30)).toBe(20);
+    expect(planPictogramSize(20, 18)).toBeCloseTo(14.04, 2);
+  });
+
+  test('знак крупнее объекта получает подложку, иначе белые линии теряются на полу', () => {
+    expect(planPictogramNeedsBackdrop(8.5, 8.5)).toBe(true);
+    expect(planPictogramNeedsBackdrop(40, 30)).toBe(false);
   });
 
   test('каждый тип значка имеет собственный векторный силуэт', () => {

@@ -116,7 +116,35 @@ export function planPictogram(typeId: Id): PlanPictogram {
   }
 }
 
+/** Меньше этого знак превращается в кляксу; таков же пол у SVG-экспорта (0,18 м на 100 px/м). */
+export const PLAN_PICTOGRAM_MIN_PX = 11;
+
+/**
+ * Ниже этого объект и сам не читается на экране: полсотни знаков поверх
+ * неразличимых точек — шум, а не наглядность. Порог проверен по датчику
+ * пожарной сигнализации (0,12 м — 4,8 px во «Вписать» на экране 1280).
+ */
+const PLAN_PICTOGRAM_MIN_OBJECT_PX = 4;
+
 /** Do not turn a zoomed-out, dense plan into a layer of visual noise. */
 export function isPlanPictogramVisible(widthPx: number, heightPx: number): boolean {
-  return Math.max(widthPx, heightPx) >= 20 && Math.min(widthPx, heightPx) >= 16;
+  return Math.max(widthPx, heightPx) >= PLAN_PICTOGRAM_MIN_OBJECT_PX;
+}
+
+/**
+ * Размер знака в пикселях. Крупный объект несёт знак по своему следу, мелкий —
+ * постоянного размера: камера, датчик дыма, пинпад и розетка меньше самого
+ * знака, и на планах их обозначают символом, а не масштабной фигурой. Ровно
+ * так же поступает экспорт (`plan-svg`), поэтому экран и SVG совпадают.
+ */
+export function planPictogramSize(widthPx: number, heightPx: number): number {
+  return Math.min(20, Math.max(PLAN_PICTOGRAM_MIN_PX, Math.min(widthPx, heightPx) * 0.78));
+}
+
+/**
+ * Знак мелкого объекта выходит за его след, и белые линии оказываются на полу,
+ * где их не видно. Такому знаку нужна подложка цвета объекта.
+ */
+export function planPictogramNeedsBackdrop(widthPx: number, heightPx: number): boolean {
+  return planPictogramSize(widthPx, heightPx) > Math.min(widthPx, heightPx);
 }

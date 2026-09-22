@@ -53,7 +53,14 @@ import {
   type ResizeHandle,
 } from './transform';
 import { isWallMounted } from './wall-mount';
-import { isPlanPictogramVisible, planPictogram, PLAN_PICTOGRAM_PATHS, type PlanPictogram } from '../../domain/plan-pictogram';
+import {
+  isPlanPictogramVisible,
+  planPictogram,
+  planPictogramNeedsBackdrop,
+  planPictogramSize,
+  PLAN_PICTOGRAM_PATHS,
+  type PlanPictogram,
+} from '../../domain/plan-pictogram';
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
@@ -161,17 +168,20 @@ function EquipmentPictogram({
   height,
   opacity,
   color = '#FFFFFF',
+  backdrop,
 }: {
   kind: PlanPictogram;
   width: number;
   height: number;
   opacity: number;
   color?: string;
+  /** Цвет объекта: подложка под знак, который крупнее самого объекта. */
+  backdrop?: string;
 }): React.JSX.Element | null {
   if (kind === null || !isPlanPictogramVisible(width, height)) return null;
-  const size = Math.min(20, Math.min(width, height) * 0.78);
+  const size = planPictogramSize(width, height);
   const scale = size / 24;
-  return (
+  const icon = (
     <Path
       name={`plan-pictogram-${kind}`}
       data={PLAN_PICTOGRAM_PATHS[kind]}
@@ -187,6 +197,24 @@ function EquipmentPictogram({
       listening={false}
       perfectDrawEnabled={false}
     />
+  );
+  // Розетка, камера и датчик мельче собственного знака: без подложки его белые
+  // линии выходят за объект на светлый пол и пропадают.
+  if (backdrop === undefined || !planPictogramNeedsBackdrop(width, height)) return icon;
+  return (
+    <>
+      <Circle
+        name="plan-pictogram-backdrop"
+        radius={size * 0.62}
+        fill={backdrop}
+        opacity={opacity}
+        stroke="#343A40"
+        strokeWidth={0.5}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      {icon}
+    </>
   );
 }
 export function EquipmentLayer({
@@ -704,6 +732,7 @@ export function EquipmentLayer({
             width={current.size_m[0] * viewport.scale}
             height={current.size_m[1] * viewport.scale}
             opacity={ghost ? 0.45 : 0.9}
+            backdrop={type?.color ?? FALLBACK_COLOR}
           />
         )}
       </Group>
