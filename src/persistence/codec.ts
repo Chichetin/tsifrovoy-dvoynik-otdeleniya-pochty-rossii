@@ -185,7 +185,7 @@ function canonicalZone(zone: Zone): Json {
 }
 
 function canonicalObject(object: Equipment): Json {
-  return {
+  const base = {
     id: object.id,
     typeId: object.typeId,
     label: object.label,
@@ -197,7 +197,9 @@ function canonicalObject(object: Equipment): Json {
     zoneId: object.zoneId,
     layerId: object.layerId,
     attributes: attributes(object.attributes),
-  } satisfies Record<keyof Equipment, Json>;
+  } satisfies Omit<Record<keyof Equipment, Json>, 'outline'>;
+  // A rectangle has no outline field (D-277): a plain plan keeps its plain file.
+  return object.outline === undefined ? base : { ...base, outline: polygon(object.outline) };
 }
 
 function canonicalWall(wall: Wall): Json {
@@ -223,7 +225,7 @@ function canonicalOpening(opening: Opening): Json {
 }
 
 function canonicalObjectType(type: ObjectType): Json {
-  return {
+  const head = {
     id: type.id,
     label: type.label,
     category: type.category,
@@ -233,10 +235,15 @@ function canonicalObjectType(type: ObjectType): Json {
     physical: type.physical,
     occupiesFloor: type.occupiesFloor,
     symbol: type.symbol,
+  };
+  const tail = {
     color: type.color,
     attributes: type.attributes.map(canonicalAttributeDef),
     provenance: type.provenance,
-  } satisfies Record<keyof ObjectType, Json>;
+  };
+  // The outline stands after the symbol it overrides; absent for a symbol-only type.
+  const all = { ...head, ...tail } satisfies Omit<Record<keyof ObjectType, Json>, 'outline'>;
+  return type.outline === undefined ? all : { ...head, outline: polygon(type.outline), ...tail };
 }
 
 function canonicalZoneType(type: ZoneType): Json {

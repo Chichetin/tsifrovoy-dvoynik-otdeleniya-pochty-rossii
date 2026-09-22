@@ -178,6 +178,14 @@ describe('buildScene: объекты', () => {
     expect(prism!.ref).toEqual({ kind: 'object', id: 'eq_rack' });
   });
 
+  test('призма объекта — по его контуру (D-277): низ и верх совпадают с Г-образным следом на плане', () => {
+    const outline: Polygon = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0], [0, 0], [0, 0.5], [-0.5, 0.5]];
+    const desk: Equipment = { ...rack, id: 'eq_desk', outline };
+    const [prism] = only(buildScene({ ...plan, objects: [desk] }).prisms, 'object', 'eq_desk');
+    expect(prism!.polygon).toHaveLength(6);
+    expect(roundPolygon(prism!.polygon)).toEqual(roundPolygon(footprint(desk)));
+  });
+
   test('поворот идёт по часовой стрелке, как в модели (D-010)', () => {
     const [prism] = only(buildScene(plan).prisms, 'object', 'eq_rack');
     const [a, b] = prism!.polygon;

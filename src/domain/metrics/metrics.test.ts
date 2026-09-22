@@ -351,3 +351,23 @@ describe('пустой план', () => {
     expect(metrics.room.free_m2).toBeCloseTo(80, 9);
   });
 });
+
+describe('занятая площадь по контуру объекта (D-277)', () => {
+  test('Г-образный стол занимает три четверти габарита, круглый — вписанный 24-угольник', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { parsePlanDocument } = await import('../../contracts/schema');
+    const parsed = parsePlanDocument(
+      JSON.parse(readFileSync(join(process.cwd(), 'src', 'contracts', 'fixtures', 'outline.json'), 'utf8')) as unknown,
+    );
+    if (!parsed.ok) throw new Error('outline.json');
+    // The camera is left out to keep the sum to three shapes.
+    const plan = { ...parsed.value, objects: parsed.value.objects.filter((o) => o.id !== 'eq_camera') };
+    const metrics = measurePlan(plan);
+    if (!metrics.ok) throw new Error('measurePlan');
+    const desk = 1.6 * 1.6 * 0.75;
+    const round = 12 * Math.sin(Math.PI / 12) * 0.5 * 0.5;
+    const trapezoid = 1.4 * 0.8 * 0.75;
+    expect(metrics.value.room.occupied_m2).toBeCloseTo(desk + round + trapezoid, 4);
+  });
+});

@@ -44,6 +44,7 @@ import {
   locatePoint,
   polygonSegmentDistance,
   wallObstacles,
+  withTypeOutline,
   type BoundingBox,
   type HeightInterval,
 } from '../geometry';
@@ -341,19 +342,23 @@ function trialObject(
   rotation_deg: number,
   layerId: Id,
 ): Equipment {
-  return {
-    id,
-    typeId: type.id,
-    label: type.label,
-    position,
-    size_m: [type.defaultSize_m[0], type.defaultSize_m[1]],
-    rotation_deg,
-    base_m: type.defaultBase_m,
-    height_m: type.defaultHeight_m,
-    zoneId: null,
-    layerId,
-    attributes: defaultAttributes(type),
-  };
+  // The type's shape (D-277): a round table is searched for as a round table.
+  return withTypeOutline(
+    {
+      id,
+      typeId: type.id,
+      label: type.label,
+      position,
+      size_m: [type.defaultSize_m[0], type.defaultSize_m[1]],
+      rotation_deg,
+      base_m: type.defaultBase_m,
+      height_m: type.defaultHeight_m,
+      zoneId: null,
+      layerId,
+      attributes: defaultAttributes(type),
+    },
+    type,
+  );
 }
 
 function fits(

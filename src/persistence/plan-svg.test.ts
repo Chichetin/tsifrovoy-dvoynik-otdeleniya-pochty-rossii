@@ -18,19 +18,11 @@ function loadFixture(name: string): PlanDocument {
   return result.value;
 }
 
-/**
- * Где на экране окажется локальная точка прямоугольника: цепочка трансформаций
- * SVG применяется буквально, как в браузере, — `rotate` и `translate` группы,
- * затем внешний `scale(1,-1)`. Итог сравнивается с отпечатком модели,
- * отражённым той же осью: так проверяется и знак угла, и само отражение.
- */
-function svgPoint(local: Point, translate: Point, rotateDeg: number, flipY: boolean): Point {
-  const a = (rotateDeg * Math.PI) / 180;
-  const [x, y] = local;
-  // SVG rotate(a): x' = x cos a − y sin a, y' = x sin a + y cos a.
-  const rx = translate[0] + x * Math.cos(a) - y * Math.sin(a);
-  const ry = translate[1] + x * Math.sin(a) + y * Math.cos(a);
-  return [rx, flipY ? -ry : ry];
+/** Points of the object's polygon as written in the SVG, in model metres (inside the Y flip). */
+function objectPolygon(svg: string, id: string): Point[] {
+  const match = new RegExp(`<g data-id="${id}"><polygon points="([^"]+)"`).exec(svg);
+  if (match === null) throw new Error(`контур объекта ${id} не найден`);
+  return match[1]!.split(' ').map((pair) => pair.split(',').map(Number) as Point);
 }
 
 describe('SVG плана', () => {
@@ -106,22 +98,43 @@ describe('SVG плана', () => {
 
     const svg = renderPlanSvg(plan);
     expect(svg).toContain('<g transform="scale(1,-1)">');
-    const group = new RegExp(`transform="translate\\(([-\\d.]+),([-\\d.]+)\\) rotate\\(([-\\d.]+)\\)" data-id="${turned.id}"`).exec(svg);
-    if (group === null) throw new Error('группа объекта не найдена');
-    const translate: Point = [Number(group[1]), Number(group[2])];
-    const rotate = Number(group[3]);
+    // The polygon lives inside the outer Y flip: on screen a point is (x, −y).
+    const onScreen = objectPolygon(svg, turned.id).map(([x, y]): Point => [x, -y]);
 
+    // Clockwise with Y up, written out here rather than taken from the code
+    // under test: (x, y) → (x cos a + y sin a, −x sin a + y cos a).
+    const a = (37 * Math.PI) / 180;
     const [w, h] = turned.size_m;
+    const [cx, cy] = turned.position;
     const corners: Point[] = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
-    // Экранные точки SVG (Y вниз) против отпечатка модели, отражённого той же осью.
-    const onScreen = corners.map((c) => svgPoint(c, translate, rotate, true));
-    const expected = footprint(turned).map(([x, y]): Point => [x, -y]);
+    const expected = corners.map(([x, y]): Point => [
+      cx + x * Math.cos(a) + y * Math.sin(a),
+      -(cy - x * Math.sin(a) + y * Math.cos(a)),
+    ]);
 
-    // Оба набора — одни и те же четыре угла, порядок может отличаться.
+    expect(onScreen).toHaveLength(4);
     for (const corner of expected) {
-      const hit = onScreen.some((p) => Math.hypot(p[0] - corner[0], p[1] - corner[1]) < 1e-6);
+      const hit = onScreen.some((p) => Math.hypot(p[0] - corner[0], p[1] - corner[1]) < 1e-3);
       expect(hit).toBe(true);
     }
+  });
+
+  test('объект с собственным контуром рисуется своим контуром, а не прямоугольником (D-277)', () => {
+    const base = loadFixture('rotated.json');
+    const first = base.objects[0];
+    if (first === undefined) throw new Error('нет объектов');
+    const corner = {
+      ...first,
+      rotation_deg: 0,
+      outline: [[-0.5, -0.5], [0.5, -0.5], [0.5, 0], [0, 0], [0, 0.5], [-0.5, 0.5]] as Point[],
+    };
+    const svg = renderPlanSvg({ ...base, objects: [corner] });
+    const written = objectPolygon(svg, corner.id);
+    expect(written).toHaveLength(6);
+    footprint(corner).forEach((point, index) => {
+      expect(written[index]![0]).toBeCloseTo(point[0], 3);
+      expect(written[index]![1]).toBeCloseTo(point[1], 3);
+    });
   });
 
   test('viewBox покрывает помещение и объект, вынесенный за его стены', () => {

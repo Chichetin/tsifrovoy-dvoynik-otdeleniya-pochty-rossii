@@ -32,6 +32,9 @@ import {
   viewSector,
   wallObstacles,
   wallPolygon,
+  boundingBox,
+  boxesOverlap,
+  symbolOutline,
 } from './index';
 
 const CLOSE = 9;
@@ -410,5 +413,76 @@ describe('примитивы отрезка', () => {
       [2, -0.05],
     ]);
     expect(polygonArea(span)).toBeCloseTo(0.3);
+  });
+});
+
+describe('контур объекта (D-277)', () => {
+  const L_SHAPE: Polygon = [[-0.5, -0.5], [0.5, -0.5], [0.5, 0], [0, 0], [0, 0.5], [-0.5, 0.5]];
+  const circle = symbolOutline('circle')!;
+  const triangle = symbolOutline('triangle')!;
+
+  test('без контура след — прямоугольник size_m, как раньше', () => {
+    const shape = footprint(equipment({ position: [3, 2], size_m: [1.4, 0.8] }));
+    expect(shape).toEqual([[2.3, 1.6], [3.7, 1.6], [3.7, 2.4], [2.3, 2.4]].map(([x, y]) => [
+      expect.closeTo(x!, CLOSE),
+      expect.closeTo(y!, CLOSE),
+    ]));
+  });
+
+  test('площадь эллипса: вписанный 24-угольник, в пределах 1,5 % от πab', () => {
+    const table = equipment({ size_m: [1.2, 0.8], outline: circle });
+    // n/2 · sin(2π/n) · a · b for n = 24; vertices are stored to 1e-6.
+    const inscribed = 12 * Math.sin(Math.PI / 12) * 0.6 * 0.4;
+    expect(footprintArea(table)).toBeCloseTo(inscribed, 5);
+    expect(footprintArea(table) / (Math.PI * 0.6 * 0.4)).toBeGreaterThan(0.985);
+    expect(footprintArea(table)).toBeLessThan(Math.PI * 0.6 * 0.4);
+  });
+
+  test('площадь треугольника — половина габарита, Г-образной формы — три четверти', () => {
+    expect(footprintArea(equipment({ size_m: [0.6, 0.4], outline: triangle }))).toBeCloseTo(0.12, CLOSE);
+    expect(footprintArea(equipment({ size_m: [2, 1.6], outline: L_SHAPE, rotation_deg: 33 }))).toBeCloseTo(2.4, CLOSE);
+  });
+
+  test('контур масштабируется размером и поворачивается как объект: вершина треугольника смотрит по направлению объекта', () => {
+    const upright = footprint(equipment({ position: [1, 1], size_m: [0.4, 1], outline: triangle }));
+    expect(upright[0]![0]).toBeCloseTo(1, CLOSE);
+    expect(upright[0]![1]).toBeCloseTo(1.5, CLOSE);
+    // +90 turns clockwise: local +Y (the apex) points to world +X.
+    const turned = footprint(equipment({ position: [1, 1], size_m: [0.4, 1], outline: triangle, rotation_deg: 90 }));
+    expect(turned[0]![0]).toBeCloseTo(1.5, CLOSE);
+    expect(turned[0]![1]).toBeCloseTo(1, CLOSE);
+  });
+
+  test('Г-образный стол не сталкивается с тумбой в своём вырезе, хотя рамки пересекаются', () => {
+    // L occupies all but the upper-right quarter of its 2×2 box centred at 0,0.
+    const desk = equipment({ id: 'eq_desk', size_m: [2, 2], outline: L_SHAPE });
+    const pedestal = equipment({ id: 'eq_ped', position: [0.5, 0.5], size_m: [0.8, 0.8] });
+    expect(boxesOverlap(boundingBox(footprint(desk)), boundingBox(footprint(pedestal)))).toBe(true);
+    expect(objectsShareSpace(desk, pedestal)).toBe(false);
+    // Moved into the arm of the L it does collide.
+    expect(objectsShareSpace(desk, { ...pedestal, position: [-0.5, 0.5] })).toBe(true);
+  });
+
+  test('круглый стол в углу: рамка задевает соседа, круг — нет', () => {
+    const table = equipment({ id: 'eq_round', size_m: [1, 1], outline: circle });
+    const box = equipment({ id: 'eq_box', position: [0.65, 0.65], size_m: [0.5, 0.5] });
+    expect(objectsShareSpace(table, box)).toBe(false);
+    expect(objectsShareSpace({ ...table, outline: undefined }, box)).toBe(true);
+  });
+
+  test('принадлежность зоне — по контуру: Г-образный объект лежит в Г-образной зоне, его рамка — нет', () => {
+    const zone: Polygon = [[0, 0], [4, 0], [4, 2], [2, 2], [2, 4], [0, 4]];
+    const desk = equipment({ position: [2, 2], size_m: [4, 4], outline: L_SHAPE });
+    expect(contains(zone, footprint(desk))).toBe(true);
+    expect(contains(zone, footprint({ ...desk, outline: undefined }))).toBe(false);
+    // Turned by 90° the L no longer matches the zone.
+    expect(contains(zone, footprint({ ...desk, rotation_deg: 90 }))).toBe(false);
+  });
+
+  test('треугольник у стены: рамка упирается в перегородку, контур — нет', () => {
+    const partition = square(0.9, 0.9, 0.2);
+    const camera = equipment({ size_m: [2, 2], outline: triangle });
+    expect(intersects(footprint({ ...camera, outline: undefined }), partition)).toBe(true);
+    expect(intersects(footprint(camera), partition)).toBe(false);
   });
 });

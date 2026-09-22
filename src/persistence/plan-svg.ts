@@ -57,21 +57,10 @@ function label(at: Point, text: string, size_m: number, fill = LABEL_FILL, opaci
 function objectSymbol(object: Equipment, plan: PlanDocument): string {
   const type = findObjectType(plan.catalog, object.typeId);
   const fill = esc(type?.color ?? OBJECT_FALLBACK);
-  const [x, y] = object.position;
-  const [w, h] = object.size_m;
   const paint = `fill="${fill}" fill-opacity="0.9" stroke="#343A40" stroke-width="0.02"`;
-  // Поворот модели — по часовой при Y вверх; в отражённой системе SVG это
-  // тот же знак угла, потому что отражение уже учтено внешним transform.
-  const rotate = `transform="translate(${n(x)},${n(y)}) rotate(${n(-object.rotation_deg)})"`;
-  let shape: string;
-  if (type?.symbol === 'circle') {
-    shape = `<circle r="${n(Math.max(w, h) / 2)}" ${paint}/>`;
-  } else if (type?.symbol === 'triangle') {
-    shape = `<polygon points="0,${n(h / 2)} ${n(w / 2)},${n(-h / 2)} ${n(-w / 2)},${n(-h / 2)}" ${paint}/>`;
-  } else {
-    shape = `<rect x="${n(-w / 2)}" y="${n(-h / 2)}" width="${n(w)}" height="${n(h)}" ${paint}/>`;
-  }
-  return `<g ${rotate} data-id="${esc(object.id)}">${shape}</g>`;
+  // The same ring the checks and the canvas use (D-277), already turned and
+  // placed in world metres; the outer transform takes care of Y.
+  return `<g data-id="${esc(object.id)}"><polygon points="${points(footprint(object))}" ${paint}/></g>`;
 }
 
 /** Полный SVG-документ плана. */

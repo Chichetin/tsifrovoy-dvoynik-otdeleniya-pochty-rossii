@@ -30,6 +30,7 @@ type Equipment = {
   id: Id; typeId: Id; label: string; position: Point; size_m: Point;
   rotation_deg: number; base_m: number; height_m: number;
   zoneId: Id | null; layerId: Id; attributes: Attributes;
+  outline?: Polygon; // D-277: доли size_m, до поворота, рамка ровно [-0.5, 0.5]
 };
 type Wall = { id: Id; from: Point; to: Point; thickness_m: number; height_m: number };
 type Opening = {
@@ -44,7 +45,7 @@ type ObjectType = {
   id: Id; label: string; category: string; defaultSize_m: Point;
   defaultHeight_m: number; defaultBase_m: number;
   physical: boolean; occupiesFloor: boolean;
-  symbol: 'rect' | 'circle' | 'triangle'; color: string;
+  symbol: 'rect' | 'circle' | 'triangle'; outline?: Polygon; color: string;
   attributes: AttributeDef[]; provenance: string;
 };
 type ZoneType = { id: Id; label: string; color: string; attributes: AttributeDef[] };

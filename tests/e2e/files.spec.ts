@@ -414,8 +414,9 @@ test.describe('файлы плана', () => {
       objects: { id: string }[];
     };
     for (const zone of saved.zones) expect(svg).toContain(`data-id="${zone.id}"`);
-    // 52 объекта на картинке: удалённого нет, остальные есть.
-    expect((svg.match(/<g transform="translate/g) ?? []).length).toBe(52);
+    // 52 объекта на картинке: удалённого нет, остальные есть. Объект — группа
+    // с id и многоугольником своего контура (D-277).
+    expect((svg.match(/<g data-id="[^"]+"><polygon/g) ?? []).length).toBe(52);
 
     // Картинка — не сохранение: правки по-прежнему несохранённые.
     await expectUnsavedEdits(page, true);
