@@ -80,7 +80,7 @@ const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
 const PANEL_WIDTHS_KEY = 'posttech.panel-widths';
 const PANEL_HANDLE_PX = 8;
 const MIN_CANVAS_PX = 360;
-const PANEL_LIMITS = { left: [220, 440], right: [280, 500] } as const;
+const PANEL_LIMITS = { left: [160, 440], right: [200, 500] } as const;
 type PanelSide = 'left' | 'right';
 type PanelWidths = { left: number; right: number };
 
@@ -125,23 +125,31 @@ export function App(): React.JSX.Element {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
   const [planOnly, setPlanOnly] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  const togglePlanOnly = (): void => {
-    const before = canvasRef.current?.getBoundingClientRect();
-    setPlanOnly((current) => !current);
-    // The canvas grows around the plan. Keep its current scale and centre,
-    // including a view the user has already panned or zoomed.
+  const viewportBeforePlanOnly = useRef<Viewport | null>(null);
+  const togglePlanOnly = useCallback((): void => {
+    if (!planOnly) viewportBeforePlanOnly.current = viewport;
+    setPlanOnly(!planOnly);
+    // Presentation mode uses the whole canvas; returning restores the exact
+    // working view the person had before hiding the editor.
     window.requestAnimationFrame(() => {
-      const after = canvasRef.current?.getBoundingClientRect();
-      if (before === undefined || after === undefined) return;
-      setViewport((current) => ({
-        ...current,
-        origin: [
-          current.origin[0] + (after.width - before.width) / 2,
-          current.origin[1] + (after.height - before.height) / 2,
-        ],
-      }));
+      if (planOnly) {
+        if (viewportBeforePlanOnly.current !== null) setViewport(viewportBeforePlanOnly.current);
+        return;
+      }
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect !== undefined) setViewport(fitToExtent(planExtent(document), { width: rect.width, height: rect.height }));
     });
-  };
+  }, [document, planOnly, viewport]);
+  useEffect(() => {
+    if (!planOnly) return;
+    const onEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      togglePlanOnly();
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [planOnly, togglePlanOnly]);
   type CanvasBeforeResize = { width: number; height: number; fitted: boolean };
   const resizeStart = useRef<{ side: PanelSide; x: number; width: number; canvas: CanvasBeforeResize | null } | null>(null);
   const canvasBeforeResize = (): CanvasBeforeResize | null => {

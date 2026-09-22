@@ -53,7 +53,7 @@ function readableAngle(degrees: number): number {
 }
 
 export function objectLabel(object: Equipment, viewport: Viewport): ObjectLabel | null {
-  const text = object.label.trim();
+  const text = planDisplayLabel(object);
   if (text === '') return null;
   const [x, y] = modelToScreen(object.position, viewport);
 
@@ -99,4 +99,14 @@ export function objectLabel(object: Equipment, viewport: Viewport): ObjectLabel 
     lines,
     rotation,
   };
+}
+
+/** Keep the workstation number visible on dense plans; the full name remains
+ * in the document, hover summary and properties card. */
+export function planDisplayLabel(object: Pick<Equipment, 'typeId' | 'label'>): string {
+  const full = object.label.trim();
+  if (object.typeId === 'ot_workplace') {
+    return full.replace(/^Рабочее место оператора(\s+\d+)$/u, 'Рабочее место$1');
+  }
+  return full;
 }

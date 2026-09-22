@@ -54,16 +54,40 @@ test('границы боковых панелей двигаются, а гла
   const eyeBox = (await eye.boundingBox())!;
   expect(eyeBox.y).toBeGreaterThanOrEqual(noticeBox.y + noticeBox.height);
   const shownScale = await page.getByTestId('canvas-scale').textContent();
+  const scale = async (): Promise<number> => Number(((await page.getByTestId('canvas-scale').textContent()) ?? '').match(/(\d+) px\/м/)?.[1]);
+  const workingScale = await scale();
   await eye.click();
   await expect(left).toBeHidden();
   await expect(right).toBeHidden();
   await expect(page.locator('.shell__bar')).toBeHidden();
   expect((await canvas.boundingBox())!.width).toBeGreaterThan(1200);
-  expect(await page.getByTestId('canvas-scale').textContent()).toBe(shownScale);
+  await expect.poll(scale).toBeGreaterThan(workingScale);
+  await page.keyboard.press('Escape');
+  await expect(left).toBeVisible();
+  await expect(page.locator('.shell__bar')).toBeVisible();
+  await expect(page.getByTestId('canvas-scale')).toHaveText(shownScale ?? '');
+  await eye.click();
   await page.getByRole('button', { name: 'Показать интерфейс' }).click();
   await expect(left).toBeVisible();
   await expect(right).toBeVisible();
   await expect(page.locator('.shell__bar')).toBeVisible();
+});
+
+test('панели можно сжать до компактной ширины и открыть все вкладки', async ({ page }) => {
+  await page.goto('/');
+  const leftHandle = page.getByRole('separator', { name: 'Изменить ширину левой панели' });
+  await leftHandle.focus();
+  await page.keyboard.press('Home');
+  await expect(leftHandle).toHaveAttribute('aria-valuenow', '160');
+  const rightHandle = page.getByRole('separator', { name: 'Изменить ширину правой панели' });
+  await rightHandle.focus();
+  await page.keyboard.press('Home');
+  await expect(rightHandle).toHaveAttribute('aria-valuenow', '200');
+  await expect(page.locator('#side-panel-right').getByRole('tab', { name: 'Ассистент' })).toBeVisible();
+  await expect(page.locator('#side-panel-right').getByRole('tab', { name: /Проверка/ })).toBeVisible();
+  await page.reload();
+  await expect(leftHandle).toHaveAttribute('aria-valuenow', '160');
+  await expect(rightHandle).toHaveAttribute('aria-valuenow', '200');
 });
 
 test('при сужении холста готовый план вписывается, а увеличенный вид сохраняет масштаб', async ({ page }) => {
@@ -294,7 +318,15 @@ test('плашки над холстом не наезжают друг на д�
   // Отказ правки: скамья на занятое место демо-плана (физика, D-286).
   await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
-  await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 300 } });
+  // Поставить скамью ровно на рабочее место другого типа. Фиксированный
+  // экранный пиксель меняется при ширине панелей и масштабе.
+  const occupied = await page.evaluate(() => {
+    type Stage = { findOne(selector: string): { getAbsolutePosition(): { x: number; y: number } } | null };
+    const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
+    return stage?.findOne('.equipment-eq_13')?.getAbsolutePosition() ?? null;
+  });
+  expect(occupied).not.toBeNull();
+  await page.getByTestId('editor-canvas').click({ position: occupied! });
   const refusal = page.locator('.shell__error');
   await expect(refusal).toContainText('занимают одно место');
 

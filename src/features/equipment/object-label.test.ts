@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import type { Equipment, Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
-import { LABEL_MIN_WIDTH_PX, objectLabel } from './object-label';
+import { LABEL_MIN_WIDTH_PX, objectLabel, planDisplayLabel } from './object-label';
 
 function object(overrides: Partial<Equipment> = {}): Equipment {
   return {
@@ -23,6 +23,12 @@ function object(overrides: Partial<Equipment> = {}): Equipment {
 const viewport: Viewport = { origin: [0, 0], scale: 40 };
 
 describe('подпись объекта на холсте', () => {
+  test('номер рабочего места остаётся в короткой подписи, полное имя остаётся в данных', () => {
+    const workplace = object({ typeId: 'ot_workplace', label: 'Рабочее место оператора 3' });
+    expect(planDisplayLabel(workplace)).toBe('Рабочее место 3');
+    expect(objectLabel(workplace, viewport)?.text).toBe('Рабочее место 3');
+    expect(workplace.label).toBe('Рабочее место оператора 3');
+  });
   test('широкий объект подписан в центре своего следа, без поворота', () => {
     const label = objectLabel(object(), viewport);
     expect(label).not.toBeNull();
