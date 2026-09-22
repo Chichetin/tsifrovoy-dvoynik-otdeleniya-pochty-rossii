@@ -158,7 +158,11 @@ export function EquipmentLayer({
   onSelectMany,
   preview,
   onGesturePreview,
-}: EquipmentLayerProps): React.JSX.Element {
+  hideHandlesFor = null,
+}: EquipmentLayerProps & {
+  /** The object whose shape is being edited (D-290): its resize and rotation handles step aside. */
+  hideHandlesFor?: Id | null;
+}): React.JSX.Element {
   const { viewport, selection } = session;
   const names = useMemo(() => planIndex(plan), [plan]);
   // A click while a drawing or placing tool is active belongs to that tool:
@@ -853,7 +857,14 @@ export function EquipmentLayer({
             Настенный прибор показывает только ручку поворота (D-228): тянуть
             размер камеры или датчика нечем — их габариты не планировочное
             решение, а характеристика изделия. */}
-        {!picking || isGroup || selectedObject === null || !selectedVisible || lockedLayers.has(selectedObject.layerId)
+        {/* D-290: in shape mode the object's vertices are the handles; resize
+            and rotation would overlap them and catch their presses. */}
+        {!picking ||
+        isGroup ||
+        selectedObject === null ||
+        !selectedVisible ||
+        lockedLayers.has(selectedObject.layerId) ||
+        selectedObject.id === hideHandlesFor
           ? null
           : [
               ...(selectedFixedSize || !selectedHasRoomForResizeHandles

@@ -121,6 +121,8 @@ export function App(): React.JSX.Element {
   }, [store]);
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
+  // D-290: the object in shape mode; the equipment layer hides its handles.
+  const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
   // A response belongs to the latest request, not merely to a plan revision.
   // A new plan starts at revision 0 too, so comparing revisions cannot reject
@@ -820,6 +822,7 @@ export function App(): React.JSX.Element {
               onSelectMany={selectMany}
               preview={preview}
               onGesturePreview={gesturePreview.publish}
+              hideHandlesFor={shapeEditingId}
             />
             {/* После оборудования — иначе объект, вставший на подпись, закрывает
                 название зоны целиком; полупрозрачность не даёт подписи закрыть
@@ -827,7 +830,12 @@ export function App(): React.JSX.Element {
             <ZoneNameLayer document={shownDocument} viewport={viewport} />
             {/* Правка формы объекта (D-279) — над оборудованием: её ручки
                 должны перехватывать жест раньше переноса и размера объекта. */}
-            <ObjectShapeLayer document={document} session={session} onCommand={dispatch} />
+            <ObjectShapeLayer
+              document={document}
+              session={session}
+              onCommand={dispatch}
+              onEditingChange={setShapeEditingId}
+            />
             <InformationLayer document={document} session={session} />
             {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                 должен уходить под объект или под имя зоны. В план она ничего не

@@ -50,6 +50,17 @@ async function nodeOnPage(page: Page, name: string): Promise<Screen> {
   return { x: box.x + local.x, y: box.y + local.y };
 }
 
+/** How many resize and rotation handles the equipment layer draws right now. */
+async function objectHandles(page: Page): Promise<number> {
+  await settle(page);
+  return page.evaluate(() => {
+    type Node = { name(): string };
+    const stage = (window as unknown as { Konva: { stages: { find(f: (n: Node) => boolean): Node[] }[] } }).Konva
+      .stages[0]!;
+    return stage.find((node) => node.name().startsWith('handle-resize-') || node.name() === 'handle-rotate').length;
+  });
+}
+
 async function savePlan(page: Page): Promise<{ path: string; plan: Saved }> {
   // Нарисованный кликами многоугольник может лечь на соседа: сохранение тогда
   // спрашивает подтверждения (D-286), и сценарий его даёт — предмет теста в форме.
@@ -95,6 +106,14 @@ test('форма вершиной → новый тип → объект это�
 
   // Double click on the object: shape mode, vertex handles appear.
   const centre = await nodeOnPage(page, `equipment-${target.id}`);
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
+  // D-290: while the vertices are shown, the object's own resize and rotation
+  // handles are gone; Enter ends the mode and brings them back (Escape also
+  // clears the selection on the canvas, so nothing would be left to show).
+  await expect.poll(() => objectHandles(page)).toBe(0);
+  await page.keyboard.press('Enter');
+  await expect.poll(() => objectHandles(page)).toBeGreaterThan(0);
   await page.mouse.dblclick(centre.x, centre.y);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 
