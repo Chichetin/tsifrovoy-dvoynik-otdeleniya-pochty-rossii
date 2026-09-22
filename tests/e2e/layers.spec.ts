@@ -8,12 +8,43 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, type Page , exportPlan, expectUnsavedEdits } from './fixtures';
 import { showTab, sideTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Слои');
 const layerItem = (page: Page, name: string) =>
   panel(page).locator('.layers__item').filter({ has: page.getByLabel(`Имя слоя ${name}`) });
+
+const card = (page: Page) => page.getByLabel('Свойства');
+
+type Point = { x: number; y: number };
+
+/** How many Konva nodes match the selector on the plan stage. */
+async function konvaCount(page: Page, selector: string): Promise<number> {
+  return page.evaluate((sel) => {
+    type Stage = { find(selector: string): unknown[] };
+    const konva = (window as unknown as { Konva?: { stages: Stage[] } }).Konva;
+    return konva?.stages[0]?.find(sel).length ?? 0;
+  }, selector);
+}
+
+/** Centre of a Konva node, in canvas pixels. */
+async function nodeCentre(page: Page, selector: string): Promise<Point | null> {
+  return page.evaluate((sel) => {
+    type Rect = { x: number; y: number; width: number; height: number };
+    type Stage = { findOne(selector: string): { getClientRect(): Rect } | undefined };
+    const konva = (window as unknown as { Konva?: { stages: Stage[] } }).Konva;
+    const rect = konva?.stages[0]?.findOne(sel)?.getClientRect();
+    return rect === undefined ? null : { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+  }, selector);
+}
+
+async function clickOnCanvas(page: Page, point: Point): Promise<void> {
+  const box = await page.getByTestId('editor-canvas').boundingBox();
+  if (box === null) throw new Error('холст не виден');
+  await page.mouse.click(box.x + point.x, box.y + point.y);
+}
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
@@ -288,5 +319,74 @@ test.describe('слои в браузере', () => {
     await staff.getByLabel('Сотрудники по зонам, Зона 1 (z_1)').fill('3');
     const saved = JSON.parse(await savePlan(page));
     expect(saved.zones[0].attributes.staffCount).toBe(3);
+  });
+
+  test('D-273: потолочные объекты скрываются отдельно от напольных, план не меняется', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto('/');
+    await showTab(page, 'Слои');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+
+    const base = layerItem(page, 'Основной');
+    const ceiling = base.getByRole('button', { name: 'Показывать: потолочные объекты' });
+    const floor = base.getByRole('button', { name: 'Показывать: напольные объекты' });
+    await expect(ceiling).toContainText('Потолочные объекты (11)');
+    await expect(floor).toContainText('Напольные объекты (42)');
+    await expect(ceiling).toHaveAttribute('aria-pressed', 'true');
+
+    const opened = await savePlan(page);
+    const camera = '.equipment-eq_26';
+    const bench = '.equipment-eq_6';
+    await expect.poll(() => konvaCount(page, camera)).toBe(1);
+    const cameraAt = await nodeCentre(page, camera);
+    expect(cameraAt).not.toBeNull();
+
+    // Visible camera is picked by a click on the canvas.
+    await clickOnCanvas(page, cameraAt!);
+    await expect(card(page).getByLabel('Название')).toHaveValue('Камера зоны ожидания');
+    expect(await konvaCount(page, '.outline-eq_26')).toBe(1);
+    await showTab(page, 'Слои');
+
+    // Hide the ceiling group: the camera leaves the canvas and the selection,
+    // the bench stays; the same click no longer picks the camera.
+    await ceiling.click();
+    await expect(ceiling).toHaveAttribute('aria-pressed', 'false');
+    await expect.poll(() => konvaCount(page, camera)).toBe(0);
+    expect(await konvaCount(page, bench)).toBe(1);
+    await expect(page.getByLabel('Название', { exact: true })).toHaveCount(0);
+    await clickOnCanvas(page, cameraAt!);
+    await page.waitForTimeout(300);
+    expect(await konvaCount(page, '.outline-eq_26')).toBe(0);
+    await expect(card(page).getByLabel('Название')).not.toHaveValue('Камера зоны ожидания');
+    await showTab(page, 'Слои');
+
+    // Hiding a group is not an edit: the plan stays saved, the file is the same.
+    await expectUnsavedEdits(page, false);
+    const whileHidden = await savePlan(page);
+    expect(whileHidden).toBe(opened);
+
+    await ceiling.click();
+    await expect(ceiling).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => konvaCount(page, camera)).toBe(1);
+
+    // Hidden parent layer: both groups are hidden with it and not clickable.
+    await base.getByRole('button', { name: 'Показывать слой Основной' }).click();
+    await expect(ceiling).toBeDisabled();
+    await expect(floor).toBeDisabled();
+    await base.getByRole('button', { name: 'Показывать слой Основной' }).click();
+
+    // Reopening the file saved while hidden shows everything again.
+    await ceiling.click();
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'hidden-ceiling.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(whileHidden),
+    });
+    await expect(ceiling).toHaveAttribute('aria-pressed', 'true');
+    await expect.poll(() => konvaCount(page, camera)).toBe(1);
+    expect(errors).toEqual([]);
   });
 });

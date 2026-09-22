@@ -13,11 +13,12 @@
  */
 
 import { useState } from 'react';
-import type { Equipment, Layer, LayerType, Zone } from '../../contracts/model';
+import type { Equipment, Id, Layer, LayerType, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
+import { OBJECT_MOUNTS, countByMount, type ObjectMount } from '../../domain/object-mount';
 import { legendOf } from './legend';
 
 /** Пустое поле — это «значения нет», а не ноль. */
@@ -66,12 +67,29 @@ function Icon({ name }: { name: IconName }): React.JSX.Element {
   );
 }
 
+/**
+ * D-273: floor and ceiling objects of the base layer, each with its own
+ * visibility. View state held by the app, never a command: hiding a group
+ * writes nothing to the plan and leaves undo alone.
+ */
+export type ObjectMountsView = {
+  layerId: Id;
+  hidden: ReadonlySet<ObjectMount>;
+  onToggle: (mount: ObjectMount) => void;
+};
+
+const MOUNT_LABELS: Record<ObjectMount, string> = {
+  floor: 'Напольные объекты',
+  ceiling: 'Потолочные объекты',
+};
+
 export function LayersPanel({
   document: plan,
   session,
   onCommand,
   onSelect,
-}: LayersPanelProps): React.JSX.Element {
+  objectMounts,
+}: LayersPanelProps & { objectMounts?: ObjectMountsView }): React.JSX.Element {
   const [newTypeId, setNewTypeId] = useState<string>('');
 
   const ordered = plan.layers.slice().sort((a, b) => a.order - b.order);
@@ -266,6 +284,46 @@ export function LayersPanel({
     return `обычный слой · зон ${zones.length}, объектов ${objects.length}`;
   };
 
+  const mountsView = (layer: Layer): React.JSX.Element | null => {
+    if (objectMounts === undefined || objectMounts.layerId !== layer.id) return null;
+    const counts = countByMount(plan.objects, layer.id);
+    return (
+      <ul className="layers__mounts" aria-label={`Группы объектов слоя ${layer.name}`}>
+        {OBJECT_MOUNTS.map((mount) => {
+          const label = MOUNT_LABELS[mount];
+          const shown = !objectMounts.hidden.has(mount);
+          return (
+            <li key={mount}>
+              {/* The same pressed button as the layer's own toggle. With the
+                  layer hidden the group is hidden anyway: the toggle keeps its
+                  own state but is disabled and says why. */}
+              <button
+                type="button"
+                className="layers__visible"
+                aria-label={`Показывать: ${label.toLowerCase()}`}
+                title={
+                  !layer.visible
+                    ? `Слой «${layer.name}» скрыт — сначала покажите слой`
+                    : shown
+                      ? 'Группа показана — скрыть'
+                      : 'Группа скрыта — показать'
+                }
+                aria-pressed={shown}
+                disabled={!layer.visible}
+                onClick={() => objectMounts.onToggle(mount)}
+              >
+                <span className="layers__check" aria-hidden="true">
+                  {shown ? '✓' : ''}
+                </span>
+                {label} ({counts[mount]})
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
+
   return (
     <section className="panel layers" aria-label="Слои">
       <h2 className="panel__title">Слои</h2>
@@ -371,6 +429,7 @@ export function LayersPanel({
               </div>
 
               {meta === null ? null : <p className="layers__meta">{meta}</p>}
+              {mountsView(layer)}
 
               {type === null ? null : (
                 <>
