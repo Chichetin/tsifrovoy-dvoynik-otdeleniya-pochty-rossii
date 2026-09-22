@@ -13,7 +13,7 @@
  */
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Label, Layer, Line, Path, Rect, Tag, Text } from 'react-konva';
+import { Circle, Group, Layer, Line, Path, Rect, Text } from 'react-konva';
 import Konva from 'konva';
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
@@ -29,7 +29,6 @@ import {
   snapObjectCentre,
 } from '../../domain/geometry';
 import type { AxisSnap } from '../../domain/geometry';
-import { planIndex } from '../../domain/plan-index';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
@@ -68,6 +67,10 @@ const HANDLE_RADIUS_PX = 6;
 const ROTATION_GAP_PX = 28;
 const HOVER_WIDTH_PX = 320;
 const HOVER_GAP_PX = 14;
+/** Раскладка карточки наведения: отступ от края и просветы между блоками. */
+const HOVER_PAD_PX = 12;
+const HOVER_TEXT_WIDTH_PX = HOVER_WIDTH_PX - HOVER_PAD_PX * 2;
+const HOVER_RULE_GAP_PX = 9;
 
 /**
  * What a move snapped to, for the eye (D-215): the world line the object's
@@ -192,7 +195,6 @@ function EquipmentPictogram({
 export function EquipmentLayer({
   document: plan,
   session,
-  issues = [],
   onCommand,
   onSelect,
   onSelectMany,
@@ -204,7 +206,6 @@ export function EquipmentLayer({
   hideHandlesFor?: Id | null;
 }): React.JSX.Element {
   const { viewport, selection } = session;
-  const names = useMemo(() => planIndex(plan), [plan]);
   // A click while a drawing or placing tool is active belongs to that tool:
   // the object under the pointer must not take the selection away from the one
   // just placed, and the handles of the selected object must not swallow the
@@ -259,8 +260,11 @@ export function EquipmentLayer({
   const layerRef = useRef<Konva.Layer>(null);
   // Konva nodes live in state so event callbacks can update them without a
   // React render on every pointer move. They are assigned once on mount.
-  const [hoverLabel, setHoverLabel] = useState<Konva.Label | null>(null);
-  const [hoverText, setHoverText] = useState<Konva.Text | null>(null);
+  const [hoverCard, setHoverCard] = useState<Konva.Group | null>(null);
+  const [hoverBox, setHoverBox] = useState<Konva.Rect | null>(null);
+  const [hoverTitle, setHoverTitle] = useState<Konva.Text | null>(null);
+  const [hoverRule, setHoverRule] = useState<Konva.Line | null>(null);
+  const [hoverHint, setHoverHint] = useState<Konva.Text | null>(null);
   const put = (object: Equipment) => ({ type: 'object.put', object }) as const;
 
   // The channel outlives this layer in App; never leave a stale frame behind.
@@ -497,10 +501,10 @@ export function EquipmentLayer({
   };
 
   const hideHover = (): void => {
-    const label = hoverLabel;
-    if (label === null || !label.visible()) return;
-    label.hide();
-    label.getLayer()?.batchDraw();
+    const card = hoverCard;
+    if (card === null || !card.visible()) return;
+    card.hide();
+    card.getLayer()?.batchDraw();
   };
 
   /** Imperative on purpose: hovering must not reconcile a thousand object nodes. */
@@ -511,21 +515,38 @@ export function EquipmentLayer({
     }
     const stage = event.target.getStage();
     const pointer = stage?.getPointerPosition();
-    const label = hoverLabel;
-    const text = hoverText;
-    if (stage === null || stage === undefined || pointer === null || pointer === undefined || text === null || label === null) return;
-    const summary = equipmentHoverSummary(names, shown(object), issues);
-    text.text([summary.title, ...summary.lines].join('\n'));
-    const height = text.height();
+    const card = hoverCard;
+    const box = hoverBox;
+    const title = hoverTitle;
+    const rule = hoverRule;
+    const hint = hoverHint;
+    if (stage === null || stage === undefined || pointer === null || pointer === undefined) return;
+    if (card === null || box === null || title === null || rule === null || hint === null) return;
+
+    const summary = equipmentHoverSummary(shown(object));
+    title.text(summary.title);
+    hint.text(summary.hint);
+
+    // Высоту карточки знает только Konva — она зависит от переносов строк,
+    // поэтому блоки укладываются после того, как текст уже задан.
+    let y = HOVER_PAD_PX;
+    title.y(y);
+    y += title.height() + HOVER_RULE_GAP_PX;
+    rule.points([HOVER_PAD_PX, y, HOVER_WIDTH_PX - HOVER_PAD_PX, y]);
+    y += HOVER_RULE_GAP_PX;
+    hint.y(y);
+    const height = y + hint.height() + HOVER_PAD_PX;
+    box.height(height);
+
     const left = Math.min(pointer.x + HOVER_GAP_PX, Math.max(0, stage.width() - HOVER_WIDTH_PX));
     const below = pointer.y + HOVER_GAP_PX;
     const top = below + height <= stage.height()
       ? below
       : Math.max(0, pointer.y - height - HOVER_GAP_PX);
-    label.position({ x: left, y: top });
-    label.show();
-    label.moveToTop();
-    label.getLayer()?.batchDraw();
+    card.position({ x: left, y: top });
+    card.show();
+    card.moveToTop();
+    card.getLayer()?.batchDraw();
   };
 
   /**
@@ -999,29 +1020,51 @@ export function EquipmentLayer({
           </>
         )}
 
-        <Label ref={setHoverLabel} name="equipment-hover" visible={false} listening={false}>
-          <Tag
-            fill="#212529"
-            opacity={0.94}
-            cornerRadius={6}
-            pointerDirection="none"
+        {/*
+          Карточка наведения собрана из отдельных узлов, а не из одного Text в
+          Label: имя, тип, факты и подсказка набраны разным кеглем и цветом, а
+          один Text даёт только один стиль на всю карточку.
+        */}
+        <Group ref={setHoverCard} name="equipment-hover" visible={false} listening={false}>
+          <Rect
+            ref={setHoverBox}
+            width={HOVER_WIDTH_PX}
+            height={0}
+            fill="#1A1D21"
+            opacity={0.97}
+            cornerRadius={10}
+            stroke="#3A4149"
+            strokeWidth={1}
             shadowColor="#000000"
-            shadowBlur={8}
-            shadowOpacity={0.24}
+            shadowBlur={16}
+            shadowOffsetY={4}
+            shadowOpacity={0.32}
           />
           <Text
-            ref={setHoverText}
-            width={HOVER_WIDTH_PX}
+            ref={setHoverTitle}
+            x={HOVER_PAD_PX}
+            width={HOVER_TEXT_WIDTH_PX}
             text=""
-            fontSize={13}
-            lineHeight={1.35}
+            fontSize={18}
+            lineHeight={1.25}
             fontFamily="system-ui, sans-serif"
-            fontStyle="normal"
+            fontStyle="600"
             fill="#FFFFFF"
-            padding={10}
             wrap="word"
           />
-        </Label>
+          <Line ref={setHoverRule} points={[]} stroke="#333A42" strokeWidth={1} />
+          <Text
+            ref={setHoverHint}
+            x={HOVER_PAD_PX}
+            width={HOVER_TEXT_WIDTH_PX}
+            text=""
+            fontSize={14}
+            lineHeight={1.3}
+            fontFamily="system-ui, sans-serif"
+            fill="#74C0FC"
+            wrap="word"
+          />
+        </Group>
       </Layer>
     </>
   );

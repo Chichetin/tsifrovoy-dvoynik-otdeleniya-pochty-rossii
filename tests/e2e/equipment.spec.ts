@@ -240,7 +240,7 @@ test.describe('жесты над оборудованием', () => {
     await expect(card(page)).toContainText(RACK);
   });
 
-  test('наведение показывает паспорт объекта и связанную находку проверки', async ({ page }) => {
+  test('наведение называет предмет и зовёт кликнуть за подробностями', async ({ page }) => {
     const raw: unknown = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
     const parsed = parsePlanDocument(raw);
     if (!parsed.ok) throw new Error('demo/before.json не разобрался');
@@ -260,21 +260,26 @@ test.describe('жесты над оборудованием', () => {
     await page.mouse.move(pagePoint.x, pagePoint.y);
 
     await expect.poll(() => page.evaluate(() => {
-      type Node = { visible(): boolean; findOne(selector: string): { text(): string } | undefined };
+      type Node = { visible(): boolean };
       const stage = (window as unknown as { Konva?: { stages: { findOne(selector: string): Node | undefined }[] } }).Konva?.stages[0];
-      const label = stage?.findOne('.equipment-hover');
-      return { visible: label?.visible() ?? false, text: label?.findOne('Text')?.text() ?? '' };
-    })).toMatchObject({ visible: true });
+      return stage?.findOne('.equipment-hover')?.visible() ?? false;
+    })).toBe(true);
+    // Карточка набрана несколькими узлами (имя, тип, факты, подсказка),
+    // поэтому текст собирается со всех, а не с первого.
     const text = await page.evaluate(() => {
-      type Node = { findOne(selector: string): { text(): string } | undefined };
+      type Node = { find(selector: string): { text(): string }[] };
       const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
-      return stage.findOne('.equipment-hover').findOne('Text')?.text() ?? '';
+      return stage.findOne('.equipment-hover').find('Text').map((node) => node.text()).join('\n');
     });
     expect(text).toContain(object.label);
-    expect(text).toContain(`ID: ${object.id}`);
-    expect(text).toContain('Размер:');
-    expect(text).toContain('Поворот:');
-    expect(text).toContain(`Проверка: ${issue.message}`);
+    expect(text).toContain('Чтобы узнать подробнее, нажмите на предмет');
+    // Паспорт объекта и находки проверки карточка не дублирует — они в
+    // «Свойствах» и в панели «Проверка», по клику.
+    expect(text).not.toContain(`ID: ${object.id}`);
+    expect(text).not.toContain('Размер:');
+    expect(text).not.toContain('Поворот:');
+    expect(text).not.toContain(object.typeId);
+    expect(text).not.toContain(issue.message);
 
     await page.mouse.move(0, 0);
     await expect.poll(() => page.evaluate(() => {
