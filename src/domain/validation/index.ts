@@ -26,6 +26,7 @@ import {
   type Ref,
   type Rule,
   type Severity,
+  TOLERANCE,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
 import { outerWallIds } from '../commands/room-walls';
@@ -68,6 +69,8 @@ export const VALIDATION_ISSUE_CODES = {
   OBJECT_COLLISION: 'OBJECT_COLLISION',
   /** An object runs into a solid part of a wall. */
   OBJECT_HITS_WALL: 'OBJECT_HITS_WALL',
+  /** An object's top rises above the ceiling of its own room. */
+  OBJECT_ABOVE_CEILING: 'OBJECT_ABOVE_CEILING',
   /** Two objects carry the same non-empty inventory number. */
   OBJECT_DUPLICATE_INVENTORY_NUMBER: 'OBJECT_DUPLICATE_INVENTORY_NUMBER',
   /** Fewer objects of a type than a stocking rule requires. */
@@ -137,6 +140,7 @@ export function validatePlan(plan: PlanDocument): ValidationIssue[] {
     ...placement,
     ...collisionIssues(plan),
     ...wallIssues(plan),
+    ...ceilingIssues(plan),
     ...inventoryNumberIssues(plan),
     ...ruleIssues(plan),
     ...withoutRepeats(relationIssues(plan), placement),
@@ -442,7 +446,36 @@ function inventoryNumberIssues(plan: PlanDocument): Issue[] {
   return issues;
 }
 
-function isPhysical(catalog: Catalog, object: Equipment): boolean {
+/**
+ * D-279: the room has one ceiling, and nothing hangs through it. A sign at
+ * 2,8 m with a 0,4 m body reaches 3,2 m in a room 3,0 m high — the model
+ * cannot hold that, so it is an error like an object outside the walls, not a
+ * stocking warning. Non-physical objects are checked too: a sensor zone drawn
+ * above the slab is as impossible as a solid one.
+ */
+function ceilingIssues(plan: PlanDocument): Issue[] {
+  const ceiling = plan.room.ceilingHeight_m;
+  const issues: Issue[] = [];
+  for (const object of plan.objects) {
+    const top = object.base_m + object.height_m;
+    if (top <= ceiling + TOLERANCE.coordinate_m) continue;
+    issues.push(
+      issue(
+        VALIDATION_ISSUE_CODES.OBJECT_ABOVE_CEILING,
+        'error',
+        `Объект «${object.label}» поднимается до ${formatLength(top)} — выше потолка ${formatLength(ceiling)}.`,
+        [
+          { kind: 'object', id: object.id },
+          { kind: 'room', id: plan.room.id },
+        ],
+        footprint(object),
+      ),
+    );
+  }
+  return issues;
+}
+
+export function isPhysical(catalog: Catalog, object: Equipment): boolean {
   // An unknown type is treated as solid: the schema refuses such a document on
   // load, and during an edit a silent "not physical" would hide a collision.
   return findObjectType(catalog, object.typeId)?.physical ?? true;

@@ -12,6 +12,7 @@ import {
 function event(patch: Partial<HotkeyEvent> = {}): HotkeyEvent {
   return {
     code: 'KeyF',
+    key: '',
     ctrlKey: false,
     metaKey: false,
     altKey: false,
@@ -108,6 +109,22 @@ describe('карта горячих клавиш по ?', () => {
   it('молчит, пока пользователь печатает', () => {
     expect(
       isHotkeysMapHotkey(event({ code: 'Slash', shiftKey: true, target: document.createElement('textarea') })),
+    ).toBe(false);
+  });
+
+  it('русская раскладка: «?» живёт на Shift+7 и тоже закрывает карту (D-280)', () => {
+    expect(isHotkeysMapHotkey(event({ code: 'Digit7', key: '?', shiftKey: true }))).toBe(true);
+  });
+
+  it('та же клавиша на английской раскладке даёт «&» и карту не трогает', () => {
+    expect(isHotkeysMapHotkey(event({ code: 'Digit7', key: '&', shiftKey: true }))).toBe(false);
+  });
+
+  it('«?» в поле ввода остаётся текстом', () => {
+    expect(
+      isHotkeysMapHotkey(
+        event({ code: 'Digit7', key: '?', shiftKey: true, target: document.createElement('input') }),
+      ),
     ).toBe(false);
   });
 

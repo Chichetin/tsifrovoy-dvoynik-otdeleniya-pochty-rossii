@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { beforeEach, describe, expect, test } from 'vitest';
 import type { PlanDocument, Zone } from '../contracts/model';
 import { COMMAND_ISSUE_CODES } from '../domain/commands';
+import { VALIDATION_ISSUE_CODES } from '../domain/validation';
 import { parsePlanDocument } from '../contracts/schema';
 import { createPlanStore, type PlanStoreApi } from './plan-store';
 
@@ -513,5 +514,67 @@ describe('групповой выбор и пакет команд', () => {
     });
     expect(reuse.ok).toBe(false);
     if (!reuse.ok) expect(reuse.issues.map((issue) => issue.code)).toContain(COMMAND_ISSUE_CODES.ID_REUSED);
+  });
+});
+
+describe('физика — граница правки (D-279)', () => {
+  const source = () => store.getState().document.objects[0]!;
+
+  test('объект нельзя поставить в объём другого: документ не меняется', () => {
+    const before = store.getState().document;
+    const revision = store.getState().revision;
+
+    const result = store.getState().dispatch({
+      type: 'object.put',
+      object: { ...source(), id: 'eq_chair', label: 'Стул', height_m: 0.9 },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues[0]!.code).toBe(VALIDATION_ISSUE_CODES.OBJECT_COLLISION);
+      expect(result.issues[0]!.message).toContain('одно место');
+    }
+    expect(store.getState().document).toBe(before);
+    expect(store.getState().revision).toBe(revision);
+    expect(store.getState().dirty).toBe(false);
+  });
+
+  test('вывеску нельзя поднять выше потолка', () => {
+    const result = store.getState().dispatch({
+      type: 'object.put',
+      object: { ...source(), base_m: 2.8, height_m: 0.4 },
+    });
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues[0]!.code).toBe(VALIDATION_ISSUE_CODES.OBJECT_ABOVE_CEILING);
+    expect(store.getState().document.objects[0]!.base_m).toBe(0);
+  });
+
+  test('пакет отклоняется целиком: ни одна его часть не остаётся', () => {
+    const result = store.getState().dispatch({
+      type: 'batch',
+      commands: [
+        { type: 'object.put', object: { ...source(), id: 'eq_far', position: [8, 2] } },
+        { type: 'object.put', object: { ...source(), id: 'eq_chair', height_m: 0.9 } },
+      ],
+    });
+
+    expect(result.ok).toBe(false);
+    expect(store.getState().document.objects.map((object) => object.id)).toEqual(['eq_work_1']);
+  });
+
+  test('свободное место и высота под потолком проходят', () => {
+    const free = store.getState().dispatch({
+      type: 'object.put',
+      object: { ...source(), id: 'eq_free', position: [5, 5] },
+    });
+    expect(free.ok).toBe(true);
+
+    const camera = store.getState().dispatch({
+      type: 'object.put',
+      object: { ...source(), id: 'eq_camera', base_m: 2.6, height_m: 0.2 },
+    });
+    expect(camera.ok).toBe(true);
+    expect(store.getState().document.objects).toHaveLength(3);
   });
 });

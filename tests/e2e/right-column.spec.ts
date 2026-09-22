@@ -52,7 +52,6 @@ test('по умолчанию справа открыта «Инвентариз
 
   await expect(page.getByLabel('Инвентаризация')).toBeVisible();
   await expect(page.getByLabel('Библиотека оборудования')).toBeVisible();
-  // `exact`: плавающая кнопка «Открыть ассистента» иначе попадает в локатор.
   await expect(page.getByLabel('Ассистент', { exact: true })).toBeHidden();
   await expect(page.getByLabel('Проверка плана')).toBeHidden();
   await expect(page.getByLabel('Справочник')).toBeHidden();

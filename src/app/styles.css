@@ -90,65 +90,6 @@ body {
   cursor: not-allowed;
 }
 
-/* A persistent, named entry point makes the assistant discoverable without
-   creating a parallel chat surface. It sits above the editor but outside the
-   right column, whose own panel remains the sole place for a conversation. */
-.assistant-launcher {
-  position: fixed;
-  z-index: 20;
-  /* Центр средней колонки (между --side-left и --side-right), не центр окна:
-     50vw сдвигается на полуразницу боковых панелей, а -50% центрирует сам
-     элемент. D-248: кнопка заслоняла правый нижний угол холста и крала жест
-     ручки вершины там (D-210) — теперь она посередине снизу и угол свободен. */
-  left: 50%;
-  bottom: var(--space-3);
-  transform: translateX(calc((var(--side-left) - var(--side-right)) / 2 - 50%));
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: 52px;
-  padding: 5px 12px 5px 5px;
-  border: 1px solid var(--color-line-strong);
-  border-radius: 999px;
-  background: var(--color-surface);
-  box-shadow: 0 3px 12px rgb(28 40 51 / 20%);
-  text-align: left;
-}
-
-.assistant-launcher:hover {
-  border-color: var(--color-accent);
-  background: var(--color-accent-soft);
-}
-
-.assistant-launcher:focus-visible {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.assistant-launcher__avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  object-position: 50% 36%;
-  image-rendering: pixelated;
-}
-
-.assistant-launcher__copy {
-  display: grid;
-  gap: 0;
-  line-height: 1.2;
-}
-
-.assistant-launcher__copy b {
-  font-size: var(--text-s);
-}
-
-.assistant-launcher__copy small {
-  color: var(--color-muted);
-  font-size: var(--text-xs);
-}
-
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
   padding: 3px 6px;
   border: 1px solid var(--color-line-strong);
@@ -191,13 +132,14 @@ body {
 }
 
 /* Header: row one holds the controls and never wraps; row two is the status
-   strip and always takes its height, empty or not. Tool hints are a plaque
-   over the canvas (see .toolbar__hints), so no message moves the plan. */
+   strip, and since D-281 it exists only when there is something to say —
+   пустая полоса над планом висела у всех и всегда. Tool hints are a plaque
+   over the canvas (see .toolbar__hints), so a hint never moves the plan. */
 .shell__bar {
   position: relative;
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) auto auto auto auto;
-  grid-template-rows: var(--bar-row) minmax(var(--strip-row), auto);
+  grid-template-rows: var(--bar-row);
   align-items: center;
   column-gap: var(--space-4);
   padding: 0 var(--space-4);
@@ -719,19 +661,42 @@ body {
   background: var(--color-warning);
 }
 
-/* Status strip: the second header row. It holds its height even when empty;
-   single-line messages shrink with an ellipsis instead of wrapping, and only
-   a file error may take a second line — it has to be read in full. */
+/* Status strip: сообщения о файле. D-281 — полоса больше не занимает вторую
+   строку шапки: раньше она висела над планом всегда, даже пустая (в ней жила
+   надпись «черновик в браузере: …»). Теперь её нет, пока сказать нечего, а
+   когда есть — она ложится плашкой поверх холста, как отказ правки
+   (`.shell__error`, D-274): высота шапки постоянна и ни одно сообщение не
+   двигает план (tests/e2e/shell.spec.ts).
+
+   Single-line messages shrink with an ellipsis instead of wrapping; only a
+   file error may take a second line — it has to be read in full. */
 .files__messages {
-  grid-row: 2;
-  grid-column: 1 / -1;
+  position: absolute;
+  z-index: 25;
+  top: 100%;
+  /* Только над холстом: во всю ширину плашка накрывала бы верхние вкладки
+     обеих боковых колонок и не давала по ним щёлкнуть. */
+  left: var(--side-left);
+  right: var(--side-right);
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   gap: var(--space-4);
   min-width: 0;
   min-height: var(--strip-row);
-  padding-left: calc(190px + var(--space-3));
-  border-top: 1px solid var(--color-line);
+  padding: 2px var(--space-3);
+  /* Пустое место плашки не забирает клик по плану под ней; сами сообщения
+     кликабельны — у ошибки есть «×», у списка полей — раскрытие. */
+  pointer-events: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+  border-top: none;
+  border-radius: 0 0 var(--radius-m) var(--radius-m);
+  box-shadow: 0 2px 8px rgb(28 40 51 / 12%);
+}
+
+.files__messages > * {
+  pointer-events: auto;
 }
 
 .files__messages > .files__status {
@@ -739,22 +704,6 @@ body {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.files__messages > [data-testid='draft-restore'] {
-  flex: none;
-  order: -1;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-ink);
-}
-
-.files__messages .files__button {
-  min-height: 22px;
-  height: 22px;
-  padding: 0 var(--space-2);
-  font-size: var(--text-xs);
 }
 
 .files__messages > details {
@@ -2405,4 +2354,89 @@ span.inventory__num {
   color: var(--text);
   font-size: var(--text-s);
   line-height: 1.4;
+}
+
+/* D-281: окно вопроса о файле — предложение восстановить черновик и отказ
+   сохранить план с нарушением физики. Тот же язык, что у карты горячих
+   клавиш: затемнённая подложка, карточка по центру, кнопки внизу справа. */
+.file-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgba(33, 37, 41, 0.45);
+}
+
+.file-dialog__panel {
+  box-sizing: border-box;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+  white-space: normal;
+}
+
+.file-dialog__panel:focus {
+  /* Фокус нужен читалке экрана, а не глазу: рамка читалась бы вторым кольцом. */
+  outline: none;
+}
+
+.file-dialog__title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-l);
+}
+
+.file-dialog__body > * {
+  margin: 0 0 var(--space-2);
+}
+
+.file-dialog__list {
+  margin: 0 0 var(--space-2);
+  padding-left: 18px;
+}
+
+.file-dialog__list > li + li {
+  margin-top: 4px;
+}
+
+.file-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+/* D-279: набор правил физики под списком находок — почему сохранение может
+   не состояться. Свёрнут по умолчанию: это справка, а не находки. */
+.issues__physics {
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  font-size: var(--text-s);
+}
+
+.issues__physics > summary {
+  cursor: pointer;
+  color: var(--color-muted);
+}
+
+.issues__physics dl {
+  margin: var(--space-2) 0 0;
+}
+
+.issues__physics dt {
+  font-weight: 600;
+}
+
+.issues__physics dd {
+  margin: 0 0 var(--space-2);
+  color: var(--color-muted);
 }

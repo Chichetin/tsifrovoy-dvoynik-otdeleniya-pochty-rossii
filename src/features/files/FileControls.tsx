@@ -39,9 +39,12 @@ import {
   type DraftWriter,
   type PlanDraft,
 } from '../../persistence/browser-draft';
+import { planPhysicsIssues } from '../../domain/physics';
+import { NBSP } from '../../domain/number-format';
 import type { OpenedPlan } from '../../persistence/format';
 import { pngFileName, renderPlanPng } from '../../persistence/plan-png';
 import { planFileName, renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
+import { FileDialog } from './FileDialog';
 
 export type FileControlsProps = {
   document: PlanDocument;
@@ -62,6 +65,9 @@ export type FileControlsProps = {
    */
   storage?: DraftStorage | null;
 };
+
+/** Сколько нарушений физики показать в окне отказа: остальное — во вкладке «Проверка». */
+const PHYSICS_SHOWN = 5;
 
 const RESTORE_WARNING =
   'План уже изменён с момента открытия страницы. Восстановить черновик и потерять эти правки?';
@@ -201,6 +207,11 @@ export function FileControls({
   // «Открыть существующий», «Восстановить», «Удалить». Пока нет — нетронутый стартовый план
   // в черновик не пишется, иначе он затрёт то, что мы предлагаем восстановить.
   const [answered, setAnswered] = useState<boolean>(start.draft === null);
+  /**
+   * D-279: нарушения физики, из-за которых сохранение остановлено. `null` —
+   * вопрос не задан; непустой список — окно с отказом и выбором.
+   */
+  const [blocking, setBlocking] = useState<Issue[] | null>(null);
   const [draftAt, setDraftAt] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const writer = useRef<DraftWriter | null>(null);
@@ -323,6 +334,17 @@ export function FileControls({
     accept(opened.value, 'draft');
   };
 
+  /**
+   * «Не сейчас»: вопрос уходит с экрана, но ответом не считается — `answered`
+   * не трогаем. Иначе запись черновика возобновилась бы сразу и затёрла бы
+   * пустым планом ровно то, что мы только что предлагали сохранить. Так
+   * черновик доживает до следующего открытия страницы, а первая настоящая
+   * правка этого плана, как и прежде, пишется поверх него.
+   */
+  const later = (): void => {
+    setOffered(null);
+  };
+
   const dismiss = (): void => {
     // Стираем только пока в хранилище лежит именно предложенный черновик: если
     // запись уже возобновилась (`draftAt`), там текущая работа пользователя, и
@@ -332,7 +354,25 @@ export function FileControls({
     setAnswered(true);
   };
 
-  const save = (): void => {
+  /**
+   * D-279: план с нарушением физики файлом не уходит с первого нажатия.
+   * Проверка считается по тому же `validatePlan`, что показывает вкладка
+   * «Проверка», поэтому окно отказа и панель не могут разойтись.
+   *
+   * Отказ не окончательный (`force`): нарушения приходят и файлом — их три
+   * пары в `example_plan.json` — и проверяющий, открывший чужой план, должен
+   * уметь сохранить его обратно, а не чинить чужую геометрию руками. Картинки
+   * PNG и SVG и черновик в браузере гейт не трогает: первое — не план, второе
+   * — защита от закрытой вкладки.
+   */
+  const save = (force = false): void => {
+    if (!force) {
+      const violations = planPhysicsIssues(plan);
+      if (violations.length > 0) {
+        setBlocking(violations);
+        return;
+      }
+    }
     exportSequence.current += 1;
     setBusy('читаем файл…');
     setState({ status: 'loading' });
@@ -464,6 +504,15 @@ export function FileControls({
     else if (event.key === 'End') focusAt(items.length - 1);
   };
 
+  // Полоса сообщений существует, только когда в ней что-то есть (D-281).
+  const hasMessages =
+    state.status === 'loading' ||
+    state.status === 'error' ||
+    (state.status === 'done' && notice !== null) ||
+    draftError !== null ||
+    dropped.length > 0 ||
+    assumptions.length > 0;
+
   return (
     <>
     <div className="files" role="group" aria-label="Файл плана">
@@ -570,6 +619,11 @@ export function FileControls({
 
     </div>
 
+    {/* D-281: полоса под шапкой существует, только когда ей есть что сказать.
+        Постоянная строка «черновик в браузере: …» висела над планом у всех и
+        всегда; теперь пустая полоса не занимает ряд, а сообщение о загрузке,
+        результате или отказе по-прежнему приходит сюда. */}
+    {!hasMessages ? null : (
     <div className="files__messages">
       {state.status === 'loading' ? (
         <span className="files__status" data-testid="files-loading">
@@ -577,28 +631,9 @@ export function FileControls({
         </span>
       ) : null}
 
-      <span className="files__status" data-testid="draft-saved">
-        черновик в браузере: {draftAt === null ? 'ещё нет' : atTime(draftAt)}
-      </span>
-
       {draftError === null ? null : (
         <span className="files__status is-dirty" data-testid="draft-error">
           {draftError}
-        </span>
-      )}
-
-      {offered === null ? null : (
-        <span className="files__status" data-testid="draft-restore">
-          Черновик «{offered.name}» от {atTime(offered.savedAt)}
-          {draftAt === null
-            ? ' в этом браузере.'
-            : '; в браузере уже сохраняется текущая работа.'}{' '}
-          <button type="button" className="files__button" onClick={() => restore(offered)}>
-            Восстановить
-          </button>{' '}
-          <button type="button" className="files__button" onClick={dismiss}>
-            Удалить
-          </button>
         </span>
       )}
 
@@ -656,6 +691,94 @@ export function FileControls({
         </>
       ) : null}
     </div>
+    )}
+
+    {offered === null ? null : (
+      <FileDialog
+        title="Черновик в браузере"
+        describedBy="draft-offer-body"
+        testId="draft-restore"
+        onClose={later}
+        actions={
+          <>
+            <button
+              type="button"
+              className="files__button is-primary"
+              onClick={() => restore(offered)}
+            >
+              Восстановить
+            </button>
+            <button type="button" className="files__button" onClick={dismiss}>
+              Удалить черновик
+            </button>
+            <button type="button" className="files__button" onClick={later}>
+              Не сейчас
+            </button>
+          </>
+        }
+      >
+        <p>
+          В этом браузере остался черновик «{offered.name}» от {atTime(offered.savedAt)} — работа,
+          которую не успели сохранить файлом.
+          {draftAt === null ? '' : ' Текущая работа уже пишется в браузер поверх него.'}
+        </p>
+        <p className="panel__note">
+          «Восстановить» заменит открытый сейчас план. «Не сейчас» оставит черновик на месте: он
+          предложится снова, пока вы не начнёте править этот план.
+        </p>
+      </FileDialog>
+    )}
+
+    {blocking === null ? null : (
+      <FileDialog
+        title="План нарушает физику"
+        describedBy="physics-block-body"
+        testId="save-blocked"
+        onClose={() => setBlocking(null)}
+        actions={
+          <>
+            <button
+              type="button"
+              className="files__button is-primary"
+              onClick={() => setBlocking(null)}
+            >
+              Вернуться и исправить
+            </button>
+            <button
+              type="button"
+              className="files__button"
+              data-testid="save-anyway"
+              onClick={() => {
+                setBlocking(null);
+                save(true);
+              }}
+            >
+              Сохранить всё равно
+            </button>
+          </>
+        }
+      >
+        <p>
+          Файл не сохранён: в плане {blocking.length}{NBSP}
+          {blocking.length === 1 ? 'нарушение' : 'нарушения и больше'} правил физики — такого
+          отделения не бывает в натуре.
+        </p>
+        <ul className="file-dialog__list">
+          {blocking.slice(0, PHYSICS_SHOWN).map((entry, index) => (
+            <li key={`${entry.code}-${index}`}>{entry.message}</li>
+          ))}
+        </ul>
+        {blocking.length <= PHYSICS_SHOWN ? null : (
+          <p className="panel__note">
+            И ещё {blocking.length - PHYSICS_SHOWN}: весь список — во вкладке «Проверка».
+          </p>
+        )}
+        <p className="panel__note">
+          Правила физики — допущение команды, а не норматив Почты. Сохранить с нарушениями всё
+          же можно: файл откроется и покажет их в проверке.
+        </p>
+      </FileDialog>
+    )}
     </>
   );
 }

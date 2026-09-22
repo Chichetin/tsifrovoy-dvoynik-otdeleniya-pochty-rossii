@@ -109,16 +109,16 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент', { exact: true });
 
 test.describe('ассистент в браузере', () => {
-  test('плавающая кнопка переключает правую колонку на вкладку ассистента (D-249)', async ({ page }) => {
+  // D-282: плавающей кнопки «Открыть ассистента» над холстом больше нет —
+  // ассистент открывается своей вкладкой в правой колонке, как остальные панели.
+  test('вкладка открывает ассистента в правой колонке (D-249)', async ({ page }) => {
     await page.goto('/');
     const assistant = panel(page);
     await showTab(page, 'Справочник');
     await expect(assistant).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Открыть ассистента' })).toHaveCount(0);
 
-    const launcher = page.getByRole('button', { name: 'Открыть ассистента' });
-    await launcher.focus();
-    await expect(launcher).toBeFocused();
-    await launcher.click();
+    await showTab(page, 'Ассистент');
 
     await expect(page.getByRole('tab', { name: 'Ассистент' })).toHaveAttribute('aria-selected', 'true');
     await expect(assistant).toBeVisible();

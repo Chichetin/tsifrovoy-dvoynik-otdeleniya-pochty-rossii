@@ -10,7 +10,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page , exportPlan } from './fixtures';
+import { expect, test, type Page , exportPlan, passPhysicsBlock } from './fixtures';
 import { showTab } from './side-tabs';
 
 const RACK = 'Шкаф / стеллаж для посылок';
@@ -78,10 +78,12 @@ async function marqueeAll(page: Page): Promise<void> {
 type Saved = { objects: { id: string; position: [number, number] }[] };
 
 async function savedPlan(page: Page): Promise<Saved> {
-  const download = await Promise.all([
-    page.waitForEvent('download'),
-    exportPlan(page, 'JSON'),
-  ]).then(([event]) => event);
+  // Сдвинутая группа может выехать за стену: сохранение тогда спрашивает
+  // подтверждения (D-283), и сценарий его даёт — предмет теста не в этом.
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  await passPhysicsBlock(page);
+  const download = await started;
   const path = await download.path();
   expect(path).not.toBeNull();
   return JSON.parse(readFileSync(path as string, 'utf8')) as Saved;
