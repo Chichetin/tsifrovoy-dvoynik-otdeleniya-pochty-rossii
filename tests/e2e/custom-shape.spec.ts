@@ -66,6 +66,16 @@ test('форма вершиной → новый тип → объект это�
   await page.mouse.dblclick(centre.x, centre.y);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 
+  // Another tool ends the mode, and its line goes with it (D-282); back under
+  // «Выбор» the mode is off until the next double click.
+  const tools = page.getByRole('toolbar', { name: 'Инструменты плана' });
+  await tools.getByRole('button', { name: 'Зона', exact: true }).click();
+  await expect(page.getByTestId('plan-tools-notice')).toHaveCount(0);
+  await tools.getByRole('button', { name: 'Выбор', exact: true }).click();
+  await expect(page.getByTestId('plan-tools-notice')).toHaveCount(0);
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
+
   // Pull one corner out, Alt keeps it under the pointer (no snapping).
   const corner = await nodeOnPage(page, 'shape-vertex-2');
   await page.keyboard.down('Alt');

@@ -17,7 +17,7 @@
  * document it was printed for.
  */
 
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Ref } from '../../contracts/model';
 import type { PlanToolsProps, ToolKind } from '../../contracts/ui';
 import { deleteIntent } from './delete-key';
@@ -75,6 +75,45 @@ function selectionKey(selection: Ref | null): string {
   return selection === null ? '' : `${selection.kind}:${selection.id}`;
 }
 
+/**
+ * The plan's 2D canvas in the page. The editor feature owns it; the toolbar
+ * only asks the DOM whether an event landed inside it, never imports it.
+ */
+const CANVAS_SELECTOR = '.editor-canvas';
+
+const onCanvas = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest(CANVAS_SELECTOR) !== null;
+
+/**
+ * D-282: whether the user is working on the canvas right now — their last
+ * press or focus landed on it. A press or focus anywhere else (the card, the
+ * layers, the library, the assistant, a text field) ends it; the toolbar's own
+ * buttons are neutral, and another document starts without it. Capture phase:
+ * Konva and panels may stop the event before it bubbles up.
+ */
+function useCanvasEngaged(toolbar: React.RefObject<HTMLElement | null>, document: string): boolean {
+  const [engaged, setEngaged] = useState(false);
+  const [seen, setSeen] = useState(document);
+  if (seen !== document) {
+    setSeen(document);
+    setEngaged(false);
+  }
+  useEffect(() => {
+    const onEvent = (event: Event): void => {
+      if (event.target instanceof Node && toolbar.current?.contains(event.target) === true) return;
+      setEngaged(onCanvas(event.target));
+    };
+    const page = window.document;
+    page.addEventListener('pointerdown', onEvent, true);
+    page.addEventListener('focusin', onEvent, true);
+    return () => {
+      page.removeEventListener('pointerdown', onEvent, true);
+      page.removeEventListener('focusin', onEvent, true);
+    };
+  }, [toolbar]);
+  return engaged;
+}
+
 /** What the current selection can be edited with, in one line. */
 function editingHint(selection: Ref | null): string | null {
   if (selection === null) return null;
@@ -94,8 +133,8 @@ export function PlanTools({
 }: PlanToolsProps): React.JSX.Element {
   const notice = useNotice();
   const intent = deleteIntent(session.selection, plan);
-  const hint = editingHint(session.selection);
   const tool = session.tool;
+  const toolbar = useRef<HTMLDivElement>(null);
   const shapeType =
     tool.kind === 'shape.draw'
       ? (plan.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId)
@@ -104,13 +143,17 @@ export function PlanTools({
   // Другой документ — это «Новый» или открытый файл: план опознаётся по id и
   // имени, а не по ссылке, иначе строку гасила бы любая правка.
   const document = `${plan.id}\u0000${plan.name}`;
+  // D-282: the handles answer only «Выбор», and the line about them only
+  // matters while the user is at the canvas — not while they type in the card.
+  const engaged = useCanvasEngaged(toolbar, document);
+  const hint = tool.kind === 'select' && engaged ? editingHint(session.selection) : null;
 
   useEffect(() => {
     setNotice(null);
   }, [selected, document]);
 
   return (
-    <div className="toolbar" role="toolbar" aria-label="Инструменты плана">
+    <div ref={toolbar} className="toolbar" role="toolbar" aria-label="Инструменты плана">
       {TOOLS.map((tool, index) => (
         <Fragment key={tool.kind}>
           <button

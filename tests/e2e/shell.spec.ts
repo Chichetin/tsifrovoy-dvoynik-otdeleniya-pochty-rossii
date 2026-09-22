@@ -95,6 +95,10 @@ for (const size of [
       await page.mouse.click(canvas!.x + canvas!.width / 2 - 60, y);
       await page.mouse.click(canvas!.x + canvas!.width / 2 + 60, y);
       await expect(page.getByRole('button', { name: 'Удалить перегородку' })).toBeVisible();
+      // Подсказка правки — только под «Выбором» и у холста (D-282): вернуться
+      // к «Выбору» и взять перегородку кликом по её середине.
+      await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+      await page.mouse.click(canvas!.x + canvas!.width / 2, y);
       await expect(page.getByText('Перегородка: тяните концы')).toBeVisible();
       await expectOneRow(page, reference, 'выбрана перегородка, есть правки');
       const worst = await layout(page);
