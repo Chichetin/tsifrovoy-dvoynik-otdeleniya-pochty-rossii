@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page , exportPlan } from './fixtures';
+import { expect, test, type Page , exportPlan, expectUnsavedEdits } from './fixtures';
 import { showTab } from './side-tabs';
 
 /** Клик по холсту в пикселях от его левого верхнего угла. */
@@ -59,7 +59,7 @@ test.describe('сквозной сценарий редактора', () => {
     await showTab(page, 'Инвентаризация');
     const inventoryRows = page.getByLabel('Инвентаризация').locator('tbody tr').first();
     await expect(inventoryRows).toBeVisible();
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
 
     // Площади считаются от нарисованного, а не от шаблона: свободного пола
     // стало меньше площади помещения.
@@ -68,7 +68,7 @@ test.describe('сквозной сценарий редактора', () => {
     expect(free).toMatch(/^\d[\d\u00a0]*,\d\d\u00a0м²$/);
     expect(Number((free ?? '0').replace(/[\s\u00a0]|м²/g, '').replace(',', '.'))).toBeLessThan(12 * 9);
 
-    // Сохранение: файл уходит в загрузки, состояние становится «сохранено».
+    // Сохранение: файл уходит в загрузки с тем, что нарисовано.
     const download = await Promise.all([
       page.waitForEvent('download'),
       exportPlan(page, 'JSON'),
@@ -76,7 +76,6 @@ test.describe('сквозной сценарий редактора', () => {
 
     const saved = await download.path();
     expect(saved).not.toBeNull();
-    await expect(page.getByText('сохранено')).toBeVisible();
 
     const text = readFileSync(saved as string, 'utf8');
     const parsed = JSON.parse(text) as { zones: unknown[]; objects: unknown[] };
@@ -93,7 +92,7 @@ test.describe('сквозной сценарий редактора', () => {
     await expect(inventoryRows).toBeVisible();
     await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
     await expect(page.locator('.table__link', { hasText: 'z_1' }).first()).toBeVisible();
-    await expect(page.getByText('сохранено')).toBeVisible();
+    await expectUnsavedEdits(page, false);
 
     await testInfo.attach('сохранённый план', { body: text, contentType: 'application/json' });
     expect(errors).toEqual([]);

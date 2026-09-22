@@ -189,7 +189,6 @@ export function FileControls({
   const [draftAt, setDraftAt] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const writer = useRef<DraftWriter | null>(null);
-  const untouchedNew = dirty && revision === 0 && !hasContent(plan);
 
   useEffect(() => {
     if (storage === null) return;
@@ -553,10 +552,6 @@ export function FileControls({
           if (file !== undefined) void open(file);
         }}
       />
-
-      <span className={dirty ? 'files__status is-dirty' : 'files__status'}>
-        {untouchedNew ? 'новый план не сохранён' : dirty ? 'есть несохранённые правки' : 'сохранено'}
-      </span>
 
     </div>
 

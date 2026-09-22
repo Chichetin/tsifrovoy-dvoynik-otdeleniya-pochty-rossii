@@ -168,6 +168,5 @@ test.describe('развёрнутый сервис', () => {
     };
     expect(parsed.zones.map((zone) => zone.id)).toContain('z_client');
     expect(parsed.objects.map((object) => object.id)).toContain('eq_work_1');
-    await expect(page.getByText('сохранено')).toBeVisible();
   });
 });

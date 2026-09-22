@@ -174,7 +174,6 @@ describe('FileControls: замена текущего плана', () => {
   test('«Создать новый» на нетронутом пустом плане не спрашивает о несуществующих правках', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 0 });
-    expect(screen.getByText('новый план не сохранён')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
 
@@ -185,7 +184,6 @@ describe('FileControls: замена текущего плана', () => {
   test('правка даже пустого контура защищена вопросом про новый план', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 1 });
-    expect(screen.getByText('есть несохранённые правки')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
 
