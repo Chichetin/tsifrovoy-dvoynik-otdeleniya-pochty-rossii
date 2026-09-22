@@ -26,10 +26,10 @@ const DRAFT_KEY = 'ops-twin.draft.v1';
 const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
 
 /**
- * Черновик в localStorage держит план с нужным числом объектов. Подпись времени
- * у «черновик в браузере» появляется уже от стартового пустого плана, поэтому
- * ждать её после «Открыть существующий» недостаточно: под нагрузкой перезагрузка успевала
- * раньше записи открытого файла, и предложение показывало прежний план.
+ * Черновик в localStorage держит план с нужным числом объектов. Надписи о
+ * черновике в шапке больше нет (D-288), да и раньше её было мало: она
+ * появлялась уже от стартового пустого плана, и под нагрузкой перезагрузка
+ * успевала раньше записи открытого файла — предложение показывало прежний план.
  */
 async function draftHolds(page: Page, objects: number): Promise<void> {
   await page.waitForFunction(
@@ -83,11 +83,21 @@ function secondPlanFile(): { name: string; mimeType: string; buffer: Buffer } {
   };
 }
 
-async function download(page: Page): Promise<string> {
-  const event = await Promise.all([
-    page.waitForEvent('download'),
-    exportPlan(page, 'JSON'),
-  ]).then(([download]) => download);
+/**
+ * D-286: план с нарушением физики уходит файлом только после подтверждения —
+ * `blocked` и есть это подтверждение. Ожидание скачивания заводится до
+ * нажатия, поэтому окно отказа успевает встать между ними.
+ */
+async function download(page: Page, blocked = false): Promise<string> {
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  if (blocked) {
+    await expect(page.getByTestId('save-blocked')).toBeVisible();
+    await page.getByTestId('save-anyway').click();
+  } else {
+    await expect(page.getByTestId('save-blocked')).toHaveCount(0);
+  }
+  const event = await started;
   const path = await event.path();
   expect(path).not.toBeNull();
   return path as string;
@@ -171,7 +181,9 @@ test.describe('файлы плана', () => {
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
 
-    const first = await download(page);
+    // Пример организаторов приносит нарушения физики (три коллизии и три
+    // пересечения стен): сохранение спрашивает, и проверяющий подтверждает.
+    const first = await download(page, true);
     const savedText = readFileSync(first, 'utf8');
     const saved = JSON.parse(savedText) as {
       schemaVersion: number;
@@ -195,7 +207,7 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('organizer-assumptions')).toHaveCount(0);
 
     // Повторное сохранение даёт тот же текст — документ вернулся целиком.
-    const second = await download(page);
+    const second = await download(page, true);
     expect(readFileSync(second, 'utf8')).toBe(savedText);
     await testInfo.attach('импортированный пример', {
       body: savedText,
@@ -257,8 +269,7 @@ test.describe('файлы плана', () => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
-    // Черновик пишется с задержкой и говорит, что он в браузере, а не на диске.
-    await expect(page.getByTestId('draft-saved')).toContainText(/черновик в браузере: \d\d:\d\d/);
+    // Черновик пишется с задержкой; он в браузере, а не на диске.
     await draftHolds(page, 12);
 
     await page.reload();
@@ -330,7 +341,7 @@ test.describe('файлы плана', () => {
     await draftHolds(page, 12);
 
     await page.reload();
-    await page.getByTestId('draft-restore').getByRole('button', { name: 'Удалить' }).click();
+    await page.getByTestId('draft-restore').getByRole('button', { name: 'Удалить черновик' }).click();
     await expect(page.getByTestId('draft-restore')).toHaveCount(0);
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
@@ -338,7 +349,10 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('draft-restore')).toHaveCount(0);
   });
 
-  test('начатая работа не заменяется черновиком без подтверждения', async ({ page }) => {
+  // D-288: предложение стало модальным окном, а не полосой в шапке. Начать
+  // работу, не ответив на него, теперь нельзя — зато «Не сейчас» убирает
+  // вопрос, не трогая черновик: он предлагается снова.
+  test('«Не сейчас» оставляет черновик на месте', async ({ page }) => {
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);
@@ -346,19 +360,16 @@ test.describe('файлы плана', () => {
     await page.reload();
     const offer = page.getByTestId('draft-restore');
     await expect(offer).toBeVisible();
+    await offer.getByRole('button', { name: 'Не сейчас' }).click();
+    await expect(offer).toHaveCount(0);
 
-    // Пользователь начал новый план, не ответив на предложение.
-    await placeFirstLibraryItem(page, 320, 240);
-    await expect(inventoryRows(page)).toHaveCount(1);
+    // План остался пустым, черновик — в браузере.
+    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+    await draftHolds(page, 12);
 
-    // Playwright по умолчанию отклоняет диалог — правка остаётся на месте.
-    await offer.getByRole('button', { name: 'Восстановить' }).click();
-    await expect(inventoryRows(page)).toHaveCount(1);
-    await expect(offer).toBeVisible();
-
-    // Согласие — и черновик всё-таки открывается, уже как несохранённый план.
-    page.once('dialog', (dialog) => void dialog.accept());
-    await offer.getByRole('button', { name: 'Восстановить' }).click();
+    await page.reload();
+    await expect(page.getByTestId('draft-restore')).toBeVisible();
+    await page.getByTestId('draft-restore').getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
     await expectUnsavedEdits(page, true);
   });

@@ -268,7 +268,9 @@ describe('FileControls: хранилище черновика', () => {
     waitDebounce();
 
     expect(window.localStorage.getItem(DRAFT_KEY)).toBe(before);
-    expect(screen.getByTestId('draft-saved').textContent).toContain('ещё нет');
+    // D-288: надписи «черновик в браузере: …» в шапке больше нет; о работе
+    // черновика говорит само хранилище, а не строка над планом.
+    expect(screen.queryByTestId('draft-saved')).toBeNull();
   });
 
   test('переданное хранилище и читается, и пишется вместо localStorage', () => {
@@ -282,7 +284,6 @@ describe('FileControls: хранилище черновика', () => {
     const written = JSON.parse(storage.entries.get(DRAFT_KEY) ?? 'null') as PlanDraft;
     expect(written.name).toBe(filled.name);
     expect(JSON.parse(written.text)).toEqual(filled);
-    expect(screen.getByTestId('draft-saved').textContent).not.toContain('ещё нет');
   });
 });
 
@@ -380,7 +381,7 @@ describe('FileControls: предложение восстановить черн
     waitDebounce();
     expect(storage.setItem).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить черновик' }));
 
     expect(screen.queryByTestId('draft-restore')).toBeNull();
     expect(storage.removeItem).not.toHaveBeenCalled();
@@ -391,7 +392,7 @@ describe('FileControls: предложение восстановить черн
     const storage = fakeStorage(draftOf(filled));
     renderControls({ storage });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить черновик' }));
 
     expect(storage.removeItem).toHaveBeenCalledWith(DRAFT_KEY);
     expect(storage.entries.has(DRAFT_KEY)).toBe(false);
@@ -689,5 +690,94 @@ describe('FileControls: меню «Экспорт»', () => {
 
     expect(screen.getByTestId('files-notice').textContent).toContain('.json');
     expect(downloads.filter((name) => name.endsWith('.png'))).toEqual([]);
+  });
+});
+
+/**
+ * D-286: план с нарушением физики файлом с первого нажатия не уходит. Отказ
+ * не окончательный: нарушения приходят и чужим файлом, и проверяющий должен
+ * уметь сохранить такой план обратно.
+ */
+describe('FileControls: отказ сохранить план с нарушением физики', () => {
+  /** Стул ровно на столе: объёмы пересекаются и по месту, и по высоте. */
+  const collided: PlanDocument = {
+    ...filled,
+    objects: [
+      ...filled.objects,
+      { ...filled.objects[0]!, id: 'eq_chair', label: 'Стул', height_m: 0.9 },
+    ],
+  };
+
+  function stubDownload() {
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:file');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+    const downloads: string[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloads.push(this.download);
+    });
+    return downloads;
+  }
+
+  function exportJson(): void {
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
+  }
+
+  test('окно называет нарушение, файл не скачивается, план остаётся несохранённым', () => {
+    const downloads = stubDownload();
+    const { onExported } = renderControls({ storage: null, document: collided });
+
+    exportJson();
+
+    const dialog = screen.getByTestId('save-blocked');
+    expect(dialog.textContent).toContain('одно место');
+    expect(dialog.textContent).toContain('допущение команды');
+    expect(downloads).toEqual([]);
+    expect(onExported).not.toHaveBeenCalled();
+  });
+
+  test('«Сохранить всё равно» отдаёт файл браузеру', () => {
+    const downloads = stubDownload();
+    const { onExported } = renderControls({ storage: null, document: collided });
+    exportJson();
+
+    fireEvent.click(screen.getByTestId('save-anyway'));
+
+    expect(screen.queryByTestId('save-blocked')).toBeNull();
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]!.endsWith('.json')).toBe(true);
+    expect(onExported).toHaveBeenCalledTimes(1);
+  });
+
+  test('«Вернуться и исправить» закрывает окно и ничего не сохраняет', () => {
+    const downloads = stubDownload();
+    const { onExported } = renderControls({ storage: null, document: collided });
+    exportJson();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться и исправить' }));
+
+    expect(screen.queryByTestId('save-blocked')).toBeNull();
+    expect(downloads).toEqual([]);
+    expect(onExported).not.toHaveBeenCalled();
+  });
+
+  test('чистый план сохраняется без вопросов, картинки гейт не трогает', async () => {
+    const downloads = stubDownload();
+    renderControls({ storage: null, document: filled });
+    exportJson();
+    expect(screen.queryByTestId('save-blocked')).toBeNull();
+    expect(downloads).toHaveLength(1);
+
+    cleanup();
+    pngRenderer.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
+    renderControls({ storage: null, document: collided });
+    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
+    });
+    expect(screen.queryByTestId('save-blocked')).toBeNull();
+    expect(downloads.filter((name) => name.endsWith('.png'))).toHaveLength(1);
   });
 });

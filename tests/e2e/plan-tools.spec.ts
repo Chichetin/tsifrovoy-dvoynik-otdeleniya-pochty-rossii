@@ -443,9 +443,12 @@ test.describe('инструменты плана', () => {
     await page.keyboard.press('Escape');
 
     // Зона внутри зоны: вложенность берётся из геометрии, а не из формы.
-    await drawRing(page, 'Зона', ring(size, OUTER));
+    // Alt — как в `drawPlan`: ниже тест целится в вершину и в ребро по тем же
+    // долям сцены, а привязка (D-209) сдвигает вершину относительно клика тем
+    // сильнее, чем крупнее сцена.
+    await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
     await page.keyboard.press('Escape');
-    await drawRing(page, 'Зона', ring(size, INNER));
+    await drawRing(page, 'Зона', ring(size, INNER), { alt: true });
     await page.keyboard.press('Escape');
 
     await clickAt(page, px(size, 0.45, 0.45));

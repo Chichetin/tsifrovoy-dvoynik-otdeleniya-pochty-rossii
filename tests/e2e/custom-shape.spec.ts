@@ -6,12 +6,20 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, exportPlan } from './fixtures';
+import { expect, test, type Page, exportPlan, passPhysicsBlock } from './fixtures';
 import { showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Saved = {
-  objects: { id: string; typeId: string; size_m: [number, number]; outline?: [number, number][] }[];
+  objects: {
+    id: string;
+    typeId: string;
+    size_m: [number, number];
+    // Нужны, чтобы выбрать цель со свободным местом вокруг (D-286).
+    position: [number, number];
+    rotation_deg: number;
+    outline?: [number, number][];
+  }[];
   catalog: { objectTypes: { id: string; label: string; outline?: [number, number][] }[] };
 };
 
@@ -43,7 +51,12 @@ async function nodeOnPage(page: Page, name: string): Promise<Screen> {
 }
 
 async function savePlan(page: Page): Promise<{ path: string; plan: Saved }> {
-  const download = await Promise.all([page.waitForEvent('download'), exportPlan(page, 'JSON')]).then(([item]) => item);
+  // Нарисованный кликами многоугольник может лечь на соседа: сохранение тогда
+  // спрашивает подтверждения (D-286), и сценарий его даёт — предмет теста в форме.
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  await passPhysicsBlock(page);
+  const download = await started;
   const path = await download.path();
   expect(path).not.toBeNull();
   return { path: path as string, plan: JSON.parse(readFileSync(path as string, 'utf8')) as Saved };
@@ -55,10 +68,29 @@ test('форма вершиной → новый тип → объект это�
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
 
-  // The biggest rectangular object of the demo: easy to hit, nothing on top of it.
+  // The biggest rectangular object of the demo that is easy to hit, has nothing
+  // on top of it — and has room to grow. Жест ниже вытягивает угол наружу
+  // примерно на 0,7 м по обеим осям, а объект, выросший в соседа, физика не
+  // пропускает (D-286): у цели должно быть свободно справа и сверху.
   const demo = JSON.parse(readFileSync(DEMO, 'utf8')) as Saved;
+  const GROWTH_M = 0.8;
+  const spaceOf = (object: Saved['objects'][number], pad = 0): [number, number, number, number] => {
+    const turn = (object.rotation_deg * Math.PI) / 180;
+    const [sx, sy] = object.size_m;
+    const width = Math.abs(sx * Math.cos(turn)) + Math.abs(sy * Math.sin(turn));
+    const height = Math.abs(sx * Math.sin(turn)) + Math.abs(sy * Math.cos(turn));
+    const [x, y] = object.position;
+    return [x - width / 2, x + width / 2 + pad, y - height / 2, y + height / 2 + pad];
+  };
+  const overlap = (a: [number, number, number, number], b: [number, number, number, number]): boolean =>
+    a[0] < b[1] && b[0] < a[1] && a[2] < b[3] && b[2] < a[3];
   const target = demo.objects
     .filter((object) => object.outline === undefined)
+    .filter((object) =>
+      demo.objects.every(
+        (other) => other.id === object.id || !overlap(spaceOf(object, GROWTH_M), spaceOf(other)),
+      ),
+    )
     .sort((a, b) => b.size_m[0] * b.size_m[1] - a.size_m[0] * a.size_m[1])[0]!;
 
   // Double click on the object: shape mode, vertex handles appear.
@@ -103,7 +135,10 @@ test('форма вершиной → новый тип → объект это�
   await expect(page.getByTestId('shape-draw-hint')).toContainText(RACK);
   const canvas = await page.getByTestId('editor-canvas').boundingBox();
   if (canvas === null) throw new Error('холст не виден');
-  const base = { x: canvas.x + 120, y: canvas.y + canvas.height - 160 };
+  // Свободный пол демо-плана (склад у восточной стены, примерно 12,3–14,6 м по
+  // X и 1,0–3,3 м по Y): многоугольник поверх чужого объёма физика не пропустит
+  // (D-286), а здесь под фигуру 90 × 90 px места хватает.
+  const base = { x: canvas.x + canvas.width * 0.786, y: canvas.y + canvas.height * 0.604 };
   await page.keyboard.down('Alt');
   for (const [dx, dy] of [[0, 0], [90, 0], [90, 40], [40, 40], [40, 90], [0, 90]] as const) {
     await settle(page);

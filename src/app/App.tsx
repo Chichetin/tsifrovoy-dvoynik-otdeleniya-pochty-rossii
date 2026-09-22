@@ -25,7 +25,6 @@ import {
 } from '../domain/object-mount';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
-import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
@@ -165,10 +164,6 @@ export function App(): React.JSX.Element {
   // It switches the column to the assistant tab — a hidden panel is not
   // "opened" by scrolling to it. Since D-268 «Свойства» live on the left, so
   // the selection stays: the assistant can be asked about what is selected.
-  const openAssistant = useCallback(() => {
-    showRightTab('assistant');
-  }, [showRightTab]);
-
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
   const session: EditorSession = useMemo(
@@ -890,7 +885,6 @@ export function App(): React.JSX.Element {
       </div>
 
       <Onboarding open={tourOpen} onClose={closeTour} />
-      <AssistantLauncher onOpen={openAssistant} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
     </div>
   );

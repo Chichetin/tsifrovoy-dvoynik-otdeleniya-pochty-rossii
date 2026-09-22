@@ -9,7 +9,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, exportPlan } from './fixtures';
+import { expect, test, type Page, exportPlan, passPhysicsBlock } from './fixtures';
 import { validatePlan } from '../../src/domain/validation';
 import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
@@ -81,10 +81,13 @@ async function numberOf(page: Page, label: string): Promise<number> {
 }
 
 async function savePlan(page: Page): Promise<string> {
-  const download = await Promise.all([
-    page.waitForEvent('download'),
-    exportPlan(page, 'JSON'),
-  ]).then(([event]) => event);
+  // Пример организаторов приносит нарушения физики: сохранение спрашивает
+  // подтверждения (D-286), и сценарии этого спека его дают — их предмет в
+  // другом. Чистый план окна не показывает, и помощник молчит.
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  await passPhysicsBlock(page);
+  const download = await started;
   const path = await download.path();
   expect(path).not.toBeNull();
   return readFileSync(path as string, 'utf8');
@@ -388,8 +391,15 @@ test.describe('жесты над оборудованием', () => {
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await expect(inventoryRows(page)).toHaveCount(2);
 
-    // За пределами допуска постановка продолжается тем же активным инструментом.
+    // За пределами допуска инструмент снова ставит, а не выбирает. В 11 px за
+    // гранью новый стеллаж влез бы в старый, и физика такую постановку не
+    // пропускает (D-286) — отказ виден и объект не появляется.
     await clickCanvas(page, nearLeft - 4, centre.y);
+    await expect(page.locator('.shell__error')).toContainText('занимают одно место');
+    await expect(inventoryRows(page)).toHaveCount(2);
+
+    // На свободном полу тот же инструмент ставит следующий стеллаж.
+    await clickCanvas(page, centre.x - width * scale - 20, centre.y);
     await showProps(page);
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_3');
     await expect(inventoryRows(page)).toHaveCount(3);
@@ -602,7 +612,11 @@ test.describe('жесты над оборудованием', () => {
     // Грань стены 14,875 хранится как есть, а не округляется в стену (14,88).
     expect((await numberOf(page, 'X, м')) + width / 2).toBeCloseTo(face, 9);
     await showTab(page, 'Проверка');
-    await expect(page.getByLabel('Проверка плана')).not.toContainText('пересекает стену');
+    // Именно в списке находок: ниже него стоит справка «Правила физики» (D-286),
+    // и она говорит о стенах словами, похожими на находку.
+    await expect(page.getByLabel('Проверка плана').locator('.issues')).not.toContainText(
+      'пересекает стену',
+    );
   });
 
   test('скрытый слой: объект не выбирается и не удаляется, пока слой не показан', async ({ page }) => {

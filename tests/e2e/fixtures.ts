@@ -34,6 +34,22 @@ export const test = base.extend({
  * шапке больше нет, их пункты живут в одном меню. Помощник нужен многим
  * спекам, поэтому он здесь, а не копией в каждой.
  */
+/**
+ * D-286: план с нарушением физики уходит файлом только после подтверждения.
+ * Вызывается между запуском ожидания скачивания и его await: окно отказа
+ * встаёт ровно между нажатием и файлом.
+ */
+export async function confirmPhysicsBlock(page: Page): Promise<void> {
+  await expect(page.getByTestId('save-blocked')).toBeVisible();
+  await page.getByTestId('save-anyway').click();
+}
+
+/** То же, но окна может и не быть: план сценария не обязан нарушать физику. */
+export async function passPhysicsBlock(page: Page): Promise<void> {
+  const anyway = page.getByTestId('save-anyway');
+  if ((await anyway.count()) > 0) await anyway.click();
+}
+
 export async function exportPlan(page: Page, item: 'JSON' | 'PNG' | 'SVG'): Promise<void> {
   await page.getByRole('button', { name: 'Экспорт' }).click();
   await page.getByRole('menuitem', { name: new RegExp(item) }).click();

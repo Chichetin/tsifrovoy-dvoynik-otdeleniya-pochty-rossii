@@ -220,7 +220,8 @@ test.describe('перечень оборудования', () => {
       .locator('.library__item', { hasText: 'Скамья / кресла для ожидания' })
       .first()
       .click();
-    await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 300 } });
+    // Свободный пол демо-плана: на занятое место объект теперь не встаёт (D-286).
+    await page.getByTestId('editor-canvas').click({ position: { x: 340, y: 447 } });
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     await expect(inventoryRows(page)).toHaveCount(demo.objects.length + 1);

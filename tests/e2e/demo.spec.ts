@@ -119,11 +119,12 @@ test.describe('демо-комплект из ZIP', () => {
     await openFromArchive(page, 'before.json');
     await expect(inventoryRows(page)).toHaveCount(53);
 
-    // 1. Скамья из библиотеки. Куда попал клик — неважно: точные координаты
-    // рекомендации ставятся в карточке, как это делает человек.
+    // 1. Скамья из библиотеки. Точные координаты рекомендации ставятся потом в
+    // карточке, как это делает человек; клик нужен лишь на свободный пол —
+    // на занятое место объект не встаёт (D-286).
     await showTab(page, 'Библиотека');
     await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
-    await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 300 } });
+    await page.getByTestId('editor-canvas').click({ position: { x: 340, y: 447 } });
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await expect(inventoryRows(page)).toHaveCount(54);
 

@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Issue, PlanDocument, Ref } from '../../contracts/model';
 import type { FocusRequest, ValidationPanelProps } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
+import { PHYSICS_RULES } from '../../domain/physics';
 import type { ValidationIssue } from '../../domain/validation';
 
 /**
@@ -118,6 +119,25 @@ export function ValidationPanel({
           </ul>
         </>
       )}
+
+      {/* D-286: набор правил физики — то, чего план не может нарушить и
+          остаться сохраняемым. Список читается из `PHYSICS_RULES`, а не
+          переписан здесь словами: новое правило появляется в панели само. */}
+      <details className="issues__physics" data-testid="physics-rules">
+        <summary>Правила физики ({PHYSICS_RULES.length})</summary>
+        <p className="panel__note">
+          Нарушение любого из них останавливает сохранение плана файлом и не даёт поставить
+          объект. Это допущения команды, а не нормативы Почты.
+        </p>
+        <dl>
+          {PHYSICS_RULES.map((rule) => (
+            <div key={rule.id}>
+              <dt>{rule.title}</dt>
+              <dd>{rule.detail}</dd>
+            </div>
+          ))}
+        </dl>
+      </details>
     </section>
   );
 }

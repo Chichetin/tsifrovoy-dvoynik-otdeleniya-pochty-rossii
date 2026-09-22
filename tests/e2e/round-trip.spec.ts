@@ -1,7 +1,7 @@
 /** Q01: one user's change must survive a real file download and page reload. */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test , exportPlan } from './fixtures';
+import { expect, test , exportPlan, confirmPhysicsBlock } from './fixtures';
 import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
@@ -23,18 +23,24 @@ test('готовый план → правка → файл → новая ст�
 
   const card = page.getByLabel('Свойства');
   await expect(card).toHaveAttribute('data-entity-id', 'eq_kiosk');
-  await card.getByLabel('X, м').fill('1.1');
+  // Поля координат — две отдельные правки, и промежуточное положение тоже
+  // проверяется физикой (D-286): (1,1; 0,6) въехало бы в стойку выдачи, а
+  // (0,6; 2,1) свободно. Человек в этом случае видит «Правка отклонена» и
+  // ведёт объект в другом порядке или мышью — здесь сразу верный порядок.
   await card.getByLabel('Y, м').fill('2.1');
+  await card.getByLabel('X, м').fill('1.1');
   await card.getByLabel('Поворот, °').fill('90');
   // The organizer catalog has no editable attributes for this type; a second
   // Q01 scenario covers a catalog-defined attribute. Rename this object here.
   await card.getByLabel('Название').fill('Терминал очереди Q01');
   await expect(card.getByTestId('props-zone')).toHaveText('Зона: Клиентская зона');
 
-  const download = await Promise.all([
-    page.waitForEvent('download'),
-    exportPlan(page, 'JSON'),
-  ]).then(([item]) => item);
+  // Пример организаторов приносит нарушения физики (три коллизии и три
+  // пересечения стен): сохранение спрашивает, проверяющий подтверждает (D-286).
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  await confirmPhysicsBlock(page);
+  const download = await started;
   const file = await download.path();
   expect(file).not.toBeNull();
   const before = JSON.parse(readFileSync(file as string, 'utf8'));
@@ -55,10 +61,10 @@ test('готовый план → правка → файл → новая ст�
   await expect(card.getByLabel('Поворот, °')).toHaveValue('90');
   await expect(card.getByLabel('Название')).toHaveValue('Терминал очереди Q01');
 
-  const again = await Promise.all([
-    page.waitForEvent('download'),
-    exportPlan(page, 'JSON'),
-  ]).then(([item]) => item);
+  const restarted = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  await confirmPhysicsBlock(page);
+  const again = await restarted;
   const second = await again.path();
   expect(second).not.toBeNull();
   const after = JSON.parse(readFileSync(second as string, 'utf8'));

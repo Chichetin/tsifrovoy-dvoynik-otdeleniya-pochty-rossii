@@ -8,6 +8,11 @@
 export type HotkeyEvent = {
   /** Код клавиши, а не буква: на русской раскладке KeyF даёт «а» (D-128). */
   code: string;
+  /**
+   * Символ, который дала раскладка. Нужен ровно там, где договорённость
+   * заключена о знаке, а не о клавише: «?» (D-287).
+   */
+  key: string;
   ctrlKey: boolean;
   metaKey: boolean;
   altKey: boolean;
@@ -51,12 +56,20 @@ export function historyHotkey(event: HotkeyEvent): 'undo' | 'redo' | null {
 }
 
 /**
- * `?` показывает или прячет карту горячих клавиш. На стандартной раскладке
- * это `Shift+Slash` — физическая клавиша с кодом `Slash` не меняется от
- * раскладки (D-128), поэтому проверка та же на русской и на английской.
+ * `?` показывает или прячет карту горячих клавиш.
+ *
+ * Здесь договорённость заключена о знаке, а не о клавише, поэтому одного
+ * кода мало (D-287). На английской раскладке «?» — это `Shift+Slash`, и код
+ * `Slash` ловит её при любой раскладке; но на русской знак вопроса живёт на
+ * `Shift+7`, то есть на `Digit7`, и человек жмёт именно её — ту, где
+ * нарисован «?». Раньше такое нажатие карту не закрывало: открыл кнопкой в
+ * шапке, жмёшь «?» — ничего. Поэтому принимаются оба: символ «?», как его дала
+ * раскладка, и физическая клавиша `Shift+Slash`, что бы она ни напечатала.
  */
 export function isHotkeysMapHotkey(event: HotkeyEvent): boolean {
-  if (event.code !== 'Slash') return false;
-  if (event.ctrlKey || event.metaKey || event.altKey || !event.shiftKey) return false;
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  // Shift уже учтён самим знаком: «?» без Shift ни одна из раскладок не даёт.
+  const typed = event.key === '?';
+  if (!typed && !(event.code === 'Slash' && event.shiftKey)) return false;
   return !isTypingTarget(event.target);
 }
