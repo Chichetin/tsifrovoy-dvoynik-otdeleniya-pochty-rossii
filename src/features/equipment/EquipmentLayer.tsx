@@ -53,6 +53,7 @@ import {
   type ResizeHandle,
 } from './transform';
 import { isWallMounted } from './wall-mount';
+import { isPlanPictogramVisible, planPictogram, type PlanPictogram } from './plan-pictogram';
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
@@ -148,6 +149,113 @@ const EquipmentSymbol = memo(function EquipmentSymbol({
   );
   return <Line points={points} closed perfectDrawEnabled={false} {...style} />;
 });
+
+/**
+ * Thin white line icons make a completed plan readable without turning it
+ * into an admin table. They sit inside the object and never receive input;
+ * moving, selecting and checking the object still belongs to its footprint.
+ */
+function EquipmentPictogram({
+  kind,
+  width,
+  height,
+  opacity,
+}: {
+  kind: PlanPictogram;
+  width: number;
+  height: number;
+  opacity: number;
+}): React.JSX.Element | null {
+  if (kind === null || !isPlanPictogramVisible(width, height)) return null;
+  const strokeWidth = Math.max(1, Math.min(width, height) / 15);
+  const style = { stroke: '#FFFFFF', strokeWidth, opacity, listening: false };
+  const left = -width * 0.32;
+  const top = -height * 0.3;
+  const w = width * 0.64;
+  const h = height * 0.6;
+
+  switch (kind) {
+    case 'workplace':
+      return (
+        <>
+          <Rect name="plan-pictogram-workplace" x={left} y={top} width={w} height={h * 0.48} {...style} />
+          <Line points={[0, top + h * 0.48, 0, top + h]} {...style} />
+          <Line points={[left * 0.45, top + h, -left * 0.45, top + h]} {...style} />
+        </>
+      );
+    case 'seat':
+      return (
+        <>
+          <Rect name="plan-pictogram-seat" x={left} y={top} width={w} height={h * 0.45} {...style} />
+          <Line points={[left, top + h * 0.45, left, top + h, -left, top + h, -left, top + h * 0.45]} {...style} />
+        </>
+      );
+    case 'cashier':
+      return (
+        <>
+          <Rect name="plan-pictogram-cashier" x={left} y={top} width={w} height={h * 0.7} {...style} />
+          <Line points={[left, top + h * 0.45, -left, top + h * 0.45]} {...style} />
+          <Circle x={0} y={top + h * 0.22} radius={Math.max(1.5, Math.min(width, height) * 0.07)} {...style} />
+        </>
+      );
+    case 'terminal':
+      return (
+        <>
+          <Rect name="plan-pictogram-terminal" x={-width * 0.18} y={top} width={width * 0.36} height={h * 0.52} cornerRadius={2} {...style} />
+          <Line points={[0, top + h * 0.52, 0, top + h, -width * 0.24, top + h]} {...style} />
+        </>
+      );
+    case 'mailbox':
+      return (
+        <>
+          <Rect name="plan-pictogram-mailbox" x={left} y={top} width={w} height={h} {...style} />
+          <Line points={[left, top, 0, top + h * 0.52, -left, top]} {...style} />
+        </>
+      );
+    case 'display':
+      return (
+        <>
+          <Rect name="plan-pictogram-display" x={left} y={top} width={w} height={h * 0.7} cornerRadius={2} {...style} />
+          <Line points={[0, top + h * 0.7, 0, top + h, -width * 0.2, top + h]} {...style} />
+        </>
+      );
+    case 'printer':
+      return (
+        <>
+          <Rect name="plan-pictogram-printer" x={left} y={top + h * 0.28} width={w} height={h * 0.62} cornerRadius={2} {...style} />
+          <Rect x={-width * 0.18} y={top} width={width * 0.36} height={h * 0.35} {...style} />
+        </>
+      );
+    case 'camera':
+      return (
+        <>
+          <Rect name="plan-pictogram-camera" x={left} y={-height * 0.16} width={width * 0.44} height={height * 0.32} cornerRadius={2} {...style} />
+          <Line points={[left + width * 0.44, -height * 0.2, -left, 0, left + width * 0.44, height * 0.2]} closed {...style} />
+        </>
+      );
+    case 'sensor':
+      return (
+        <>
+          <Circle name="plan-pictogram-sensor" x={0} y={0} radius={Math.max(2, Math.min(width, height) * 0.27)} {...style} />
+          <Circle x={0} y={0} radius={Math.max(1, Math.min(width, height) * 0.07)} {...style} />
+        </>
+      );
+    case 'rack':
+      return (
+        <>
+          <Rect name="plan-pictogram-rack" x={left} y={top} width={w} height={h} {...style} />
+          <Line points={[left, top + h / 3, -left, top + h / 3, left, top + (h * 2) / 3, -left, top + (h * 2) / 3]} {...style} />
+        </>
+      );
+    case 'scales':
+      return (
+        <>
+          <Line name="plan-pictogram-scales" points={[left, top + h, -left, top + h, -width * 0.2, top + h * 0.42, width * 0.2, top + h * 0.42]} closed {...style} />
+          <Circle x={0} y={top + h * 0.42} radius={Math.max(2, Math.min(width, height) * 0.15)} {...style} />
+        </>
+      );
+  }
+}
 
 export function EquipmentLayer({
   document: plan,
@@ -562,6 +670,7 @@ export function EquipmentLayer({
   const render = (object: Equipment, ghost: boolean): React.JSX.Element => {
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
+    const hasCaption = objectLabel(current, viewport) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
@@ -657,6 +766,14 @@ export function EquipmentLayer({
           stroke="#343A40"
           strokeWidth={1}
         />
+        {hasCaption ? null : (
+          <EquipmentPictogram
+            kind={planPictogram(object.typeId)}
+            width={current.size_m[0] * viewport.scale}
+            height={current.size_m[1] * viewport.scale}
+            opacity={ghost ? 0.45 : 0.9}
+          />
+        )}
       </Group>
     );
   };
@@ -831,6 +948,53 @@ export function EquipmentLayer({
                   padding={1}
                 />
               </Label>
+            );
+          })}
+
+        {/* A caption covers the centre of a large object. Its pictogram moves
+            to a dark corner badge above the caption, so the name stays
+            readable and the object type remains visible at the same time. */}
+        {plan.objects
+          .filter((object) => visibleLayers.has(object.layerId))
+          .map((object) => {
+            const current = shown(object);
+            const label = objectLabel(current, viewport);
+            const kind = planPictogram(object.typeId);
+            const width = current.size_m[0] * viewport.scale;
+            const height = current.size_m[1] * viewport.scale;
+            const iconWidth = width * 0.5;
+            const iconHeight = height * 0.5;
+            if (
+              label === null ||
+              kind === null ||
+              !isPlanPictogramVisible(iconWidth, iconHeight)
+            ) {
+              return null;
+            }
+            const [x, y] = modelToScreen(current.position, viewport);
+            const radius = Math.min(16, Math.max(7, Math.min(width, height) * 0.25));
+            return (
+              <Group
+                key={`pictogram-badge-${object.id}`}
+                name={`plan-pictogram-badge-${object.id}`}
+                x={x}
+                y={y}
+                rotation={current.rotation_deg}
+                listening={false}
+              >
+                <Circle
+                  x={width * 0.24}
+                  y={-height * 0.24}
+                  radius={radius}
+                  fill="#1F4F6E"
+                  opacity={0.92}
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+                <Group x={width * 0.24} y={-height * 0.24} listening={false}>
+                  <EquipmentPictogram kind={kind} width={iconWidth} height={iconHeight} opacity={1} />
+                </Group>
+              </Group>
             );
           })}
 
