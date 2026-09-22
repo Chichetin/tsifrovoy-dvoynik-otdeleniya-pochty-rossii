@@ -90,8 +90,14 @@ function renderLayer(
 function drawnSymbols(plan: PlanDocument, selection: Ref | null, preview: Candidate | null): Konva.Shape[] {
   // The symbol is the only child of the group that carries the object's name;
   // the selection layer is also named `equipment-…`, hence the class check.
+  // Служебные группы слоя (выделение, карточка наведения) носят тот же
+  // префикс и объектами не являются — их отсеивает `SERVICE_GROUPS`.
+  const SERVICE_GROUPS = new Set(['equipment-selection', 'equipment-hover']);
   return renderLayer(plan, selection, preview)
-    .find((node: Konva.Node) => node.getClassName() === 'Group' && node.name().startsWith('equipment-'))
+    .find((node: Konva.Node) =>
+      node.getClassName() === 'Group'
+      && node.name().startsWith('equipment-')
+      && !SERVICE_GROUPS.has(node.name()))
     .map((group) => (group as Konva.Group).getChildren()[0] as Konva.Shape);
 }
 
