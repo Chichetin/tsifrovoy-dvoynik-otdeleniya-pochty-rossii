@@ -285,7 +285,6 @@ describe('панель инструментов плана', () => {
       { kind: 'room.draw' },
       { kind: 'wall.draw' },
       { kind: 'opening.place' },
-      { kind: 'pan' },
       { kind: 'measure' },
       { kind: 'object.place', typeId: 'ot_x' },
       { kind: 'shape.draw', typeId: 'ot_x' },
@@ -301,6 +300,34 @@ describe('панель инструментов плана', () => {
     show({ kind: 'wall', id: 'w_north' }, { kind: 'zone.draw' });
     fireEvent.pointerDown(canvas);
     expect(screen.queryByText(/тяните концы/)).toBeNull();
+  });
+
+  it('под «Обзором» ручки те же, что под «Выбором», — и подсказка тоже (D-282)', () => {
+    const { canvas, field } = page();
+    show({ kind: 'zone', id: 'z_hall' }, { kind: 'pan' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+
+    fireEvent.pointerDown(field);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+  });
+
+  it('только что поставленный проём под «Проёмом» подсказывает, как его двигать (D-282, D-267)', () => {
+    const { canvas, field } = page();
+    show({ kind: 'opening', id: 'op_entrance' }, { kind: 'opening.place' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/Проём: тяните вдоль стены; Enter — готово/)).not.toBeNull();
+
+    fireEvent.focusIn(field);
+    expect(screen.queryByText(/тяните вдоль стены/)).toBeNull();
+    cleanup();
+    document.body.replaceChildren();
+
+    // Под «Проёмом» ручек зоны нет — и строки о них нет.
+    const other = page();
+    show({ kind: 'zone', id: 'z_hall' }, { kind: 'opening.place' });
+    fireEvent.pointerDown(other.canvas);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
   });
 
   it('выбранный проём подсказывает, что Enter завершает его (D-267)', () => {

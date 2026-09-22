@@ -125,6 +125,18 @@ function editingHint(selection: Ref | null): string | null {
   return null;
 }
 
+/**
+ * D-282: the handles of the selected shape answer «Выбор» and «Обзор» (the
+ * geometry layer picks under both); a door just placed stays selected under
+ * «Проём» and is slid along its wall there before Enter finishes it (D-267).
+ * Every other tool owns the click, so its hint, not this one, is what applies.
+ */
+function handleHint(tool: ToolKind, selection: Ref | null): string | null {
+  if (tool === 'select' || tool === 'pan') return editingHint(selection);
+  if (tool === 'opening.place' && selection?.kind === 'opening') return editingHint(selection);
+  return null;
+}
+
 export function PlanTools({
   document: plan,
   session,
@@ -143,10 +155,10 @@ export function PlanTools({
   // Другой документ — это «Новый» или открытый файл: план опознаётся по id и
   // имени, а не по ссылке, иначе строку гасила бы любая правка.
   const document = `${plan.id}\u0000${plan.name}`;
-  // D-282: the handles answer only «Выбор», and the line about them only
-  // matters while the user is at the canvas — not while they type in the card.
+  // D-282: the line about the handles only matters while the user is at the
+  // canvas — not while they type in the card — and under a tool that has them.
   const engaged = useCanvasEngaged(toolbar, document);
-  const hint = tool.kind === 'select' && engaged ? editingHint(session.selection) : null;
+  const hint = engaged ? handleHint(tool.kind, session.selection) : null;
 
   useEffect(() => {
     setNotice(null);
