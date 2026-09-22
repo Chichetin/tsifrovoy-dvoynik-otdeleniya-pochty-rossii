@@ -36,6 +36,54 @@ function renderWithoutDocument() {
   render(<InventoryPanel inventory={buildInventory(plan)} onFocus={vi.fn()} />);
 }
 
+/**
+ * Пять типов и пять объектов — больше свёрнутого предела (3), чтобы
+ * проверить и «Объекты по типам», и перечень одним планом. Три новых типа —
+ * тестовые данные пакета, а не справочник продукта.
+ */
+function manyItemsPlan(): PlanDocument {
+  const letters = ['c', 'd', 'e'] as const;
+  const extraTypes = letters.map((letter) => ({
+    id: `ot_${letter}`,
+    label: `Тип ${letter.toUpperCase()}`,
+    category: 'Тест',
+    defaultSize_m: [0.5, 0.5] as [number, number],
+    defaultHeight_m: 0.5,
+    defaultBase_m: 0,
+    physical: true,
+    occupiesFloor: true,
+    symbol: 'rect' as const,
+    color: '#000000',
+    attributes: [],
+    provenance: 'Тестовые данные пакета инвентаризации (сворачивание перечня).',
+  }));
+  const extraObjects = letters.map((letter, index) => ({
+    id: `eq_${letter}`,
+    typeId: `ot_${letter}`,
+    label: `Объект ${letter.toUpperCase()}`,
+    position: [3 + index, 3] as [number, number],
+    size_m: [0.5, 0.5] as [number, number],
+    rotation_deg: 0,
+    base_m: 0,
+    height_m: 0.5,
+    zoneId: 'z_client',
+    layerId: 'l_base',
+    attributes: {},
+  }));
+  return {
+    ...plan,
+    catalog: { ...plan.catalog, objectTypes: [...plan.catalog.objectTypes, ...extraTypes] },
+    objects: [...plan.objects, ...extraObjects],
+  };
+}
+
+function renderMany() {
+  const onFocus = vi.fn();
+  const many = manyItemsPlan();
+  render(<InventoryPanel inventory={buildInventory(many)} document={many} onFocus={onFocus} />);
+  return { onFocus };
+}
+
 /** Строки перечня — первая таблица панели, как их видит браузерный сценарий. */
 function objectRows(): HTMLElement[] {
   const tables = screen.getByLabelText('Инвентаризация').querySelectorAll('table');
@@ -43,8 +91,18 @@ function objectRows(): HTMLElement[] {
   return [...(body?.querySelectorAll('tr') ?? [])];
 }
 
+/** Строки, которые сейчас реально видны — без скрытых атрибутом `hidden`. */
+function visibleRows(rows: HTMLElement[]): HTMLElement[] {
+  return rows.filter((row) => !(row as HTMLTableRowElement).hidden);
+}
+
 function chips(): HTMLElement[] {
   return screen.getAllByTestId('inventory-type');
+}
+
+/** Чипы типов, которые сейчас видны, без скрытых `hidden`-атрибутом. */
+function visibleChips(): HTMLElement[] {
+  return chips().filter((chip) => !(chip.closest('li') as HTMLLIElement | null)?.hidden);
 }
 
 /** Текст ячеек строки перечня: «Инв. №», объект, тип, зона. */
@@ -469,5 +527,95 @@ describe('выгрузка CSV', () => {
     );
     expect(screen.queryByTestId('inventory-csv-done')).toBeNull();
     expect(screen.getByTestId<HTMLButtonElement>('inventory-csv').disabled).toBe(false);
+  });
+});
+
+describe('сворачивание «Объекты по типам» и перечня', () => {
+  test('по умолчанию видны первые три, дальше — кнопка с числом', () => {
+    renderMany();
+
+    expect(objectRows()).toHaveLength(5);
+    expect(visibleRows(objectRows())).toHaveLength(3);
+    expect(chips()).toHaveLength(5);
+    expect(visibleChips()).toHaveLength(3);
+
+    const rowsToggle = screen.getByTestId('inventory-rows-toggle');
+    expect(rowsToggle.textContent).toBe('Показать все (5)');
+    expect(rowsToggle.getAttribute('aria-expanded')).toBe('false');
+
+    const typesToggle = screen.getByTestId('inventory-types-toggle');
+    expect(typesToggle.textContent).toBe('Показать все (5)');
+    expect(typesToggle.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  test('«Показать все» раскрывает список, «Свернуть» возвращает обратно', () => {
+    renderMany();
+
+    fireEvent.click(screen.getByTestId('inventory-rows-toggle'));
+    expect(visibleRows(objectRows())).toHaveLength(5);
+    expect(screen.getByTestId('inventory-rows-toggle').textContent).toBe('Свернуть');
+    expect(screen.getByTestId('inventory-rows-toggle').getAttribute('aria-expanded')).toBe('true');
+
+    fireEvent.click(screen.getByTestId('inventory-rows-toggle'));
+    expect(visibleRows(objectRows())).toHaveLength(3);
+
+    fireEvent.click(screen.getByTestId('inventory-types-toggle'));
+    expect(visibleChips()).toHaveLength(5);
+    fireEvent.click(screen.getByTestId('inventory-types-toggle'));
+    expect(visibleChips()).toHaveLength(3);
+  });
+
+  test('элементов не больше трёх — кнопки «Показать все» нет', () => {
+    renderPanel();
+
+    expect(objectRows()).toHaveLength(2);
+    expect(screen.queryByTestId('inventory-rows-toggle')).toBeNull();
+    expect(chips()).toHaveLength(2);
+    expect(screen.queryByTestId('inventory-types-toggle')).toBeNull();
+  });
+
+  test('активный поиск показывает все совпадения без кнопки — не «нашёл, но не показал»', () => {
+    renderMany();
+
+    fireEvent.change(screen.getByLabelText('Поиск по перечню'), { target: { value: 'z_client' } });
+
+    // eq_work_1 и три добавленных объекта (C, D, E) лежат в z_client — четыре
+    // строки, больше предела в три, и все они видны сразу.
+    expect(visibleRows(objectRows())).toHaveLength(4);
+    expect(screen.queryByTestId('inventory-rows-toggle')).toBeNull();
+  });
+
+  test('строка сводки по типам фильтрует перечень целиком, без кнопки', () => {
+    renderMany();
+
+    // Тип за пределами первых трёх типов доступен через раскрытие типов…
+    fireEvent.click(screen.getByTestId('inventory-types-toggle'));
+    const chipE = chips().find((chip) => chip.getAttribute('data-type-id') === 'ot_e');
+    if (chipE === undefined) throw new Error('чип типа ot_e не найден');
+    fireEvent.click(chipE);
+
+    // …и с этого момента перечень фильтром показывает единственный объект
+    // этого типа без кнопки «Показать все» — фильтр важнее лимита.
+    expect(visibleRows(objectRows())).toHaveLength(1);
+    expect(screen.queryByTestId('inventory-rows-toggle')).toBeNull();
+  });
+
+  test('строка, по которой кликнули, остаётся видимой и после повторного «Свернуть»', () => {
+    const { onFocus } = renderMany();
+
+    fireEvent.click(screen.getByTestId('inventory-rows-toggle'));
+    const rowE = within(objectRows()[4] as HTMLElement);
+    fireEvent.click(rowE.getByRole('button', { name: 'Объект E' }));
+    expect(onFocus).toHaveBeenCalledWith({ kind: 'object', id: 'eq_e' });
+
+    fireEvent.click(screen.getByTestId('inventory-rows-toggle'));
+    expect(screen.getByTestId('inventory-rows-toggle').textContent).toBe('Показать все (5)');
+
+    const rows = objectRows();
+    // Первые три плюс объект E — то, по которому только что кликнули; D
+    // между ними по-прежнему скрыт — сворачивание не подряд, а по id.
+    expect(visibleRows(rows)).toHaveLength(4);
+    expect((rows[4] as HTMLTableRowElement).hidden).toBe(false);
+    expect((rows[3] as HTMLTableRowElement).hidden).toBe(true);
   });
 });

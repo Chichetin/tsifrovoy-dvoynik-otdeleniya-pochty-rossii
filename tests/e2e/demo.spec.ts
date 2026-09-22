@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, test, type Page, exportPlan } from './fixtures';
 import { DEMO_FILES, packageDemo, readZip } from '../../scripts/package-demo';
+import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 /** Каталог с распакованным архивом; наполняется один раз на файл спеки. */
@@ -45,6 +46,9 @@ async function openFromArchive(page: Page, name: string): Promise<void> {
 }
 
 async function selectByLabel(page: Page, label: string): Promise<void> {
+  // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
+  // кликается, пока список не раскрыт.
+  await expandInventoryRows(page);
   await page
     .getByLabel('Инвентаризация')
     .locator('.table__link', { hasText: label })
@@ -73,7 +77,9 @@ test.describe('демо-комплект из ZIP', () => {
     await openFromArchive(page, 'before.json');
     await expect(inventoryRows(page)).toHaveCount(53);
 
-    // Зоны на месте, вместе с вложенными.
+    // Зоны на месте, вместе с вложенными. Перечень свёрнут по умолчанию —
+    // большинство зон стоят не среди первых трёх строк, список раскрываем.
+    await expandInventoryRows(page);
     for (const zone of ['z_client', 'z_waiting', 'z_queue', 'z_entrance', 'z_back']) {
       await expect(page.locator('.table__link', { hasText: zone }).first()).toBeVisible();
     }

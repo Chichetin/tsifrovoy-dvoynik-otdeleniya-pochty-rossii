@@ -54,11 +54,32 @@ function bound(value: string): number | null | undefined {
 const ATTRIBUTE_KEY = /^[a-zA-Z][a-zA-Z0-9_]*$/;
 const BOOLEAN_WORDS: Record<string, boolean> = { да: true, true: true, нет: false, false: false };
 
+/**
+ * Same limit and the same wording as «Инвентаризация»: three types, three
+ * zone types, three rules, then «Показать все (N)»/«Свернуть» (user request
+ * 22.09). The form to add a new item is never inside the collapsed part, and
+ * adding one expands its list — the item just created is what the person
+ * came here to see.
+ */
+const COLLAPSE_LIMIT = 3;
+
+/** First `limit` items, or all of them once expanded — no items lost, only hidden. */
+function headCount<T>(items: readonly T[], expanded: boolean, limit: number): number {
+  return expanded || items.length <= limit ? items.length : limit;
+}
+
 export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): React.JSX.Element {
   const catalog = plan.catalog;
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<Id | null>(null);
+
+  // Свёрнуто по умолчанию, как «Объекты по типам» в инвентаризации; состояние
+  // экрана, а не документа. Добавление раскрывает список — только что
+  // созданный тип/правило всегда видно, а не только числится в счётчике.
+  const [typesExpanded, setTypesExpanded] = useState(false);
+  const [zoneTypesExpanded, setZoneTypesExpanded] = useState(false);
+  const [rulesExpanded, setRulesExpanded] = useState(false);
 
   const [typeLabel, setTypeLabel] = useState('');
   const [typeCategory, setTypeCategory] = useState('');
@@ -118,6 +139,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
     if (apply(next)) {
       setZoneLabel('');
       setSelectedType(id);
+      setZoneTypesExpanded(true);
     }
   };
 
@@ -152,6 +174,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
     if (apply(next)) {
       setTypeLabel('');
       setSelectedType(id);
+      setTypesExpanded(true);
     }
   };
 
@@ -216,7 +239,10 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
       max,
       rationale: ruleWhy.trim() === '' ? 'Правило добавлено в редакторе.' : ruleWhy,
     });
-    if (apply(next)) setRuleWhy('');
+    if (apply(next)) {
+      setRuleWhy('');
+      setRulesExpanded(true);
+    }
   };
 
   return (
@@ -249,6 +275,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             </p>
           )}
 
+          <div className="panel__group">
           <h3 className="library__category">Новый тип оборудования</h3>
           <div className="catalog__form">
             <label className="assistant__field">
@@ -304,12 +331,15 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             <p className="panel__note">Размеры условные — тип будет подписан как допущение команды.</p>
           </div>
 
-          <h3 className="library__category">Типы и их атрибуты</h3>
-          <ul className="catalog__types" data-testid="catalog-types">
-            {catalog.objectTypes.map((type) => {
+          <h3 className="library__category">
+            Типы и их атрибуты <span className="panel__count">{catalog.objectTypes.length}</span>
+          </h3>
+          <ul className="catalog__types" data-testid="catalog-types" id="catalog-types-list">
+            {catalog.objectTypes.map((type, index) => {
               const count = usedBy(type.id);
+              const hidden = index >= headCount(catalog.objectTypes, typesExpanded, COLLAPSE_LIMIT);
               return (
-                <li key={type.id} className={type.id === selectedType ? 'is-selected' : ''}>
+                <li key={type.id} className={type.id === selectedType ? 'is-selected' : ''} hidden={hidden}>
                   <button type="button" className="table__link" onClick={() => setSelectedType(type.id)}>
                     {type.label}
                   </button>
@@ -327,7 +357,21 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
               );
             })}
           </ul>
+          {catalog.objectTypes.length > COLLAPSE_LIMIT ? (
+            <button
+              type="button"
+              className="table__link"
+              aria-expanded={typesExpanded}
+              aria-controls="catalog-types-list"
+              data-testid="catalog-types-toggle"
+              onClick={() => setTypesExpanded((v) => !v)}
+            >
+              {typesExpanded ? 'Свернуть' : `Показать все (${catalog.objectTypes.length})`}
+            </button>
+          ) : null}
+          </div>
 
+          <div className="panel__group">
           <h3 className="library__category">Новый тип зоны</h3>
           <div className="catalog__form">
             <div className="catalog__row">
@@ -345,12 +389,15 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             </button>
           </div>
 
-          <h3 className="library__category">Типы зон и их атрибуты</h3>
-          <ul className="catalog__types" data-testid="catalog-zone-types">
-            {catalog.zoneTypes.map((type) => {
+          <h3 className="library__category">
+            Типы зон и их атрибуты <span className="panel__count">{catalog.zoneTypes.length}</span>
+          </h3>
+          <ul className="catalog__types" data-testid="catalog-zone-types" id="catalog-zone-types-list">
+            {catalog.zoneTypes.map((type, index) => {
               const count = zonesOf(type.id);
+              const hidden = index >= headCount(catalog.zoneTypes, zoneTypesExpanded, COLLAPSE_LIMIT);
               return (
-                <li key={type.id} className={type.id === selectedType ? 'is-selected' : ''}>
+                <li key={type.id} className={type.id === selectedType ? 'is-selected' : ''} hidden={hidden}>
                   <button type="button" className="table__link" onClick={() => setSelectedType(type.id)}>
                     {type.label}
                   </button>
@@ -368,9 +415,22 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
               );
             })}
           </ul>
+          {catalog.zoneTypes.length > COLLAPSE_LIMIT ? (
+            <button
+              type="button"
+              className="table__link"
+              aria-expanded={zoneTypesExpanded}
+              aria-controls="catalog-zone-types-list"
+              data-testid="catalog-zone-types-toggle"
+              onClick={() => setZoneTypesExpanded((v) => !v)}
+            >
+              {zoneTypesExpanded ? 'Свернуть' : `Показать все (${catalog.zoneTypes.length})`}
+            </button>
+          ) : null}
+          </div>
 
           {chosen === null ? null : (
-            <div className="catalog__form" data-testid="catalog-attributes">
+            <div className="catalog__form panel__group" data-testid="catalog-attributes">
               <p className="panel__note">
                 {chosenObject === null
                   ? `Атрибуты типа зоны «${chosen.label}»`
@@ -437,10 +497,13 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             </div>
           )}
 
-          <h3 className="library__category">Правила комплектования</h3>
-          <ul className="catalog__types" data-testid="catalog-rules">
-            {catalog.rules.map((rule) => (
-              <li key={rule.id}>
+          <div className="panel__group">
+          <h3 className="library__category">
+            Правила комплектования <span className="panel__count">{catalog.rules.length}</span>
+          </h3>
+          <ul className="catalog__types" data-testid="catalog-rules" id="catalog-rules-list">
+            {catalog.rules.map((rule, index) => (
+              <li key={rule.id} hidden={index >= headCount(catalog.rules, rulesExpanded, COLLAPSE_LIMIT)}>
                 {rule.kind === 'count'
                   ? `${catalog.zoneTypes.find((z) => z.id === rule.zoneTypeId)?.label ?? rule.zoneTypeId}: «${
                       catalog.objectTypes.find((t) => t.id === rule.objectTypeId)?.label ?? rule.objectTypeId
@@ -460,6 +523,18 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
               </li>
             ))}
           </ul>
+          {catalog.rules.length > COLLAPSE_LIMIT ? (
+            <button
+              type="button"
+              className="table__link"
+              aria-expanded={rulesExpanded}
+              aria-controls="catalog-rules-list"
+              data-testid="catalog-rules-toggle"
+              onClick={() => setRulesExpanded((v) => !v)}
+            >
+              {rulesExpanded ? 'Свернуть' : `Показать все (${catalog.rules.length})`}
+            </button>
+          ) : null}
           <div className="catalog__form">
             <div className="catalog__row">
               <label className="assistant__field">
@@ -503,6 +578,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
               Добавить правило
             </button>
             <p className="panel__note">Правило считается вместе с вложенными зонами и помечается как допущение команды.</p>
+          </div>
           </div>
         </>
       )}

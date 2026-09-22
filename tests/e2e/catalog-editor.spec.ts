@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page , exportPlan } from './fixtures';
+import { expandCatalogTypes, expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Справочник');
@@ -117,7 +118,9 @@ test('обязательный атрибут без умолчания откл
   await expect(panel(page).getByTestId('catalog-rules').locator('li')).toHaveCount(rulesBefore);
 
   // У камеры угол и дальность обзора читает слой «Камеры и зоны обзора» — рядом с
-  // атрибутом об этом сказано до клика «удалить».
+  // атрибутом об этом сказано до клика «удалить». Список типов свёрнут по
+  // умолчанию — «Камера» стоит не среди первых трёх, список нужно раскрыть.
+  await expandCatalogTypes(page);
   await panel(page).getByTestId('catalog-types').locator('li', { hasText: 'Камера' }).first().locator('.table__link').first().click();
   const notes = panel(page).getByTestId('catalog-attr-layer-note');
   await expect(notes).toHaveCount(2);
@@ -145,8 +148,10 @@ test('новый тип зоны из справочника назначает�
   await expect(panel(page).getByTestId('catalog-attributes')).toContainText('Пост охраны');
 
   // Зона демо-плана получает новый тип в карточке; поле атрибута появляется там же.
-  // Ссылка на зону живёт в перечне — открываем его вкладку (D-249).
+  // Ссылка на зону живёт в перечне — открываем его вкладку (D-249). Перечень
+  // свёрнут по умолчанию — z_back стоит не среди первых трёх строк.
   await showTab(page, 'Инвентаризация');
+  await expandInventoryRows(page);
   await page.locator('.table__link', { hasText: 'z_back' }).first().click();
   const card = page.getByLabel('Свойства');
   await card.getByLabel('Тип зоны').selectOption({ label: 'Комната охраны' });

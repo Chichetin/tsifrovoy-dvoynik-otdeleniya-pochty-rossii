@@ -122,6 +122,14 @@ const SORT_BUTTON_STYLE = {
 
 const EXPORT_ROW_STYLE = { display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' } as const;
 
+/**
+ * Both groups — types and the object list — start collapsed at the same
+ * count: three rows are enough to recognise the panel is not empty without
+ * the sixth-of-a-thousand-objects wall that a full table used to be. The
+ * user's own request (22.09) names the number, not a screen-height guess.
+ */
+const COLLAPSE_LIMIT = 3;
+
 /** Columns that can be sorted, in the order of the table. */
 const COLUMNS: { column: SortColumn; title: string }[] = [
   { column: 'inventoryNumber', title: 'Инв. №' },
@@ -189,6 +197,15 @@ export function InventoryPanel({
   const [sort, setSort] = useState<InventorySort | null>(null);
   const [exported, setExported] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
+  // Свёрнуто по умолчанию — состояние экрана, а не документа: план и файл его
+  // не хранят, и его же сбрасывает открытие другого файла ниже.
+  const [typesExpanded, setTypesExpanded] = useState(false);
+  const [rowsExpanded, setRowsExpanded] = useState(false);
+  // Строка, по которой уже кликнули в этом перечне: сворачивание её не прячет,
+  // иначе выбор на плане расходится с тем, что видно в списке (клик по
+  // findings проверки на объект за пределами первых трёх работает так же
+  // через холст — see README «известные ограничения»).
+  const [pinnedRowId, setPinnedRowId] = useState<Id | null>(null);
   const objectColumns = useResizableColumns('inventory-objects', [23, 26, 29, 22]);
   const zoneColumns = useResizableColumns('inventory-zones', [50, 25, 25]);
   // Typing and clearing stay responsive on a thousand rows: the table redraws
@@ -208,6 +225,9 @@ export function InventoryPanel({
     setSort(null);
     setExported({ status: 'idle' });
     setNotice(null);
+    setTypesExpanded(false);
+    setRowsExpanded(false);
+    setPinnedRowId(null);
   }
   // Тип, которого в плане больше нет, строкой сводки не снять: её уже нет на
   // экране. Такой фильтр снимается сам, иначе перечень остаётся пустым.
@@ -226,6 +246,12 @@ export function InventoryPanel({
   const total = rows.length;
   const filtered = search.trim() !== '' || typeId !== null;
   const absent = absentTypes(inventory);
+
+  // Раскрыто целиком, когда просить нечего: сворачивать три строки незачем, а
+  // активный поиск или фильтр по типу должен показать все совпадения — иначе
+  // «нашёл, но не показал».
+  const typesOverflow = types.length > COLLAPSE_LIMIT;
+  const rowsOverflow = !filtered && shown.length > COLLAPSE_LIMIT;
 
   const reset = (): void => {
     setQuery('');
@@ -261,15 +287,16 @@ export function InventoryPanel({
       </h2>
 
       {types.length === 0 ? null : (
-        <>
+        <div className="panel__group">
           <h3 className="panel__title">
             Объекты по типам <span className="panel__count">{types.length}</span>
           </h3>
-          <ul style={LIST_STYLE} data-testid="inventory-types">
-            {types.map((type) => {
+          <ul style={LIST_STYLE} data-testid="inventory-types" id="inventory-types-list">
+            {types.map((type, index) => {
               const selected = type.typeId === typeId;
+              const hidden = typesOverflow && !typesExpanded && index >= COLLAPSE_LIMIT;
               return (
-                <li key={type.typeId}>
+                <li key={type.typeId} hidden={hidden}>
                   <button
                     type="button"
                     style={selected ? CHIP_SELECTED_STYLE : CHIP_STYLE}
@@ -288,18 +315,33 @@ export function InventoryPanel({
               );
             })}
           </ul>
+          {typesOverflow ? (
+            <button
+              type="button"
+              className="table__link"
+              aria-expanded={typesExpanded}
+              aria-controls="inventory-types-list"
+              data-testid="inventory-types-toggle"
+              onClick={() => setTypesExpanded((value) => !value)}
+            >
+              {typesExpanded ? 'Свернуть' : `Показать все (${types.length})`}
+            </button>
+          ) : null}
           <p className="panel__note">
             {absent === 0
               ? 'Показаны типы справочника, у которых есть объекты. Строка типа фильтрует перечень.'
               : `Строка типа фильтрует перечень. Ещё ${absent} ${typesWord(absent)} справочника без объектов.`}
           </p>
-        </>
+        </div>
       )}
 
       {total === 0 ? (
         <p className="panel__empty">Оборудование ещё не размещено</p>
       ) : (
-        <>
+        <div className="panel__group">
+          <h3 className="panel__title">
+            Перечень объектов <span className="panel__count">{total}</span>
+          </h3>
           <input
             type="search"
             className="panel__search"
@@ -310,7 +352,7 @@ export function InventoryPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
 
-          <div style={SCROLL_STYLE} data-testid="inventory-scroll">
+          <div style={SCROLL_STYLE} data-testid="inventory-scroll" id="inventory-object-rows">
             <table className="table inventory__table" style={TABLE_STYLE}>
               <colgroup>
                 {objectColumns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
@@ -347,8 +389,16 @@ export function InventoryPanel({
                 </tr>
               </thead>
               <tbody>
-                {shown.map((row) => (
-                  <tr key={row.id}>
+                {shown.map((row, index) => (
+                  <tr
+                    key={row.id}
+                    hidden={
+                      rowsOverflow &&
+                      !rowsExpanded &&
+                      index >= COLLAPSE_LIMIT &&
+                      row.id !== pinnedRowId
+                    }
+                  >
                     <td>
                       {row.inventoryNumber === null ? (
                         <span className="table__muted" title="Инвентарный номер не задан">
@@ -363,7 +413,13 @@ export function InventoryPanel({
                         type="button"
                         className="table__link"
                         title={row.id}
-                        onClick={() => onFocus({ kind: 'object', id: row.id })}
+                        onClick={() => {
+                          onFocus({ kind: 'object', id: row.id });
+                          // Строка, которую только что нашли, из перечня не
+                          // прячется — даже когда «Свернуть» снова уберёт
+                          // остальное за пределами первых трёх.
+                          setPinnedRowId(row.id);
+                        }}
                       >
                         {row.label}
                       </button>
@@ -391,6 +447,19 @@ export function InventoryPanel({
               </tbody>
             </table>
           </div>
+
+          {rowsOverflow ? (
+            <button
+              type="button"
+              className="table__link"
+              aria-expanded={rowsExpanded}
+              aria-controls="inventory-object-rows"
+              data-testid="inventory-rows-toggle"
+              onClick={() => setRowsExpanded((value) => !value)}
+            >
+              {rowsExpanded ? 'Свернуть' : `Показать все (${shown.length})`}
+            </button>
+          ) : null}
 
           <div style={EXPORT_ROW_STYLE}>
             <button
@@ -441,61 +510,63 @@ export function InventoryPanel({
           {filtered && shown.length === 0 ? (
             <p className="panel__empty">Ничего не найдено — измените запрос или снимите фильтр</p>
           ) : null}
-        </>
+        </div>
       )}
 
-      <dl className="metrics">
-        <div>
-          <dt>Всего объектов</dt>
-          <dd>{total}</dd>
-        </div>
-        <div>
-          <dt>Вне зон</dt>
-          <dd>{inventory.unassigned}</dd>
-        </div>
-      </dl>
+      <div className="panel__group">
+        <dl className="metrics">
+          <div>
+            <dt>Всего объектов</dt>
+            <dd>{total}</dd>
+          </div>
+          <div>
+            <dt>Вне зон</dt>
+            <dd>{inventory.unassigned}</dd>
+          </div>
+        </dl>
 
-      {zones.length === 0 ? null : (
-        <table className="table" style={TABLE_STYLE}>
-          <colgroup>
-            {zoneColumns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
-          </colgroup>
-          <thead>
-            <tr>
-              <th scope="col" className="table__resizable-head">
-                Зона
-                {zoneColumns.separator(0, 'Изменить ширину между «Зона» и «В самой зоне»')}
-              </th>
-              <th scope="col" className="inventory__num table__resizable-head">
-                В самой зоне
-                {zoneColumns.separator(1, 'Изменить ширину между «В самой зоне» и «С вложенными»')}
-              </th>
-              <th scope="col" className="inventory__num">С вложенными</th>
-            </tr>
-          </thead>
-          <tbody>
-            {zones.map((zone) => (
-              <tr key={zone.zoneId}>
-                <td>
-                  <button
-                    type="button"
-                    className="table__link"
-                    onClick={() => onFocus({ kind: 'zone', id: zone.zoneId })}
-                  >
-                    {display(zone.name, zone.zoneId)}
-                    {zone.name === null ? null : <RawId id={zone.zoneId} />}
-                  </button>
-                </td>
-                <td className="inventory__num">{zone.direct}</td>
-                <td className="inventory__num">{zone.inclusive}</td>
+        {zones.length === 0 ? null : (
+          <table className="table" style={TABLE_STYLE}>
+            <colgroup>
+              {zoneColumns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
+            </colgroup>
+            <thead>
+              <tr>
+                <th scope="col" className="table__resizable-head">
+                  Зона
+                  {zoneColumns.separator(0, 'Изменить ширину между «Зона» и «В самой зоне»')}
+                </th>
+                <th scope="col" className="inventory__num table__resizable-head">
+                  В самой зоне
+                  {zoneColumns.separator(1, 'Изменить ширину между «В самой зоне» и «С вложенными»')}
+                </th>
+                <th scope="col" className="inventory__num">С вложенными</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-      <p className="panel__note">
-        Столбец «с вложенными» суммировать нельзя: объект вложенной зоны учтён и у родителя.
-      </p>
+            </thead>
+            <tbody>
+              {zones.map((zone) => (
+                <tr key={zone.zoneId}>
+                  <td>
+                    <button
+                      type="button"
+                      className="table__link"
+                      onClick={() => onFocus({ kind: 'zone', id: zone.zoneId })}
+                    >
+                      {display(zone.name, zone.zoneId)}
+                      {zone.name === null ? null : <RawId id={zone.zoneId} />}
+                    </button>
+                  </td>
+                  <td className="inventory__num">{zone.direct}</td>
+                  <td className="inventory__num">{zone.inclusive}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p className="panel__note">
+          Столбец «с вложенными» суммировать нельзя: объект вложенной зоны учтён и у родителя.
+        </p>
+      </div>
     </section>
   );
 }

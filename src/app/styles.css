@@ -1112,6 +1112,16 @@ body {
   font-size: var(--text-xs);
 }
 
+/* Shared between «Инвентаризация» and «Справочник»: a border above each
+   group after the panel's own heading, so a reader can tell where one list
+   ends and the next begins without counting headings (user request 22.09,
+   D-XXX). One class, not two near-identical rules per panel. */
+.panel__group {
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-line);
+}
+
 .panel__search {
   width: 100%;
   margin-bottom: var(--space-2);
