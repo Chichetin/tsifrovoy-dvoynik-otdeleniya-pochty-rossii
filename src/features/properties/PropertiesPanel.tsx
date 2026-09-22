@@ -29,6 +29,7 @@ import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType, informationAttributeKeys } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
+import { hasOwnShape, shapeTypeFrom } from './shape-type';
 
 type Errors = Record<string, string>;
 
@@ -125,10 +126,12 @@ export function PropertiesPanel({
   const selectionKey =
     session.selection === null ? '' : `${session.selection.kind}:${session.selection.id}`;
   const [draftsFor, setDraftsFor] = useState(selectionKey);
+  const [shapeSaved, setShapeSaved] = useState<string | null>(null);
   if (draftsFor !== selectionKey) {
     setDraftsFor(selectionKey);
     setDraft({});
     setErrors({});
+    setShapeSaved(null);
   }
 
   const selection = session.selection;
@@ -544,6 +547,65 @@ export function PropertiesPanel({
         <p className="props__line" data-testid="props-zone">
           Зона: {zoneName(plan, object.zoneId)}
         </p>
+
+        {hasOwnShape(plan.catalog, object) ? (
+          <div className="props__shape" data-testid="props-shape">
+            <p className="props__line">
+              Форма: своя, вершин — {object.outline?.length}. Двойной щелчок по объекту на плане — правка вершин.
+            </p>
+            <button
+              type="button"
+              className="files__button"
+              onClick={() => {
+                const rest = { ...object };
+                delete rest.outline;
+                commitCommand('shape', { type: 'object.put', object: rest });
+              }}
+            >
+              Сбросить форму к типу
+            </button>
+            {field(
+              'shape.name',
+              'Название нового типа',
+              <input
+                type="text"
+                aria-label="Название нового типа"
+                value={shown('shape.name', '')}
+                onChange={(event) => setDraft((current) => ({ ...current, 'shape.name': event.target.value }))}
+              />,
+            )}
+            <button
+              type="button"
+              className="files__button"
+              onClick={() => {
+                const name = shown('shape.name', '');
+                const created = shapeTypeFrom(plan.catalog, object, name);
+                if (created === null) {
+                  setErrors((current) => ({ ...current, 'shape.name': 'Введите название типа.' }));
+                  return;
+                }
+                if (onCommand({ type: 'catalog.replace', catalog: created.catalog }).ok) {
+                  setShapeSaved(`Тип «${name.trim()}» добавлен в библиотеку.`);
+                  setDraft((current) => without(current, 'shape.name'));
+                  setErrors((current) => without(current, 'shape.name'));
+                } else {
+                  setErrors((current) => ({ ...current, 'shape.name': 'Справочник не принял новый тип.' }));
+                }
+              }}
+            >
+              Сохранить форму как новый тип
+            </button>
+          </div>
+        ) : (
+          <p className="props__hint" data-testid="props-shape">
+            Форма: как у типа. Двойной щелчок по объекту на плане — правка вершин.
+          </p>
+        )}
+        {shapeSaved === null ? null : (
+          <p className="props__line" role="status">
+            {shapeSaved}
+          </p>
+        )}
 
         {type === null
           ? null

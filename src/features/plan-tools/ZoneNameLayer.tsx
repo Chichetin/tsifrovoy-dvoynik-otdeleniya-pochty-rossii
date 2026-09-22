@@ -71,7 +71,7 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
     [plan.zones, objectBoxes],
   );
 
-  // Стиль по уровню вложенности (D-250, D-279); глубина — по всем зонам
+  // Стиль по уровню вложенности (D-250, D-280); глубина — по всем зонам
   // плана, а не только видимым: скрытый родитель не делает вложенную зону корнем.
   const styles = useMemo(
     () => new Map(plan.zones.map((zone) => [zone.id, zoneNameStyle(zoneDepth(zone.id, plan.zones))])),

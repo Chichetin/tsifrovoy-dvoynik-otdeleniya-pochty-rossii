@@ -31,7 +31,9 @@ import type {
  */
 export type Tool =
   | { kind: 'select' | 'pan' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
-  | { kind: 'object.place'; typeId: Id };
+  | { kind: 'object.place'; typeId: Id }
+  /** D-279: a polygon drawn by clicks becomes a new object of `typeId` with that outline. */
+  | { kind: 'shape.draw'; typeId: Id };
 
 export type ToolKind = Tool['kind'];
 

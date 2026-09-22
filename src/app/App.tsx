@@ -43,6 +43,7 @@ import { LibraryPanel } from '../features/library/LibraryPanel';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
 import { MeasureLayer } from '../features/plan-tools/MeasureLayer';
+import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
@@ -290,10 +291,25 @@ export function App(): React.JSX.Element {
     [focusOn, showRightTab],
   );
 
-  const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
   const placedType = useRef<Id | null>(null);
   // D-275: hidden floor/ceiling groups (view state, see `shownDocument` below).
   const [hiddenMounts, setHiddenMounts] = useState<ReadonlySet<ObjectMount>>(() => new Set());
+  // D-279: a drawn shape is a placement too — into a hidden group it shows that group.
+  const dispatchPlanCommand = useCallback(
+    (command: Command): Result<PlanDocument> => {
+      const result = dispatchAndSelect(command);
+      if (result.ok && tool.kind === 'shape.draw' && command.type === 'object.put') {
+        const scope = mountScopeLayer(store.getState().document.layers);
+        if (scope !== undefined) {
+          const placed = command.object;
+          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
+        }
+      }
+      return result;
+    },
+    [dispatchAndSelect, store, tool],
+  );
+  const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand });
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -670,7 +686,7 @@ export function App(): React.JSX.Element {
               library: (
                 <LibraryPanel
                   catalog={document.catalog}
-                  activeTypeId={tool.kind === 'object.place' ? tool.typeId : null}
+                  activeTypeId={tool.kind === 'object.place' || tool.kind === 'shape.draw' ? tool.typeId : null}
                   onTool={setTool}
                 />
               ),
@@ -814,6 +830,9 @@ export function App(): React.JSX.Element {
                 название зоны целиком; полупрозрачность не даёт подписи закрыть
                 сам объект. */}
             <ZoneNameLayer document={shownDocument} viewport={viewport} />
+            {/* Правка формы объекта (D-279) — над оборудованием: её ручки
+                должны перехватывать жест раньше переноса и размера объекта. */}
+            <ObjectShapeLayer document={document} session={session} onCommand={dispatch} />
             <InformationLayer document={document} session={session} />
             {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                 должен уходить под объект или под имя зоны. В план она ничего не

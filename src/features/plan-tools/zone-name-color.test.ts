@@ -32,7 +32,7 @@ describe('zoneNameFill (D-250)', () => {
   });
 });
 
-describe('zoneNameStyle (D-279)', () => {
+describe('zoneNameStyle (D-280)', () => {
   it('makes the root name the brightest and each nested level quieter', () => {
     const [root, nested, deeper] = [0, 1, 2].map((depth) => zoneNameStyle(depth));
     expect(root?.fontStyle).toBe('bold');
