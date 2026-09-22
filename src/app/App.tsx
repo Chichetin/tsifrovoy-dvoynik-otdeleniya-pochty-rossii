@@ -15,6 +15,7 @@ import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
+import { modelToScreen } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
 import {
   mountScopeLayer,
@@ -28,6 +29,8 @@ import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { planExtent } from '../features/editor/focus';
+import { fitToExtent } from '../features/editor/viewport';
 import { historyHotkey } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
@@ -74,6 +77,33 @@ import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
+const PANEL_WIDTHS_KEY = 'posttech.panel-widths';
+const PANEL_HANDLE_PX = 8;
+const MIN_CANVAS_PX = 360;
+const PANEL_LIMITS = { left: [220, 440], right: [280, 500] } as const;
+type PanelSide = 'left' | 'right';
+type PanelWidths = { left: number; right: number };
+
+function clampPanelWidth(side: PanelSide, width: number, available: number, other: number): number {
+  const [minimum, maximum] = PANEL_LIMITS[side];
+  const room = available - other - PANEL_HANDLE_PX * 2 - MIN_CANVAS_PX;
+  return Math.round(Math.max(minimum, Math.min(width, maximum, Math.max(minimum, room))));
+}
+
+function initialPanelWidths(): PanelWidths {
+  const fallback = { left: 260, right: 340 };
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(PANEL_WIDTHS_KEY) ?? 'null');
+    if (saved === null || typeof saved !== 'object') return fallback;
+    const widths = saved as Partial<PanelWidths>;
+    if (!Number.isFinite(widths.left) || !Number.isFinite(widths.right)) return fallback;
+    const left = clampPanelWidth('left', widths.left as number, window.innerWidth, widths.right as number);
+    const right = clampPanelWidth('right', widths.right as number, window.innerWidth, left);
+    return { left, right };
+  } catch {
+    return fallback;
+  }
+}
 
 function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
   return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
@@ -92,6 +122,104 @@ export function App(): React.JSX.Element {
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
+  const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
+  const [planOnly, setPlanOnly] = useState(false);
+  const canvasRef = useRef<HTMLElement>(null);
+  const togglePlanOnly = (): void => {
+    const before = canvasRef.current?.getBoundingClientRect();
+    setPlanOnly((current) => !current);
+    // The canvas grows around the plan. Keep its current scale and centre,
+    // including a view the user has already panned or zoomed.
+    window.requestAnimationFrame(() => {
+      const after = canvasRef.current?.getBoundingClientRect();
+      if (before === undefined || after === undefined) return;
+      setViewport((current) => ({
+        ...current,
+        origin: [
+          current.origin[0] + (after.width - before.width) / 2,
+          current.origin[1] + (after.height - before.height) / 2,
+        ],
+      }));
+    });
+  };
+  type CanvasBeforeResize = { width: number; height: number; fitted: boolean };
+  const resizeStart = useRef<{ side: PanelSide; x: number; width: number; canvas: CanvasBeforeResize | null } | null>(null);
+  const canvasBeforeResize = (): CanvasBeforeResize | null => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (rect === undefined) return null;
+    const size = { width: rect.width, height: rect.height };
+    const extent = planExtent(document);
+    const fitted = fitToExtent(extent, size);
+    return {
+      ...size,
+      fitted: Math.abs(viewport.scale - fitted.scale) < fitted.scale * 0.02 &&
+        extent.every((point) => {
+          const [x, y] = modelToScreen(point, viewport);
+          return x >= 0 && x <= size.width && y >= 0 && y <= size.height;
+        }),
+    };
+  };
+  const reframeAfterResize = (before: CanvasBeforeResize | null): void => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (before === null || rect === undefined || Math.abs(rect.width - before.width) < 1) return;
+    const after = { width: rect.width, height: rect.height };
+    if (before.fitted) {
+      setViewport(fitToExtent(planExtent(document), after));
+    } else {
+      // A deliberately zoomed view keeps its scale and the same world point
+      // under the centre of the canvas while the side panel moves.
+      setViewport((current) => ({
+        ...current,
+        origin: [
+          current.origin[0] + (after.width - before.width) / 2,
+          current.origin[1] + (after.height - before.height) / 2,
+        ],
+      }));
+    }
+  };
+  useEffect(() => {
+    try { window.localStorage.setItem(PANEL_WIDTHS_KEY, JSON.stringify(panelWidths)); } catch { /* private mode */ }
+  }, [panelWidths]);
+  const startResize = (side: PanelSide, event: React.PointerEvent<HTMLDivElement>): void => {
+    if (event.button !== 0) return;
+    resizeStart.current = { side, x: event.clientX, width: panelWidths[side], canvas: canvasBeforeResize() };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const moveResize = (side: PanelSide, event: React.PointerEvent<HTMLDivElement>): void => {
+    const start = resizeStart.current;
+    if (start === null || start.side !== side) return;
+    const width = start.width + (side === 'left' ? event.clientX - start.x : start.x - event.clientX);
+    const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
+    setPanelWidths((current) => ({
+      ...current,
+      [side]: clampPanelWidth(side, width, available, current[side === 'left' ? 'right' : 'left']),
+    }));
+  };
+  const stopResize = (event: React.PointerEvent<HTMLDivElement>): void => {
+    const start = resizeStart.current;
+    resizeStart.current = null;
+    if (start !== null) reframeAfterResize(start.canvas);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const resizeByKey = (side: PanelSide, event: React.KeyboardEvent<HTMLDivElement>): void => {
+    const direction = side === 'left' ? 1 : -1;
+    const [minimum, maximum] = PANEL_LIMITS[side];
+    const step = event.key === 'ArrowLeft' ? -16 * direction : event.key === 'ArrowRight' ? 16 * direction : 0;
+    if (step === 0 && event.key !== 'Home' && event.key !== 'End') return;
+    event.preventDefault();
+    const before = canvasBeforeResize();
+    const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
+    setPanelWidths((current) => ({
+      ...current,
+      [side]: clampPanelWidth(
+        side,
+        event.key === 'Home' ? minimum : event.key === 'End' ? maximum : current[side] + step,
+        available,
+        current[side === 'left' ? 'right' : 'left'],
+      ),
+    }));
+    window.requestAnimationFrame(() => reframeAfterResize(before));
+  };
   // D-274: the plaque keeps the refs and revision of the refusal, so it
   // disappears by itself once the plan it spoke about is gone.
   const [lastError, setLastError] = useState<EditError | null>(null);
@@ -594,7 +722,10 @@ export function App(): React.JSX.Element {
   const shownError = lastError !== null && isEditErrorCurrent(lastError, document, revision) ? lastError : null;
 
   return (
-    <div className="shell">
+    <div
+      className={`shell${planOnly ? ' shell--plan-only' : ''}`}
+      style={{ '--side-left': `${panelWidths.left}px`, '--side-right': `${panelWidths.right}px` } as React.CSSProperties}
+    >
       <header className="shell__bar">
         {/* D-260: two spans so the title can take two lines below 1600 px. */}
         <h1 className="shell__title">
@@ -661,8 +792,8 @@ export function App(): React.JSX.Element {
         </div>
       </header>
 
-      <div className="shell__body">
-        <aside className="shell__side" data-tour="side-left">
+      <div className={`shell__body${planOnly ? ' shell__body--plan-only' : ''}`}>
+        <aside id="side-panel-left" className="shell__side" data-tour="side-left">
           <SideTabs
             label="Панели слева"
             idPrefix="side-left"
@@ -750,7 +881,38 @@ export function App(): React.JSX.Element {
           </div>
         </aside>
 
-        <main className="shell__canvas">
+        <div
+          className="shell__resize"
+          role="separator"
+          aria-label="Изменить ширину левой панели"
+          aria-orientation="vertical"
+          aria-controls="side-panel-left"
+          aria-valuemin={PANEL_LIMITS.left[0]}
+          aria-valuemax={PANEL_LIMITS.left[1]}
+          aria-valuenow={panelWidths.left}
+          tabIndex={0}
+          onPointerDown={(event) => startResize('left', event)}
+          onPointerMove={(event) => moveResize('left', event)}
+          onPointerUp={stopResize}
+          onPointerCancel={stopResize}
+          onKeyDown={(event) => resizeByKey('left', event)}
+        />
+
+        <main className="shell__canvas" ref={canvasRef}>
+          <button
+            type="button"
+            className="shell__plan-only-toggle"
+            aria-label={planOnly ? 'Показать интерфейс' : 'Скрыть интерфейс'}
+            title={planOnly ? 'Показать интерфейс' : 'Показать только план'}
+            aria-pressed={planOnly}
+            onClick={togglePlanOnly}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2 12c2.5-4 5.8-6 10-6s7.5 2 10 6c-2.5 4-5.8 6-10 6s-7.5-2-10-6Z" />
+              <circle cx="12" cy="12" r="3" />
+              {planOnly ? <path d="M3 21 21 3" /> : null}
+            </svg>
+          </button>
           {/* The refusal floats over the canvas: a row above it would push the
               plan down under the pointer that just made the gesture. */}
           {shownError === null ? null : (
@@ -858,7 +1020,24 @@ export function App(): React.JSX.Element {
           ) : null}
         </main>
 
-        <aside className="shell__side shell__side--wide" data-tour="side-right">
+        <div
+          className="shell__resize"
+          role="separator"
+          aria-label="Изменить ширину правой панели"
+          aria-orientation="vertical"
+          aria-controls="side-panel-right"
+          aria-valuemin={PANEL_LIMITS.right[0]}
+          aria-valuemax={PANEL_LIMITS.right[1]}
+          aria-valuenow={panelWidths.right}
+          tabIndex={0}
+          onPointerDown={(event) => startResize('right', event)}
+          onPointerMove={(event) => moveResize('right', event)}
+          onPointerUp={stopResize}
+          onPointerCancel={stopResize}
+          onKeyDown={(event) => resizeByKey('right', event)}
+        />
+
+        <aside id="side-panel-right" className="shell__side shell__side--wide" data-tour="side-right">
           <SideTabs
             label="Панели справа"
             idPrefix="side-right"

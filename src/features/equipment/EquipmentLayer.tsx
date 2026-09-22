@@ -13,7 +13,7 @@
  */
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
+import { Circle, Group, Label, Layer, Line, Path, Rect, Tag, Text } from 'react-konva';
 import Konva from 'konva';
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
@@ -53,6 +53,7 @@ import {
   type ResizeHandle,
 } from './transform';
 import { isWallMounted } from './wall-mount';
+import { isPlanPictogramVisible, planPictogram, PLAN_PICTOGRAM_PATHS, type PlanPictogram } from '../../domain/plan-pictogram';
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
@@ -149,6 +150,45 @@ const EquipmentSymbol = memo(function EquipmentSymbol({
   return <Line points={points} closed perfectDrawEnabled={false} {...style} />;
 });
 
+/**
+ * Thin white line icons make a completed plan readable without turning it
+ * into an admin table. They sit inside the object and never receive input;
+ * moving, selecting and checking the object still belongs to its footprint.
+ */
+function EquipmentPictogram({
+  kind,
+  width,
+  height,
+  opacity,
+  color = '#FFFFFF',
+}: {
+  kind: PlanPictogram;
+  width: number;
+  height: number;
+  opacity: number;
+  color?: string;
+}): React.JSX.Element | null {
+  if (kind === null || !isPlanPictogramVisible(width, height)) return null;
+  const size = Math.min(20, Math.min(width, height) * 0.78);
+  const scale = size / 24;
+  return (
+    <Path
+      name={`plan-pictogram-${kind}`}
+      data={PLAN_PICTOGRAM_PATHS[kind]}
+      x={-size / 2}
+      y={-size / 2}
+      scaleX={scale}
+      scaleY={scale}
+      stroke={color}
+      strokeWidth={2.3}
+      lineCap="round"
+      lineJoin="round"
+      opacity={opacity}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  );
+}
 export function EquipmentLayer({
   document: plan,
   session,
@@ -562,6 +602,7 @@ export function EquipmentLayer({
   const render = (object: Equipment, ghost: boolean): React.JSX.Element => {
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
+    const hasCaption = objectLabel(current, viewport) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
@@ -657,6 +698,14 @@ export function EquipmentLayer({
           stroke="#343A40"
           strokeWidth={1}
         />
+        {hasCaption ? null : (
+          <EquipmentPictogram
+            kind={planPictogram(object.typeId)}
+            width={current.size_m[0] * viewport.scale}
+            height={current.size_m[1] * viewport.scale}
+            opacity={ghost ? 0.45 : 0.9}
+          />
+        )}
       </Group>
     );
   };
@@ -793,10 +842,13 @@ export function EquipmentLayer({
           .map((object) => {
             const label = objectLabel(shown(object), viewport);
             if (label === null) return null;
-            // Konva counts padding inside the box: without it the second line is cut.
-            const height = label.lines * LABEL_LINE_PX + 2;
+            const kind = planPictogram(object.typeId);
+            // The symbol and the name share one badge. A separate floating
+            // marker used to cover the caption on the busy demo plan.
+            const iconSpace = kind === null ? 0 : 24;
+            const height = Math.max(label.lines * LABEL_LINE_PX + 2, iconSpace === 0 ? 0 : 22);
             return (
-              <Label
+              <Group
                 key={`label-${object.id}`}
                 name={`label-${object.id}`}
                 // Поворот — вокруг центра объекта, поэтому точка задаётся
@@ -809,12 +861,38 @@ export function EquipmentLayer({
                 rotation={label.rotation}
                 listening={false}
               >
-                {/* A pale tag under the text: dark letters on a red rack are
-                    unreadable. One legibility technique, applied everywhere
-                    (D-216) — no outlined text alongside it. */}
-                <Tag fill="#FFFFFF" opacity={0.85} cornerRadius={2} />
-                <Text
+                <Rect
                   width={label.width}
+                  height={height}
+                  fill="#FFFFFF"
+                  opacity={0.94}
+                  cornerRadius={3}
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+                {kind === null ? null : (
+                  <Group name={`plan-pictogram-caption-${object.id}`} x={12} y={height / 2} listening={false}>
+                    <Rect
+                      x={-10}
+                      y={-10}
+                      width={20}
+                      height={20}
+                      fill="#E8F2F8"
+                      cornerRadius={3}
+                      listening={false}
+                    />
+                    <EquipmentPictogram
+                      kind={kind}
+                      width={24}
+                      height={24}
+                      opacity={1}
+                      color="#17567A"
+                    />
+                  </Group>
+                )}
+                <Text
+                  x={iconSpace}
+                  width={label.width - iconSpace}
                   height={height}
                   text={label.text}
                   fontSize={label.fontSize}
@@ -830,7 +908,7 @@ export function EquipmentLayer({
                   ellipsis
                   padding={1}
                 />
-              </Label>
+              </Group>
             );
           })}
 

@@ -213,6 +213,23 @@ async function armLayerClearCounter(page: Page): Promise<void> {
 }
 
 test.describe('жесты над оборудованием', () => {
+  test('готовый 2D-план показывает условные значки объектов, не только цвет и подпись', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await expect(inventoryRows(page)).toHaveCount(53);
+
+    const pictograms = await page.evaluate(() => {
+      type Stage = { find(selector: string): unknown[] };
+      const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
+      const kinds = ['cashier', 'terminal', 'rack', 'workplace', 'seat', 'printer'];
+      return Object.fromEntries(kinds.map((kind) => [kind, stage?.find(`.plan-pictogram-${kind}`).length ?? 0]));
+    });
+
+    for (const kind of ['cashier', 'terminal', 'rack', 'workplace', 'seat', 'printer']) {
+      expect(pictograms[kind]).toBeGreaterThan(0);
+    }
+  });
+
   test('оборудование можно перетащить из библиотеки прямо на план', async ({ page }) => {
     await page.goto('/');
 

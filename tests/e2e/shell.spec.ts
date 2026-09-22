@@ -22,6 +22,80 @@ type Layout = { bar: number; canvasTop: number; overflow: number; slack: number;
 /** D-261: the free header column must keep at least this much in the worst state. */
 const MIN_SLACK_PX = 20;
 
+test('границы боковых панелей двигаются, а глаз оставляет только план', async ({ page }) => {
+  await page.goto('/');
+  const left = page.locator('#side-panel-left');
+  const right = page.locator('#side-panel-right');
+  const canvas = page.locator('.shell__canvas');
+  const leftWidth = (await left.boundingBox())!.width;
+  const rightWidth = (await right.boundingBox())!.width;
+  const canvasWidth = (await canvas.boundingBox())!.width;
+
+  const leftHandle = page.getByRole('separator', { name: 'Изменить ширину левой панели' });
+  const handleBox = (await leftHandle.boundingBox())!;
+  await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(handleBox.x + handleBox.width / 2 + 80, handleBox.y + handleBox.height / 2, { steps: 5 });
+  await page.mouse.up();
+  expect((await left.boundingBox())!.width).toBeGreaterThan(leftWidth + 65);
+  expect((await canvas.boundingBox())!.width).toBeLessThan(canvasWidth - 65);
+
+  const rightHandle = page.getByRole('separator', { name: 'Изменить ширину правой панели' });
+  await rightHandle.focus();
+  await page.keyboard.press('ArrowLeft');
+  expect((await right.boundingBox())!.width).toBeGreaterThan(rightWidth);
+  await page.reload();
+  expect((await left.boundingBox())!.width).toBeGreaterThan(leftWidth + 65);
+
+  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
+  await expect(page.getByTestId('files-notice')).toBeVisible();
+  const eye = page.getByRole('button', { name: 'Скрыть интерфейс' });
+  const noticeBox = (await page.getByTestId('files-notice').boundingBox())!;
+  const eyeBox = (await eye.boundingBox())!;
+  expect(eyeBox.y).toBeGreaterThanOrEqual(noticeBox.y + noticeBox.height);
+  const shownScale = await page.getByTestId('canvas-scale').textContent();
+  await eye.click();
+  await expect(left).toBeHidden();
+  await expect(right).toBeHidden();
+  await expect(page.locator('.shell__bar')).toBeHidden();
+  expect((await canvas.boundingBox())!.width).toBeGreaterThan(1200);
+  expect(await page.getByTestId('canvas-scale').textContent()).toBe(shownScale);
+  await page.getByRole('button', { name: 'Показать интерфейс' }).click();
+  await expect(left).toBeVisible();
+  await expect(right).toBeVisible();
+  await expect(page.locator('.shell__bar')).toBeVisible();
+});
+
+test('при сужении холста готовый план вписывается, а увеличенный вид сохраняет масштаб', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
+  const scale = async (): Promise<number> => {
+    const label = (await page.getByTestId('canvas-scale').textContent()) ?? '';
+    return Number(label.match(/(\d+) px\/м/)?.[1]);
+  };
+  const dragEdge = async (name: string, delta: number): Promise<void> => {
+    const box = (await page.getByRole('separator', { name }).boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + delta, y, { steps: 5 });
+    await page.mouse.up();
+  };
+
+  const fitted = await scale();
+  await dragEdge('Изменить ширину левой панели', 80);
+  await dragEdge('Изменить ширину правой панели', -60);
+  expect(await scale()).toBeLessThan(fitted);
+
+  await page.getByTestId('editor-canvas').hover({ position: { x: 300, y: 300 } });
+  await page.mouse.wheel(0, -300);
+  await expect.poll(scale).toBeGreaterThan(fitted);
+  const zoomed = await scale();
+  await dragEdge('Изменить ширину правой панели', 40);
+  expect(await scale()).toBe(zoomed);
+});
+
 /**
  * Высота шапки, верх холста, вылет шапки вправо, ширина свободной колонки
  * (третья колонка сетки, minmax(0, 1fr)) и верх каждой кнопки первой строки.
