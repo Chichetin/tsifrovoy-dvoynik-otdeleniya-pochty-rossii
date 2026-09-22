@@ -8,7 +8,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page , exportPlan } from './fixtures';
+import { expect, test, type Page , exportPlan, expectUnsavedEdits } from './fixtures';
 import { showTab, sideTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Слои');
@@ -210,8 +210,8 @@ test.describe('слои в браузере', () => {
     // Включение слоя — это показ: в плане меняется только флаг самого слоя,
     // а зоны, объекты и геометрия остаются теми же.
     await heat.getByRole('button', { name: 'Показывать слой Тепловая нагрузка зон' }).click();
-    // Показ слоя — не правка: статус остаётся «сохранено» (D-207, находка operator №11).
-    await expect(page.getByText('сохранено', { exact: true })).toBeVisible();
+    // Показ слоя — не правка: план остаётся сохранённым (D-207, находка operator №11).
+    await expectUnsavedEdits(page, false);
     const shown = JSON.parse(await savePlan(page));
     expect(shown.zones).toEqual(before.zones);
     expect(shown.objects).toEqual(before.objects);
@@ -221,7 +221,7 @@ test.describe('слои в браузере', () => {
     const canvas = page.getByTestId('editor-canvas');
     const clean = await canvas.screenshot();
     await heat.getByLabel('Тепловая нагрузка зон, Зона 1 (z_1)').fill('80');
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
     await expect(async () => {
       expect(await canvas.screenshot()).not.toEqual(clean);
     }).toPass();

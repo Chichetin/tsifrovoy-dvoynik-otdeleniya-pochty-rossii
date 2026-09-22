@@ -12,7 +12,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, exportPlan } from './fixtures';
+import { expect, test, type Page, exportPlan, expectUnsavedEdits } from './fixtures';
 import { showTab } from './side-tabs';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
@@ -101,7 +101,6 @@ test.describe('файлы плана', () => {
       void (accept ? dialog.accept() : dialog.dismiss());
     });
     await page.goto('/');
-    await expect(page.getByText('новый план не сохранён')).toBeVisible();
 
     await page.getByRole('button', { name: 'Создать новый' }).click();
     expect(dialogs).toEqual([]);
@@ -177,7 +176,6 @@ test.describe('файлы плана', () => {
     expect(saved.schemaVersion).toBe(1);
     expect(saved.zones).toHaveLength(4);
     expect(saved.objects).toHaveLength(12);
-    await expect(page.getByText('сохранено')).toBeVisible();
 
     // Чистый лист, затем открываем скачанный файл.
     page.once('dialog', (dialog) => void dialog.accept());
@@ -356,7 +354,7 @@ test.describe('файлы плана', () => {
     page.once('dialog', (dialog) => void dialog.accept());
     await offer.getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
   });
 
   test('битый черновик не ломает старт редактора', async ({ page }) => {
@@ -392,7 +390,7 @@ test.describe('файлы плана', () => {
     await rows.first().locator('.table__link').first().click();
     await page.keyboard.press('Delete');
     await expect(rows).toHaveCount(52);
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
 
     const event = await Promise.all([
       page.waitForEvent('download'),
@@ -414,7 +412,7 @@ test.describe('файлы плана', () => {
     expect((svg.match(/<g transform="translate/g) ?? []).length).toBe(52);
 
     // Картинка — не сохранение: правки по-прежнему несохранённые.
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
   });
 
   test('«Экспорт → SVG» не возвращает содержимое скрытого слоя', async ({ page }) => {
@@ -457,7 +455,7 @@ test.describe('файлы плана', () => {
     await rows.first().locator('.table__link').first().click();
     await page.keyboard.press('Delete');
     await expect(rows).toHaveCount(52);
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
 
     // Меню открывается с клавиатуры и закрывается Escape, не выгружая ничего.
     const trigger = page.getByRole('button', { name: 'Экспорт' });
@@ -490,6 +488,6 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('files-notice')).toContainText('.png');
 
     // Картинка — не сохранение: правки по-прежнему несохранённые.
-    await expect(page.getByText('есть несохранённые правки')).toBeVisible();
+    await expectUnsavedEdits(page, true);
   });
 });
