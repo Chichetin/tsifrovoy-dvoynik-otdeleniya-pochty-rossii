@@ -154,7 +154,7 @@ test.describe('камеры: постановка и жесты', () => {
 
     await place(page, CAMERA, view, 6, 0.6);
     // Поставленный объект уже выбран (D-147): карточка про камеру.
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_2');
     expect(await handleNames(page)).toEqual(['handle-rotate']);
 
     // Поворот за ручку: указатель на 45° по часовой от «вперёд».

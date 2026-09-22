@@ -273,7 +273,7 @@ test.describe('жесты над оборудованием', () => {
     await expect(inventoryRows(page)).toHaveCount(53);
     await armLayerClearCounter(page);
     await selectRow(page, 0);
-    await expect(card(page).getByTestId('props-id')).toHaveText(/^eq_/);
+    await expect(card(page)).toHaveAttribute('data-entity-id', /^eq_/);
     await page.waitForTimeout(300);
     const clears = await page.evaluate(
       () => (window as unknown as { __layerClears: Record<string, number> }).__layerClears,
@@ -297,7 +297,7 @@ test.describe('жесты над оборудованием', () => {
     await expect(inventoryRows(page)).toHaveCount(1);
     await expect(page.locator('.shell__error')).toHaveCount(0);
     await selectRow(page, 0);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_2');
   });
 
   test('объект подписан на холсте своим названием, без клика', async ({ page }) => {
@@ -345,7 +345,7 @@ test.describe('жесты над оборудованием', () => {
     // Новый объект выбран, а инструмент вернулся к выбору; библиотека
     // остаётся на месте, карточка — по кнопке (D-268).
     await showProps(page);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await expect(page.getByRole('button', { name: 'Выбор', exact: true })).toHaveAttribute(
       'aria-pressed',
       'true',
@@ -367,14 +367,14 @@ test.describe('жесты над оборудованием', () => {
     await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
     await clickCanvas(page, 300, 260);
     await showProps(page);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_2');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_2');
     await expect(inventoryRows(page)).toHaveCount(2);
     await showTab(page, 'Библиотека');
     await libraryItem.click();
     await expect(libraryItem).toHaveAttribute('aria-pressed', 'true');
     // Тот же тип уже стоит под указателем: выбираем существующий, не кладём дубль.
     await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await expect(inventoryRows(page)).toHaveCount(2);
 
     // В 7 px за левой гранью — всё ещё тот же объект. Сначала уводим выбор,
@@ -384,13 +384,13 @@ test.describe('жесты над оборудованием', () => {
     const width = await numberOf(page, 'Ширина, м');
     const nearLeft = centre.x - (width * scale) / 2 - 7;
     await clickCanvas(page, nearLeft, centre.y);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await expect(inventoryRows(page)).toHaveCount(2);
 
     // За пределами допуска постановка продолжается тем же активным инструментом.
     await clickCanvas(page, nearLeft - 4, centre.y);
     await showProps(page);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_3');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_3');
     await expect(inventoryRows(page)).toHaveCount(3);
   });
 
@@ -401,7 +401,7 @@ test.describe('жесты над оборудованием', () => {
     await page.locator('.library__item', { hasText: RACK }).first().click();
     await clickCanvas(page, centre.x, centre.y);
     await showProps(page);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     const x0 = await numberOf(page, 'X, м');
     const width0 = await numberOf(page, 'Ширина, м');
     const depth0 = await numberOf(page, 'Глубина, м');
@@ -614,7 +614,7 @@ test.describe('жесты над оборудованием', () => {
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
     // Клик прошёл сквозь невидимый объект и выбрал пол под ним — помещение, а не eq_1.
-    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'room_main');
     await page.keyboard.press('Delete');
     await expect(inventoryRows(page)).toHaveCount(1);
 
@@ -626,7 +626,7 @@ test.describe('жесты над оборудованием', () => {
     await showTab(page, 'Слои');
     await page.getByRole('button', { name: 'Показывать слой Основной' }).click();
     await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await page.keyboard.press('Delete');
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
@@ -652,7 +652,7 @@ test.describe('жесты над оборудованием', () => {
 
     // Выделение принадлежит объекту, а не холсту: карточка отменённого
     // объекта остаётся открытой.
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     expect(await numberOf(page, 'X, м')).toBe(x0);
     expect(await numberOf(page, 'Y, м')).toBe(y0);
 
@@ -712,7 +712,7 @@ test.describe('жесты над оборудованием', () => {
 
     await drag(page, centre, { x: centre.x + 100, y: centre.y });
     await clickCanvas(page, centre.x, centre.y);
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     expect(await numberOf(page, 'X, м')).toBe(x0);
   });
 
@@ -738,7 +738,7 @@ test.describe('жесты над оборудованием', () => {
     const view = await canvasView(page);
 
     await selectByLabel(page, 'Стеллаж посылок');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_rack_1');
     await expect(card(page).getByLabel('Поворот, °')).toHaveValue('0');
     const centre = toScreen(view, await numberOf(page, 'X, м'), await numberOf(page, 'Y, м'));
     const depth = await numberOf(page, 'Глубина, м');
@@ -759,7 +759,7 @@ test.describe('жесты над оборудованием', () => {
       buffer: Buffer.from(text),
     });
     await selectByLabel(page, 'Стеллаж посылок');
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_rack_1');
     await expect(card(page).getByLabel('Поворот, °')).toHaveValue('90');
 
     expect(errors).toEqual([]);

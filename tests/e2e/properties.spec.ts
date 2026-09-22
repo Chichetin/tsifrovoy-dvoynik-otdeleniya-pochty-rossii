@@ -69,7 +69,7 @@ test.describe('карточка свойств', () => {
     await clickCanvas(page, 300, 200);
 
     await expect(card(page)).toBeVisible();
-    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'room_main');
     // «×» снимает выделение, и карточка снова исчезает.
     await page.getByRole('button', { name: 'Снять выделение' }).click();
     await expect(card(page)).toHaveCount(0);
@@ -81,7 +81,7 @@ test.describe('карточка свойств', () => {
     await page.goto('/');
     // Помещение выбирается кликом по полу — там, где нет зон, объектов и стен.
     await clickCanvas(page, 300, 200);
-    await expect(card(page).getByTestId('props-id')).toHaveText('room_main');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'room_main');
     await expect(card(page).getByTestId('props-room-area')).toContainText('108,00 м²');
 
     await card(page).getByLabel('Название плана').fill('ОПС 115534 Тестовое');
@@ -112,13 +112,13 @@ test.describe('карточка свойств', () => {
     await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
     await selectPlacedObject(page);
 
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     const x = await card(page).getByLabel('X, м').inputValue();
     const y = await card(page).getByLabel('Y, м').inputValue();
 
     await card(page).getByLabel('Тип оборудования').selectOption('ot_parcel_rack');
 
-    await expect(card(page).getByTestId('props-id')).toHaveText('eq_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await expect(card(page).getByLabel('X, м')).toHaveValue(x);
     await expect(card(page).getByLabel('Y, м')).toHaveValue(y);
 
@@ -164,7 +164,7 @@ test.describe('карточка свойств', () => {
     await drawZone(page);
     await page.locator('.table__link', { hasText: 'z_1' }).first().click();
 
-    await expect(card(page).getByTestId('props-id')).toHaveText('z_1');
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'z_1');
     await card(page).getByLabel('Название').fill('Клиентский зал');
     await card(page).getByLabel('Загрузка зоны, %').fill('65');
     await card(page).getByLabel('Открыта для клиентов').uncheck();

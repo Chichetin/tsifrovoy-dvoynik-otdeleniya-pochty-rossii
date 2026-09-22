@@ -145,7 +145,7 @@ test.describe('файлы плана', () => {
       .locator('.table__link', { hasText: 'Терминал электронной очереди' })
       .first()
       .click();
-    await expect(page.getByTestId('props-id')).toHaveText('eq_kiosk');
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'eq_kiosk');
 
     // Пользователю сказано, откуда план и что будет при сохранении.
     await expect(page.getByTestId('files-notice')).toContainText('формата организаторов');
