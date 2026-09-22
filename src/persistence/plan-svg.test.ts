@@ -178,6 +178,13 @@ describe('SVG плана', () => {
     expect(svg).toContain('Стол-великан');
   });
 
+  test('готовая SVG-картинка сохраняет смысловой значок объекта', () => {
+    const plan = loadFixture('minimal.json');
+    const svg = renderPlanSvg(plan);
+    expect(svg).toContain('data-pictogram="workplace"');
+    expect(svg).toContain('<path d="M4 3H20V12H4Z');
+  });
+
   test('название зоны — бледнее и до объектов, чтобы не спорить с оборудованием', () => {
     const plan = loadFixture('nested.json');
     const svg = renderPlanSvg(plan);

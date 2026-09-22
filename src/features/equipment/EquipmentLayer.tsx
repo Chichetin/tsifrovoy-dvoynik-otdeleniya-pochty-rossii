@@ -13,7 +13,7 @@
  */
 
 import { Fragment, memo, useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Label, Layer, Line, Rect, Tag, Text } from 'react-konva';
+import { Circle, Group, Label, Layer, Line, Path, Rect, Tag, Text } from 'react-konva';
 import Konva from 'konva';
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
@@ -53,7 +53,7 @@ import {
   type ResizeHandle,
 } from './transform';
 import { isWallMounted } from './wall-mount';
-import { isPlanPictogramVisible, planPictogram, type PlanPictogram } from './plan-pictogram';
+import { isPlanPictogramVisible, planPictogram, PLAN_PICTOGRAM_PATHS, type PlanPictogram } from '../../domain/plan-pictogram';
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
@@ -160,103 +160,35 @@ function EquipmentPictogram({
   width,
   height,
   opacity,
+  color = '#FFFFFF',
 }: {
   kind: PlanPictogram;
   width: number;
   height: number;
   opacity: number;
+  color?: string;
 }): React.JSX.Element | null {
   if (kind === null || !isPlanPictogramVisible(width, height)) return null;
-  const strokeWidth = Math.max(1, Math.min(width, height) / 15);
-  const style = { stroke: '#FFFFFF', strokeWidth, opacity, listening: false };
-  const left = -width * 0.32;
-  const top = -height * 0.3;
-  const w = width * 0.64;
-  const h = height * 0.6;
-
-  switch (kind) {
-    case 'workplace':
-      return (
-        <>
-          <Rect name="plan-pictogram-workplace" x={left} y={top} width={w} height={h * 0.48} {...style} />
-          <Line points={[0, top + h * 0.48, 0, top + h]} {...style} />
-          <Line points={[left * 0.45, top + h, -left * 0.45, top + h]} {...style} />
-        </>
-      );
-    case 'seat':
-      return (
-        <>
-          <Rect name="plan-pictogram-seat" x={left} y={top} width={w} height={h * 0.45} {...style} />
-          <Line points={[left, top + h * 0.45, left, top + h, -left, top + h, -left, top + h * 0.45]} {...style} />
-        </>
-      );
-    case 'cashier':
-      return (
-        <>
-          <Rect name="plan-pictogram-cashier" x={left} y={top} width={w} height={h * 0.7} {...style} />
-          <Line points={[left, top + h * 0.45, -left, top + h * 0.45]} {...style} />
-          <Circle x={0} y={top + h * 0.22} radius={Math.max(1.5, Math.min(width, height) * 0.07)} {...style} />
-        </>
-      );
-    case 'terminal':
-      return (
-        <>
-          <Rect name="plan-pictogram-terminal" x={-width * 0.18} y={top} width={width * 0.36} height={h * 0.52} cornerRadius={2} {...style} />
-          <Line points={[0, top + h * 0.52, 0, top + h, -width * 0.24, top + h]} {...style} />
-        </>
-      );
-    case 'mailbox':
-      return (
-        <>
-          <Rect name="plan-pictogram-mailbox" x={left} y={top} width={w} height={h} {...style} />
-          <Line points={[left, top, 0, top + h * 0.52, -left, top]} {...style} />
-        </>
-      );
-    case 'display':
-      return (
-        <>
-          <Rect name="plan-pictogram-display" x={left} y={top} width={w} height={h * 0.7} cornerRadius={2} {...style} />
-          <Line points={[0, top + h * 0.7, 0, top + h, -width * 0.2, top + h]} {...style} />
-        </>
-      );
-    case 'printer':
-      return (
-        <>
-          <Rect name="plan-pictogram-printer" x={left} y={top + h * 0.28} width={w} height={h * 0.62} cornerRadius={2} {...style} />
-          <Rect x={-width * 0.18} y={top} width={width * 0.36} height={h * 0.35} {...style} />
-        </>
-      );
-    case 'camera':
-      return (
-        <>
-          <Rect name="plan-pictogram-camera" x={left} y={-height * 0.16} width={width * 0.44} height={height * 0.32} cornerRadius={2} {...style} />
-          <Line points={[left + width * 0.44, -height * 0.2, -left, 0, left + width * 0.44, height * 0.2]} closed {...style} />
-        </>
-      );
-    case 'sensor':
-      return (
-        <>
-          <Circle name="plan-pictogram-sensor" x={0} y={0} radius={Math.max(2, Math.min(width, height) * 0.27)} {...style} />
-          <Circle x={0} y={0} radius={Math.max(1, Math.min(width, height) * 0.07)} {...style} />
-        </>
-      );
-    case 'rack':
-      return (
-        <>
-          <Rect name="plan-pictogram-rack" x={left} y={top} width={w} height={h} {...style} />
-          <Line points={[left, top + h / 3, -left, top + h / 3, left, top + (h * 2) / 3, -left, top + (h * 2) / 3]} {...style} />
-        </>
-      );
-    case 'scales':
-      return (
-        <>
-          <Line name="plan-pictogram-scales" points={[left, top + h, -left, top + h, -width * 0.2, top + h * 0.42, width * 0.2, top + h * 0.42]} closed {...style} />
-          <Circle x={0} y={top + h * 0.42} radius={Math.max(2, Math.min(width, height) * 0.15)} {...style} />
-        </>
-      );
-  }
+  const size = Math.min(20, Math.min(width, height) * 0.78);
+  const scale = size / 24;
+  return (
+    <Path
+      name={`plan-pictogram-${kind}`}
+      data={PLAN_PICTOGRAM_PATHS[kind]}
+      x={-size / 2}
+      y={-size / 2}
+      scaleX={scale}
+      scaleY={scale}
+      stroke={color}
+      strokeWidth={2.3}
+      lineCap="round"
+      lineJoin="round"
+      opacity={opacity}
+      listening={false}
+      perfectDrawEnabled={false}
+    />
+  );
 }
-
 export function EquipmentLayer({
   document: plan,
   session,
@@ -910,10 +842,13 @@ export function EquipmentLayer({
           .map((object) => {
             const label = objectLabel(shown(object), viewport);
             if (label === null) return null;
-            // Konva counts padding inside the box: without it the second line is cut.
-            const height = label.lines * LABEL_LINE_PX + 2;
+            const kind = planPictogram(object.typeId);
+            // The symbol and the name share one badge. A separate floating
+            // marker used to cover the caption on the busy demo plan.
+            const iconSpace = kind === null ? 0 : 24;
+            const height = Math.max(label.lines * LABEL_LINE_PX + 2, iconSpace === 0 ? 0 : 22);
             return (
-              <Label
+              <Group
                 key={`label-${object.id}`}
                 name={`label-${object.id}`}
                 // Поворот — вокруг центра объекта, поэтому точка задаётся
@@ -926,12 +861,38 @@ export function EquipmentLayer({
                 rotation={label.rotation}
                 listening={false}
               >
-                {/* A pale tag under the text: dark letters on a red rack are
-                    unreadable. One legibility technique, applied everywhere
-                    (D-216) — no outlined text alongside it. */}
-                <Tag fill="#FFFFFF" opacity={0.85} cornerRadius={2} />
-                <Text
+                <Rect
                   width={label.width}
+                  height={height}
+                  fill="#FFFFFF"
+                  opacity={0.94}
+                  cornerRadius={3}
+                  listening={false}
+                  perfectDrawEnabled={false}
+                />
+                {kind === null ? null : (
+                  <Group name={`plan-pictogram-caption-${object.id}`} x={12} y={height / 2} listening={false}>
+                    <Rect
+                      x={-10}
+                      y={-10}
+                      width={20}
+                      height={20}
+                      fill="#E8F2F8"
+                      cornerRadius={3}
+                      listening={false}
+                    />
+                    <EquipmentPictogram
+                      kind={kind}
+                      width={24}
+                      height={24}
+                      opacity={1}
+                      color="#17567A"
+                    />
+                  </Group>
+                )}
+                <Text
+                  x={iconSpace}
+                  width={label.width - iconSpace}
                   height={height}
                   text={label.text}
                   fontSize={label.fontSize}
@@ -947,53 +908,6 @@ export function EquipmentLayer({
                   ellipsis
                   padding={1}
                 />
-              </Label>
-            );
-          })}
-
-        {/* A caption covers the centre of a large object. Its pictogram moves
-            to a dark corner badge above the caption, so the name stays
-            readable and the object type remains visible at the same time. */}
-        {plan.objects
-          .filter((object) => visibleLayers.has(object.layerId))
-          .map((object) => {
-            const current = shown(object);
-            const label = objectLabel(current, viewport);
-            const kind = planPictogram(object.typeId);
-            const width = current.size_m[0] * viewport.scale;
-            const height = current.size_m[1] * viewport.scale;
-            const iconWidth = width * 0.5;
-            const iconHeight = height * 0.5;
-            if (
-              label === null ||
-              kind === null ||
-              !isPlanPictogramVisible(iconWidth, iconHeight)
-            ) {
-              return null;
-            }
-            const [x, y] = modelToScreen(current.position, viewport);
-            const radius = Math.min(16, Math.max(7, Math.min(width, height) * 0.25));
-            return (
-              <Group
-                key={`pictogram-badge-${object.id}`}
-                name={`plan-pictogram-badge-${object.id}`}
-                x={x}
-                y={y}
-                rotation={current.rotation_deg}
-                listening={false}
-              >
-                <Circle
-                  x={width * 0.24}
-                  y={-height * 0.24}
-                  radius={radius}
-                  fill="#1F4F6E"
-                  opacity={0.92}
-                  listening={false}
-                  perfectDrawEnabled={false}
-                />
-                <Group x={width * 0.24} y={-height * 0.24} listening={false}>
-                  <EquipmentPictogram kind={kind} width={iconWidth} height={iconHeight} opacity={1} />
-                </Group>
               </Group>
             );
           })}

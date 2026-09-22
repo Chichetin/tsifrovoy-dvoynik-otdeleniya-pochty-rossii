@@ -14,6 +14,7 @@
 import type { Equipment, PlanDocument, Point, Polygon } from '../contracts/model';
 import { findObjectType, findZoneType } from '../domain/catalog';
 import { boundingBox, footprint, wallLength, wallPolygon } from '../domain/geometry';
+import { planPictogram, PLAN_PICTOGRAM_PATHS } from '../domain/plan-pictogram';
 
 /** Пикселей на метр в файле. Выбрано так, чтобы 15-метровый зал был ~1500 px. */
 const PX_PER_M = 100;
@@ -58,9 +59,19 @@ function objectSymbol(object: Equipment, plan: PlanDocument): string {
   const type = findObjectType(plan.catalog, object.typeId);
   const fill = esc(type?.color ?? OBJECT_FALLBACK);
   const paint = `fill="${fill}" fill-opacity="0.9" stroke="#343A40" stroke-width="0.02"`;
+  const pictogram = planPictogram(object.typeId);
+  // Export uses a fixed 100 px/m scale. Keep a tiny camera distinguishable,
+  // but cap the drawn icon so a large counter does not become a giant glyph.
+  const iconSize = Math.min(0.25, Math.max(0.18, Math.min(...object.size_m) * 0.6));
+  const iconScale = iconSize / 24;
+  const icon = pictogram === null ? '' : (
+    `<g data-pictogram="${pictogram}" transform="translate(${n(object.position[0])} ${n(object.position[1])}) scale(${n(iconScale)} ${n(-iconScale)}) translate(-12 -12)">` +
+    `<path d="${PLAN_PICTOGRAM_PATHS[pictogram]}" fill="none" stroke="#FFFFFF" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `</g>`
+  );
   // The same ring the checks and the canvas use (D-277), already turned and
   // placed in world metres; the outer transform takes care of Y.
-  return `<g data-id="${esc(object.id)}"><polygon points="${points(footprint(object))}" ${paint}/></g>`;
+  return `<g data-id="${esc(object.id)}"><polygon points="${points(footprint(object))}" ${paint}/>${icon}</g>`;
 }
 
 /** Полный SVG-документ плана. */
