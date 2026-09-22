@@ -317,6 +317,34 @@ body {
   line-height: 1;
 }
 
+.shell__error-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The cross is the one part of the plaque that takes clicks (D-274). */
+.shell__error-close {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin: 0 -4px 0 0;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.shell__error-close:hover {
+  background: rgb(0 0 0 / 8%);
+}
+
 .shell__body {
   display: grid;
   grid-template-columns: var(--side-left) minmax(0, 1fr) var(--side-right);
@@ -613,7 +641,7 @@ body {
 .files__menu-item {
   padding: 7px 10px;
   border: none;
-  border-radius: var(--radius-s, 4px);
+  border-radius: var(--radius-s);
   background: transparent;
   color: var(--color-ink);
   font: inherit;
@@ -783,6 +811,32 @@ body {
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+}
+
+.files__error-text {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* D-274: the file error is dismissed by hand, like the plaque over the canvas. */
+.files__error-close {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.files__error-close:hover {
+  background: rgb(0 0 0 / 8%);
 }
 
 .files__error-details {

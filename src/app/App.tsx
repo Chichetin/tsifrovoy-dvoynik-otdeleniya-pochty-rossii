@@ -49,6 +49,7 @@ import { readPlanFile } from '../persistence/format';
 import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
 import { catalog, createEmptyPlan } from './default-plan';
+import { documentNotice, isEditErrorCurrent, refusalOf, type EditError } from './edit-error';
 import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
   LEFT_TABS,
@@ -84,7 +85,9 @@ export function App(): React.JSX.Element {
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
-  const [lastError, setLastError] = useState<string | null>(null);
+  // D-274: the plaque keeps the refs and revision of the refusal, so it
+  // disappears by itself once the plan it spoke about is gone.
+  const [lastError, setLastError] = useState<EditError | null>(null);
   const focusSequence = useRef(0);
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
@@ -215,7 +218,7 @@ export function App(): React.JSX.Element {
       const result = store.getState().dispatch(command);
       // A refused command is not a silent no-op: the user has to learn why the
       // thing they just dragged snapped back.
-      setLastError(result.ok ? null : result.issues.map((issue) => issue.message).join('; '));
+      setLastError(result.ok ? null : refusalOf(result.issues, store.getState().revision));
       return result;
     },
     [store],
@@ -493,9 +496,9 @@ export function App(): React.JSX.Element {
       setLastError(
         merged === null || merged.ok
           ? null
-          : `Справочник команды к примеру не применён (план открыт без правил комплектования и информационных слоёв): ${merged.issues
+          : documentNotice(`Справочник команды к примеру не применён (план открыт без правил комплектования и информационных слоёв): ${merged.issues
               .map((issue) => issue.message)
-              .join('; ')}`,
+              .join('; ')}`, store.getState().revision),
       );
       // Открыт другой документ: вид считается заново, даже если файл несёт ту
       // же личность, что и прежний.
@@ -513,6 +516,8 @@ export function App(): React.JSX.Element {
     setDocumentEpoch((epoch) => epoch + 1);
     forgetAdvice();
   }, [forgetAdvice]);
+
+  const shownError = lastError !== null && isEditErrorCurrent(lastError, document, revision) ? lastError : null;
 
   return (
     <div className="shell">
@@ -668,9 +673,21 @@ export function App(): React.JSX.Element {
         <main className="shell__canvas">
           {/* The refusal floats over the canvas: a row above it would push the
               plan down under the pointer that just made the gesture. */}
-          {lastError === null ? null : (
+          {shownError === null ? null : (
             <p className="shell__error" role="alert">
-              Правка отклонена: {lastError}
+              <span className="shell__error-text">
+                {shownError.scope === 'edit' ? 'Правка отклонена: ' : null}
+                {shownError.message}
+              </span>
+              <button
+                type="button"
+                className="shell__error-close"
+                aria-label="Скрыть сообщение"
+                title="Скрыть сообщение"
+                onClick={() => setLastError(null)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
             </p>
           )}
           <EditorCanvas

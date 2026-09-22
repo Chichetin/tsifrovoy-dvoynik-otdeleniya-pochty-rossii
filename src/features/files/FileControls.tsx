@@ -153,6 +153,21 @@ export function FileControls({
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<readonly string[]>([]);
+  // D-274: a file error speaks about the plan as it was; the next edit of the
+  // plan makes it stale. Adjusted during render, not in an effect: an error
+  // raised later («план изменён во время чтения») stays until the next edit.
+  const [seenRevision, setSeenRevision] = useState(revision);
+  if (seenRevision !== revision) {
+    setSeenRevision(revision);
+    if (state.status === 'error') {
+      setState({ status: 'idle' });
+      setErrorDetails([]);
+    }
+  }
+  const dismissError = (): void => {
+    setState({ status: 'idle' });
+    setErrorDetails([]);
+  };
   /** Что именно делает редактор прямо сейчас: читает файл или собирает картинку. */
   const [busy, setBusy] = useState<string>('читаем файл…');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -619,7 +634,16 @@ export function FileControls({
       {state.status === 'error' ? (
         <>
           <p className="files__error" role="alert">
-            {state.message}
+            <span className="files__error-text">{state.message}</span>
+            <button
+              type="button"
+              className="files__error-close"
+              aria-label="Скрыть сообщение"
+              title="Скрыть сообщение"
+              onClick={dismissError}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
           </p>
           {errorDetails.length === 0 ? null : (
             <details className="files__error-details" data-testid="file-error-details">
