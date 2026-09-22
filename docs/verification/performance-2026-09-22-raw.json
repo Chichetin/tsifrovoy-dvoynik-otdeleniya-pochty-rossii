@@ -1,0 +1,251 @@
+[
+ {
+  "commit": "7c61c085e64af1919681dcfea8a1fddd9503f6c1",
+  "server": "preview",
+  "seed": 20260918,
+  "objects": 100,
+  "zones": 10,
+  "repeats": 5,
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+  "machine": {
+   "platform": "linux",
+   "release": "6.12.108-1-MANJARO",
+   "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+   "cores": 16,
+   "ramBytes": 16150650880,
+   "loadavgAtEnd": [
+    1.02,
+    2.65,
+    4.74
+   ]
+  },
+  "samples": [
+   {
+    "coldOpenMs": 193.14185499999985,
+    "warmOpenMs": 215.34737199999972,
+    "selectMs": 70,
+    "selectWallMs": 119.96150999999963,
+    "zoomMs": 16.600000001490116,
+    "filterMs": 64.08719400000018,
+    "clearFilterMs": 67.41296599999987,
+    "validateMs": null,
+    "saveReopenMs": 461.20147700000007,
+    "heapBytes": 21700000
+   },
+   {
+    "coldOpenMs": 296.9586070000005,
+    "warmOpenMs": 193.79828799999996,
+    "selectMs": 90,
+    "selectWallMs": 128.62072199999966,
+    "zoomMs": 16.5,
+    "filterMs": 72.8463099999999,
+    "clearFilterMs": 83.33880299999964,
+    "validateMs": null,
+    "saveReopenMs": 417.49217899999985,
+    "heapBytes": 24500000
+   },
+   {
+    "coldOpenMs": 302.11400499999945,
+    "warmOpenMs": 234.2386630000001,
+    "selectMs": 86.70000000298023,
+    "selectWallMs": 131.4675729999999,
+    "zoomMs": 16.5,
+    "filterMs": 59.84371899999951,
+    "clearFilterMs": 91.56096900000011,
+    "validateMs": null,
+    "saveReopenMs": 445.3690209999995,
+    "heapBytes": 31200000
+   },
+   {
+    "coldOpenMs": 296.95526099999915,
+    "warmOpenMs": 188.61683899999844,
+    "selectMs": 89.20000000298023,
+    "selectWallMs": 119.959519,
+    "zoomMs": 16.5,
+    "filterMs": 68.20382000000063,
+    "clearFilterMs": 101.24939699999959,
+    "validateMs": null,
+    "saveReopenMs": 448.4896099999987,
+    "heapBytes": 31200000
+   },
+   {
+    "coldOpenMs": 302.81987800000024,
+    "warmOpenMs": 188.83351100000073,
+    "selectMs": 88.89999999850988,
+    "selectWallMs": 120.4683530000002,
+    "zoomMs": 16.5,
+    "filterMs": 62.074187000000165,
+    "clearFilterMs": 72.7933750000011,
+    "validateMs": null,
+    "saveReopenMs": 445.23811399999977,
+    "heapBytes": 31200000
+   }
+  ]
+ },
+ {
+  "commit": "7c61c085e64af1919681dcfea8a1fddd9503f6c1",
+  "server": "preview",
+  "seed": 20260918,
+  "objects": 500,
+  "zones": 30,
+  "repeats": 5,
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+  "machine": {
+   "platform": "linux",
+   "release": "6.12.108-1-MANJARO",
+   "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+   "cores": 16,
+   "ramBytes": 16150650880,
+   "loadavgAtEnd": [
+    1.53,
+    2.65,
+    4.7
+   ]
+  },
+  "samples": [
+   {
+    "coldOpenMs": 603.754868,
+    "warmOpenMs": 708.5268159999996,
+    "selectMs": 112,
+    "selectWallMs": 134.6919909999997,
+    "zoomMs": 27.799999997019768,
+    "filterMs": 210.8168459999997,
+    "clearFilterMs": 357.41377699999975,
+    "validateMs": null,
+    "saveReopenMs": 1020.3265869999996,
+    "heapBytes": 53500000
+   },
+   {
+    "coldOpenMs": 660.0318660000012,
+    "warmOpenMs": 685.4469150000004,
+    "selectMs": 113.29999999701977,
+    "selectWallMs": 146.4558590000015,
+    "zoomMs": 29.600000001490116,
+    "filterMs": 216.5930100000005,
+    "clearFilterMs": 431.627239999998,
+    "validateMs": null,
+    "saveReopenMs": 1126.7278509999996,
+    "heapBytes": 56800000
+   },
+   {
+    "coldOpenMs": 676.7643769999995,
+    "warmOpenMs": 691.5654480000012,
+    "selectMs": 114.10000000149012,
+    "selectWallMs": 138.5407669999986,
+    "zoomMs": 28.69999999552965,
+    "filterMs": 211.957527999999,
+    "clearFilterMs": 358.0252049999981,
+    "validateMs": null,
+    "saveReopenMs": 1021.0778530000025,
+    "heapBytes": 53500000
+   },
+   {
+    "coldOpenMs": 635.0851540000003,
+    "warmOpenMs": 703.6217960000031,
+    "selectMs": 95.09999999403954,
+    "selectWallMs": 148.18922299999758,
+    "zoomMs": 29.100000001490116,
+    "filterMs": 213.3834050000005,
+    "clearFilterMs": 349.826090999999,
+    "validateMs": null,
+    "saveReopenMs": 999.3142399999997,
+    "heapBytes": 53500000
+   },
+   {
+    "coldOpenMs": 650.0177709999989,
+    "warmOpenMs": 723.5167320000037,
+    "selectMs": 90,
+    "selectWallMs": 133.02691700000287,
+    "zoomMs": 28.799999997019768,
+    "filterMs": 216.5282029999944,
+    "clearFilterMs": 360.9868210000059,
+    "validateMs": null,
+    "saveReopenMs": 1007.4950519999984,
+    "heapBytes": 53500000
+   }
+  ]
+ },
+ {
+  "commit": "7c61c085e64af1919681dcfea8a1fddd9503f6c1",
+  "server": "preview",
+  "seed": 20260918,
+  "objects": 1000,
+  "zones": 50,
+  "repeats": 5,
+  "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.8010.12 Safari/537.36",
+  "machine": {
+   "platform": "linux",
+   "release": "6.12.108-1-MANJARO",
+   "cpu": "AMD Ryzen 7 4800H with Radeon Graphics",
+   "cores": 16,
+   "ramBytes": 16150650880,
+   "loadavgAtEnd": [
+    1.64,
+    2.51,
+    4.53
+   ]
+  },
+  "samples": [
+   {
+    "coldOpenMs": 1191.2688070000004,
+    "warmOpenMs": 1538.2402569999977,
+    "selectMs": 107.70000000298023,
+    "selectWallMs": 171.14580399999977,
+    "zoomMs": 46.600000001490116,
+    "filterMs": 569.2578429999994,
+    "clearFilterMs": 1490.9545300000027,
+    "validateMs": null,
+    "saveReopenMs": 3097.5772739999957,
+    "heapBytes": 29400000
+   },
+   {
+    "coldOpenMs": 1233.2407699999967,
+    "warmOpenMs": 1550.9021920000014,
+    "selectMs": 94.29999999701977,
+    "selectWallMs": 147.7833810000011,
+    "zoomMs": 44.400000005960464,
+    "filterMs": 536.5411139999997,
+    "clearFilterMs": 999.8130279999968,
+    "validateMs": null,
+    "saveReopenMs": 2684.326992000002,
+    "heapBytes": 50400000
+   },
+   {
+    "coldOpenMs": 1224.6367899999968,
+    "warmOpenMs": 1527.009874000003,
+    "selectMs": 102.10000000149012,
+    "selectWallMs": 161.71168200000102,
+    "zoomMs": 49.900000005960464,
+    "filterMs": 563.0074120000063,
+    "clearFilterMs": 1478.5220599999957,
+    "validateMs": null,
+    "saveReopenMs": 3081.013218,
+    "heapBytes": 91700000
+   },
+   {
+    "coldOpenMs": 1236.6693990000058,
+    "warmOpenMs": 1552.710189000005,
+    "selectMs": 102.60000000149012,
+    "selectWallMs": 179.04013100000157,
+    "zoomMs": 47,
+    "filterMs": 1004.4336400000029,
+    "clearFilterMs": 1503.3436099999963,
+    "validateMs": null,
+    "saveReopenMs": 3125.28205899999,
+    "heapBytes": 29400000
+   },
+   {
+    "coldOpenMs": 1222.0315100000007,
+    "warmOpenMs": 1511.3308640000032,
+    "selectMs": 104.39999999850988,
+    "selectWallMs": 178.14154599999893,
+    "zoomMs": 48.600000001490116,
+    "filterMs": 562.1076580000081,
+    "clearFilterMs": 1477.4596890000103,
+    "validateMs": null,
+    "saveReopenMs": 3076.359700000001,
+    "heapBytes": 91700000
+   }
+  ]
+ }
+]
