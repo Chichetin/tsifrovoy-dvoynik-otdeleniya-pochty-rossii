@@ -184,7 +184,7 @@ test('клик по кружочку маркера открывает нахо�
   const otherPoint = await nodeCentre(page, '.equipment-eq_back_wp');
   expect(otherPoint).not.toBeNull();
   await clickOnCanvas(page, otherPoint as { x: number; y: number });
-  await expect(card(page).getByTestId('props-id')).toHaveText('eq_back_wp');
+  await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_back_wp');
   await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
 
   // Во время рисования клик по тому же месту остаётся клик инструмента:
@@ -196,7 +196,7 @@ test('клик по кружочку маркера открывает нахо�
   await clickOnCanvas(page, markerPoint as { x: number; y: number });
   await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
   await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'false');
-  await expect(card(page).getByTestId('props-id')).toHaveText('eq_back_wp');
+  await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_back_wp');
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
   // Клик по кружочку маркера в «Выбор»: открывает «Проверку» развёрнутой, а
@@ -204,7 +204,7 @@ test('клик по кружочку маркера открывает нахо�
   // выбрана на плане, и клик не провалился в объект под маркером.
   await clickOnCanvas(page, markerPoint as { x: number; y: number });
   await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
-  await expect(card(page).getByTestId('props-id')).toHaveText('eq_rack_1');
+  await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_rack_1');
   expect(await numberOf(page, 'X, м')).toBeCloseTo(baselineX, 3);
   expect(await numberOf(page, 'Y, м')).toBeCloseTo(baselineY, 3);
   await expect

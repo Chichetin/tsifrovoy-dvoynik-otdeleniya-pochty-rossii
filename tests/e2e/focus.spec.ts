@@ -73,7 +73,7 @@ async function selectByLabel(page: Page, label: string): Promise<string> {
     .getByRole('button', { name: label, exact: true })
     .first()
     .click();
-  const id = await card(page).getByTestId('props-id').textContent();
+  const id = await card(page).getAttribute('data-entity-id');
   expect(id).not.toBeNull();
   return (id as string).trim();
 }

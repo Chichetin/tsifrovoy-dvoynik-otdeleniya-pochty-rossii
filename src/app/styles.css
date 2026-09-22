@@ -2017,15 +2017,9 @@ span.inventory__num {
 
 /* U06: карточка свойств */
 
-.props__id {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.props__line {
   margin: 0 0 8px;
-}
-
-.props__id code {
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .props__field {

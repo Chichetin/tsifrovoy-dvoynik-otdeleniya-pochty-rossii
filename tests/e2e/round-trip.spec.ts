@@ -22,14 +22,14 @@ test('готовый план → правка → файл → новая ст�
   await inventory.filter({ hasText: 'Терминал электронной очереди' }).getByRole('button').first().click();
 
   const card = page.getByLabel('Свойства');
-  await expect(card.getByTestId('props-id')).toHaveText('eq_kiosk');
+  await expect(card).toHaveAttribute('data-entity-id', 'eq_kiosk');
   await card.getByLabel('X, м').fill('1.1');
   await card.getByLabel('Y, м').fill('2.1');
   await card.getByLabel('Поворот, °').fill('90');
   // The organizer catalog has no editable attributes for this type; a second
   // Q01 scenario covers a catalog-defined attribute. Rename this object here.
   await card.getByLabel('Название').fill('Терминал очереди Q01');
-  await expect(card.getByTestId('props-zone')).toContainText('z_client');
+  await expect(card.getByTestId('props-zone')).toHaveText('Зона: Клиентская зона');
 
   const download = await Promise.all([
     page.waitForEvent('download'),
