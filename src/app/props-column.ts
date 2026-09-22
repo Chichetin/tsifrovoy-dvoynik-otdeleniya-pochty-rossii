@@ -10,7 +10,6 @@
  */
 
 import type { Ref } from '../contracts/model';
-import type { LeftTab } from './side-tabs';
 
 export function sameRef(a: Ref | null, b: Ref | null): boolean {
   if (a === null || b === null) return a === b;
@@ -25,9 +24,4 @@ export function sameRef(a: Ref | null, b: Ref | null): boolean {
 export function showsPropsCard(selection: Ref | null, hiddenFor: Ref | null): boolean {
   if (selection === null || selection.kind === 'layer') return false;
   return !sameRef(selection, hiddenFor);
-}
-
-/** The band over the card names the panel it replaced. */
-export function replacedTitle(left: LeftTab): string {
-  return left === 'library' ? 'Свойства — вместо библиотеки' : 'Свойства — вместо слоёв';
 }

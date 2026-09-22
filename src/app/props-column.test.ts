@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { replacedTitle, sameRef, showsPropsCard } from './props-column';
+import { sameRef, showsPropsCard } from './props-column';
 
 describe('showsPropsCard', () => {
   const zone = { kind: 'zone', id: 'z_1' } as const;
@@ -36,12 +36,5 @@ describe('sameRef', () => {
     expect(sameRef(null, { kind: 'zone', id: 'a' })).toBe(false);
     expect(sameRef({ kind: 'zone', id: 'a' }, { kind: 'zone', id: 'a' })).toBe(true);
     expect(sameRef({ kind: 'zone', id: 'a' }, { kind: 'object', id: 'a' })).toBe(false);
-  });
-});
-
-describe('replacedTitle', () => {
-  it('names the tab the card stands in for', () => {
-    expect(replacedTitle('library')).toBe('Свойства — вместо библиотеки');
-    expect(replacedTitle('layers')).toBe('Свойства — вместо слоёв');
   });
 });

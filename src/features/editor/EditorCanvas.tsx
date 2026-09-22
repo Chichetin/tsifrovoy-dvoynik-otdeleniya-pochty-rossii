@@ -28,6 +28,7 @@ import {
   panBy,
   visibleExtent,
   wheelIntent,
+  wheelPan,
   zoomByWheel,
 } from './viewport';
 
@@ -110,7 +111,7 @@ export function EditorCanvas({
     pendingPan.current = [0, 0];
     pendingZoom.current = null;
     let next = liveViewport.current;
-    if (delta[0] !== 0 || delta[1] !== 0) next = panBy(next, delta);
+    if (delta[0] !== 0 || delta[1] !== 0) next = panBy(next, wheelPan(delta));
     if (zoom !== null) next = zoomByWheel(next, zoom.anchor, zoom.deltaY);
     if (next !== liveViewport.current) applyViewport(next);
   }, [applyViewport]);

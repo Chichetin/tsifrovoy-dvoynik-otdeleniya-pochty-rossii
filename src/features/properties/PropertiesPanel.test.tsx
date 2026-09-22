@@ -63,6 +63,28 @@ function Live({ selection }: { selection: Ref | null }): React.JSX.Element {
   return <PropertiesPanel document={document} session={session(selection)} onCommand={onCommand} />;
 }
 
+describe('заголовок карточки (D-272)', () => {
+  test('у карточки нет своего заголовка — его даёт полоса «Свойства»; имя региона остаётся', () => {
+    const zone = plan.zones[0];
+    const object = plan.objects[0];
+    if (zone === undefined || object === undefined) throw new Error('в minimal.json нет зон или объектов');
+    const picks: (Ref | null)[] = [
+      { kind: 'room', id: plan.room.id },
+      { kind: 'zone', id: zone.id },
+      { kind: 'object', id: object.id },
+      { kind: 'wall', id: 'w_north' },
+      { kind: 'opening', id: 'op_entrance' },
+      null,
+    ];
+    for (const pick of picks) {
+      show(pick);
+      expect(screen.getByRole('region', { name: 'Свойства' })).toBeTruthy();
+      expect(screen.queryAllByRole('heading')).toHaveLength(0);
+      cleanup();
+    }
+  });
+});
+
 describe('карточка подъезжает к экрану', () => {
   test('переход из перечня или находок прокручивает карточку, повтор того же перехода — нет', () => {
     // jsdom не умеет прокрутку: подменяем и считаем вызовы.
@@ -184,7 +206,7 @@ describe('карточка перегородки', () => {
   test('выбранная перегородка показывает свою карточку, а не пустое состояние', () => {
     show({ kind: 'wall', id: 'w_north' });
 
-    expect(screen.getByText('Свойства перегородки')).toBeTruthy();
+    expect(screen.getByText(/^перегородка;/)).toBeTruthy();
     expect(screen.getByTestId('props-id').textContent).toBe('w_north');
   });
 
@@ -235,7 +257,7 @@ describe('карточка проёма', () => {
   test('выбранный проём показывает свою карточку', () => {
     show({ kind: 'opening', id: 'op_entrance' });
 
-    expect(screen.getByText('Свойства проёма')).toBeTruthy();
+    expect(screen.getByText(/^проём;/)).toBeTruthy();
     expect(screen.getByTestId('props-id').textContent).toBe('op_entrance');
   });
 

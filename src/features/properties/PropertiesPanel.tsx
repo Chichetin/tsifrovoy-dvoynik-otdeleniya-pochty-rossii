@@ -308,7 +308,6 @@ export function PropertiesPanel({
         : `Площадь по контуру ${formatArea(area)}, вершин ${room.boundary.length}`;
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
-        <h2 className="panel__title">Свойства помещения</h2>
         {identity(room.id, 'помещение')}
 
         {field(
@@ -357,7 +356,6 @@ export function PropertiesPanel({
     const type = findZoneType(plan.catalog, zone.typeId);
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
-        <h2 className="panel__title">Свойства зоны</h2>
         {identity(zone.id, 'зона')}
 
         {field(
@@ -450,7 +448,6 @@ export function PropertiesPanel({
     const groupArea = groupMembers.reduce((sum, item) => sum + footprintArea(item), 0);
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
-        <h2 className="panel__title">Свойства объекта</h2>
         {groupMembers.length > 1 ? (
           <p className="props__hint" data-testid="props-group">
             Выбрано объектов: {groupMembers.length}, суммарно {formatArea(groupArea)}. Стрелки, Delete,
@@ -549,7 +546,6 @@ export function PropertiesPanel({
     const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
-        <h2 className="panel__title">Свойства перегородки</h2>
         {identity(wall.id, 'перегородка')}
 
         <div className="props__pair">
@@ -584,7 +580,6 @@ export function PropertiesPanel({
       host === undefined ? null : Math.hypot(host.to[0] - host.from[0], host.to[1] - host.from[1]);
     return (
       <section ref={card} className="panel props" aria-label="Свойства">
-        <h2 className="panel__title">Свойства проёма</h2>
         {identity(opening.id, 'проём')}
 
         {field(
@@ -639,7 +634,6 @@ export function PropertiesPanel({
 
   return (
     <section ref={card} className="panel props" aria-label="Свойства">
-      <h2 className="panel__title">Свойства</h2>
       <p className="panel__empty">Выберите помещение, зону, объект, перегородку или проём на плане</p>
     </section>
   );

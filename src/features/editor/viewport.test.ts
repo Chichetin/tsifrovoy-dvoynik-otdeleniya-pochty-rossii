@@ -18,6 +18,7 @@ import {
   panBy,
   visibleExtent,
   wheelIntent,
+  wheelPan,
   zoomAt,
   zoomByWheel,
 } from './viewport';
@@ -86,6 +87,14 @@ describe('жесты колеса', () => {
   test('дискретное вращение колеса означает zoom', () => {
     expect(wheelIntent({ deltaX: 0, deltaY: -120, deltaMode: 0, ctrlKey: false })).toBe('zoom');
     expect(wheelIntent({ deltaX: 0, deltaY: -1, deltaMode: 1, ctrlKey: false })).toBe('zoom');
+  });
+
+  test('свайп листает план, как страницу: план едет против дельты колеса (D-272)', () => {
+    const start: Viewport = { origin: [100, 400], scale: 40 };
+    // Дельта вправо-вниз — план уходит влево-вверх на те же пиксели.
+    expect(panBy(start, wheelPan([18, 16])).origin).toEqual([82, 384]);
+    expect(panBy(start, wheelPan([-5, -30])).origin).toEqual([105, 430]);
+    expect(panBy(start, wheelPan([0, 0])).origin).toEqual([100, 400]);
   });
 
   test('Ctrl принудительно оставляет zoom даже у плавной дельты', () => {
