@@ -43,6 +43,10 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
       { keys: 'Ctrl+C затем Ctrl+V', description: 'Скопировать, затем вставить со смещением' },
       { keys: 'Ctrl+D', description: 'Дублировать со смещением, без буфера обмена' },
       { keys: 'Delete или Backspace', description: 'Удалить' },
+      {
+        keys: 'Двойной щелчок',
+        description: 'Правка формы вершинами: тянуть вершину, клик по ребру — добавить, двойной щелчок по вершине — удалить; Enter или Esc — готово',
+      },
     ],
   },
   {
@@ -55,7 +59,7 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
   {
     title: 'Разное',
     entries: [
-      { keys: 'Enter', description: 'Замкнуть контур помещения или зоны (от трёх точек); для выделенного проёма — снять выделение, как «готово»' },
+      { keys: 'Enter', description: 'Замкнуть контур помещения, зоны или своей фигуры (от трёх точек); для выделенного проёма — снять выделение, как «готово»' },
       { keys: 'Esc', description: 'Отменить текущий жест или рамку выделения' },
       { keys: '?', description: 'Показать или скрыть эту карту клавиш' },
     ],

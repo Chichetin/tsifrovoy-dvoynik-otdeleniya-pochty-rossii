@@ -26,9 +26,10 @@ import type {
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
-import { findObjectType, findZoneType, informationAttributeKeys } from '../../domain/catalog';
+import { findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
+import { hasOwnShape, shapeTypeFrom } from './shape-type';
 
 type Errors = Record<string, string>;
 
@@ -80,13 +81,6 @@ function attributeValue(attributes: Attributes, def: AttributeDef): string {
 }
 
 /**
- * Подсказка у поля, чьё значение рисует информационный слой: такие числа
- * вписывает человек для планирования, и выдавать их за измерение нельзя
- * (D-276). Какие это поля — решает справочник слоёв, не список в коде.
- */
-const CONDITIONAL_HINT = 'Условное число для планирования, не измерение';
-
-/**
  * The card names the zone as the plan does; an object outside every zone (or
  * pointing at a zone that is gone) says so. A blank name falls back to the id,
  * as in the inventory list: an empty «Зона: » tells nothing.
@@ -125,10 +119,12 @@ export function PropertiesPanel({
   const selectionKey =
     session.selection === null ? '' : `${session.selection.kind}:${session.selection.id}`;
   const [draftsFor, setDraftsFor] = useState(selectionKey);
+  const [shapeSaved, setShapeSaved] = useState<string | null>(null);
   if (draftsFor !== selectionKey) {
     setDraftsFor(selectionKey);
     setDraft({});
     setErrors({});
+    setShapeSaved(null);
   }
 
   const selection = session.selection;
@@ -208,8 +204,8 @@ export function PropertiesPanel({
       />,
     );
 
-  /** Какие атрибуты питают информационные слои — вопрос к справочнику. */
-  const conditionalKeys = informationAttributeKeys(plan.catalog);
+  // No "conditional number" hint on any field — ever (D-281, participant's
+  // explicit ban): synthetic data is disclosed in README and the presentation.
 
   /** Поля атрибутов строятся по справочнику, а не по списку в коде. */
   const attributeFields = (
@@ -220,7 +216,6 @@ export function PropertiesPanel({
     defs.map((def) => {
       const name = `attributes.${def.key}`;
       const label = def.required ? `${def.label} *` : def.label;
-      const hint = conditionalKeys.has(def.key) ? CONDITIONAL_HINT : undefined;
       const set = (value: Attributes[string]): Zone | Equipment =>
         apply({ ...attributes, [def.key]: value });
 
@@ -234,7 +229,6 @@ export function PropertiesPanel({
             checked={attributes[def.key] === true}
             onChange={(event) => commit(name, set(event.target.checked))}
           />,
-          hint,
         );
       }
       if (def.type === 'number') {
@@ -253,7 +247,6 @@ export function PropertiesPanel({
               commit(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
             }}
           />,
-          hint,
         );
       }
       return field(
@@ -267,7 +260,6 @@ export function PropertiesPanel({
             commit(name, set(event.target.value === '' ? null : event.target.value), event.target.value)
           }
         />,
-        hint,
       );
     });
 
@@ -544,6 +536,65 @@ export function PropertiesPanel({
         <p className="props__line" data-testid="props-zone">
           Зона: {zoneName(plan, object.zoneId)}
         </p>
+
+        {hasOwnShape(plan.catalog, object) ? (
+          <div className="props__shape" data-testid="props-shape">
+            <p className="props__line">
+              Форма: своя, вершин — {object.outline?.length}. Двойной щелчок по объекту на плане — правка вершин.
+            </p>
+            <button
+              type="button"
+              className="files__button"
+              onClick={() => {
+                const rest = { ...object };
+                delete rest.outline;
+                commitCommand('shape', { type: 'object.put', object: rest });
+              }}
+            >
+              Сбросить форму к типу
+            </button>
+            {field(
+              'shape.name',
+              'Название нового типа',
+              <input
+                type="text"
+                aria-label="Название нового типа"
+                value={shown('shape.name', '')}
+                onChange={(event) => setDraft((current) => ({ ...current, 'shape.name': event.target.value }))}
+              />,
+            )}
+            <button
+              type="button"
+              className="files__button"
+              onClick={() => {
+                const name = shown('shape.name', '');
+                const created = shapeTypeFrom(plan.catalog, object, name);
+                if (created === null) {
+                  setErrors((current) => ({ ...current, 'shape.name': 'Введите название типа.' }));
+                  return;
+                }
+                if (onCommand({ type: 'catalog.replace', catalog: created.catalog }).ok) {
+                  setShapeSaved(`Тип «${name.trim()}» добавлен в библиотеку.`);
+                  setDraft((current) => without(current, 'shape.name'));
+                  setErrors((current) => without(current, 'shape.name'));
+                } else {
+                  setErrors((current) => ({ ...current, 'shape.name': 'Справочник не принял новый тип.' }));
+                }
+              }}
+            >
+              Сохранить форму как новый тип
+            </button>
+          </div>
+        ) : (
+          <p className="props__hint" data-testid="props-shape">
+            Форма: как у типа. Двойной щелчок по объекту на плане — правка вершин.
+          </p>
+        )}
+        {shapeSaved === null ? null : (
+          <p className="props__line" role="status">
+            {shapeSaved}
+          </p>
+        )}
 
         {type === null
           ? null

@@ -64,3 +64,27 @@ test('перетаскивание типа вооружает тот же ин�
   expect(setData).toHaveBeenCalledWith('text/plain', 'ot_sized');
   expect(item.getAttribute('draggable')).toBe('true');
 });
+
+test('тип с формой показывает свой контур вместо квадрата (D-279)', () => {
+  const sized = withSize(1, 1);
+  const shaped = {
+    ...sized,
+    objectTypes: [{ ...sized.objectTypes[0]!, outline: [[0, 0.5], [-0.5, -0.5], [0.5, -0.5]] as [number, number][] }],
+  };
+  render(<LibraryPanel catalog={shaped} activeTypeId={null} onTool={vi.fn()} />);
+  const icon = screen.getByTestId('library-shape-ot_sized');
+  expect(icon.getAttribute('aria-hidden')).toBe('true');
+  // Model Y is up, SVG's is down: the apex at +0.5 is drawn at the top.
+  expect(icon.querySelector('polygon')?.getAttribute('points')).toBe('0,-0.5 -0.5,0.5 0.5,0.5');
+});
+
+test('«Нарисовать свою фигуру» берёт выбранный тип, без типа — подсказка, не молчание (D-279)', () => {
+  const onTool = vi.fn();
+  const { rerender } = render(<LibraryPanel catalog={withSize(1, 1)} activeTypeId={null} onTool={onTool} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Нарисовать свою фигуру' }));
+  expect(onTool).not.toHaveBeenCalled();
+  expect(screen.getByRole('status').textContent).toContain('Сначала выберите тип');
+  rerender(<LibraryPanel catalog={withSize(1, 1)} activeTypeId="ot_sized" onTool={onTool} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Нарисовать свою фигуру' }));
+  expect(onTool).toHaveBeenCalledWith({ kind: 'shape.draw', typeId: 'ot_sized' });
+});
