@@ -1,19 +1,34 @@
 /**
- * Цвет названия зоны по уровню вложенности (D-250).
+ * Стиль названия зоны по уровню вложенности (D-250, D-279).
  *
- * Имя зоны верхнего уровня — нейтральное тёмное, вложенной — синее, вложенной
- * во вложенную и глубже — фиолетовое: «Клиентский зал» → «Зона ожидания» →
- * «Очередь» различаются на глаз, без открытия свойств. Все три цвета при
- * непрозрачности подписи 0,55 (D-237) дают на любом полу из
- * `data/catalog/zone-types.json` контраст не ниже 2,98:1 против прежних
- * 2,27–2,38:1 у единого `#56626E` (по ревью MR !211 синий и фиолетовый
- * затемнены). Красный не берём — он занят находками проверки.
+ * По названию видно, какая зона общая, а какая вложена в неё: имя зоны
+ * верхнего уровня — самое яркое (фирменный синий, полужирное, почти
+ * непрозрачное), вложенной — приглушённое серое, вложенной во вложенную и
+ * глубже — ещё тише (светлее и тоньше). «Клиентский зал» → «Зона ожидания» →
+ * «Очередь» читаются как «общее → уточнение → уточнение уточнения», без
+ * открытия свойств. Контраст подписи на любом полу из
+ * `data/catalog/zone-types.json` (пол с непрозрачностью 0,75 поверх белого,
+ * подпись со своей непрозрачностью поверх пола, WCAG 2.1): корень 5,87–6,30,
+ * вложенная 3,92–4,11, глубже 3,19–3,38. Красный не берём — он занят
+ * находками проверки.
  *
- * Это стиль интерфейса, а не справочник: цвет не зависит от типа зоны и не
+ * Это стиль интерфейса, а не справочник: он не зависит от типа зоны и не
  * настраивается данными.
  */
 
-export const ZONE_NAME_FILLS = ['#343A40', '#08386A', '#5E1C72'] as const;
+export type ZoneNameStyle = {
+  fill: string;
+  opacity: number;
+  fontStyle: string;
+};
+
+export const ZONE_NAME_STYLES: readonly ZoneNameStyle[] = [
+  { fill: '#0055A6', opacity: 0.95, fontStyle: 'bold' },
+  { fill: '#495057', opacity: 0.75, fontStyle: '500' },
+  { fill: '#6C757D', opacity: 0.85, fontStyle: 'normal' },
+];
+
+export const ZONE_NAME_FILLS = ZONE_NAME_STYLES.map((style) => style.fill);
 
 /**
  * `depth` — результат `zoneDepth`: 0 — корень, null — цикл в `parentId`
@@ -22,7 +37,12 @@ export const ZONE_NAME_FILLS = ['#343A40', '#08386A', '#5E1C72'] as const;
  * вложенная. Так и задумано: родитель в документе объявлен, потерялся он или
  * скрыт — подпись честно показывает объявленный уровень, а не корень.
  */
+export function zoneNameStyle(depth: number | null): ZoneNameStyle {
+  const root = ZONE_NAME_STYLES[0] as ZoneNameStyle;
+  if (depth === null || depth <= 0) return root;
+  return ZONE_NAME_STYLES[Math.min(depth, ZONE_NAME_STYLES.length - 1)] ?? root;
+}
+
 export function zoneNameFill(depth: number | null): string {
-  if (depth === null || depth <= 0) return ZONE_NAME_FILLS[0];
-  return ZONE_NAME_FILLS[Math.min(depth, ZONE_NAME_FILLS.length - 1)] ?? ZONE_NAME_FILLS[0];
+  return zoneNameStyle(depth).fill;
 }
