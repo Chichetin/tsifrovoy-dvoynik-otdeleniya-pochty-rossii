@@ -161,6 +161,9 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('files-notice')).toContainText('формата организаторов');
     await expect(page.getByTestId('files-notice')).toContainText('формате редактора');
     await expect(page.getByTestId('organizer-assumptions')).toContainText('Допущения импорта');
+    // D-292: сообщение об открытом плане закрывается крестиком, не дожидаясь 7 с.
+    await page.getByTestId('files-notice').getByRole('button', { name: 'Скрыть сообщение' }).click();
+    await expect(page.getByTestId('files-notice')).toHaveCount(0);
 
     // Зоны нарисованы: площадь помещения и свободный пол посчитаны от плана.
     await expect(page.getByTestId('room-free')).toContainText('м²');

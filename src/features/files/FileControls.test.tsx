@@ -809,6 +809,24 @@ describe('FileControls: сообщение о файле живёт семь с�
     expect(document.querySelector('.files__messages')).toBeNull();
   });
 
+  test('крестик убирает «План … открыт» сразу, таймер после этого ничего не ломает (D-292)', async () => {
+    renderControls({ storage: null });
+    await act(async () => {
+      fireEvent.change(screen.getByTestId('plan-file-input'), {
+        target: { files: [new File([JSON.stringify(filled)], 'plan.json', { type: 'application/json' })] },
+      });
+    });
+    expect(screen.getByTestId('files-notice').textContent).toContain('открыт');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть сообщение' }));
+
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    waitLifetime();
+    expect(screen.queryByTestId('files-notice')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   test('новое сообщение заводит отсчёт заново', async () => {
     const { rerender } = renderControls({ storage: null });
     await act(async () => {

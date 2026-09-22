@@ -713,6 +713,23 @@ body {
   text-overflow: ellipsis;
 }
 
+/* D-292: the success line carries its own close button. */
+.files__messages > .files__status.is-closable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.files__notice-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.files__status.is-closable > .files__error-close {
+  color: inherit;
+}
+
 .files__messages > details {
   position: relative;
   flex: none;

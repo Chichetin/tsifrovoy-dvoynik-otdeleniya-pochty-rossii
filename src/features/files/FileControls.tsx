@@ -669,8 +669,18 @@ export function FileControls({
       )}
 
       {state.status === 'done' && notice !== null ? (
-        <span className="files__status" data-testid="files-notice">
-          {notice}
+        <span className="files__status is-closable" data-testid="files-notice">
+          <span className="files__notice-text">{notice}</span>
+          {/* D-292: the success line can be closed by hand, like the file error. */}
+          <button
+            type="button"
+            className="files__error-close"
+            aria-label="Скрыть сообщение"
+            title="Скрыть сообщение"
+            onClick={() => setNotice(null)}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
         </span>
       ) : null}
 
