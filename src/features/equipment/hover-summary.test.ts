@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
-import type { Issue } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { planIndex } from '../../domain/plan-index';
-import { equipmentHoverSummary } from './hover-summary';
+import { HOVER_HINT, equipmentHoverSummary } from './hover-summary';
 
 function plan() {
   const parsed = parsePlanDocument(nested);
@@ -12,50 +10,42 @@ function plan() {
 }
 
 describe('подсказка объекта', () => {
-  test('показывает имена вместе с id, инвентарный номер, размеры и поворот', () => {
+  test('называет предмет и зовёт кликнуть за подробностями', () => {
+    const document = plan();
+    const object = document.objects[0]!;
+
+    const summary = equipmentHoverSummary(object);
+
+    expect(summary.title).toBe(object.label);
+    expect(summary.hint).toBe(HOVER_HINT);
+  });
+
+  test('паспорт объекта в карточку не попадает — он в «Свойствах»', () => {
     const document = plan();
     const source = document.objects[0]!;
     const object = {
       ...source,
-      attributes: { ...source.attributes, inventoryNumber: ' ИНВ-42 ' },
+      attributes: { ...source.attributes, inventoryNumber: 'ИНВ-42' },
       size_m: [1.25, 0.5] as [number, number],
       rotation_deg: 37,
     };
-    const summary = equipmentHoverSummary(planIndex(document), object, []);
-    const type = document.catalog.objectTypes.find((entry) => entry.id === object.typeId)!;
-    const zone = document.zones.find((entry) => entry.id === object.zoneId)!;
+    const zone = document.zones.find((entry) => entry.id === object.zoneId);
 
-    expect(summary.title).toBe(object.label);
-    expect(summary.lines).toContain(`Тип: ${type.label} (${type.id})`);
-    expect(summary.lines).toContain(`ID: ${object.id}`);
-    expect(summary.lines).toContain('Инв. №: ИНВ-42');
-    expect(summary.lines).toContain(`Зона: ${zone.name} (${zone.id})`);
-    expect(summary.lines).toContain('Размер: 1,25 × 0,5 м');
-    expect(summary.lines).toContain('Поворот: 37°');
+    const shown = Object.values(equipmentHoverSummary(object)).join('\n');
+
+    // Ни типа, ни размеров, ни поворота, ни инвентарного номера, ни зоны.
+    expect(shown).not.toContain(object.typeId);
+    expect(shown).not.toContain(object.id);
+    expect(shown).not.toContain('1,25');
+    expect(shown).not.toContain('ИНВ-42');
+    if (zone !== undefined) expect(shown).not.toContain(zone.name);
   });
 
-  test('не прячет неизвестные id и ставит ошибки раньше предупреждений', () => {
+  test('карточка — это ровно две строки: имя и подсказка', () => {
     const document = plan();
-    const object = {
-      ...document.objects[0]!,
-      typeId: 'ot_missing',
-      zoneId: 'z_missing',
-      attributes: { ...document.objects[0]!.attributes, inventoryNumber: null },
-    };
-    const issues: Issue[] = [
-      { code: 'WARN', severity: 'warning', message: 'Предупреждение', refs: [{ kind: 'object', id: object.id }] },
-      { code: 'OTHER', severity: 'error', message: 'Чужая ошибка', refs: [{ kind: 'object', id: 'other' }] },
-      { code: 'ERROR', severity: 'error', message: 'Ошибка объекта', refs: [{ kind: 'object', id: object.id }] },
-    ];
 
-    const summary = equipmentHoverSummary(planIndex(document), object, issues);
-    expect(summary.lines).toContain('Тип: ot_missing');
-    expect(summary.lines).toContain('Зона: z_missing');
-    expect(summary.lines).toContain('Инв. №: —');
-    expect(summary.lines.slice(-2)).toEqual([
-      'Проверка: Ошибка объекта',
-      'Проверка: Предупреждение',
-    ]);
-    expect(summary.lines.join('\n')).not.toContain('Чужая ошибка');
+    const summary = equipmentHoverSummary(document.objects[0]!);
+
+    expect(Object.keys(summary).sort()).toEqual(['hint', 'title']);
   });
 });
