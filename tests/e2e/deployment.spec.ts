@@ -120,14 +120,13 @@ test.describe('развёрнутый сервис', () => {
     // хотя сервис отвечал правильно.
     test.setTimeout(LLM_WAIT_MS + 30_000);
     await page.goto('/');
-    await showTab(page, 'Ассистент');
     await drawZone(page);
 
     // D-249: панели правой колонки — вкладки, видна одна. Без этого шага спека
     // искала «Спросить» в скрытой панели и валилась по таймауту на живом деплое.
     await showTab(page, 'Ассистент');
 
-    const panel = page.getByLabel('Ассистент');
+    // `exact`: рядом есть плавающая кнопка «Ассистент» с тем же именем.
     const panel = page.getByLabel('Ассистент', { exact: true });
     await panel.getByRole('button', { name: 'Спросить' }).click();
 

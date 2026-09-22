@@ -1992,12 +1992,9 @@ span.inventory__num {
 
 .props__pair {
   display: grid;
-  /* D-268: minmax(0, …) — a number input's intrinsic width must not push
-     the pair past the narrow left column the card now stands in. */
   /* minmax(0, …): у `1fr` минимум — внутренняя ширина поля (216 px при
-     size=20), и пара вылезала за карточку 315 px (D-265). */
-  /* minmax(0, …): у `1fr` минимум — внутренняя ширина поля (216 px при
-     size=20), и пара вылезала за карточку 315 px. */
+     size=20), и пара вылезала за карточку; в узкой левой колонке, куда
+     карточка переехала (D-268), это заметно сильнее. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
