@@ -43,6 +43,10 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
       { keys: 'Ctrl+C затем Ctrl+V', description: 'Скопировать, затем вставить со смещением' },
       { keys: 'Ctrl+D', description: 'Дублировать со смещением, без буфера обмена' },
       { keys: 'Delete или Backspace', description: 'Удалить' },
+      {
+        keys: 'Двойной щелчок',
+        description: 'Правка формы вершинами: тянуть вершину, клик по ребру — добавить, двойной щелчок по вершине — удалить; Enter или Esc — готово',
+      },
     ],
   },
   {

@@ -58,6 +58,12 @@ export const WALL_TOO_SHORT_NOTICE =
 export const OPENING_WIDER_THAN_WALL_NOTICE =
   'Стена короче проёма — выберите стену длиннее или другой вид проёма';
 
+/** Shape mode of an object (D-279): what the handles do and how to leave. */
+export const SHAPE_EDIT_NOTICE =
+  'Правка формы: тяните вершину, клик по середине ребра — новая вершина, двойной щелчок по вершине — удалить; Enter или Esc — готово';
+export const SHAPE_TOO_SMALL_NOTICE =
+  'Форма получилась тоньше 10 см — правка отклонена, объект не изменён';
+
 export const NEAR_VERTEX_NOTICE =
   'Клик пришёлся у вершины — вершина не добавлена; кликните ближе к середине ребра';
 
