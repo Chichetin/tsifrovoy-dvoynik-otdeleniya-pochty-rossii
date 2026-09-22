@@ -261,6 +261,10 @@ test.describe('слои в браузере', () => {
     await heat.getByRole('button', { name: 'Показывать слой Тепловая нагрузка зон' }).click();
     // Показ слоя — не правка: план остаётся сохранённым (D-207, находка operator №11).
     await expectUnsavedEdits(page, false);
+    // Пометка условности видна сразу, без разворачивания пояснения (D-276).
+    await expect(heat.locator('.layers__caution')).toHaveText(
+      'Числа условные: их вписывает человек, это не измерение',
+    );
     const shown = JSON.parse(await savePlan(page));
     expect(shown.zones).toEqual(before.zones);
     expect(shown.objects).toEqual(before.objects);
@@ -274,6 +278,15 @@ test.describe('слои в браузере', () => {
     await expect(async () => {
       expect(await canvas.screenshot()).not.toEqual(clean);
     }).toPass();
+
+    // Поле, которое рисует слой, подписано условным и в карточке зоны (D-276):
+    // имя зоны в таблице слоя — ссылка на саму зону, карточка открывается по ней.
+    await heat.getByRole('button', { name: 'Зона 1' }).click();
+    await page.getByRole('button', { name: 'Свойства выбранного' }).click();
+    await expect(
+      card(page).getByLabel('Загрузка зоны, %').locator('..').locator('.props__hint'),
+    ).toHaveText('Условное число для планирования, не измерение');
+    await showTab(page, 'Слои');
 
     const withValue = JSON.parse(await savePlan(page));
     expect(before.zones[0].attributes.loadPercent ?? null).toBeNull();

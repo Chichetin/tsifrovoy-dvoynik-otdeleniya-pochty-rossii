@@ -14,6 +14,7 @@ import {
   defaultAttributes,
   findLayerType,
   findObjectType,
+  informationAttributeKeys,
   rulesForObjectType,
   validateCatalog,
 } from './index';
@@ -352,5 +353,40 @@ describe('проверка справочника ловит ошибки ред
       ),
     };
     expect(codesOf(bad)).toContain(CATALOG_ISSUE_CODES.INVALID_COLOR);
+  });
+});
+
+describe('informationAttributeKeys', () => {
+  const catalog = loadCatalog();
+
+  test('ключи собираются из справочника слоёв, а не из списка в коде', () => {
+    const keys = informationAttributeKeys(catalog);
+    expect(keys.has('loadPercent')).toBe(true);
+    expect(keys.has('staffCount')).toBe(true);
+    expect(keys.has('viewAngleDeg')).toBe(true);
+    expect(keys.has('viewRangeM')).toBe(true);
+    // Обычные атрибуты зоны и объекта пометки не получают.
+    expect(keys.has('seatsPlanned')).toBe(false);
+  });
+
+  test('новый слой в JSON добавляет свой ключ без правки кода', () => {
+    const added: LayerType = {
+      id: 'lt_noise',
+      label: 'Шум по зонам',
+      representation: { kind: 'zone-count', attribute: 'noiseLevel', unit: 'дБ', color: '#7048E8' },
+      note: 'Условные значения команды.',
+    };
+    const keys = informationAttributeKeys({ ...catalog, layerTypes: [...catalog.layerTypes, added] });
+    expect(keys.has('noiseLevel')).toBe(true);
+  });
+
+  test('обычный слой ключей не добавляет', () => {
+    const plain: LayerType = {
+      id: 'lt_plain',
+      label: 'Обычный',
+      representation: { kind: 'objects' },
+      note: 'Ничего не рисует поверх.',
+    };
+    expect(informationAttributeKeys({ ...catalog, layerTypes: [plain] }).size).toBe(0);
   });
 });
