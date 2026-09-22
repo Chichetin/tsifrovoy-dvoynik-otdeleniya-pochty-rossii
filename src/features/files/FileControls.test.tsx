@@ -58,6 +58,20 @@ function draftOf(plan: PlanDocument, name = 'План из черновика'):
   return { savedAt: '2026-09-17T09:00:00.000Z', name, text: JSON.stringify(plan) };
 }
 
+
+const unreadable = {
+  ok: false as const,
+  issues: [{ code: 'DOCUMENT_UNREADABLE', severity: 'error' as const, message: 'JSON оборван.', refs: [] }],
+};
+
+async function openBroken(): Promise<void> {
+  await act(async () => {
+    fireEvent.change(screen.getByTestId('plan-file-input'), {
+      target: { files: [new File(['{}'], 'broken.json', { type: 'application/json' })] },
+    });
+  });
+}
+
 type Overrides = Partial<React.ComponentProps<typeof FileControls>>;
 
 function renderControls(overrides: Overrides = {}) {
@@ -218,6 +232,28 @@ describe('FileControls: замена текущего плана', () => {
     expect(screen.getByRole('alert').textContent).toContain('План не открыт');
     expect(screen.getByRole('alert').textContent).not.toContain('DOCUMENT_UNREADABLE');
     expect(screen.getByTestId('file-error-details').textContent).toContain('DOCUMENT_UNREADABLE: JSON оборван.');
+  });
+
+  test('ошибку файла снимает крестик «Скрыть сообщение» вместе с раскрытием (D-274)', async () => {
+    renderControls({ storage: null, read: () => unreadable });
+    await openBroken();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть сообщение' }));
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('file-error-details')).toBeNull();
+  });
+
+  test('ошибка файла пропадает сама, когда план правят дальше (D-274)', async () => {
+    const { rerender } = renderControls({ storage: null, read: () => unreadable, revision: 3 });
+    await openBroken();
+    rerender({ revision: 3 });
+    expect(screen.getByRole('alert').textContent).toContain('План не открыт');
+
+    rerender({ revision: 4 });
+
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('file-error-details')).toBeNull();
   });
 });
 
