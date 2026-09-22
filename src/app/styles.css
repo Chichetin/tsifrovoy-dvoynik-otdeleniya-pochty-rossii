@@ -1996,6 +1996,8 @@ span.inventory__num {
      the pair past the narrow left column the card now stands in. */
   /* minmax(0, …): у `1fr` минимум — внутренняя ширина поля (216 px при
      size=20), и пара вылезала за карточку 315 px (D-265). */
+  /* minmax(0, …): у `1fr` минимум — внутренняя ширина поля (216 px при
+     size=20), и пара вылезала за карточку 315 px. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }

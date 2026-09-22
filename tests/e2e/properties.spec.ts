@@ -226,6 +226,7 @@ test.describe('карточка свойств', () => {
 });
 
 test.describe('карточка свойств помещается в колонку (D-265)', () => {
+test.describe('карточка свойств помещается в колонку', () => {
   for (const width of [1280, 1440]) {
     test(`на ${width} px правый край каждого поля — внутри карточки`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
