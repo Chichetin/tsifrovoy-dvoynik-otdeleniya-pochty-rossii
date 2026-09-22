@@ -26,7 +26,7 @@ import type {
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
-import { findObjectType, findZoneType, informationAttributeKeys } from '../../domain/catalog';
+import { findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
@@ -79,13 +79,6 @@ function attributeValue(attributes: Attributes, def: AttributeDef): string {
   if (value === null || value === undefined) return '';
   return String(value);
 }
-
-/**
- * Подсказка у поля, чьё значение рисует информационный слой: такие числа
- * вписывает человек для планирования, и выдавать их за измерение нельзя
- * (D-276). Какие это поля — решает справочник слоёв, не список в коде.
- */
-const CONDITIONAL_HINT = 'Условное число для планирования, не измерение';
 
 /**
  * The card names the zone as the plan does; an object outside every zone (or
@@ -211,8 +204,8 @@ export function PropertiesPanel({
       />,
     );
 
-  /** Какие атрибуты питают информационные слои — вопрос к справочнику. */
-  const conditionalKeys = informationAttributeKeys(plan.catalog);
+  // No "conditional number" hint on any field — ever (D-281, participant's
+  // explicit ban): synthetic data is disclosed in README and the presentation.
 
   /** Поля атрибутов строятся по справочнику, а не по списку в коде. */
   const attributeFields = (
@@ -223,7 +216,6 @@ export function PropertiesPanel({
     defs.map((def) => {
       const name = `attributes.${def.key}`;
       const label = def.required ? `${def.label} *` : def.label;
-      const hint = conditionalKeys.has(def.key) ? CONDITIONAL_HINT : undefined;
       const set = (value: Attributes[string]): Zone | Equipment =>
         apply({ ...attributes, [def.key]: value });
 
@@ -237,7 +229,6 @@ export function PropertiesPanel({
             checked={attributes[def.key] === true}
             onChange={(event) => commit(name, set(event.target.checked))}
           />,
-          hint,
         );
       }
       if (def.type === 'number') {
@@ -256,7 +247,6 @@ export function PropertiesPanel({
               commit(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
             }}
           />,
-          hint,
         );
       }
       return field(
@@ -270,7 +260,6 @@ export function PropertiesPanel({
             commit(name, set(event.target.value === '' ? null : event.target.value), event.target.value)
           }
         />,
-        hint,
       );
     });
 

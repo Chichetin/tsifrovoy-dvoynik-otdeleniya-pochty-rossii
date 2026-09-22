@@ -123,16 +123,11 @@ describe('LayersPanel', () => {
     expect(bar.style.background).toContain('linear-gradient');
   });
 
-  test('у включённого информационного слоя пометка условности видна сразу (D-276)', () => {
+  test('пометки условности у слоя нет и не будет — запрет участника (D-281)', () => {
     renderPanel(demo(['l_lt_heat']));
     const heat = item('Тепловая нагрузка зон');
-    const caution = heat.querySelector('.layers__caution') as HTMLElement | null;
-    expect(caution?.textContent).toBe('Числа условные: их вписывает человек, это не измерение');
-    // Пометка — не внутри «Что показывает слой»: её видно без разворачивания.
-    expect(caution?.closest('details')).toBeNull();
-    // У выключенного слоя и у обычного пометки нет: чисел на плане тоже нет.
-    expect(item('Сотрудники по зонам').querySelector('.layers__caution')).toBeNull();
-    expect(item('Основной').querySelector('.layers__caution')).toBeNull();
+    expect(heat.querySelector('.layers__caution')).toBeNull();
+    expect(heat.textContent).not.toContain('Числа условные');
   });
 
   test('у выключенного информационного слоя легенды нет, у обычного — никогда', () => {
