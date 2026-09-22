@@ -3,9 +3,13 @@
  * U07: библиотека читается по-русски и доступна с клавиатуры и экранного диктора.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
+import type { ObjectType } from '../../contracts/model';
+import { PLAN_PICTOGRAM_PATHS, planPictogram } from '../../domain/plan-pictogram';
 import { parsePlanDocument } from '../../contracts/schema';
 import { LibraryPanel } from './LibraryPanel';
 
@@ -87,4 +91,46 @@ test('«Нарисовать свою фигуру» берёт выбранны
   rerender(<LibraryPanel catalog={withSize(1, 1)} activeTypeId="ot_sized" onTool={onTool} />);
   fireEvent.click(screen.getByRole('button', { name: 'Нарисовать свою фигуру' }));
   expect(onTool).toHaveBeenCalledWith({ kind: 'shape.draw', typeId: 'ot_sized' });
+});
+
+/**
+ * Знак типа рядом с названием: пользователь понимает, что добавляет, до того
+ * как объект окажется на плане (заказ участника 22.09). Знак берётся из того
+ * же набора, что рисует план и экспорт, поэтому список и план не расходятся.
+ */
+test('у типа со знаком в строке стоит его знак, а не цветной образец', () => {
+  const types = JSON.parse(
+    readFileSync(join(process.cwd(), 'data', 'catalog', 'object-types.json'), 'utf8'),
+  ) as ObjectType[];
+  render(
+    <LibraryPanel catalog={{ ...catalog, objectTypes: types }} activeTypeId={null} onTool={vi.fn()} />,
+  );
+
+  for (const type of types) {
+    const icon = document.querySelector(`[data-testid="library-icon-${type.id}"] path`);
+    expect(icon, type.label).not.toBeNull();
+    expect(icon?.getAttribute('d')).toBe(PLAN_PICTOGRAM_PATHS[planPictogram(type.id)!]);
+  }
+});
+
+test('тип с нарисованным контуром оставляет свой контур, а не знак', () => {
+  const shaped: ObjectType = {
+    ...catalog.objectTypes[0]!,
+    id: 'ot_team_corner',
+    label: 'Стойка угловая',
+    outline: [
+      [-0.5, -0.5],
+      [0.5, -0.5],
+      [0.5, 0],
+      [0, 0],
+      [0, 0.5],
+      [-0.5, 0.5],
+    ],
+  };
+  render(
+    <LibraryPanel catalog={{ ...catalog, objectTypes: [shaped] }} activeTypeId={null} onTool={vi.fn()} />,
+  );
+
+  expect(document.querySelector('[data-testid="library-shape-ot_team_corner"]')).not.toBeNull();
+  expect(document.querySelector('[data-testid="library-icon-ot_team_corner"]')).toBeNull();
 });

@@ -427,6 +427,13 @@ export function App(): React.JSX.Element {
   const placedType = useRef<Id | null>(null);
   // D-275: hidden floor/ceiling groups (view state, see `shownDocument` below).
   const [hiddenMounts, setHiddenMounts] = useState<ReadonlySet<ObjectMount>>(() => new Set());
+  // Значки типов на плане: состояние вида. Выключение оставляет цвет, форму и
+  // подписи и ничего не пишет в документ, поэтому отмена его не видит.
+  const [pictograms, setPictograms] = useState(true);
+  const pictogramsView = useMemo(
+    () => ({ shown: pictograms, onToggle: () => setPictograms((shown) => !shown) }),
+    [pictograms],
+  );
   // D-279: a drawn shape is a placement too — into a hidden group it shows that group.
   const dispatchPlanCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
@@ -817,6 +824,7 @@ export function App(): React.JSX.Element {
                   onCommand={dispatch}
                   onSelect={selectFromLeft}
                   objectMounts={objectMounts}
+                  pictograms={pictogramsView}
                 />
               ),
               library: (
@@ -993,6 +1001,7 @@ export function App(): React.JSX.Element {
               preview={preview}
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
+              pictograms={pictograms}
             />
             {/* После оборудования — иначе объект, вставший на подпись, закрывает
                 название зоны целиком; полупрозрачность не даёт подписи закрыть

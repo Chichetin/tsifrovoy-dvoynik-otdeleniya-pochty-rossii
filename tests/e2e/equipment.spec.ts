@@ -218,7 +218,10 @@ test.describe('жесты над оборудованием', () => {
     await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
     await expect(inventoryRows(page)).toHaveCount(53);
 
-    for (const kind of ['cashier', 'terminal', 'rack', 'workplace', 'seat', 'printer']) {
+    // Камера, датчик и пинпад — мелкие объекты: их значок не помещается внутрь
+    // следа и рисуется постоянного размера с подложкой. Без них список
+    // проверял бы только крупную мебель.
+    for (const kind of ['cashier', 'terminal', 'rack', 'workplace', 'seat', 'printer', 'camera', 'sensor', 'pinpad']) {
       await expect.poll(() => page.evaluate((name) => {
         type Stage = { find(selector: string): unknown[] };
         const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];

@@ -56,6 +56,36 @@ const item = (name: string): HTMLElement => {
 };
 
 describe('LayersPanel', () => {
+  test('значки объектов выключаются в панели и ничего не пишут в план', () => {
+    const plan = demo();
+    const commands: Command[] = [];
+    const onToggle = vi.fn();
+    render(
+      <LayersPanel
+        document={plan}
+        session={session}
+        onCommand={vi.fn((command: Command): Result<PlanDocument> => {
+          commands.push(command);
+          return { ok: true, value: plan };
+        })}
+        onSelect={vi.fn()}
+        pictograms={{ shown: true, onToggle }}
+      />,
+    );
+    const toggle = screen.getByRole('button', { name: 'Показывать значки объектов' });
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+    fireEvent.click(toggle);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    // Вид, а не документ: команда не уходит, отмена о переключателе не знает.
+    expect(commands).toHaveLength(0);
+  });
+
+  test('без переключателя вида панель остаётся прежней', () => {
+    renderPanel(demo());
+    expect(screen.queryByRole('button', { name: 'Показывать значки объектов' })).toBeNull();
+  });
+
   test('видимость — кнопка-флажок с подписью, щелчок переключает флаг слоя', () => {
     const commands = renderPanel(demo());
     const toggle = within(item('Тепловая нагрузка зон')).getByRole('button', {

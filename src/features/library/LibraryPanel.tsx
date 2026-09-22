@@ -9,6 +9,7 @@ import { useMemo, useState } from 'react';
 import type { ObjectType } from '../../contracts/model';
 import type { LibraryPanelProps } from '../../contracts/ui';
 import { typeOutline } from '../../contracts/outline';
+import { PLAN_PICTOGRAM_PATHS, planPictogram } from '../../domain/plan-pictogram';
 import { formatShort, NBSP } from '../../domain/number-format';
 
 function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
@@ -90,10 +91,44 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                     )
                   }
                 >
-                  {typeOutline(type) === undefined ? (
+                  {/* Что важнее показать рядом с названием. Свой нарисованный
+                      контур (D-279) — он есть только у типов, которым его
+                      рисовали руками, и заменять его нечем. Иначе знак типа:
+                      в списке имён полезнее «что это», чем «какой формы», —
+                      тот же знак, что стоит на плане и в экспорте. Форма
+                      прямоугольника, круга или треугольника остаётся образцом
+                      цвета для типов без знака. */}
+                  {type.outline !== undefined ? (
+                    <svg
+                      className="library__swatch library__swatch--shape"
+                      viewBox="-0.55 -0.55 1.1 1.1"
+                      aria-hidden="true"
+                      data-testid={`library-shape-${type.id}`}
+                    >
+                      <polygon
+                        points={typeOutline(type)!.map(([u, v]) => `${u},${-v}`).join(' ')}
+                        fill={type.color}
+                      />
+                    </svg>
+                  ) : planPictogram(type.id) !== null ? (
+                    <svg
+                      className="library__swatch library__swatch--icon"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                      data-testid={`library-icon-${type.id}`}
+                    >
+                      <path
+                        d={PLAN_PICTOGRAM_PATHS[planPictogram(type.id)!]}
+                        fill="none"
+                        stroke={type.color}
+                        strokeWidth={1.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  ) : typeOutline(type) === undefined ? (
                     <span className="library__swatch" style={{ background: type.color }} aria-hidden="true" />
                   ) : (
-                    // A shaped type (D-277/D-279) shows its own outline: model Y is up, SVG's is down.
                     <svg
                       className="library__swatch library__swatch--shape"
                       viewBox="-0.55 -0.55 1.1 1.1"

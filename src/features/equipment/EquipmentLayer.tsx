@@ -52,7 +52,14 @@ import {
   type ResizeHandle,
 } from './transform';
 import { isWallMounted } from './wall-mount';
-import { isPlanPictogramVisible, planPictogram, PLAN_PICTOGRAM_PATHS, type PlanPictogram } from '../../domain/plan-pictogram';
+import {
+  isPlanPictogramVisible,
+  planPictogram,
+  planPictogramNeedsBackdrop,
+  planPictogramSize,
+  PLAN_PICTOGRAM_PATHS,
+  type PlanPictogram,
+} from '../../domain/plan-pictogram';
 
 const FALLBACK_COLOR = '#868E96';
 const SELECTED_STROKE = '#1971C2';
@@ -164,17 +171,20 @@ function EquipmentPictogram({
   height,
   opacity,
   color = '#FFFFFF',
+  backdrop,
 }: {
   kind: PlanPictogram;
   width: number;
   height: number;
   opacity: number;
   color?: string;
+  /** Цвет объекта: подложка под знак, который крупнее самого объекта. */
+  backdrop?: string;
 }): React.JSX.Element | null {
   if (kind === null || !isPlanPictogramVisible(width, height)) return null;
-  const size = Math.min(20, Math.min(width, height) * 0.78);
+  const size = planPictogramSize(width, height);
   const scale = size / 24;
-  return (
+  const icon = (
     <Path
       name={`plan-pictogram-${kind}`}
       data={PLAN_PICTOGRAM_PATHS[kind]}
@@ -191,6 +201,24 @@ function EquipmentPictogram({
       perfectDrawEnabled={false}
     />
   );
+  // Розетка, камера и датчик мельче собственного знака: без подложки его белые
+  // линии выходят за объект на светлый пол и пропадают.
+  if (backdrop === undefined || !planPictogramNeedsBackdrop(width, height)) return icon;
+  return (
+    <>
+      <Circle
+        name="plan-pictogram-backdrop"
+        radius={size * 0.62}
+        fill={backdrop}
+        opacity={opacity}
+        stroke="#343A40"
+        strokeWidth={0.5}
+        listening={false}
+        perfectDrawEnabled={false}
+      />
+      {icon}
+    </>
+  );
 }
 export function EquipmentLayer({
   document: plan,
@@ -201,9 +229,16 @@ export function EquipmentLayer({
   preview,
   onGesturePreview,
   hideHandlesFor = null,
+  pictograms = true,
 }: EquipmentLayerProps & {
   /** The object whose shape is being edited (D-290): its resize and rotation handles step aside. */
   hideHandlesFor?: Id | null;
+  /**
+   * Показывать условные значки типов. Состояние вида, не документа: выключение
+   * оставляет цвет, форму и подписи — так план читают те, кому привычнее
+   * чистые фигуры (переключатель в панели слоёв).
+   */
+  pictograms?: boolean;
 }): React.JSX.Element {
   const { viewport, selection } = session;
   // A click while a drawing or placing tool is active belongs to that tool:
@@ -721,10 +756,11 @@ export function EquipmentLayer({
         />
         {hasCaption ? null : (
           <EquipmentPictogram
-            kind={planPictogram(object.typeId)}
+            kind={pictograms ? planPictogram(object.typeId) : null}
             width={current.size_m[0] * viewport.scale}
             height={current.size_m[1] * viewport.scale}
             opacity={ghost ? 0.45 : 0.9}
+            backdrop={type?.color ?? FALLBACK_COLOR}
           />
         )}
       </Group>
@@ -863,7 +899,7 @@ export function EquipmentLayer({
           .map((object) => {
             const label = objectLabel(shown(object), viewport);
             if (label === null) return null;
-            const kind = planPictogram(object.typeId);
+            const kind = pictograms ? planPictogram(object.typeId) : null;
             // The symbol and the name share one badge. A separate floating
             // marker used to cover the caption on the busy demo plan.
             const iconSpace = kind === null ? 0 : 24;
