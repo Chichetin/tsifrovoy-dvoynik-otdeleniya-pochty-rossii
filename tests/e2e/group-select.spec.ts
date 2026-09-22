@@ -79,7 +79,7 @@ type Saved = { objects: { id: string; position: [number, number] }[] };
 
 async function savedPlan(page: Page): Promise<Saved> {
   // Сдвинутая группа может выехать за стену: сохранение тогда спрашивает
-  // подтверждения (D-283), и сценарий его даёт — предмет теста не в этом.
+  // подтверждения (D-282), и сценарий его даёт — предмет теста не в этом.
   const started = page.waitForEvent('download');
   await exportPlan(page, 'JSON');
   await passPhysicsBlock(page);

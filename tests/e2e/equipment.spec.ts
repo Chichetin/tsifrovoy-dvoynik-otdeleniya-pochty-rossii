@@ -82,7 +82,7 @@ async function numberOf(page: Page, label: string): Promise<number> {
 
 async function savePlan(page: Page): Promise<string> {
   // Пример организаторов приносит нарушения физики: сохранение спрашивает
-  // подтверждения (D-283), и сценарии этого спека его дают — их предмет в
+  // подтверждения (D-282), и сценарии этого спека его дают — их предмет в
   // другом. Чистый план окна не показывает, и помощник молчит.
   const started = page.waitForEvent('download');
   await exportPlan(page, 'JSON');
@@ -393,7 +393,7 @@ test.describe('жесты над оборудованием', () => {
 
     // За пределами допуска инструмент снова ставит, а не выбирает. В 11 px за
     // гранью новый стеллаж влез бы в старый, и физика такую постановку не
-    // пропускает (D-283) — отказ виден и объект не появляется.
+    // пропускает (D-282) — отказ виден и объект не появляется.
     await clickCanvas(page, nearLeft - 4, centre.y);
     await expect(page.locator('.shell__error')).toContainText('занимают одно место');
     await expect(inventoryRows(page)).toHaveCount(2);
@@ -612,7 +612,7 @@ test.describe('жесты над оборудованием', () => {
     // Грань стены 14,875 хранится как есть, а не округляется в стену (14,88).
     expect((await numberOf(page, 'X, м')) + width / 2).toBeCloseTo(face, 9);
     await showTab(page, 'Проверка');
-    // Именно в списке находок: ниже него стоит справка «Правила физики» (D-283),
+    // Именно в списке находок: ниже него стоит справка «Правила физики» (D-282),
     // и она говорит о стенах словами, похожими на находку.
     await expect(page.getByLabel('Проверка плана').locator('.issues')).not.toContainText(
       'пересекает стену',

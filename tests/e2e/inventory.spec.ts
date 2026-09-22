@@ -220,7 +220,7 @@ test.describe('перечень оборудования', () => {
       .locator('.library__item', { hasText: 'Скамья / кресла для ожидания' })
       .first()
       .click();
-    // Свободный пол демо-плана: на занятое место объект теперь не встаёт (D-283).
+    // Свободный пол демо-плана: на занятое место объект теперь не встаёт (D-282).
     await page.getByTestId('editor-canvas').click({ position: { x: 340, y: 447 } });
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
