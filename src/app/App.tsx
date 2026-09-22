@@ -16,6 +16,13 @@ import type { Id, PlanDocument, Ref, Result, Viewport } from '../contracts/model
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { measurePlan } from '../domain/metrics';
+import {
+  mountScopeLayer,
+  objectMount,
+  revealMountOf,
+  withHiddenMounts,
+  type ObjectMount,
+} from '../domain/object-mount';
 import { validatePlan } from '../domain/validation';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
@@ -285,6 +292,8 @@ export function App(): React.JSX.Element {
 
   const planTool = usePlanToolController({ document, session, onCommand: dispatchAndSelect });
   const placedType = useRef<Id | null>(null);
+  // D-275: hidden floor/ceiling groups (view state, see `shownDocument` below).
+  const [hiddenMounts, setHiddenMounts] = useState<ReadonlySet<ObjectMount>>(() => new Set());
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -297,16 +306,65 @@ export function App(): React.JSX.Element {
         // next item is usually placed right after. The new object's card
         // opens with a click on it.
         keepLeftTab({ kind: 'object', id: command.object.id });
+        // D-275: a placement into a hidden group shows that group — otherwise
+        // the new object is invisible and the next click places a duplicate.
+        const scope = mountScopeLayer(store.getState().document.layers);
+        if (scope !== undefined) {
+          const placed = command.object;
+          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
+        }
       }
       return result;
     },
-    [dispatchAndSelect, keepLeftTab, tool],
+    [dispatchAndSelect, keepLeftTab, store, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
     session,
     onCommand: dispatchEquipmentCommand,
   });
+
+  // D-275: floor/ceiling groups of the base layer — view state like the tab
+  // choice, never in the plan and never in undo. The canvas and 3D draw a view
+  // document where a hidden group sits on a hidden view-only layer; commands,
+  // inventory and checks keep the real one.
+  const mountLayer = mountScopeLayer(document.layers);
+  const shownDocument = useMemo(
+    () =>
+      mountLayer === undefined ? document : withHiddenMounts(document, mountLayer.id, hiddenMounts),
+    [document, mountLayer, hiddenMounts],
+  );
+  const toggleMount = useCallback(
+    (mount: ObjectMount) => {
+      const hiding = !hiddenMounts.has(mount);
+      const next = new Set(hiddenMounts);
+      if (hiding) next.add(mount);
+      else next.delete(mount);
+      setHiddenMounts(next);
+      if (!hiding || mountLayer === undefined) return;
+      // A hidden object cannot stay picked on a canvas that no longer draws
+      // it: drop it from the selection, keep the rest of a group.
+      const state = store.getState();
+      const goes = new Set(
+        state.document.objects
+          .filter((object) => object.layerId === mountLayer.id && objectMount(object) === mount)
+          .map((object) => object.id),
+      );
+      const kept = [...state.selected].filter((id) => !goes.has(id));
+      const primaryGoes = state.selection?.kind === 'object' && goes.has(state.selection.id);
+      if (kept.length === state.selected.size && !primaryGoes) return;
+      if (kept.length === 0) select(null);
+      else state.selectMany(kept);
+    },
+    [hiddenMounts, mountLayer, select, store],
+  );
+  const objectMounts = useMemo(
+    () =>
+      mountLayer === undefined
+        ? undefined
+        : { layerId: mountLayer.id, hidden: hiddenMounts, onToggle: toggleMount },
+    [mountLayer, hiddenMounts, toggleMount],
+  );
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
@@ -491,6 +549,8 @@ export function App(): React.JSX.Element {
         plan.catalog.version === ORGANIZER_CATALOG_VERSION ? withTeamCatalog(plan, catalog) : null;
       const document = merged?.ok ? merged.value : plan;
       store.getState().replaceDocument(document, origin);
+      // Loading shows every layer again (plan-store); the groups follow.
+      setHiddenMounts(new Set());
       // A refused merge is not a silent success: the plan opens as it came,
       // and the user is told the team rules and layers did not apply.
       setLastError(
@@ -511,6 +571,7 @@ export function App(): React.JSX.Element {
   const startNewPlan = useCallback(() => {
     const fresh = createPlanStore(createEmptyPlan(), 'new');
     setStore(fresh);
+    setHiddenMounts(new Set());
     setTool({ kind: 'select' });
     setLastError(null);
     setDocumentEpoch((epoch) => epoch + 1);
@@ -598,7 +659,13 @@ export function App(): React.JSX.Element {
             collapsed={propsShown}
             panels={{
               layers: (
-                <LayersPanel document={document} session={session} onCommand={dispatch} onSelect={selectFromLeft} />
+                <LayersPanel
+                  document={document}
+                  session={session}
+                  onCommand={dispatch}
+                  onSelect={selectFromLeft}
+                  objectMounts={objectMounts}
+                />
               ),
               library: (
                 <LibraryPanel
@@ -698,7 +765,7 @@ export function App(): React.JSX.Element {
               planTool.handlePointer(event);
               if (event.phase === 'down' && tool.kind === 'object.place') {
                 const existing = findPlacementPick(
-                  document,
+                  shownDocument,
                   tool.typeId,
                   event.point,
                   viewport.scale,
@@ -734,7 +801,7 @@ export function App(): React.JSX.Element {
               onSelect={selectOnPlan}
             />
             <EquipmentLayer
-              document={document}
+              document={shownDocument}
               session={session}
               issues={issues}
               onCommand={dispatch}
@@ -746,7 +813,7 @@ export function App(): React.JSX.Element {
             {/* После оборудования — иначе объект, вставший на подпись, закрывает
                 название зоны целиком; полупрозрачность не даёт подписи закрыть
                 сам объект. */}
-            <ZoneNameLayer document={document} viewport={viewport} />
+            <ZoneNameLayer document={shownDocument} viewport={viewport} />
             <InformationLayer document={document} session={session} />
             {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                 должен уходить под объект или под имя зоны. В план она ничего не
@@ -765,7 +832,7 @@ export function App(): React.JSX.Element {
             />
           </EditorCanvas>
           {view === '3d' ? (
-            <View3D document={document} selection={selection} onSelect={selectOnPlan} />
+            <View3D document={shownDocument} selection={selection} onSelect={selectOnPlan} />
           ) : null}
         </main>
 

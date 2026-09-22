@@ -1810,6 +1810,28 @@ span.inventory__num {
   color: var(--surface);
 }
 
+/* D-275: floor/ceiling groups nested under the base layer, indented like a sub-list. */
+.layers__mounts {
+  margin: 0;
+  padding: 0 0 0 16px;
+  list-style: none;
+}
+
+.layers__mounts .layers__visible {
+  width: 100%;
+  min-height: 24px;
+  text-align: left;
+}
+
+.layers__visible:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.layers__visible:disabled:hover {
+  background: transparent;
+}
+
 /* The name takes a row of its own: the buttons beside it left «Тепловая н». */
 .layers__name {
   flex: 1 1 100%;

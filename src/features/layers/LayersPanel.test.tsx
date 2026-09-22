@@ -191,4 +191,51 @@ describe('LayersPanel', () => {
     const add = screen.getByRole('button', { name: 'Добавить слой' });
     expect(add.textContent).toBe('Добавить');
   });
+
+  test('D-275: под основным слоем — напольные и потолочные со счётом; щелчок не шлёт команду', () => {
+    const plan = demo();
+    const onToggle = vi.fn();
+    const onCommand = vi.fn((): Result<PlanDocument> => ({ ok: true, value: plan }));
+    render(
+      <LayersPanel
+        document={plan}
+        session={session}
+        onCommand={onCommand}
+        onSelect={vi.fn()}
+        objectMounts={{ layerId: 'l_base', hidden: new Set(['ceiling']), onToggle }}
+      />,
+    );
+    const base = within(item('Основной'));
+    const floor = base.getByRole('button', { name: 'Показывать: напольные объекты' });
+    const ceiling = base.getByRole('button', { name: 'Показывать: потолочные объекты' });
+    expect(floor.textContent).toContain('Напольные объекты (42)');
+    expect(ceiling.textContent).toContain('Потолочные объекты (11)');
+    expect(floor.getAttribute('aria-pressed')).toBe('true');
+    expect(ceiling.getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(ceiling);
+    expect(onToggle).toHaveBeenCalledWith('ceiling');
+    expect(onCommand).not.toHaveBeenCalled();
+    // Only the base layer carries the groups.
+    expect(within(item('Камеры и зоны обзора')).queryByText(/Напольные объекты/)).toBeNull();
+  });
+
+  test('D-275: основной слой скрыт — подпункты неактивны', () => {
+    const plan = demo();
+    const hiddenBase = {
+      ...plan,
+      layers: plan.layers.map((layer) => (layer.id === 'l_base' ? { ...layer, visible: false } : layer)),
+    };
+    render(
+      <LayersPanel
+        document={hiddenBase}
+        session={session}
+        onCommand={vi.fn()}
+        onSelect={vi.fn()}
+        objectMounts={{ layerId: 'l_base', hidden: new Set(), onToggle: vi.fn() }}
+      />,
+    );
+    const base = within(item('Основной'));
+    expect((base.getByRole('button', { name: 'Показывать: напольные объекты' }) as HTMLButtonElement).disabled).toBe(true);
+    expect((base.getByRole('button', { name: 'Показывать: потолочные объекты' }) as HTMLButtonElement).disabled).toBe(true);
+  });
 });
