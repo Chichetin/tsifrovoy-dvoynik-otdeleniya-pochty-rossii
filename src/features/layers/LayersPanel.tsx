@@ -6,9 +6,10 @@
  * Информационный слой — представление поверх всего плана: он ничего не
  * содержит, и вместо содержимого у него таблица значений, которые он рисует.
  *
- * Значения вводит человек, и рядом с ними стоит подпись из справочника: это
- * синтетические числа для планирования, а не измерение. Без такой таблицы
- * слой был бы мёртвым — атрибуты зон в файле пока некому заполнить.
+ * Значения вводит человек — это условные числа для планирования, а не
+ * измерение; происхождение чисел описано в README и раскрывается на защите,
+ * а не подписью в интерфейсе. Без такой таблицы слой был бы мёртвым —
+ * атрибуты зон в файле пока некому заполнить.
  */
 
 import { useState } from 'react';
@@ -249,21 +250,18 @@ export function LayersPanel({
             {legend.text}
           </p>
         )}
-        <p className="layers__legend-text">числа синтетические</p>
       </div>
     );
   };
 
   /**
-   * One short line under the name. An informational layer always says where
-   * its numbers come from (D-060): here while it is hidden, in its legend
-   * once it is shown — the same words are not printed twice.
+   * One short line under the name. An informational layer's legend (shown
+   * once it is visible) and its collapsed «Что показывает слой» already say
+   * what it draws, so it needs no extra line here; an ordinary layer's line
+   * is its content count.
    */
   const describe = (layer: Layer, type: LayerType | null): string | null => {
-    if (type !== null) {
-      const legendSays = layer.visible && legendOf(type).kind !== 'none';
-      return legendSays ? null : 'числа синтетические';
-    }
+    if (type !== null) return null;
     const { zones, objects } = contentOf(layer);
     return `обычный слой · зон ${zones.length}, объектов ${objects.length}`;
   };
