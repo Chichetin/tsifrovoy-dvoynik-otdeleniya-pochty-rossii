@@ -15,6 +15,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
+import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 /** Демо-план сдачи: помещение 15 × 10 м, 53 объекта, 8 зон. */
@@ -64,6 +65,9 @@ async function scale(page: Page): Promise<number> {
 
 /** Выбор объекта строкой перечня: мышью по фигуре можно и промахнуться. */
 async function selectByLabel(page: Page, label: string): Promise<string> {
+  // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
+  // кликается, пока список не раскрыт.
+  await expandInventoryRows(page);
   await page
     .getByLabel('Инвентаризация')
     .getByRole('button', { name: label, exact: true })

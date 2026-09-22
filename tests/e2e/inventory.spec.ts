@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
 import type { PlanDocument } from '../../src/contracts/model';
 import { generateBenchmark } from '../../scripts/generate-benchmark';
+import { expandInventoryRows, expandInventoryTypes } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 const BEFORE = join(process.cwd(), 'demo', 'before.json');
@@ -47,6 +48,13 @@ async function openDemo(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(BEFORE);
   await expect(inventoryRows(page)).toHaveCount(demo.objects.length);
+  // Этот спек читает и кликает по перечню и сводке без разбора индексов —
+  // раскрываем оба свёрнутых списка один раз, а не в каждом тесте отдельно.
+  // Раскрывающие помощники сами показывают вкладку «Инвентаризация» первым
+  // делом — переживший перезагрузку выбор вкладки (D-249, localStorage) мог
+  // указывать на другую панель.
+  await expandInventoryRows(page);
+  await expandInventoryTypes(page);
 }
 
 async function firstColumnWidth(table: Locator): Promise<number> {

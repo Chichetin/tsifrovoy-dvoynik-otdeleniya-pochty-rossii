@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test , exportPlan } from './fixtures';
+import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
@@ -15,6 +16,9 @@ test('готовый план → правка → файл → новая ст�
   await showTab(page, 'Инвентаризация');
   const inventory = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
   await expect(inventory).toHaveCount(12);
+  // Перечень свёрнут по умолчанию — «Терминал электронной очереди» стоит не
+  // среди первых трёх, список нужно раскрыть.
+  await expandInventoryRows(page);
   await inventory.filter({ hasText: 'Терминал электронной очереди' }).getByRole('button').first().click();
 
   const card = page.getByLabel('Свойства');
@@ -43,6 +47,8 @@ test('готовый план → правка → файл → новая ст�
   await page.reload();
   await page.getByTestId('plan-file-input').setInputFiles(file as string);
   await expect(inventory).toHaveCount(12);
+  // Новая страница — новое, свёрнутое по умолчанию, состояние панели.
+  await expandInventoryRows(page);
   await inventory.filter({ hasText: 'Терминал очереди Q01' }).getByRole('button').first().click();
   await expect(card.getByLabel('X, м')).toHaveValue('1.1');
   await expect(card.getByLabel('Y, м')).toHaveValue('2.1');

@@ -13,6 +13,7 @@ import { expect, test, type Page, exportPlan } from './fixtures';
 import { validatePlan } from '../../src/domain/validation';
 import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
+import { expandInventoryRows } from './inventory-collapse';
 import { showProps, showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
@@ -63,11 +64,15 @@ async function selectRow(page: Page, index: number): Promise<void> {
   // После выбора на плане справа только «Свойства»: вкладка возвращает перечень.
   const tab = page.getByRole('tab', { name: /^Инвентаризация/ });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
+  // кликается, пока список не раскрыт.
+  await expandInventoryRows(page);
   await inventoryRows(page).nth(index).getByRole('button').first().click();
 }
 
 async function selectByLabel(page: Page, label: string): Promise<void> {
   await showTab(page, 'Инвентаризация');
+  await expandInventoryRows(page);
   await page.getByLabel('Инвентаризация').locator('.table__link', { hasText: label }).first().click();
 }
 

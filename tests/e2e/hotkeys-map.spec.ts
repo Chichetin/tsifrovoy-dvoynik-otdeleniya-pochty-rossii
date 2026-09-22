@@ -11,6 +11,7 @@
  */
 
 import { expect, test, type Page } from './fixtures';
+import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 const RACK = 'Шкаф / стеллаж для посылок';
@@ -29,6 +30,9 @@ async function placeFromLibrary(page: Page, label: string, x: number, y: number)
 }
 
 async function selectRow(page: Page, index: number): Promise<void> {
+  // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
+  // кликается, пока список не раскрыт.
+  await expandInventoryRows(page);
   await inventoryRows(page).nth(index).getByRole('button').first().click();
 }
 

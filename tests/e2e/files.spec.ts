@@ -13,6 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, exportPlan, expectUnsavedEdits } from './fixtures';
+import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
@@ -129,11 +130,16 @@ test.describe('файлы плана', () => {
     // Двенадцать объектов примера и его зоны — на месте и со своими id.
     await expect(inventoryRows(page)).toHaveCount(12);
     await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    // Перечень свёрнут по умолчанию — первая строка с z_back стоит не среди
+    // первых трёх (z_back начинается с восьмого объекта примера).
+    await expandInventoryRows(page);
     await expect(page.locator('.table__link', { hasText: 'z_back' }).first()).toBeVisible();
 
     // Объект примера открывается карточкой по своему идентификатору. Ссылку
     // берём в перечне: тот же объект назван и в находках проверки, а её панель
-    // на соседней вкладке и скрыта (D-249).
+    // на соседней вкладке и скрыта (D-249). Перечень свёрнут по умолчанию —
+    // объект стоит не среди первых трёх, список нужно раскрыть.
+    await expandInventoryRows(page);
     await page
       .getByLabel('Инвентаризация')
       .locator('.table__link', { hasText: 'Терминал электронной очереди' })

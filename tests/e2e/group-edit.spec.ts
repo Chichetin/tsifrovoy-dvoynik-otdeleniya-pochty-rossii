@@ -12,6 +12,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page , exportPlan } from './fixtures';
+import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
 const RACK = 'Шкаф / стеллаж для посылок';
@@ -47,6 +48,9 @@ async function selectRow(page: Page, index: number): Promise<void> {
   // После выбора на плане справа только «Свойства»: вкладка возвращает перечень.
   const tab = page.getByRole('tab', { name: /^Инвентаризация/ });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
+  // кликается, пока список не раскрыт.
+  await expandInventoryRows(page);
   await inventoryRows(page).nth(index).getByRole('button').first().click();
 }
 
