@@ -12,7 +12,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Command } from '../../contracts/commands';
 import type { Catalog, PlanDocument, Ref, Result } from '../../contracts/model';
-import type { EditorSession } from '../../contracts/ui';
+import type { EditorSession, Tool } from '../../contracts/ui';
 import { PlanTools } from './PlanTools';
 import { SELF_INTERSECTION_NOTICE, getNotice, setNotice } from './notice';
 
@@ -72,7 +72,10 @@ const plan: PlanDocument = {
   extensions: {},
 };
 
-function show(selection: Ref | null): { commands: Command[]; onTool: ReturnType<typeof vi.fn> } {
+function show(
+  selection: Ref | null,
+  tool: Tool = { kind: 'select' },
+): { commands: Command[]; onTool: ReturnType<typeof vi.fn> } {
   const commands: Command[] = [];
   const onCommand = (command: Command): Result<PlanDocument> => {
     commands.push(command);
@@ -80,7 +83,7 @@ function show(selection: Ref | null): { commands: Command[]; onTool: ReturnType<
   };
   const onTool = vi.fn();
   const session: EditorSession = {
-    tool: { kind: 'select' },
+    tool,
     viewport: { origin: [0, 0], scale: 50 },
     selection,
     preview: null,
@@ -110,8 +113,24 @@ function showWith(document: PlanDocument, selection: Ref | null) {
   };
 }
 
+/**
+ * The page around the toolbar: the plan's canvas (the editor marks it with
+ * `.editor-canvas`) and a text field of the right column.
+ */
+function page(): { canvas: HTMLElement; field: HTMLInputElement } {
+  const canvas = document.createElement('div');
+  canvas.className = 'editor-canvas';
+  canvas.append(document.createElement('canvas'));
+  const field = document.createElement('input');
+  document.body.append(canvas, field);
+  return { canvas: canvas.firstElementChild as HTMLElement, field };
+}
+
 beforeEach(() => act(() => setNotice(null)));
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  document.body.replaceChildren();
+});
 
 describe('панель инструментов плана', () => {
   it('инструмент выбирается и отмечается как нажатый', () => {
@@ -201,13 +220,120 @@ describe('панель инструментов плана', () => {
   });
 
   it('выбранный контур подсказывает, чем его править', () => {
+    const { canvas } = page();
     show({ kind: 'zone', id: 'z_hall' });
+    fireEvent.pointerDown(canvas);
     expect(screen.getByText(/тяните вершину/)).toBeDefined();
     expect(screen.getByText(/Alt — без привязки/)).toBeDefined();
   });
 
+  it('подсказка контура ждёт холста: выбор из списка её не показывает (D-282)', () => {
+    const { canvas, field } = page();
+    show({ kind: 'room', id: 'room_main' });
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+
+    // Клик в правой колонке — всё ещё не холст.
+    fireEvent.pointerDown(field);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+  });
+
+  it('ушёл с холста — подсказка гаснет, вернулся — видна снова (D-282)', () => {
+    const { canvas, field } = page();
+    show({ kind: 'zone', id: 'z_hall' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+
+    // Фокус в поле ввода — клавиатурой, без мыши.
+    fireEvent.focusIn(field);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+
+    fireEvent.pointerDown(field);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+  });
+
+  it('другой документ начинается без холста: подсказка ждёт клика по плану (D-282)', () => {
+    const { canvas } = page();
+    const rerender = showWith(plan, { kind: 'room', id: 'room_main' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+
+    // Правка того же документа холст не отнимает.
+    act(() => rerender({ ...plan, zones: [] }, { kind: 'room', id: 'room_main' }));
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+
+    act(() => rerender({ ...plan, id: 'plan_new', name: 'Новое отделение' }, { kind: 'room', id: 'room_main' }));
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+  });
+
+  it('кнопки самой панели холст не отнимают (D-282)', () => {
+    const { canvas } = page();
+    show({ kind: 'zone', id: 'z_hall' });
+    fireEvent.pointerDown(canvas);
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Выбор' }));
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+  });
+
+  it('под другим инструментом подсказки правки нет, даже у холста (D-282)', () => {
+    for (const tool of [
+      { kind: 'zone.draw' },
+      { kind: 'room.draw' },
+      { kind: 'wall.draw' },
+      { kind: 'opening.place' },
+      { kind: 'measure' },
+      { kind: 'object.place', typeId: 'ot_x' },
+      { kind: 'shape.draw', typeId: 'ot_x' },
+    ] as Tool[]) {
+      const { canvas } = page();
+      show({ kind: 'zone', id: 'z_hall' }, tool);
+      fireEvent.pointerDown(canvas);
+      expect(screen.queryByText(/тяните вершину/), tool.kind).toBeNull();
+      cleanup();
+      document.body.replaceChildren();
+    }
+    const { canvas } = page();
+    show({ kind: 'wall', id: 'w_north' }, { kind: 'zone.draw' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните концы/)).toBeNull();
+  });
+
+  it('под «Обзором» ручки те же, что под «Выбором», — и подсказка тоже (D-282)', () => {
+    const { canvas, field } = page();
+    show({ kind: 'zone', id: 'z_hall' }, { kind: 'pan' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/тяните вершину/)).not.toBeNull();
+
+    fireEvent.pointerDown(field);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+  });
+
+  it('только что поставленный проём под «Проёмом» подсказывает, как его двигать (D-282, D-267)', () => {
+    const { canvas, field } = page();
+    show({ kind: 'opening', id: 'op_entrance' }, { kind: 'opening.place' });
+    fireEvent.pointerDown(canvas);
+    expect(screen.queryByText(/Проём: тяните вдоль стены; Enter — готово/)).not.toBeNull();
+
+    fireEvent.focusIn(field);
+    expect(screen.queryByText(/тяните вдоль стены/)).toBeNull();
+    cleanup();
+    document.body.replaceChildren();
+
+    // Под «Проёмом» ручек зоны нет — и строки о них нет.
+    const other = page();
+    show({ kind: 'zone', id: 'z_hall' }, { kind: 'opening.place' });
+    fireEvent.pointerDown(other.canvas);
+    expect(screen.queryByText(/тяните вершину/)).toBeNull();
+  });
+
   it('выбранный проём подсказывает, что Enter завершает его (D-267)', () => {
+    const { canvas } = page();
     show({ kind: 'opening', id: 'op_entrance' });
+    fireEvent.pointerDown(canvas);
     expect(screen.getByText(/тяните вдоль стены/)).toBeDefined();
     expect(screen.getByText(/Enter — готово/)).toBeDefined();
   });

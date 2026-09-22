@@ -112,7 +112,7 @@ describe('карта горячих клавиш по ?', () => {
     ).toBe(false);
   });
 
-  it('русская раскладка: «?» живёт на Shift+7 и тоже закрывает карту (D-283)', () => {
+  it('русская раскладка: «?» живёт на Shift+7 и тоже закрывает карту (D-287)', () => {
     expect(isHotkeysMapHotkey(event({ code: 'Digit7', key: '?', shiftKey: true }))).toBe(true);
   });
 

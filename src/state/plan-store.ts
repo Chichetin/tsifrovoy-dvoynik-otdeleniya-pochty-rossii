@@ -84,7 +84,7 @@ function putTargets(command: Command): Id[] {
 
 /**
  * Ids of objects a command puts on the plan — the only targets the physics
- * gate looks at (D-282). Zones, walls and openings are not gated: a partition
+ * gate looks at (D-286). Zones, walls and openings are not gated: a partition
  * drawn across a rack is a finding of the check panel, not a refused gesture.
  */
 function putObjectTargets(command: Command): Id[] {
@@ -205,7 +205,7 @@ export function createPlanStore(
         const result = applyCommand(current, command, retired);
         if (!result.ok) return result;
 
-        // D-282: физика — граница правки, а не только находка панели
+        // D-286: физика — граница правки, а не только находка панели
         // проверки. Команда, которая ставит объект в чужой объём, за стену,
         // наружу помещения или выше потолка, не применяется: документ
         // остаётся прежним, а жест получает отказ и «Правка отклонена» с

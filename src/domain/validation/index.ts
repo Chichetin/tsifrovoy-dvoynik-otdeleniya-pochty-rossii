@@ -447,7 +447,7 @@ function inventoryNumberIssues(plan: PlanDocument): Issue[] {
 }
 
 /**
- * D-282: the room has one ceiling, and nothing hangs through it. A sign at
+ * D-286: the room has one ceiling, and nothing hangs through it. A sign at
  * 2,8 m with a 0,4 m body reaches 3,2 m in a room 3,0 m high — the model
  * cannot hold that, so it is an error like an object outside the walls, not a
  * stocking warning. Non-physical objects are checked too: a sensor zone drawn
