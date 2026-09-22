@@ -192,6 +192,7 @@ function recommendationView(state: AgentToolState, recommendation: Recommendatio
       zoneId: candidate.object.zoneId,
       zoneName: zoneName(state, candidate.object.zoneId),
       position_m: candidate.object.position.map(round),
+      size_m: candidate.object.size_m.map(round),
       rotation_deg: candidate.object.rotation_deg,
       facts: Object.fromEntries(candidate.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
     })),

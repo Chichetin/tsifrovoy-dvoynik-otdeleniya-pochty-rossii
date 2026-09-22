@@ -5,7 +5,7 @@
 
 import type { AgentAnswer, AgentStep } from '../../contracts/advice-chat';
 import type { PlanDocument } from '../../contracts/model';
-import { composeFallbackText, followUpCalls, routeAgentQuery, type AgentToolRecord } from './agent-fallback';
+import { composeFallbackText, followUpCalls, limitCalls, routeAgentQuery, widenCalls, type AgentToolCall, type AgentToolRecord } from './agent-fallback';
 import { createAgentToolState, runAgentTool, type AgentToolState } from './agent-tools';
 
 export function finishAgentAnswer(
@@ -40,15 +40,25 @@ export function answerWithoutModel(
   const state = createAgentToolState(plan, before);
   const steps: AgentStep[] = [];
   const records: AgentToolRecord[] = [];
-  const run = (calls: { name: string; args: unknown }[]): void => {
+  const notes: string[] = [];
+  const namedZones: string[] = [];
+  const run = (calls: AgentToolCall[]): void => {
     for (const call of calls) {
+      if (call.note !== undefined) {
+        if (call.lead === true) notes.unshift(call.note);
+        else notes.push(call.note);
+      }
+      if (call.guessedZone !== undefined) namedZones.push(call.guessedZone);
       const outcome = runAgentTool(state, call.name, call.args);
       steps.push(outcome.step);
       records.push({ name: call.name, output: outcome.output });
       onStep(outcome.step);
     }
   };
-  run(routeAgentQuery(plan, query, before !== null));
+  const routed = routeAgentQuery(plan, query, before !== null);
+  run(routed);
+  run(widenCalls(state, routed));
+  run(limitCalls(state));
   run(followUpCalls(state));
-  return finishAgentAnswer(state, revision, 'fallback', composeFallbackText(state, records), steps, reason);
+  return finishAgentAnswer(state, revision, 'fallback', composeFallbackText(state, records, notes, namedZones), steps, reason);
 }
