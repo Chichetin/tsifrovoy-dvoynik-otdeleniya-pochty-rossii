@@ -595,11 +595,6 @@ export function PropertiesPanel({
             >
               Сохранить форму как новый тип
             </button>
-            {errors.shape === undefined ? null : (
-              <span className="props__error" role="alert">
-                {errors.shape}
-              </span>
-            )}
           </div>
         ) : (
           <p className="props__hint" data-testid="props-shape">
