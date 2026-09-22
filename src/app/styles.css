@@ -1320,6 +1320,14 @@ body {
   border-radius: 0;
 }
 
+/* Знак типа рядом с названием: 12 px хватает цветному пятну, а линиям знака
+   нет — на узкой панели он остаётся тем же, только строка переносится. */
+.library__swatch--icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 0;
+}
+
 .library__label {
   flex: 1;
   min-width: 0;

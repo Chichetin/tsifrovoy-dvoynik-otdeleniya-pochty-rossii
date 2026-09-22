@@ -21,6 +21,15 @@ export type PlanPictogram =
   | 'sensor'
   | 'rack'
   | 'scales'
+  | 'computer'
+  | 'pinpad'
+  | 'alarm'
+  | 'socket'
+  | 'ramp'
+  | 'switchboard'
+  | 'hvac'
+  | 'heater'
+  | 'stand'
   | null;
 
 /** A single 24 × 24 line drawing per meaning, shared by canvas and SVG export. */
@@ -36,6 +45,22 @@ export const PLAN_PICTOGRAM_PATHS: Record<Exclude<PlanPictogram, null>, string> 
   sensor: 'M12 2A10 10 0 1 0 12 22A10 10 0 1 0 12 2 M12 8A4 4 0 1 0 12 16A4 4 0 1 0 12 8',
   rack: 'M3 3H21V21H3Z M3 9H21 M3 15H21 M8 6H11 M8 12H11 M8 18H11',
   scales: 'M5 20H19 M8 7H16L19 17H5Z M12 7V12 M9 13H15',
+  // Монитор и системный блок рядом: отличает компьютер от табло, у которого
+  // экран один и на ножке.
+  computer: 'M3 5H15V14H3Z M9 14V17 M6 17H12 M18 6H21V18H18Z',
+  // Пинпад: клавиатура под экраном. Терминал очереди и оплаты стоят на стойке,
+  // у них ножка, а этот лежит на кассе.
+  pinpad: 'M7 3H17V21H7Z M9 6H15 M9 10H11 M13 10H15 M9 13H11 M13 13H15 M9 16H11 M13 16H15',
+  alarm: 'M4 6H20V18H4Z M12 9A3 3 0 0 0 9 12V14H15V12A3 3 0 0 0 12 9 M10 16H14',
+  socket: 'M12 3A9 9 0 1 0 12 21A9 9 0 1 0 12 3 M9 10V14 M15 10V14',
+  ramp: 'M3 19H21 M5 19L19 8 M19 8V13 M14 8H19',
+  switchboard: 'M4 4H20V20H4Z M13 7L9 13H12L11 17L15 11H12Z',
+  // Решётка вентиляции — рёбра вертикальные, у стеллажа полки горизонтальные.
+  hvac: 'M3 5H21V19H3Z M6 8V16 M10 8V16 M14 8V16 M18 8V16',
+  heater: 'M7 4H17V20H7Z M7 8H17 M12 12L14 15A2 2 0 1 1 10 15Z',
+  // Стенд навигации получил свой знак: раньше он делил «экран» с табло и
+  // медиапанелью, и три разных предмета читались одинаково.
+  stand: 'M4 4H20V14H4Z M12 14V20 M8 20H16 M9 8H15 M9 11H13',
 };
 
 /** An equipment type's readable 2D-plan symbol. */
@@ -55,8 +80,9 @@ export function planPictogram(typeId: Id): PlanPictogram {
       return 'mailbox';
     case 'ot_info_display':
     case 'ot_media_panel':
-    case 'ot_info_stand':
       return 'display';
+    case 'ot_info_stand':
+      return 'stand';
     case 'ot_printer':
     case 'ot_label_printer':
       return 'printer';
@@ -69,6 +95,22 @@ export function planPictogram(typeId: Id): PlanPictogram {
       return 'rack';
     case 'ot_scales':
       return 'scales';
+    case 'ot_computer':
+      return 'computer';
+    case 'ot_pos_terminal':
+      return 'pinpad';
+    case 'ot_alarm_panel':
+      return 'alarm';
+    case 'ot_socket':
+      return 'socket';
+    case 'ot_ramp':
+      return 'ramp';
+    case 'ot_switchboard':
+      return 'switchboard';
+    case 'ot_hvac':
+      return 'hvac';
+    case 'ot_water_heater':
+      return 'heater';
     default:
       return null;
   }
