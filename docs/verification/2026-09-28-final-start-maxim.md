@@ -35,6 +35,8 @@ MR !302 с правилами этапа 2 на момент начала ещё
 
 ## Исправление #2
 
+[MR !303](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/303), продуктовый коммит `4126263`.
+
 Было: ассистент повторно выдавал удалённый ID; store отказывал `ID_REUSED`.
 Теперь: вставка разрешает конфликт через общий механизм ID, не меняя вариант,
 атрибуты, размеры и координаты. Не менялись контракт, формат, физика или генерация
