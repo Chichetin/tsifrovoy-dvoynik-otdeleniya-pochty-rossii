@@ -14,7 +14,7 @@
 
 ## Активные задачи
 
-| Максим / Codex | `worktree-3-chat-facts`, Issue #3, MR после проверок | Связанные факты свободного чата: сначала отдельный проверяемый модуль выбора и детерминированного вывода, затем подключение сервера и корпус 24 сценариев | `src/domain/advice/agent-facts.ts`, тесты; следующий пакет — `server/agent.ts` | Подмены метрики/зоны/фазы/единицы, значения из вопроса и числа словами отвергаются структурным выбором; unit/typecheck/lint/build. До подключения сервера старый дефект остаётся открытым | в работе; внешние контракты и UI не меняются |
+| Максим / Codex | `worktree-3-chat-facts`, Issue #3, [MR !305](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/305), код `007310e` | Связанные факты свободного чата: отдельный модуль выбора и детерминированного вывода проверен; дальше подключение сервера и корпус 24 сценариев | `src/domain/advice/{agent-facts.ts,agent-tools.ts}`, тесты; следующий пакет — `server/agent.ts` | 22 целевых, 1501 unit passed / 1 skipped; 212 e2e passed / 5 deployment skipped; typecheck/lint/build зелёные; независимый reviewer без блокеров. Отчёт `docs/verification/2026-09-28-chat-facts-foundation.md` | Первый шаг проверен; Issue #3 остаётся открытой, старый дефект до подключения сервера не закрыт. Внешние контракты и UI не меняются |
 
 
 
