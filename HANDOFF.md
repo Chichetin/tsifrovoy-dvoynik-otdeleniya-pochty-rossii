@@ -201,6 +201,12 @@ JSON руками: `tests/demo.test.ts:85` требует побайтового
 - Работа через Issues: `scripts/issues.sh`, хук начала сессии, шаблоны `.gitlab/`, `HANDOFF.md` без доски занятости (прежняя таблица — в архиве ниже). Правило D-299: `check-issue.sh`, `.githooks/pre-commit`/`pre-push`, проверка в `gitlab-mr.sh merge`, текст во всех правилах и агентах.
 - Проверка: `bash .claude/hooks/test-hooks.sh` — все ok, 0 FAIL; `bash scripts/issues.sh check` — отказ в основной копии и в ветке без номера, 0 в ветке #41. Продуктовый код не менялся; `npm test` в этом worktree не запускался (нет `node_modules`), `package.json` изменён только скриптом `prepare`.
 
+### Концепты UI к защите, 28.09.2026
+
+| Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
+|---|---|---|---|---|---|
+| Codex, запрос участника 28.09 | `worktree-5-ui-concepts-0928`, [MR !301](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/301) | Визуальные варианты UI для выбора и приоритеты при оценке 87 против 96 у другой команды. Сохранены три готовых растровых концепта A/B/C и точные промпты. Рекомендация: A как редактор + C как сравнение; пользователь ещё не выбрал. Код, формат и существующие issues не меняем; дизайн пока не выбран | `docs/design/2026-09-28-ui-directions.md`, `docs/design/concepts-2026-09-28/`, `HANDOFF.md` | `git diff --check`, проверка PNG и локальных ссылок, upstream/secrets; A/B/C просмотрены. Код не менялся, продуктовые тесты и UI gate не запускались. Применены brainstorming, ui-ux-pro-max, frontend-design, imagegen | материалы завершены и запушены; ожидается выбор дизайна |
+
 ### Доска до перехода на Issues (снята 28.09, D-298)
 
 Таблица «Активные задачи» в том виде, в каком она была на `main` 28.09. Большинство
