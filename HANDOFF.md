@@ -237,6 +237,13 @@ JSON руками: `tests/demo.test.ts:85` требует побайтового
 
 ## Завершено
 
+### Концепты UI к защите, 28.09.2026
+
+| Владелец | Ветка / MR | Задача | Файлы/контракт | Проверка | Статус |
+|---|---|---|---|---|---|
+| Codex, запрос участника 28.09 | `worktree-5-ui-concepts-0928`, [MR !301](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/301) | Визуальные варианты UI для выбора и приоритеты при оценке 87 против 96 у другой команды. Сохранены три готовых растровых концепта A/B/C и точные промпты. Рекомендация: A как редактор + C как сравнение; пользователь ещё не выбрал. Код, формат и существующие issues не меняем; дизайн пока не выбран | `docs/design/2026-09-28-ui-directions.md`, `docs/design/concepts-2026-09-28/`, `HANDOFF.md` | `git diff --check`, проверка PNG и локальных ссылок, upstream/secrets; A/B/C просмотрены. Код не менялся, продуктовые тесты и UI gate не запускались. Применены brainstorming, ui-ux-pro-max, frontend-design, imagegen | материалы завершены и запушены; ожидается выбор дизайна |
+
+
 ### 28.09 — Issues этапа 2 и исправление оценки (Codex)
 
 - Ветка `worktree-5-defense-issues-0928`, [MR !299](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/299), коммит `95f42cd`. Оценка исправлена с 76 на **87/100**, разница до 100 — 13; пятое место без изменения. Отдельный пункт F про проверку сценариев незнакомыми людьми исключён по просьбе участника.
