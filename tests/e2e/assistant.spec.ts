@@ -85,7 +85,7 @@ test('агент с моделью: шаги потоком, id в тексте 
   await showTab(page, 'Ассистент');
   const assistant = panel(page);
   await assistant.getByRole('button', { name: /кассовое окно ближе к входу/ }).click();
-  await expect(assistant.getByText(/сверен с расчётом/)).toBeVisible();
+  await expect(assistant.getByText(/LLM выбрала рассчитанные факты/)).toBeVisible();
   await assistant.getByRole('button', { name: 'z_client', exact: true }).click();
   await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'zone:z_client');
   await assistant.getByRole('button', { name: 'Открыть «Площади»' }).click();

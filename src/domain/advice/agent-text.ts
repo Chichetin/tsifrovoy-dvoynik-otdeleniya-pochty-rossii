@@ -1,5 +1,7 @@
 /**
- * The check between the model's prose and the screen (D-258).
+ * Legacy numerical-membership check (D-258), retained for historical tests.
+ * NOT a semantic verifier: it cannot bind values to metrics or subjects.
+ * The server uses agent-facts.ts instead (Issue #3, D-303).
  *
  * The model may phrase the answer freely, but every identifier it writes must
  * exist in the plan or its catalog, and every number must be

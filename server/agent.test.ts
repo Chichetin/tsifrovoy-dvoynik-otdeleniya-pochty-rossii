@@ -27,7 +27,8 @@ const placement = calculateAdvice(plan, { scenario: 'place', typeId: 'ot_workpla
 if (!placement.ok) throw new Error('расчёт места не удался');
 const recommendation = placement.value[0]!;
 const candidate = recommendation.candidates[0]!;
-const freeAfter = candidate.facts.find((fact) => fact.metric === 'area.free' && fact.phase === 'after')!.value;
+const freeAfterFact = candidate.facts.find((fact) => fact.metric === 'area.free' && fact.phase === 'after')!;
+const selectedFree = JSON.stringify({ factIds: [JSON.stringify([recommendation.id, freeAfterFact.id])] });
 
 function call(name: string, args: unknown, id = name): LlmTurn['toolCalls'][number] {
   return { id, name, arguments: JSON.stringify(args) };
@@ -61,11 +62,12 @@ const placeTurns = (): LlmTurn[] => [
 
 describe('цикл агента', () => {
   test('инструменты → проверенный текст модели → действия и кнопка «Применить»', async () => {
-    const free = String(Math.round(freeAfter * 10) / 10).replace('.', ',');
-    const { chat, seen } = scripted([...placeTurns(), { content: `Лучшее место — в зоне ${candidate.object.zoneId}; свободно останется ${free} м².`, toolCalls: [] }]);
+    const { chat, seen } = scripted([...placeTurns(), { content: selectedFree, toolCalls: [] }]);
     const { answer, steps } = await run(chat);
     expect(answer.mode).toBe('llm');
     expect(answer.revision).toBe(7);
+    expect(answer.text).toContain(`${String(Math.round(freeAfterFact.value * 100) / 100).replace('.', ',')} м²`);
+    expect(answer.text).not.toContain(candidate.id);
     expect(steps.map((step) => step.tool)).toEqual(['find_place', 'suggest_candidate']);
     expect(answer.actions).toContainEqual({ kind: 'apply-candidate', recommendationId: recommendation.id, candidateId: candidate.id });
     expect(answer.recommendations.map((entry) => entry.id)).toEqual([recommendation.id]);
@@ -74,20 +76,20 @@ describe('цикл агента', () => {
   });
 
   test('выдуманное число: одна попытка исправиться, и исправленный текст принят', async () => {
-    const { chat, seen } = scripted([...placeTurns(), { content: 'Свободно останется 512 м².', toolCalls: [] }, { content: 'Место найдено, вариант показан на плане.', toolCalls: [] }]);
+    const { chat, seen } = scripted([...placeTurns(), { content: 'Свободно останется 512 м².', toolCalls: [] }, { content: selectedFree, toolCalls: [] }]);
     const { answer } = await run(chat);
     expect(answer.mode).toBe('llm');
-    expect(answer.text).toBe('Место найдено, вариант показан на плане.');
+    expect(answer.text).toContain('Свободная площадь');
     const repairNote = seen[3]!.at(-1)!;
     expect(repairNote.role).toBe('user');
-    expect(repairNote.content).toContain('512');
+    expect(repairNote.content).toContain('factIds');
   });
 
   test('выдуманное число дважды — показан текст расчёта с причиной', async () => {
     const { chat } = scripted([...placeTurns(), { content: 'Свободно 512 м².', toolCalls: [] }, { content: 'Свободно 513 м².', toolCalls: [] }]);
     const { answer } = await run(chat);
     expect(answer.mode).toBe('fallback');
-    expect(answer.fallbackReason).toContain('513');
+    expect(answer.fallbackReason).toContain('не прошёл проверку связанных фактов');
     expect(answer.text).not.toContain('513');
     // The tools already ran: their result and the offered variant survive the fallback.
     expect(answer.actions.some((action) => action.kind === 'apply-candidate')).toBe(true);
@@ -109,7 +111,7 @@ describe('цикл агента', () => {
       { content: 'Менять план я не могу.', toolCalls: [] },
     ]);
     const { answer } = await run(chat);
-    expect(answer.mode).toBe('llm');
+    expect(answer.mode).toBe('fallback');
     expect(seen[1]!.at(-1)!.content).toContain('error');
     expect(JSON.stringify(plan)).toBe(snapshot);
   });
@@ -144,7 +146,7 @@ describe('POST /api/assistant/agent', () => {
   });
 
   test('с провайдером: ответ модели в том же потоке', async () => {
-    const { chat } = scripted([{ content: '', toolCalls: [call('plan_overview', {})] }, { content: 'План открыт, ошибки смотрите во вкладке «Проверка».', toolCalls: [] }]);
+    const { chat } = scripted([{ content: '', toolCalls: [call('plan_overview', {})] }, { content: JSON.stringify({ factIds: ['read.0.room.area.free'] }), toolCalls: [] }]);
     const { events } = await post({ plan, revision: 0, query: 'Что с планом?', history: [] }, chat);
     expect(events.map((event) => event.type)).toEqual(['step', 'answer']);
     expect((events[1] as { answer: AgentAnswer }).answer.mode).toBe('llm');
@@ -156,13 +158,15 @@ describe('POST /api/assistant/agent', () => {
   });
 });
 
-test('вывод, сказанный рядом с вызовами инструментов, входит в ответ', async () => {
+test('непроверенный вывод рядом с вызовами инструментов не попадает в ответ', async () => {
   const { chat } = scripted([
     { content: 'Не хватает второй скамьи.', toolCalls: [call('plan_overview', {})] },
-    { content: 'Вариант показан на плане.', toolCalls: [] },
+    { content: JSON.stringify({ factIds: ['read.0.room.area.free'] }), toolCalls: [] },
   ]);
   const { answer } = await run(chat, 'Чего не хватает?');
-  expect(answer.text).toBe('Не хватает второй скамьи.\n\nВариант показан на плане.');
+  expect(answer.mode).toBe('llm');
+  expect(answer.text).toContain('114,73 м²');
+  expect(answer.text).not.toContain('Не хватает второй скамьи.');
 });
 
 test('план изменили после прошлого ответа — модель получает об этом пометку', async () => {
@@ -173,4 +177,83 @@ test('план изменили после прошлого ответа — м�
   });
   expect(seen[0]!.at(-1)!.content).toContain('план изменили');
   expect(seen[0]!.filter((message) => message.role === 'assistant')).toHaveLength(1);
+});
+
+test('история той же ревизии и вопрос не подтверждают выдуманное число', async () => {
+  const text = 'Свободная площадь — 99999 м².';
+  const { chat } = scripted([
+    { content: '', toolCalls: [call('plan_overview', {})] },
+    { content: text, toolCalls: [] }, { content: text, toolCalls: [] },
+  ]);
+  const answer = await runAgent({ chat, plan, before: null, query: text, revision: 7, deadlineMs: 60000, onStep: () => undefined,
+    history: [{ role: 'assistant', text, revision: 7 }] });
+  expect(answer.mode).toBe('fallback');
+  expect(answer.text).not.toContain('99999');
+  expect(answer.text).toContain('114,73');
+});
+
+test('большой результат — валидный JSON с явно опущенными фактами, а не обрезанный текст', async () => {
+  const many = { ...plan, zones: [...plan.zones, ...Array.from({ length: 150 }, (_, i) => ({ ...plan.zones[0]!, id: `z_extra_${i}`, name: `Дополнительная зона ${i}` }))] };
+  const { chat, seen } = scripted([
+    { content: '', toolCalls: [call('plan_overview', {})] },
+    { content: JSON.stringify({ factIds: ['read.0.room.area.free'] }), toolCalls: [] },
+  ]);
+  const answer = await runAgent({ chat, plan: many, before: null, query: 'Сколько свободно?', revision: 0, deadlineMs: 60000, onStep: () => undefined, history: [] });
+  expect(answer.mode).toBe('llm');
+  const message = seen[1]!.find((m) => m.role === 'tool')!;
+  expect(message.content.length).toBeLessThanOrEqual(8000);
+  const envelope = JSON.parse(message.content);
+  expect(envelope.factsOmitted).toBeGreaterThan(0);
+  expect(envelope.answerFacts.some((f: { id: string }) => f.id === 'read.0.room.area.free')).toBe(true);
+});
+
+test('предложенный кандидат и выбранный прогноз другого кандидата не смешиваются', async () => {
+  const other = recommendation.candidates[1]!;
+  const fact = other.facts.find((f) => f.metric === 'area.free' && f.phase === 'after')!;
+  const selection = JSON.stringify({ factIds: [JSON.stringify([recommendation.id, fact.id])] });
+  const { chat } = scripted([...placeTurns(), { content: selection, toolCalls: [] }, { content: selection, toolCalls: [] }]);
+  const { answer } = await run(chat);
+  expect(answer.mode).toBe('fallback');
+  expect(answer.fallbackReason).toContain('другому варианту');
+  expect(answer.actions).toContainEqual({ kind: 'apply-candidate', recommendationId: recommendation.id, candidateId: candidate.id });
+});
+
+test('сводка демо сохраняет идентификаторы всех типов и слоёв для следующих инструментов', async () => {
+  const { chat, seen } = scripted([
+    { content: '', toolCalls: [call('plan_overview', {})] },
+    { content: JSON.stringify({ factIds: ['read.0.room.area.free'] }), toolCalls: [] },
+  ]);
+  await run(chat, 'Что можно разместить?');
+  const result = JSON.parse(seen[1]!.find((m) => m.role === 'tool')!.content).result;
+  expect(result.catalogTypes.map((r: { typeId: string }) => r.typeId)).toEqual(plan.catalog.objectTypes.map((t) => t.id));
+  expect(result.layers.map((r: { layerId: string }) => r.layerId)).toEqual(plan.layers.map((l) => l.id));
+});
+
+test('длинное имя не увеличивает envelope за пределы бюджета', async () => {
+  const unusual = structuredClone(plan);
+  unusual.zones[0]!.name = 'Я'.repeat(9000);
+  const { chat, seen } = scripted([
+    { content: '', toolCalls: [call('zone_details', { zoneId: unusual.zones[0]!.id })] },
+    { content: 'не могу выбрать факт', toolCalls: [] }, 'fail',
+  ]);
+  await runAgent({ chat, plan: unusual, before: null, query: 'Сколько свободно в зоне?', revision: 0, deadlineMs: 60000, onStep: () => undefined, history: [] });
+  const content = seen[1]!.find((m) => m.role === 'tool')!.content;
+  expect(content.length).toBeLessThanOrEqual(8000);
+  expect(() => JSON.parse(content)).not.toThrow();
+});
+
+test('слишком длинный факт не блокирует короткие факты следующего инструмента', async () => {
+  const unusual = structuredClone(plan);
+  unusual.zones[0]!.name = 'Я'.repeat(9000);
+  const { chat, seen } = scripted([
+    { content: '', toolCalls: [call('zone_details', { zoneId: unusual.zones[0]!.id })] },
+    { content: '', toolCalls: [call('plan_overview', {})] },
+    { content: JSON.stringify({ factIds: ['read.1.room.area.free'] }), toolCalls: [] },
+  ]);
+  const answer = await runAgent({ chat, plan: unusual, before: null, query: 'Сколько свободно?', revision: 0, deadlineMs: 60000, onStep: () => undefined, history: [] });
+  expect(answer.mode).toBe('llm');
+  expect(answer.text).toContain('114,73');
+  const envelope = JSON.parse(seen[2]!.at(-1)!.content);
+  expect(envelope.answerFacts.some((f: { id: string }) => f.id === 'read.1.room.area.free')).toBe(true);
+  expect(envelope.factsOmitted).toBeGreaterThan(0);
 });

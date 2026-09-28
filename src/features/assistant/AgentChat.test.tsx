@@ -75,7 +75,7 @@ describe('чат агента', () => {
     const { props } = renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
     fireEvent.click(screen.getByRole('button', { name: zone.id }));
     expect(props.onAction).toHaveBeenCalledWith({ kind: 'focus', ref: { kind: 'zone', id: zone.id } }, shown);
-    expect(screen.getByText(/сверен с расчётом/)).toBeDefined();
+    expect(screen.getByText(/LLM выбрала рассчитанные факты/)).toBeDefined();
     const actions = screen.getByRole('group', { name: 'Действия по ответу' });
     expect(within(actions).getByRole('button', { name: `Показать: ${zone.name}` })).toBeDefined();
     expect(screen.getByText(/Ход проверки: 1 шаг/)).toBeDefined();

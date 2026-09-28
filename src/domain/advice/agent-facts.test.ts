@@ -115,7 +115,7 @@ describe('факты чата связаны с метрикой и предме
       const fact = facts.find((f) => f.candidateId === candidate.id && f.metric === 'area.free' && f.phase === 'after')!;
       expect(fact).toBeDefined();
       expect(fact.value).toBe(candidate.facts.find((f) => f.id === fact.sourceFactId)!.value);
-      expect(renderAgentFact(fact)).toContain(candidate.id);
+      expect(renderAgentFact(fact)).toContain(candidate.object.label);
       expect(renderAgentFact(fact)).toContain('(стало)');
       expect(renderAgentFactSelection({ factIds: [fact.id], candidateId: recommendation.candidates[0]!.id }, facts, state).ok).toBe(false);
     }
@@ -135,7 +135,7 @@ describe('факты чата связаны с метрикой и предме
       expect(renderAgentFact(fact)).toContain('до середины ограничивающего прямоугольника');
       const rendered = renderAgentFactSelection({ factIds: [fact.id] }, facts, state);
       expect(rendered.ok).toBe(true);
-      if (rendered.ok) expect(rendered.text).toContain(fact.recommendationId!);
+      if (rendered.ok) expect(rendered.text).toContain(fact.scope);
     }
   });
 
@@ -182,5 +182,23 @@ describe('факты чата связаны с метрикой и предме
     expect(counts).toHaveLength(2);
     expect(counts[0]!.scope).toContain('включая вложенные');
     expect(counts[1]!.scope).toContain('без вложенных');
+  });
+
+  test('список объектов сохраняет фильтр типа и зоны вместо подсчёта всего помещения', () => {
+    const state = createAgentToolState(before, null);
+    const output = runAgentTool(state, 'list_objects', { typeId: 'ot_workplace', zoneId: 'z_client' }).output;
+    const facts = collectAgentFacts(state, [{ name: 'list_objects', output }]);
+    expect(facts).toHaveLength(1);
+    expect(facts[0]!.value).toBe(before.objects.filter((o) => o.typeId === 'ot_workplace' && o.zoneId === 'z_client').length);
+    expect(renderAgentFact(facts[0]!)).toContain('ot_workplace');
+    expect(renderAgentFact(facts[0]!)).toContain('z_client');
+  });
+
+  test('отсутствие нарушений комплектования — факт области, а не обещание нормативного соответствия', () => {
+    const state = createAgentToolState(after, null);
+    const output = runAgentTool(state, 'check_equipment', { zoneId: 'z_waiting' }).output;
+    const facts = collectAgentFacts(state, [{ name: 'check_equipment', output }]);
+    expect(facts[0]).toMatchObject({ metric: 'equipment.violations', value: 0, refs: [{ kind: 'zone', id: 'z_waiting' }] });
+    expect(renderAgentFact(facts[0]!)).toContain('не нормативы Почты России');
   });
 });

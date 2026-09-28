@@ -162,7 +162,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                     <AnswerText text={answer.text} plan={plan} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
                     <p className="agent__mode">
                       {answer.mode === 'llm'
-                        ? 'Текст модели сверен с расчётом: все числа и id взяты из результатов инструментов.'
+                        ? 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'
                         : `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`}
                     </p>
                     {answer.actions.length === 0 ? null : (
