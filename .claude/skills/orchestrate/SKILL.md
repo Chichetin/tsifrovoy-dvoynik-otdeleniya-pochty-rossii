@@ -54,6 +54,11 @@ bash scripts/issues.sh list blocker        # blocker — раньше всего
 
 ### 3. Worktree (делает оркестратор, а не агент)
 
+Сначала задача, потом worktree (D-299): `bash scripts/issues.sh take <N>` — без этого
+хук `check-issue.sh` не даст субагенту править файлы, а `pre-commit` — коммитить. Нет
+задачи под работу (даже под одну строку документа) — сначала `bash scripts/issues.sh
+create`, потом `take`. Бриф без номера задачи не отправлять ни одной роли.
+
 ```bash
 git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main
 test -f .env && cp .env .claude/worktrees/<N>-<тема>/.env

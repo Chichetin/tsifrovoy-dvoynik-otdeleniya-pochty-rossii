@@ -67,6 +67,16 @@ agents**. Главный риск финала — не объём, а слом�
 `main` и проходит сценарий в браузере. Потоки и владельцы каталогов —
 `docs/project-structure.md`, пакеты и зависимости — план.
 
+- **Без взятой задачи работа не начинается — ни у человека, ни у агента** (D-299).
+  Ни одной правки файла, коммита или push до того, как задача #N взята на тебя и открыт
+  worktree `.claude/worktrees/<N>-<тема>` на ветке `worktree-<N>-<тема>`. Нет подходящей
+  задачи — сначала завести (`bash scripts/issues.sh create`), потом работать; это
+  касается и одной строки в документе. Правило держат не только слова: хук
+  `check-issue.sh` (PreToolUse) не даёт Claude Code править файлы и делать
+  `git commit`/`git push` вне такого worktree; git-хуки `.githooks/pre-commit` и
+  `pre-push` (подключает `npm ci`) делают то же для Codex и людей;
+  `scripts/gitlab-mr.sh merge` не вливает MR без открытой задачи. Проверить себя —
+  `bash scripts/issues.sh check`.
 - **Задачи — GitLab Issues** (D-298). Взять = назначить себя исполнителем:
   `bash scripts/issues.sh take <N>`. У задачи есть метка `area:` (поток: `model`,
   `editor`, `panels`, `assistant`, `release`), приоритет `P0`/`P1`/`P2` и строка
@@ -309,7 +319,7 @@ UI-фича — это новая или изменённая страница, 
 ## Работа с Claude Code
 
 - Система агентов — `docs/agents.md`. Главная сессия в основной копии — оркестратор
-  (скилл `orchestrate`, команда `/orchestrate`): код не пишет, заводит worktree и
+  (скилл `orchestrate`, команда `/orchestrate`): код не пишет, берёт задачу, заводит её worktree и
   ведёт конвейер `builder` → `reviewer` (только diff) → `integrator` (один за раз) →
   `qa` (сценарий в браузере). Вне конвейера: `operator` проходит приложение в роли
   сотрудника, `scribe` пишет README и доску, `jury` оценивает.
@@ -319,6 +329,8 @@ UI-фича — это новая или изменённая страница, 
   они вызываются редко.
 - `docs/tz-compliance.md` — матрица «пункт условий → артефакт → проверка → статус»;
   строку обновлять в том же коммите, что и артефакт.
+- PreToolUse-хук `check-issue.sh` пропускает правку файла и `git commit`/`git push`
+  только в worktree взятой задачи (D-299); отказ объясняет, как взять задачу.
 - SessionStart-хук `session-context.sh` показывает ветку, worktree, открытые `blocker`,
   мои задачи и занятые области из GitLab Issues (нужны `curl`, `jq` и токен git). SubagentStop-хук `check-worktrees.sh` ищет секреты во всех worktree,
   где работали субагенты. Хуки проверяются `bash .claude/hooks/test-hooks.sh`.

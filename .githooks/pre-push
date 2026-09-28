@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Без взятой задачи не пушим (D-299): ветка worktree-<N>-<тема>, задача #N открыта и
+# назначена на меня. Подключается сам: `npm ci` выполняет `prepare` →
+# git config core.hooksPath .githooks. Работает и для Codex, и для людей.
+script="$(git rev-parse --show-toplevel)/scripts/issues.sh"
+if [ ! -f "$script" ]; then
+  echo "[issues] в этой ветке нет scripts/issues.sh — влейте origin/main; работа без задачи запрещена (D-299)" >&2
+  exit 1
+fi
+exec bash "$script" check .

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Создание и слияние Merge Request в GitLab хакатона.
+# Создание и слияние Merge Request в GitLab хакатона. Merge — только MR задачи:
+# ветка worktree-<N>-<тема> и открытая задача #N (D-299).
 #
 # Токен берётся из git credential helper: в репозиторий он не попадает и в
 # вывод не печатается. Merge — обычным merge-коммитом без squash, иначе
@@ -67,6 +68,15 @@ cmd_merge() {
   conflicts=$(field has_conflicts)
   [ "$state" = opened ] || die "MR !${iid} в состоянии «${state}», сливать нечего."
   [ "$conflicts" != true ] || die "MR !${iid}: конфликты, нужен ручной merge."
+
+  # Без задачи не вливаем (D-299): ветка worktree-<N>-<тема>, задача #N открыта.
+  local branch issue
+  branch=$(field source_branch)
+  issue=$(printf '%s' "$branch" | sed -n 's/^worktree-\([0-9][0-9]*\)-.*/\1/p')
+  [ -n "$issue" ] || die "MR !${iid}: ветка «${branch}» без номера задачи — сначала задача и ветка worktree-<N>-<тема> (GIT.md)."
+  require "$(api GET "projects/${PROJECT}/issues/${issue}")" 200 "Задача #${issue} для MR !${iid}"
+  [ "$(field state)" = opened ] || die "MR !${iid}: задача #${issue} не открыта ($(field state))."
+  require "$(api GET "projects/${PROJECT}/merge_requests/${iid}")" 200 "MR !${iid}"
 
   require "$(api PUT "projects/${PROJECT}/merge_requests/${iid}/merge?squash=false&should_remove_source_branch=true")" 200 "MR !${iid} не влит"
   printf 'MR !%s влит: %s\n  merge-коммит: %s\n' "$iid" "$(field title)" "$(field merge_commit_sha)"

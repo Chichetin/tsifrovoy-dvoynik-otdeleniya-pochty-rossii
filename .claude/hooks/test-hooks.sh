@@ -79,6 +79,9 @@ cat > "$TMP/bin/curl" <<'CURL'
 [ -n "${CURL_FAIL:-}" ] && exit 7
 case "$*" in
   */api/v4/user*) echo '{"id": 1, "username": "me"}' ;;
+  */issues/12*) echo '{"iid": 12, "state": "opened", "assignees": [{"username": "me"}]}' ;;
+  */issues/13*) echo '{"iid": 13, "state": "opened", "assignees": [{"username": "mate"}]}' ;;
+  */issues/14*) echo '{"iid": 14, "state": "closed", "assignees": [{"username": "me"}]}' ;;
   */issues*) cat <<'JSON'
 [{"iid": 3, "title": "Направляющие при перетаскивании", "labels": ["area:editor", "P1"], "assignees": [{"username": "me"}]},
  {"iid": 5, "title": "Проверка чата", "labels": ["area:assistant", "P0"], "assignees": [{"username": "mate"}]},
@@ -99,6 +102,32 @@ CURL_FAIL=1 expect_out has "GitLab недоступен — предупрежд
 git worktree add -q .claude/worktrees/wt-test -b worktree-wt-test 2>/dev/null
 (cd .claude/worktrees/wt-test && expect_out lacks "worktree — без предупреждения" "основной копии")
 (cd .claude/worktrees/wt-test && expect_out has   "worktree — видна ветка"        "worktree-wt-test")
+
+# --- check-issue.sh (PreToolUse: без взятой задачи не работаем, D-299)
+expect_pre() { # expect_pre <block|pass> <описание> <json>
+  local out code
+  out="$(printf '%s' "$3" | bash "$HOOKS/check-issue.sh" 2>&1)"; code=$?
+  if [ "$1" = block ] && [ "$code" != 2 ]; then
+    echo "FAIL: $2 — ожидался отказ (код 2), код $code, вывод: $out"; FAIL=1
+  elif [ "$1" = pass ] && [ "$code" != 0 ]; then
+    echo "FAIL: $2 — ожидался пропуск, код $code, вывод: $out"; FAIL=1
+  else
+    echo "ok:   $2"
+  fi
+}
+edit() { printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$1"; }
+for n in 12 13 14; do git worktree add -q ".claude/worktrees/$n-x" -b "worktree-$n-x" 2>/dev/null; done
+expect_pre block "правка в основной копии"              "$(edit "$TMP/src/a.ts")"
+expect_pre block "ветка без номера задачи"              "$(edit "$TMP/.claude/worktrees/wt-test/a.ts")"
+expect_pre pass  "моя открытая задача"                  "$(edit "$TMP/.claude/worktrees/12-x/src/new/a.ts")"
+expect_pre block "задача назначена на другого"          "$(edit "$TMP/.claude/worktrees/13-x/a.ts")"
+expect_pre block "задача закрыта"                       "$(edit "$TMP/.claude/worktrees/14-x/a.ts")"
+expect_pre pass  "файл вне репозитория"                 "$(edit /tmp/scratch-note.md)"
+expect_pre block "git commit в основной копии"          "{\"tool_name\":\"Bash\",\"cwd\":\"$TMP\",\"tool_input\":{\"command\":\"git add a && git commit -m x\"}}"
+expect_pre pass  "git commit в worktree задачи через -C" "{\"tool_name\":\"Bash\",\"cwd\":\"$TMP\",\"tool_input\":{\"command\":\"git -C $TMP/.claude/worktrees/12-x commit -m x\"}}"
+expect_pre pass  "обычная команда Bash не проверяется"  "{\"tool_name\":\"Bash\",\"cwd\":\"$TMP\",\"tool_input\":{\"command\":\"git status\"}}"
+rm -f "$(git -C .claude/worktrees/13-x rev-parse --git-dir)/issue-check"
+CURL_FAIL=1 expect_pre pass "GitLab недоступен — номер в ветке есть, пропуск с предупреждением" "$(edit "$TMP/.claude/worktrees/13-x/a.ts")"
 
 # --- check-worktrees.sh (SubagentStop: секреты во всех worktree)
 expect pass  "worktrees: секретов нигде нет"           check-worktrees.sh

@@ -10,12 +10,48 @@
 #   bash scripts/issues.sh take <N>          взять: назначить себя; занятую другим или чужую area: не берёт
 #   bash scripts/issues.sh create <заголовок> <метки через запятую> <файл описания>
 #   bash scripts/issues.sh comment <N> <файл|->
+#   bash scripts/issues.sh label <N> <метки через запятую>   добавить метки
 #   bash scripts/issues.sh labels            создать недостающие метки команды
 #   bash scripts/issues.sh board             сводка для хука начала сессии
+#   bash scripts/issues.sh check [путь]      можно ли здесь работать: worktree задачи, задача моя и открыта
 set -euo pipefail
 
 cmd="${1:-help}"
 [ $# -gt 0 ] && shift
+
+# check — правило «без взятой задачи не работаем» (D-299). Проверка ветки не требует
+# сети и jq; назначение задачи сверяется с GitLab и кешируется на 30 минут в git-dir
+# worktree. GitLab недоступен — предупреждение, но не запрет: номер в ветке уже есть.
+if [ "$cmd" = check ]; then
+  target="${1:-.}"
+  while [ ! -d "$target" ] && [ "$target" != / ] && [ "$target" != . ]; do target="$(dirname "$target")"; done
+  git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0  # вне репозитория — не наше
+  cd "$target"
+  branch="$(git branch --show-current 2>/dev/null || true)"
+  how="Сначала задача: bash scripts/issues.sh free → take <N> → git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main (GIT.md)"
+  if [ "$(git rev-parse --absolute-git-dir)" = "$(cd "$(git rev-parse --git-common-dir)" && pwd -P)" ]; then
+    echo "Основная копия ($branch): здесь файлы не меняют и не коммитят. $how" >&2
+    exit 1
+  fi
+  n="$(printf '%s' "$branch" | sed -n 's/^worktree-\([0-9][0-9]*\)-.*/\1/p')"
+  if [ -z "$n" ]; then
+    echo "Ветка «$branch» без номера задачи: работа начинается только со взятой задачи. $how" >&2
+    exit 1
+  fi
+  cache="$(git rev-parse --git-dir)/issue-check"
+  if [ -f "$cache" ] && [ "$(cat "$cache")" = "$n" ] \
+    && [ -z "$(find "$cache" -mmin +30 2>/dev/null)" ]; then
+    exit 0
+  fi
+  if ! verdict="$(ISSUES_TIMEOUT=4 bash "$0" verify "$n" 2>&1)"; then
+    case "$verdict" in
+      нет:*) echo "#$n: ${verdict#нет: }. $how" >&2; exit 1 ;;
+      *) echo "[issues] GitLab недоступен — задача #$n не сверена ($verdict)" >&2; exit 0 ;;
+    esac
+  fi
+  printf '%s' "$n" > "$cache"
+  exit 0
+fi
 
 remote="$(git remote get-url origin)"
 host="$(printf '%s' "$remote" | sed -E 's#^https?://([^/@]+@)?([^/]+)/.*#\2#; s#^git@([^:]+):.*#\1#')"
@@ -24,12 +60,12 @@ proj="$(printf '%s' "$path" | jq -sRr @uri)"
 api="https://$host/api/v4/projects/$proj"
 
 token="${GITLAB_TOKEN:-}"
-if [ -z "$token" ]; then
+if [ -z "$token" ] && [ "$cmd" != help ]; then
   token="$(printf 'protocol=https\nhost=%s\n\n' "$host" \
     | GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true timeout 5 git credential fill 2>/dev/null \
     | sed -n 's/^password=//p')" || true
 fi
-if [ -z "$token" ]; then
+if [ -z "$token" ] && [ "$cmd" != help ]; then
   echo "нет токена GitLab: задайте GITLAB_TOKEN или войдите в $host через git (git push спросит логин)" >&2
   exit 2
 fi
@@ -99,6 +135,10 @@ case "$cmd" in
     n="${1:?номер задачи}" body="${2:?файл или -}"
     gl POST "$api/issues/$n/notes" --data-urlencode "body@$body" | jq -r '"комментарий \(.id) к #'"$n"'"'
     ;;
+  label)
+    n="${1:?номер задачи}" add="${2:?метки через запятую}"
+    gl PUT "$api/issues/$n" --data-urlencode "add_labels=$add" | jq -r '"#\(.iid) [\(.labels | join(", "))]"'
+    ;;
   labels)
     have="$(gl GET "$api/labels?per_page=100" | jq -r '.[].name')"
     while IFS='|' read -r name color description; do
@@ -119,6 +159,15 @@ blocker|#C92A2A|Риск, что показ или сдача не сработ�
 contract|#0C8599|Меняет src/contracts — отдельный MR через поток 1
 ui|#E64980|UI-фича: обязателен UI/UX skill gate из CLAUDE.md
 LABELS
+    ;;
+  verify) # для check: «нет: причина» и код 1, если задача не открыта или не на мне
+    n="${1:?номер задачи}"
+    me="$(me_json | jq -r .username)"
+    issue="$(gl GET "$api/issues/$n")"
+    state="$(printf '%s' "$issue" | jq -r .state)"
+    [ "$state" = opened ] || { echo "нет: задача $state, а не открыта"; exit 1; }
+    printf '%s' "$issue" | jq -e --arg me "$me" 'any(.assignees[]; .username == $me)' >/dev/null \
+      || { echo "нет: не назначена на $me (bash scripts/issues.sh take $n)"; exit 1; }
     ;;
   board)
     me="$(me_json | jq -r .username)"
@@ -144,6 +193,6 @@ LABELS
     echo "[issues] свободных: $free — bash scripts/issues.sh free"
     ;;
   *)
-    sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 esac
