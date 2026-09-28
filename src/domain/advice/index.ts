@@ -23,6 +23,7 @@ import { comparePlans } from './compare';
 import { PLACEMENT_SEARCH, findPlacements, zoneFit, type ZoneFit } from './placement';
 
 export { checkEquipment } from './equipment';
+export { candidateObjectForInsert } from './candidate-object';
 export { comparePlans, diffPlans } from './compare';
 export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements, zoneFit } from './placement';
 export type { ZoneFit } from './placement';
