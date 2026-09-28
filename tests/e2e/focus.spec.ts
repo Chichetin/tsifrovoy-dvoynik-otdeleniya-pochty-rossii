@@ -220,6 +220,7 @@ test.describe('холст показывает то, о чём спрашива�
     // Уводим объект за пределы помещения числами карточки.
     await card(page).getByLabel('X, м').fill(String(OUTSIDE.x));
     await card(page).getByLabel('Y, м').fill(String(OUTSIDE.y));
+    await card(page).getByRole('button', { name: 'Применить координаты' }).click();
     await expect(card(page).getByRole('alert')).toHaveCount(0);
 
     // Правка вид не двигает: объект уехал за кадр, и сам он не вернётся.

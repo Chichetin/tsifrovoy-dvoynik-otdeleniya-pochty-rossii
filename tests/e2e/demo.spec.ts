@@ -126,9 +126,9 @@ test.describe('демо-комплект из ZIP', () => {
     // смене ширины панелей: прежняя (340, 447) попала на занятое место, скамья
     // не вставала, и сценарий падал на «53 вместо 54». Теперь клик идёт сразу
     // рядом с местом из рекомендации: на холсте 664 × 671 масштаб «Вписать» —
-    // 40 px/м, модель (2,2; 2) — это (120, 456). Так промежуточная правка
-    // карточки не проходит через чужое место: поля применяются по одному, и
-    // клик подальше отсюда означал бы X при старом Y, то есть отказ физики.
+    // 40 px/м, модель (2,2; 2) — это (120, 456). X/Y применяются вместе;
+    // перенос с обоими занятыми промежуточными положениями отдельно
+    // проверяется в coordinate-pair.spec.ts.
     await showTab(page, 'Библиотека');
     await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
     await page.getByTestId('editor-canvas').click({ position: { x: 120, y: 456 } });
@@ -139,6 +139,7 @@ test.describe('демо-комплект из ZIP', () => {
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_54');
     await card(page).getByLabel('X, м').fill('2.2');
     await card(page).getByLabel('Y, м').fill('2');
+    await card(page).getByRole('button', { name: 'Применить координаты' }).click();
     await card(page).getByLabel('Поворот, °').fill('0');
     await card(page).getByLabel('Название').fill('Скамья ожидания 2');
     await card(page).getByLabel('Инвентарный номер').fill('ИНВ-ДЕМО-054');
@@ -156,6 +157,7 @@ test.describe('демо-комплект из ZIP', () => {
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await card(page).getByLabel('X, м').fill('7.9');
     await card(page).getByLabel('Y, м').fill('2.1');
+    await card(page).getByRole('button', { name: 'Применить координаты' }).click();
     await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Входная группа');
 
     const saved = await savePlan(page);

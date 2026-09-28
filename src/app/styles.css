@@ -2153,6 +2153,18 @@ span.inventory__num {
   gap: 8px;
 }
 
+.props__position-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.props__position-actions .files__button {
+  max-width: 100%;
+  white-space: normal;
+}
+
 .props__extra {
   margin-top: 8px;
   font-size: 12px;
