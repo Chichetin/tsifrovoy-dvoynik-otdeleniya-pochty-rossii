@@ -14,7 +14,7 @@
 
 ## Активные задачи
 
-| Максим / Codex | `worktree-4-open-demo`, Issue #4, MR после проверок | Прямое открытие before/after из обучения и действия «Демо»; первый пакет — серверные источники текста и обычный codec | `features/files/demo-plan.*`; далее FileControls, Onboarding, App и их тесты | План и UI-бриф: `docs/plans/2026-09-28-open-demo.md`; fixture/HTTP/JSON/abort unit, затем e2e сохранения/открытия и 1280/1440. Недоступные UI-скиллы оформлены как fallback, полный gate не заявляется | В работе; интерфейс ещё не подключён, Issue #4 не закрывать |
+| Максим / Codex | `worktree-4-open-demo`, Issue #4, [draft MR !308](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/308), первый код `dae3770` | Прямое открытие before/after из обучения и действия «Демо»; первый пакет — серверные источники текста и обычный codec | `features/files/demo-plan.*`; далее FileControls, Onboarding, App и их тесты | План и UI-бриф: `docs/plans/2026-09-28-open-demo.md`; fixture/HTTP/JSON/abort unit, затем e2e сохранения/открытия и 1280/1440. Недоступные UI-скиллы оформлены как fallback, полный gate не заявляется | Первый шаг запушен: 5 целевых / 1546 unit passed, 1 skipped; typecheck/lint/client+server build passed. Интерфейс ещё не подключён, MR draft, Issue #4 не закрывать |
 
 
 
