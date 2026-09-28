@@ -69,22 +69,33 @@ expect_out() { # expect_out <has|lacks> <описание> <шаблон>
   fi
 }
 git checkout -q -b main 2>/dev/null
-cat > HANDOFF.md <<'EOF'
-## Активные задачи
-
-| Владелец | Ветка | Задача | Файлы/контракт | Проверка | Статус |
-|---|---|---|---|---|---|
-| Codex | worktree-editor-drag | Перетаскивание объектов | `editor/` | тест | в работе |
-
-## Блокеры и вопросы
-| Дата | Владелец | Блокер |
-|---|---|---|
-| 2026-09-15 | — | не показывать |
-EOF
-git add HANDOFF.md && git -c user.name=t -c user.email=t@t commit -q -m init
+mkdir -p scripts "$TMP/bin" && cp "$HOOKS/../../scripts/issues.sh" scripts/
+git remote add origin https://gitlab.example/team/plan.git
+git add scripts && git -c user.name=t -c user.email=t@t commit -q -m init
 expect_out has   "основная копия на main — предупреждение" "основной копии"
-expect_out has   "активная задача из HANDOFF"              "Перетаскивание объектов"
-expect_out lacks "блокеры не попадают в список задач"      "не показывать"
+expect_out lacks "нет токена — без падения и без задач"     "мои открытые"
+cat > "$TMP/bin/curl" <<'CURL'
+#!/usr/bin/env bash
+[ -n "${CURL_FAIL:-}" ] && exit 7
+case "$*" in
+  */api/v4/user*) echo '{"id": 1, "username": "me"}' ;;
+  */issues*) cat <<'JSON'
+[{"iid": 3, "title": "Направляющие при перетаскивании", "labels": ["area:editor", "P1"], "assignees": [{"username": "me"}]},
+ {"iid": 5, "title": "Проверка чата", "labels": ["area:assistant", "P0"], "assignees": [{"username": "mate"}]},
+ {"iid": 7, "title": "Никем не взята", "labels": ["area:panels"], "assignees": []},
+ {"iid": 9, "title": "Демо не открывается", "labels": ["blocker", "area:release"], "assignees": []}]
+JSON
+  ;;
+esac
+CURL
+chmod +x "$TMP/bin/curl"
+export PATH="$TMP/bin:$PATH" GITLAB_TOKEN=test-token
+expect_out has   "мои задачи видны"                          "#3 Направляющие при перетаскивании"
+expect_out has   "занятая другим область видна"              "area:assistant: #5 mate"
+expect_out lacks "свободная задача не считается занятой"     "area:panels:"
+expect_out has   "blocker виден"                             "#9 Демо не открывается"
+expect_out lacks "обычная задача не считается blocker"       "  #7 Никем не взята"
+CURL_FAIL=1 expect_out has "GitLab недоступен — предупреждение, без падения" "GitLab недоступен"
 git worktree add -q .claude/worktrees/wt-test -b worktree-wt-test 2>/dev/null
 (cd .claude/worktrees/wt-test && expect_out lacks "worktree — без предупреждения" "основной копии")
 (cd .claude/worktrees/wt-test && expect_out has   "worktree — видна ветка"        "worktree-wt-test")

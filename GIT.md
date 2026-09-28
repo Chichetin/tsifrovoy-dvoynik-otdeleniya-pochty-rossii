@@ -36,26 +36,32 @@ merge делает участник команды в GitLab (права ест�
 Основная копия (`/home/ir6/my/tsifrovoy-dvoynik-otdeleniya-pochty-rossii`, ветка `main`)
 — не рабочее место агента. В ней могут параллельно сидеть человек и другие сессии, и
 незаконченная правка одного ломает запуск и тесты остальным. Поэтому **любая задача,
-меняющая файлы, делается в своём worktree на своей ветке**.
+меняющая файлы, делается в своём worktree на своей ветке, одна задача — один worktree**.
 
 Старт:
 
 ```bash
-# Claude Code — сессия сразу открывается в .claude/worktrees/<поток>-<тема>
-# на ветке worktree-<поток>-<тема>
-claude -w <поток>-<тема>
+bash scripts/issues.sh take <N>     # сначала взять задачу из GitLab Issues (D-298)
+
+# Claude Code — сессия сразу открывается в .claude/worktrees/<N>-<тема>
+# на ветке worktree-<N>-<тема>
+claude -w <N>-<тема>
 
 # Уже запущенная сессия или другой агент (Codex и т. п.) — те же путь и ветка руками:
 git fetch --prune
-git worktree add .claude/worktrees/<поток>-<тема> -b worktree-<поток>-<тема> origin/main
+git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main
 ```
+
+`<N>` — номер задачи, `<тема>` — 2–3 слова латиницей: `12-smart-guides`. Работа без
+задачи (правка доски, срочная починка `main`) — `<поток>-<тема>`, как раньше; нетривиальную
+работу сначала оформить задачей.
 
 `.claude/worktrees/` в `.gitignore`. `claude -w` копирует файлы из `.worktreeinclude`
 (`.env`) из основной копии; при `git worktree add` руками `.env` копировать самому.
 `node_modules` и `.venv` в новом worktree нет — поставить заново.
 
 Организаторы в примере называют ветки `feature/<имя>`; это пример, а не требование.
-Ветки `worktree-<поток>-<тема>` оставляем: их создаёт `claude -w`, и на них опираются
+Ветки `worktree-<N>-<тема>` оставляем: их создаёт `claude -w`, и на них опираются
 правила уборки.
 
 ## Финиш: ветка → Merge Request → main
@@ -68,10 +74,15 @@ git merge origin/main              # если main ушёл вперёд; пос
 git push -u origin HEAD \
   -o merge_request.create \
   -o merge_request.target=main \
-  -o merge_request.title="<поток>: <что закончено>"
+  -o merge_request.title="<поток>: <что закончено>" \
+  -o merge_request.description="Closes #<N>"
 ```
 
-GitLab печатает ссылку на MR в выводе push — её агент пишет человеку и в `HANDOFF.md`.
+Описание MR — по `.gitlab/merge_request_templates/Default.md`: `Closes #<N>`, что сделано,
+команды проверок с результатами, UI gate для UI-фичи, затронутый контракт. Push option
+ставит только первую строку; остальное агент дописывает в описание MR в GitLab или
+комментарием в задаче (`bash scripts/issues.sh comment <N> <файл>`). `Closes #<N>`
+закрывает задачу при merge в `main`. Ссылку на MR из вывода push агент пишет человеку.
 Push options на сервере хакатона работают (проверено 2026-09-16, MR !1). Повторный push
 в ту же ветку обновляет открытый MR, новый не создаёт.
 
@@ -100,9 +111,9 @@ Push options на сервере хакатона работают (провер
    начать работу.
 
 ```bash
-git worktree remove .claude/worktrees/<поток>-<тема>   # без --force
-git branch -D worktree-<поток>-<тема>                  # после проверки п. 1
-git push origin --delete worktree-<поток>-<тема>       # если GitLab не удалил её при merge
+git worktree remove .claude/worktrees/<N>-<тема>   # без --force
+git branch -D worktree-<N>-<тема>                  # после проверки п. 1
+git push origin --delete worktree-<N>-<тема>       # если GitLab не удалил её при merge
 git worktree prune
 ```
 
@@ -131,6 +142,32 @@ git worktree prune
 «Ветка и Merge Request» выше. Из-за этого агент 22.09 предложил человеку слить MR
 руками вместо того, чтобы слить самому.
 
+## Задачи — GitLab Issues
+
+Реестр «кто что делает» — Issues проекта, не `HANDOFF.md` (D-298). Клиент —
+`scripts/issues.sh` (`curl` + `jq`, токен из того же credential helper, что и для push;
+`glab` не нужен):
+
+```bash
+bash scripts/issues.sh free                 # свободные задачи; free P0 — только P0
+bash scripts/issues.sh view <N>             # условия и критерий приёмки
+bash scripts/issues.sh take <N>             # взять: назначить себя
+bash scripts/issues.sh mine                 # мои открытые
+bash scripts/issues.sh create "<заголовок>" "area:editor,P1,ui" <файл по шаблону>
+bash scripts/issues.sh comment <N> <файл>   # расхождение, вопрос соседу, итог
+```
+
+Метки: `area:model|editor|panels|assistant|release` — поток и каталоги из
+`docs/project-structure.md`; `P0`/`P1`/`P2`; `blocker` — риск показа или сдачи;
+`contract` — меняет `src/contracts`, отдельный MR через поток 1; `ui` — обязателен
+UI/UX skill gate. Недостающие метки создаёт `bash scripts/issues.sh labels`. Описание
+задачи — по `.gitlab/issue_templates/Задача.md`: оценка модели, area, приоритет,
+«Зависит от #…», критерий приёмки, файлы.
+
+`take` не даст взять задачу с чужим исполнителем или с `area:`, в которой уже работает
+другой: два человека в одной области правят одни файлы. Бросил задачу — снять себя в
+GitLab и оставить комментарий, на чём остановился.
+
 ## Перед началом работы
 
 ```bash
@@ -138,6 +175,7 @@ git fetch --prune
 git status -sb
 git log --oneline HEAD..origin/main   # что пришло от команды
 git log --oneline origin/main..HEAD   # что есть только у нас
+bash scripts/issues.sh mine           # мои задачи
 ```
 
 Если чужой коммит пересекается с задачей — сначала прочитать diff. Перед тем как
@@ -165,7 +203,7 @@ git log --oneline origin/main..HEAD   # что есть только у нас
 ## Ветки и ревью
 
 - `main` — редактор запускается, тесты зелёные, демо-планы открываются.
-- Ветка задачи — `worktree-<поток>-<тема>`; крупная или рискованная (формат
+- Ветка задачи — `worktree-<N>-<тема>`; крупная или рискованная (формат
   сохранения, модель данных, `.claude/`) — ревью другим участником в MR до merge.
 - Force-push запрещён везде.
 
