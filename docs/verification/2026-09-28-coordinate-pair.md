@@ -3,6 +3,8 @@
 База `6093480`, задача #1 закреплена за `maxsedov99`; ветка
 `worktree-1-coordinate-pair`, отдельный worktree. Формат, геометрия и физика прежние.
 
+[MR !304](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/304), продуктовый коммит `1fa6c9b`.
+
 ## Дефект и исправление
 
 На `demo/before.json` скамья `eq_54` в `[7.5, 1]` не переносилась полями в
