@@ -14,9 +14,11 @@
 
 ## Активные задачи
 
-| Максим / Codex | `worktree-3-chat-verified`, Issue #3, [MR !306](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/306), код `683f0b9` | Связанные факты подключены к серверному чату; модель выбирает factIds, неверный ответ → явный расчёт без LLM | `server/agent.ts`, `src/domain/advice/agent-facts.ts`, тексты AgentChat и регрессии | 1516 unit passed / 1 skipped; 214 e2e passed / 5 deployment skipped; typecheck/lint/client+server build зелёные; независимое ревью без блокеров. Браузер 1280/1440, снимки и ограничения UI gate в `docs/verification/2026-09-28-chat-facts-server.md` | Серверный пакет проверен; Issue #3 остаётся открытой: корпус 24/live ещё предстоят. JSON/HTTP форма не меняется; публичный деплой не обновлён |
 
-| Максим / Codex | `worktree-3-chat-facts`, Issue #3, [MR !305](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/305), код `007310e` | Связанные факты свободного чата: отдельный модуль выбора и детерминированного вывода проверен; дальше подключение сервера и корпус 24 сценариев | `src/domain/advice/{agent-facts.ts,agent-tools.ts}`, тесты; следующий пакет — `server/agent.ts` | 22 целевых, 1501 unit passed / 1 skipped; 212 e2e passed / 5 deployment skipped; typecheck/lint/build зелёные; независимый reviewer без блокеров. Отчёт `docs/verification/2026-09-28-chat-facts-foundation.md` | Первый шаг проверен; Issue #3 остаётся открытой, старый дефект до подключения сервера не закрыт. Внешние контракты и UI не меняются |
+
+
+
+
 
 
 
@@ -242,6 +244,12 @@ JSON руками: `tests/demo.test.ts:85` требует побайтового
 | 2026-09-17 (QA-сессия) | Слова Сергея Оленева о сложности трека | «Один из самых простых треков с точки зрения кода, но один из самых сложных с точки зрения мышления и логики. Главное — научиться ставить себя на место сотрудников, которые пользуются сервисом в разных ролях» | Баллы приносит не объём кода, а осмысленность сценариев ролей. Роли фиксируем явно и проверяем по ним сценарий демонстрации (D-057) |
 
 ## Завершено
+
+| Максим / Codex | `worktree-3-assistant-corpus`, Issue #3, [MR !307](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/307), код `44121ce` | Корпус 24 сценариев: 9 размещений / 6 комплектований / 3 сравнений / 6 отказов; отдельные регрессии и воспроизводимый live-runner | `tests/assistant-corpus`, `tests/assistant-corpus.test.ts`, live script и отчёт | Каждый сценарий проверяет настоящий server/domain цикл, факты/refs/допущения/ограничения, полезность отказа и неизменность документа. Внешняя LLM заменена scripted только в offline-прогоне; live ограничивается несколькими случаями, конфигурация без ключей в отчёте | Пакет завершён и готов к слиянию: 25 корпусных / 1541 unit / 13 e2e passed; typecheck/lint/client+server build passed; 3 live llm (17,542 / 7,440 / 5,588 с), отчёт `docs/verification/2026-09-28-assistant-corpus.md`. Ключ восстановлен и проверен, остаётся вне Git |
+
+| Максим / Codex | `worktree-3-chat-verified`, Issue #3, [MR !306](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/306), код `683f0b9` | Связанные факты подключены к серверному чату; модель выбирает factIds, неверный ответ → явный расчёт без LLM | `server/agent.ts`, `src/domain/advice/agent-facts.ts`, тексты AgentChat и регрессии | 1516 unit passed / 1 skipped; 214 e2e passed / 5 deployment skipped; typecheck/lint/client+server build зелёные; независимое ревью без блокеров. Браузер 1280/1440, снимки и ограничения UI gate в `docs/verification/2026-09-28-chat-facts-server.md` | Серверный пакет проверен; Issue #3 остаётся открытой: корпус 24/live ещё предстоят. JSON/HTTP форма не меняется; публичный деплой не обновлён |
+
+| Максим / Codex | `worktree-3-chat-facts`, Issue #3, [MR !305](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/305), код `007310e` | Связанные факты свободного чата: отдельный модуль выбора и детерминированного вывода проверен; дальше подключение сервера и корпус 24 сценариев | `src/domain/advice/{agent-facts.ts,agent-tools.ts}`, тесты; следующий пакет — `server/agent.ts` | 22 целевых, 1501 unit passed / 1 skipped; 212 e2e passed / 5 deployment skipped; typecheck/lint/build зелёные; независимый reviewer без блокеров. Отчёт `docs/verification/2026-09-28-chat-facts-foundation.md` | Первый шаг проверен; Issue #3 остаётся открытой, старый дефект до подключения сервера не закрыт. Внешние контракты и UI не меняются |
 
 ### 28.09 — Максим / Codex: X/Y одной командой, #1
 
