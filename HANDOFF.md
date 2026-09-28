@@ -239,7 +239,7 @@ JSON руками: `tests/demo.test.ts:85` требует побайтового
 
 ### 28.09 — повторное архитектурное ревью (Claude)
 
-- Ветка `worktree-5-arch-review-0928`, MR после push. Итог: [ревью 28.09](docs/architecture-review-2026-09-28.md) на `5fc9ab8`. Код не менялся.
+- Ветка `worktree-5-arch-review-0928`, [MR !298](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/298). Итог: [ревью 28.09](docs/architecture-review-2026-09-28.md) на `5fc9ab8`. Код не менялся.
 - Все 11 кандидатов и оба дефекта ревью 22.09 живы; `App.tsx` вырос до 1095 строк. Восемь новых кандидатов: соответствие «тип → знак» в коде вместо справочника и разный размер знака на экране и в SVG, экспорт без учёта скрытых групп и переключателя знаков, ширины панелей в `App.tsx`, два транспорта к LLM и два лимитера, четвёртый перечень `id`.
 - До 08.10 по D-296 из ревью брать только Б1 (`ID_REUSED`) и флейк Б2; остальное — после защиты.
 - Проверка: `npm test` на `5fc9ab8` — 1471 passed / 1 skipped; ключевые утверждения сверены командами в коде (раздел «Метод» документа).
