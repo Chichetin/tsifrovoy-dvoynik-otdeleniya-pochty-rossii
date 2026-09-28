@@ -9,7 +9,7 @@ import type { Id, Ref } from '../../contracts/model';
 import type { AgentToolRecord } from './agent-fallback';
 import type { AgentToolState } from './agent-tools';
 
-type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count';
+type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations';
 export type AgentFact = Omit<Fact, 'metric'> & {
   metric: ChatMetric;
   /** The scope distinguishes a filtered count from a whole-room count. */
@@ -33,6 +33,7 @@ const METRIC_LABELS: Record<ChatMetric, string> = {
   'validation.errors': 'Ошибки проверки',
   'validation.warnings': 'Предупреждения проверки',
   'zones.count': 'Количество зон',
+  'equipment.violations': 'Нарушения правил комплектования',
 };
 const PHASE_LABELS: Record<FactPhase, string> = {
   current: 'сейчас', before: 'было', after: 'стало', delta: 'изменение',
@@ -90,6 +91,18 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       areas(`${prefix}.zone`, output, refs, scope);
       add(`${prefix}.objects`, 'equipment.count', output.objectsCount, refs, `${scope}, без вложенных зон`);
     }
+    if (entry.name === 'list_objects') {
+      const filter = record(output.filter);
+      if (filter !== null) {
+        const refs: Ref[] = typeof filter.zoneId === 'string' ? [{ kind: 'zone', id: filter.zoneId }] : roomRefs;
+        const scope = [subject(state, refs), typeof filter.zoneId === 'string' ? 'без вложенных зон' : '', typeof filter.typeId === 'string' ? `тип «${state.names.objectTypeLabel(filter.typeId) ?? filter.typeId}» (${filter.typeId})` : 'все типы'].filter(Boolean).join('; ');
+        add(`${prefix}.objects`, 'equipment.count', output.count, refs, scope);
+      }
+    }
+    if (entry.name === 'check_equipment' && Array.isArray(output.recommendations) && output.recommendations.length === 0) {
+      const refs: Ref[] = typeof output.zoneId === 'string' ? [{ kind: 'zone', id: output.zoneId }] : roomRefs;
+      add(`${prefix}.stocking`, 'equipment.violations', 0, refs, `${subject(state, refs)}; проверены правила команды, не нормативы Почты России`);
+    }
     if (entry.name === 'plan_overview' || entry.name === 'validate_plan') {
       const validation = entry.name === 'validate_plan' ? output : record(output.validation);
       if (validation !== null) {
@@ -108,7 +121,7 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
         subject(state, fact.refs),
         fact.metric.startsWith('equipment.') && typeId !== undefined ? `тип «${state.names.objectTypeLabel(typeId) ?? typeId}» (${typeId})` : '',
         fact.metric.startsWith('equipment.') && rule?.kind === 'count' ? `правило ${rule.id}, ${rule.scope === 'direct' ? 'без вложенных зон' : 'включая вложенные зоны'}` : '',
-        candidate === undefined ? '' : `вариант «${candidate.object.label}» (${candidate.id}), поиск ${recommendation.id}, центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м`,
+        candidate === undefined ? '' : `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`,
       ].filter(Boolean).join('; ');
       // Candidate fact IDs are local to their search, not globally unique.
       const metricLabel = fact.metric !== 'placement.distance' ? undefined
@@ -145,6 +158,10 @@ export function renderAgentFactSelection(input: unknown, facts: readonly AgentFa
   for (const id of parsed.data.factIds) {
     const fact = byId.get(id);
     if (fact === undefined) return { ok: false, reason: `Неизвестный рассчитанный факт: ${id}.` };
+    if (fact.candidateId !== undefined && state.actions.some((action) =>
+      (action.kind === 'apply-candidate' || action.kind === 'preview-candidate') && action.recommendationId === fact.recommendationId && action.candidateId !== fact.candidateId)) {
+      return { ok: false, reason: 'Факт относится к другому варианту, а не к предложенному на плане.' };
+    }
     if (!selected.includes(fact)) selected.push(fact);
   }
   // Selecting a numerical fact also selects its inseparable assumptions.
