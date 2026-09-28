@@ -237,6 +237,15 @@ JSON руками: `tests/demo.test.ts:85` требует побайтового
 
 ## Завершено
 
+### 28.09 — анализ и план защиты до 08.10 (Codex)
+
+- Ветка `worktree-5-defense-plan-0928`, MR после push; исходный код проверки `5fc9ab8`. Итог: [дорожная карта](docs/superpowers/plans/2026-09-28-defense-roadmap.md), решение D-296. Продуктовый код и демо не менялись. Пункты условий этим планированием не закрывались.
+- Подтверждены: промежуточные коллизии при раздельном вводе X/Y; `ID_REUSED` после повторного применения удалённого кандидата; проверка чата принимает полную площадь вместо свободной и число из вопроса. Это не установленные причины реальной оценки 76.
+- Свежие проверки: `npm ci`; `npm test` — 1471 passed / 1 skipped, 10,65 с; typecheck/lint/build — exit 0. `DEV_PORT=5418 npx playwright test -c output/playwright/defense-0928/e2e.config.ts tests/e2e/demo.spec.ts tests/e2e/round-trip.spec.ts --workers=1` — 3 passed, 10,5 с, системный Chromium. Бандловый браузер не установился из-за ECONNRESET; первоначальные три теста не стартовали. Полный e2e и live LLM не запускались.
+- Публичный health — HTTP 200/configured:true; имена клиентских JS/CSS assets совпали с локальной сборкой, оба публичных JSON побайтово совпали с demo. Playwright CLI: публичный старт/обучение, viewport 1440×900; snapshot `.playwright-cli/page-2026-09-28T16-09-59-260Z.yml` локально в worktree. Снимок «после»/UI gate не применимы: интерфейс не менялся.
+- Скиллы: brainstorming, writing-plans, using-git-worktrees, dispatching-parallel-agents, playwright, webapp-testing, verification-before-completion. Независимые агенты дали промежуточные находки, но итоговые отчёты не завершились из-за лимита; ключевые три дефекта повторно проверены основной сессией. Дополнительные агенты/дорогие прогоны прекращены по просьбе беречь лимиты.
+- Логи локально: `/tmp/pochta-defense-unit-0928.log`, `/tmp/pochta-defense-e2e-system-0928.log`; временный конфиг и артефакты — `output/playwright/defense-0928/`, не коммитятся. Нужны от команды: комментарии жюри, доступность участников, регламент и фактически отправленный PDF.
+
 | Дата | Кто | Что | MR / Commit | Проверка |
 |---|---|---|---|---|
 | 2026-09-22 | Максим / Codex | Условные векторные значки на 2D-плане для основных типов оборудования. Крупные объекты показывают значок в контрастном угловом бейдже рядом с подписью; мелкие показывают значок при достаточном увеличении. Значки не перехватывают выбор и перенос | [MR !284](https://git.codenrock.com/codenrock/khakaton-postcode-challenge-ot-pochtatekha/ii-blanki/tsifrovoy-dvoynik-otdeleniya-pochty-rossii/-/merge_requests/284), `5790dcc`, merge `49ca623` | 14 unit; typecheck, lint и production build; Playwright на демо-плане 1/1; визуальная проверка общего, рабочего и крупного масштабов |
