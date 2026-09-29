@@ -230,6 +230,32 @@ describe('ошибка команды', () => {
 });
 
 describe('dirty и подготовка экспорта', () => {
+  test('видимость слоя и её undo/redo не устаревают содержимое для ассистента', () => {
+    const layer = store.getState().document.layers[0]!;
+    const contentRevision = store.getState().contentRevision;
+    const revision = store.getState().revision;
+    store.getState().dispatch({ type: 'layer.put', layer: { ...layer, visible: !layer.visible } });
+    expect(store.getState().revision).toBeGreaterThan(revision);
+    expect(store.getState().contentRevision).toBe(contentRevision);
+    expect(store.getState().document.layers[0]!.visible).toBe(!layer.visible);
+    store.getState().undo();
+    expect(store.getState().document.layers[0]!.visible).toBe(layer.visible);
+    expect(store.getState().contentRevision).toBe(contentRevision);
+    store.getState().redo();
+    expect(store.getState().document.layers[0]!.visible).toBe(!layer.visible);
+    expect(store.getState().contentRevision).toBe(contentRevision);
+
+    const object = store.getState().document.objects[0]!;
+    store.getState().dispatch({ type: 'object.put', object: { ...object, position: [3, 3] } });
+    const changed = store.getState().contentRevision;
+    expect(changed).toBeGreaterThan(contentRevision);
+    store.getState().undo();
+    expect(store.getState().contentRevision).toBeGreaterThan(changed);
+    const beforeReplace = store.getState().contentRevision;
+    store.getState().replaceDocument(store.getState().document, 'file');
+    expect(store.getState().contentRevision).toBeGreaterThan(beforeReplace);
+  });
+
   test('markExported актуальной revision снимает dirty, устаревшая игнорируется', () => {
     const initialBaseline = store.getState().baseline;
     const before = store.getState().document.objects[0]!;
