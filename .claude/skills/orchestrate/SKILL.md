@@ -116,7 +116,8 @@ push — снова integrator.
   (багфикс начинается с воспроизводящего теста).
 - Веха из календаря → `operator` (три роли), `jury`, скилл `submission-checklist`.
   Их «топ-5» — вход в шаг 2 следующего окна.
-- Конец окна → `scribe` в worktree `docs-handoff`: итог дня и вопросы в `HANDOFF.md`,
+- Конец окна → `scribe` по задаче «Итог дня <дата>» (`bash scripts/issues.sh create`,
+  затем `take`) в worktree `<N>-handoff`: итог дня и вопросы в `HANDOFF.md`,
   при необходимости README. Находки `operator`/`jury` — новыми задачами
   (`bash scripts/issues.sh create`), не строками доски. Оркестратор сам доску не правит.
 

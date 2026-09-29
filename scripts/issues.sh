@@ -26,7 +26,9 @@ if [ "$cmd" = check ]; then
   target="${1:-.}"
   while [ ! -d "$target" ] && [ "$target" != / ] && [ "$target" != . ]; do target="$(dirname "$target")"; done
   git -C "$target" rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0  # вне репозитория — не наше
+  home="$(cd "$(dirname "$0")" && cd "$(git rev-parse --git-common-dir)" && pwd -P)"
   cd "$target"
+  [ "$(cd "$(git rev-parse --git-common-dir)" && pwd -P)" = "$home" ] || exit 0  # другой репозиторий — не наше
   branch="$(git branch --show-current 2>/dev/null || true)"
   how="Сначала задача: bash scripts/issues.sh free → take <N> → git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main (GIT.md)"
   if [ "$(git rev-parse --absolute-git-dir)" = "$(cd "$(git rev-parse --git-common-dir)" && pwd -P)" ]; then
@@ -43,6 +45,12 @@ if [ "$cmd" = check ]; then
     && [ -z "$(find "$cache" -mmin +30 2>/dev/null)" ]; then
     exit 0
   fi
+  for tool in curl jq; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "[issues] нет $tool — задача #$n не сверена с GitLab; поставьте $tool (GIT.md, «Задачи»)" >&2
+      exit 0
+    fi
+  done
   if ! verdict="$(ISSUES_TIMEOUT=4 bash "$0" verify "$n" 2>&1)"; then
     case "$verdict" in
       нет:*) echo "#$n: ${verdict#нет: }. $how" >&2; exit 1 ;;
@@ -160,8 +168,14 @@ contract|#0C8599|Меняет src/contracts — отдельный MR через
 ui|#E64980|UI-фича: обязателен UI/UX skill gate из CLAUDE.md
 LABELS
     ;;
-  verify) # для check: «нет: причина» и код 1, если задача не открыта или не на мне
+  verify) # для check: «нет: причина» и код 1, если задачи нет, она не открыта или не на мне
     n="${1:?номер задачи}"
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time "${ISSUES_TIMEOUT:-15}" \
+      -H "PRIVATE-TOKEN: $token" "$api/issues/$n" 2>/dev/null)" || true
+    case "$code" in
+      404) echo "нет: задачи #$n в проекте нет"; exit 1 ;;
+      401|403) echo "нет: GitLab отказал в доступе ($code) — проверьте токен"; exit 1 ;;
+    esac
     me="$(me_json | jq -r .username)"
     issue="$(gl GET "$api/issues/$n")"
     state="$(printf '%s' "$issue" | jq -r .state)"

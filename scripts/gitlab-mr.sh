@@ -74,6 +74,10 @@ cmd_merge() {
   branch=$(field source_branch)
   issue=$(printf '%s' "$branch" | sed -n 's/^worktree-\([0-9][0-9]*\)-.*/\1/p')
   [ -n "$issue" ] || die "MR !${iid}: ветка «${branch}» без номера задачи — сначала задача и ветка worktree-<N>-<тема> (GIT.md)."
+  # Номер в ветке совпадает с «Closes #N» в описании: старые ветки worktree-<поток>-…
+  # не проходят по чужой задаче с тем же номером.
+  grep -q "Closes #${issue}\([^0-9]\|\"\|$\)" "$BODY" \
+    || die "MR !${iid}: в описании нет «Closes #${issue}» — ветка ${branch} не связана с задачей #${issue} (GIT.md, «Финиш»)."
   require "$(api GET "projects/${PROJECT}/issues/${issue}")" 200 "Задача #${issue} для MR !${iid}"
   [ "$(field state)" = opened ] || die "MR !${iid}: задача #${issue} не открыта ($(field state))."
   require "$(api GET "projects/${PROJECT}/merge_requests/${iid}")" 200 "MR !${iid}"

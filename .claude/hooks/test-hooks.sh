@@ -78,6 +78,12 @@ cat > "$TMP/bin/curl" <<'CURL'
 #!/usr/bin/env bash
 [ -n "${CURL_FAIL:-}" ] && exit 7
 case "$*" in
+  *http_code*/issues/15*) printf 404; exit 0 ;;
+  *http_code*) printf 200; exit 0 ;;
+esac
+case "$*" in
+  *PUT*) echo '{}' ;;
+  */issues/16*) echo '{"iid": 16, "state": "opened", "labels": ["area:assistant"], "assignees": []}' ;;
   */api/v4/user*) echo '{"id": 1, "username": "me"}' ;;
   */issues/12*) echo '{"iid": 12, "state": "opened", "assignees": [{"username": "me"}]}' ;;
   */issues/13*) echo '{"iid": 13, "state": "opened", "assignees": [{"username": "mate"}]}' ;;
@@ -128,6 +134,24 @@ expect_pre pass  "git commit в worktree задачи через -C" "{\"tool_na
 expect_pre pass  "обычная команда Bash не проверяется"  "{\"tool_name\":\"Bash\",\"cwd\":\"$TMP\",\"tool_input\":{\"command\":\"git status\"}}"
 rm -f "$(git -C .claude/worktrees/13-x rev-parse --git-dir)/issue-check"
 CURL_FAIL=1 expect_pre pass "GitLab недоступен — номер в ветке есть, пропуск с предупреждением" "$(edit "$TMP/.claude/worktrees/13-x/a.ts")"
+bashcmd() { jq -cn --arg cwd "$1" --arg c "$2" '{tool_name: "Bash", cwd: $cwd, tool_input: {command: $c}}'; }
+git worktree add -q .claude/worktrees/15-x -b worktree-15-x 2>/dev/null
+expect_pre block "задачи с таким номером нет (404)"      "$(edit "$TMP/.claude/worktrees/15-x/a.ts")"
+expect_pre pass  "git push внутри heredoc — это данные"   "$(bashcmd "$TMP" "$(printf 'cat > /tmp/b.md <<EOF\nпотом git push\nEOF')")"
+expect_pre pass  "git -C \"путь\" commit в кавычках"     "$(bashcmd "$TMP" "git -C \"$TMP/.claude/worktrees/12-x\" commit -m x")"
+expect_pre pass  "удаление ветки push --delete — уборка"  "$(bashcmd "$TMP" "git -C $TMP push origin --delete worktree-12-x")"
+mkdir -p "$TMP/other" && git -C "$TMP/other" init -q
+expect_pre pass  "другой репозиторий — не наш"            "$(edit "$TMP/other/a.ts")"
+if printf 'refs/heads/x 0000000000000000000000000000000000000000 refs/heads/x abc\n' | bash "$HOOKS/../../.githooks/pre-push" origin url >/dev/null 2>&1; then
+  echo "ok:   pre-push: удаление ветки пропускается"
+else echo "FAIL: pre-push: удаление ветки заблокировано"; FAIL=1; fi
+if printf 'refs/heads/main abc123 refs/heads/main def456\n' | bash "$HOOKS/../../.githooks/pre-push" origin url >/dev/null 2>&1; then
+  echo "FAIL: pre-push: обычный push из основной копии пропущен"; FAIL=1
+else echo "ok:   pre-push: обычный push из основной копии отклонён"; fi
+if out="$(bash scripts/issues.sh take 16 2>&1)"; then
+  echo "FAIL: take: занятая area: не остановила, вывод: $out"; FAIL=1
+elif printf '%s' "$out" | grep -q "area:assistant занята"; then echo "ok:   take: занятая area: — отказ"
+else echo "FAIL: take: неожиданный отказ: $out"; FAIL=1; fi
 
 # --- check-worktrees.sh (SubagentStop: секреты во всех worktree)
 expect pass  "worktrees: секретов нигде нет"           check-worktrees.sh
