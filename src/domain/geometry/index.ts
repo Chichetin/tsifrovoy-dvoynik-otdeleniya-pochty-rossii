@@ -365,6 +365,38 @@ export function viewSector(
   return [centre, ...arc];
 }
 
+/**
+ * Does the sector of `viewSector` hold `point`? The exact wedge, not its
+ * polygon: the arc is a true circle here, while the drawn polygon cuts it into
+ * `steps` chords. Same conventions — rotation 0 looks along +Y, positive turns
+ * clockwise; the apex itself is inside; 360° and wider is a full circle.
+ */
+export function pointInViewSector(
+  centre: Point,
+  rotation_deg: number,
+  angle_deg: number,
+  radius_m: number,
+  point: Point,
+): boolean {
+  const dx = point[0] - centre[0];
+  const dy = point[1] - centre[1];
+  const distance = Math.hypot(dx, dy);
+  if (distance > radius_m + TOLERANCE.coordinate_m) return false;
+  if (distance <= TOLERANCE.coordinate_m) return true;
+  const span = Math.min(Math.max(angle_deg, 0), 360);
+  if (span >= 360) return true;
+  const [hx, hy] = rotateOffsetForHeading(rotation_deg);
+  // Unsigned angle between the heading and the direction to the point.
+  const off = Math.abs(Math.atan2(hx * dy - hy * dx, hx * dx + hy * dy)) * (180 / Math.PI);
+  return off <= span / 2 + 1e-9;
+}
+
+/** Unit heading of an object turned by `rotation_deg`: local +Y, clockwise. */
+function rotateOffsetForHeading(rotation_deg: number): Point {
+  const angle = (rotation_deg * Math.PI) / 180;
+  return [Math.sin(angle), Math.cos(angle)];
+}
+
 /** Area of an object's floor projection. Rotation does not change it. */
 export function footprintArea(object: Equipment): number {
   return polygonArea(footprint(object));

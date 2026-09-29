@@ -23,6 +23,23 @@ import { comparePlans } from './compare';
 import { PLACEMENT_SEARCH, findPlacements, zoneFit, type ZoneFit } from './placement';
 
 export { checkEquipment } from './equipment';
+export {
+  CLIENT_ZONE_ATTRIBUTE,
+  COVERAGE_GRID,
+  cameraCoverage,
+  cameraFields,
+  clientZones,
+  fieldRepresentationFor,
+  isClientZone,
+} from './camera-coverage';
+export type {
+  BlindRect,
+  CameraCoverage,
+  CameraField,
+  CameraFieldRepresentation,
+  CoverageTally,
+  ZoneCoverage,
+} from './camera-coverage';
 export { candidateObjectForInsert } from './candidate-object';
 export { comparePlans, diffPlans } from './compare';
 export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements, zoneFit } from './placement';
