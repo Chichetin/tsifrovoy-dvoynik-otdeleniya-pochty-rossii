@@ -29,6 +29,7 @@ import {
   TOLERANCE,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
+import { carriesInventoryNumber, inventoryNumberOf } from '../commands/inventory-number';
 import { outerWallIds } from '../commands/room-walls';
 import { countInZoneScope } from '../inventory';
 import {
@@ -73,6 +74,8 @@ export const VALIDATION_ISSUE_CODES = {
   OBJECT_ABOVE_CEILING: 'OBJECT_ABOVE_CEILING',
   /** Two objects carry the same non-empty inventory number. */
   OBJECT_DUPLICATE_INVENTORY_NUMBER: 'OBJECT_DUPLICATE_INVENTORY_NUMBER',
+  /** A physical object whose type declares an inventory number has none. */
+  OBJECT_MISSING_INVENTORY_NUMBER: 'OBJECT_MISSING_INVENTORY_NUMBER',
   /** Fewer objects of a type than a stocking rule requires. */
   RULE_COUNT_BELOW_MIN: 'RULE_COUNT_BELOW_MIN',
   /** More objects of a type than a stocking rule allows. */
@@ -142,6 +145,7 @@ export function validatePlan(plan: PlanDocument): ValidationIssue[] {
     ...wallIssues(plan),
     ...ceilingIssues(plan),
     ...inventoryNumberIssues(plan),
+    ...missingInventoryNumberIssues(plan),
     ...ruleIssues(plan),
     ...withoutRepeats(relationIssues(plan), placement),
   ];
@@ -396,22 +400,6 @@ function wallIssues(plan: PlanDocument): Issue[] {
 }
 
 /**
- * Attribute key of the inventory number: the same string as in
- * `data/catalog/object-types.json` and `INVENTORY_NUMBER_KEY` of the inventory
- * list. Domain code cannot import a feature, so the key is repeated here.
- */
-const INVENTORY_NUMBER_KEY = 'inventoryNumber';
-
-/** Read the way the inventory list reads it: trimmed string or finite number. */
-function inventoryNumberOf(object: Equipment): string | null {
-  const value = object.attributes[INVENTORY_NUMBER_KEY];
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-}
-
-/**
  * An inventory number names one physical item, so two objects with the same
  * number are one mistake in the inventory (D-266). Every repeat is reported
  * against the first holder in plan order: the repeat comes first in `refs`
@@ -439,6 +427,36 @@ function inventoryNumberIssues(plan: PlanDocument): Issue[] {
           { kind: 'object', id: object.id },
           { kind: 'object', id: first.id },
         ],
+        footprint(object),
+      ),
+    );
+  }
+  return issues;
+}
+
+/**
+ * D-312: a physical object of a type that declares an inventory number, but
+ * holding none, is an item the register does not know. Placement from the
+ * library numbers the object itself (D-310), so this fires on copies (D-266),
+ * on a number wiped in the card and on files written without numbers. A
+ * warning like the duplicate: the geometry is intact, a person types the
+ * number from the item's label. Non-physical marks and types without the
+ * attribute are not asked for one. A plan where no object has a number does
+ * not keep a register at all (the organizers' example): nine warnings there
+ * would bury its geometry traps and say one thing nine times, so it is silent.
+ */
+function missingInventoryNumberIssues(plan: PlanDocument): Issue[] {
+  if (!plan.objects.some((object) => inventoryNumberOf(object) !== null)) return [];
+  const issues: Issue[] = [];
+  for (const object of plan.objects) {
+    if (!carriesInventoryNumber(plan.catalog, object.typeId)) continue;
+    if (inventoryNumberOf(object) !== null) continue;
+    issues.push(
+      issue(
+        VALIDATION_ISSUE_CODES.OBJECT_MISSING_INVENTORY_NUMBER,
+        'warning',
+        `У объекта «${object.label}» нет инвентарного номера: впишите номер с ярлыка предмета в карточке.`,
+        [{ kind: 'object', id: object.id }],
         footprint(object),
       ),
     );
