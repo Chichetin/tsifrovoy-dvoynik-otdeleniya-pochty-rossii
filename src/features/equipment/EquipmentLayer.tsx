@@ -30,7 +30,7 @@ import {
 } from '../../domain/geometry';
 import type { AxisSnap } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
-import { equipmentHoverSummary } from './hover-summary';
+import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
 import { LABEL_LINE_PX, objectLabel } from './object-label';
 import {
   arrowDelta,
@@ -558,7 +558,7 @@ export function EquipmentLayer({
     if (stage === null || stage === undefined || pointer === null || pointer === undefined) return;
     if (card === null || box === null || title === null || rule === null || hint === null) return;
 
-    const summary = equipmentHoverSummary(shown(object));
+    const summary = equipmentHoverSummary(shown(object), picking);
     title.text(summary.title);
     hint.text(summary.hint);
 
@@ -583,6 +583,18 @@ export function EquipmentLayer({
     card.moveToTop();
     card.getLayer()?.batchDraw();
   };
+
+  // A keyboard tool switch can leave the pointer still over the same object.
+  // Refresh only the hint node, keeping the document and equipment nodes intact.
+  useEffect(() => {
+    if (hoverHint === null || hoverBox === null || hoverCard === null || !hoverCard.visible()) return;
+    hoverHint.text(equipmentHoverHint(picking));
+    const height = hoverHint.y() + hoverHint.height() + HOVER_PAD_PX;
+    hoverBox.height(height);
+    const stage = hoverCard.getStage();
+    if (stage !== null) hoverCard.y(Math.min(hoverCard.y(), Math.max(0, stage.height() - height)));
+    hoverCard.getLayer()?.batchDraw();
+  }, [picking, hoverHint, hoverBox, hoverCard]);
 
   /**
    * Start of every gesture: select what is being pulled, remember where from.
