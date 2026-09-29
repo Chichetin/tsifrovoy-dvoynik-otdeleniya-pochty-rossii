@@ -96,13 +96,15 @@ open_issues() { gl GET "$api/issues?state=opened&per_page=100$1"; }
 now="${ISSUES_NOW:-$(date +%s)}"
 stale_h="${ISSUES_STALE_HOURS:-2}"
 stale_s="$(jq -n --arg h "$stale_h" '$h | tonumber * 3600 | floor')"
-gl_all() { # gl_all <url с ?…> — все страницы по 100 одним массивом; ошибка GitLab — код 1
+gl_all() { # gl_all <url с ?…> — все страницы по 100 одним массивом. Ошибка, пустое тело,
+  # не массив или больше 20 страниц — код 1: «не знаю» не должно читаться как «движения нет»
   local page=1 out='[]' chunk
   while :; do
     chunk="$(gl GET "$1&per_page=100&page=$page")" || return 1
-    [ -n "$chunk" ] || chunk='[]'
-    out="$(jq -cn --argjson a "$out" --argjson b "$chunk" '$a + $b')"
-    [ "$(printf '%s' "$chunk" | jq length)" -ge 100 ] && [ "$page" -lt 20 ] || break
+    printf '%s' "$chunk" | jq -e 'type == "array"' >/dev/null 2>&1 || return 1
+    out="$(jq -cn --argjson a "$out" --argjson b "$chunk" '$a + $b')" || return 1
+    [ "$(printf '%s' "$chunk" | jq length)" -ge 100 ] || break
+    [ "$page" -lt 20 ] || return 1
     page=$((page + 1))
   done
   printf '%s' "$out"
@@ -118,16 +120,18 @@ moves_jq='def epoch: [capture("^(?<d>[0-9-]+T[0-9:]+)(\\.[0-9]+)?(?<z>Z|[+-][0-9
     | (.d + "Z" | fromdateiso8601) - (if (.z // "Z") == "Z" then 0 else (.z
       | capture("(?<s>[+-])(?<h>[0-9]{2}):?(?<m>[0-9]{2})")
       | ((.h | tonumber) * 3600 + (.m | tonumber) * 60) * (if .s == "-" then -1 else 1 end)) end)]
-    | first // 0;
+    | first // error("дата не разобрана: \(.)");
   def prefix: "worktree-\(.iid)-";
+  # Ветки этапа 1 назывались worktree-<поток>-…: ветка с последним коммитом раньше
+  # создания задачи — не её ветка и движением не считается.
+  def branches: prefix as $p | (.created_at // null | if . == null then 0 else epoch end) as $c
+    | [$brs[] | select(.name | startswith($p)) | select(.commit.committed_date != null)
+      | {n: .name, t: (.commit.committed_date | epoch)} | select(.t >= $c)];
   def moved: prefix as $p
     | ([.updated_at] + [$mrs[] | select(.source_branch | startswith($p)) | .updated_at]
-      + [$brs[] | select(.name | startswith($p)) | .commit.committed_date])
-    | map(select(. != null) | epoch) | max // 0;
-  def branch: prefix as $p
-    | [$brs[] | select(.name | startswith($p)) | {n: .name, t: (.commit.committed_date // "" | epoch)}]
-    | max_by(.t) | .n // "";
-  def fresh: ($now - moved) < $stale;
+      | map(select(. != null) | epoch)) + [branches[].t] | max // 0;
+  def branch: branches | max_by(.t) | .n // "";
+  def fresh: ($now - moved) <= $stale;
   def others($me): [.assignees[].username | select(. != $me)];
   def utc: strftime("%Y-%m-%d %H:%M UTC");
   def dur: (. / 60 | floor) as $m | "\($m / 60 | floor) ч \($m % 60) мин";'
@@ -163,12 +167,15 @@ case "$cmd" in
     me_id="$(printf '%s' "$me" | jq -r .id)"
     me_name="$(printf '%s' "$me" | jq -r .username)"
     issue="$(gl GET "$api/issues/$n")"
-    activity mrs brs
+    if ! activity mrs brs; then
+      echo "#$n: GitLab не отдал MR или ветки (ошибка, пустой ответ или больше 2000) — движение неизвестно, ничего не меняю. Повторите позже." >&2
+      exit 1
+    fi
     other="$(printf '%s' "$issue" | moves --arg me "$me_name" 'others($me) | join(", ")')"
     moved="$(printf '%s' "$issue" | moves 'moved')"
     branch="$(printf '%s' "$issue" | moves 'branch')"
     age=$((now - moved))
-    if [ -n "$other" ] && [ "$age" -lt "$stale_s" ]; then
+    if [ -n "$other" ] && [ "$age" -le "$stale_s" ]; then
       echo "#$n уже взята: $other; последнее движение $(moves -n "$moved | utc") ($(moves -n "$age | dur") назад)." >&2
       echo "Перехватить можно после $(moves -n "$((moved + stale_s)) | utc") (правило двух часов, D-313). Сейчас — другую: bash scripts/issues.sh free" >&2
       exit 1
@@ -268,6 +275,7 @@ LABELS
     fi
     known=true
     activity mrs brs 2>/dev/null || { known=false mrs='[]' brs='[]'; }
+    printf '%s' "$all" | moves '[.[] | moved] | length' >/dev/null 2>&1 || known=false
     printf '%s' "$all" | moves --arg me "$me" --argjson known "$known" \
       '[.[] | select((.assignees | length) > 0 and (any(.assignees[]; .username == $me) | not)
           and (($known | not) or fresh))

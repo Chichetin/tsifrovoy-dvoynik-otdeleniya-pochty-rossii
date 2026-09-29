@@ -79,6 +79,15 @@ cat > "$TMP/bin/curl" <<'CURL'
 [ -n "${CURL_FAIL:-}" ] && exit 7
 [ -n "${CURL_LOG:-}" ] && printf '%s\n' "$*" >> "$CURL_LOG"
 case "$*" in
+  *merge_requests*) [ -n "${CURL_MR_EXIT:-}" ] && exit "$CURL_MR_EXIT"
+    [ -n "${CURL_MR_EMPTY:-}" ] && exit 0
+    [ -n "${CURL_MR_PARTIAL:-}" ] && { echo '[]'; exit 18; } ;;
+  *repository/branches*) [ -n "${CURL_BR_EXIT:-}" ] && exit "$CURL_BR_EXIT"
+    [ -n "${CURL_BR_OBJECT:-}" ] && { echo '{"message": "proxy"}'; exit 0; }
+    [ -n "${CURL_BR_NULL:-}" ] && { echo 'null'; exit 0; }
+    [ -n "${CURL_BR_FULL:-}" ] && { jq -cn '[range(100) | {name: "b\(.)", commit: {committed_date: "2026-09-29T10:00:00Z"}}]'; exit 0; } ;;
+esac
+case "$*" in
   *http_code*/issues/15*) printf 404; exit 0 ;;
   *http_code*) printf 200; exit 0 ;;
 esac
@@ -86,13 +95,17 @@ case "$*" in
   *PUT*) echo '{}' ;;
   *POST*/notes*) echo '{"id": 1}' ;;
   *merge_requests*) echo '[{"source_branch": "worktree-17-y", "updated_at": "2026-09-29T19:00:00.000Z"}]' ;;
-  *repository/branches*) echo '[{"name": "worktree-13-old", "commit": {"committed_date": "2026-09-28T10:00:00Z"}},
+  *repository/branches*) echo '[{"name": "worktree-13-old", "commit": {"committed_date": "2026-09-29T12:00:00Z"}},
+    {"name": "worktree-24-stage1", "commit": {"committed_date": "2026-09-21T10:00:00Z"}},
     {"name": "worktree-13-x", "commit": {"committed_date": "2026-09-29T20:10:00.000+03:00"}},
     {"name": "worktree-18-z", "commit": {"committed_date": "2026-09-29T19:50:00.000Z"}}]' ;;
   */issues/16*) echo '{"iid": 16, "state": "opened", "labels": ["area:assistant"], "assignees": []}' ;;
   */api/v4/user*) echo '{"id": 1, "username": "me"}' ;;
   */issues/12*) echo '{"iid": 12, "state": "opened", "assignees": [{"username": "me"}]}' ;;
-  */issues/13*) echo '{"iid": 13, "state": "opened", "labels": [], "updated_at": "2026-09-29T17:10:00.000Z", "assignees": [{"username": "mate"}]}' ;;
+  */issues/13*) echo '{"iid": 13, "state": "opened", "labels": [], "created_at": "2026-09-29T09:00:00.000Z", "updated_at": "2026-09-29T17:10:00.000Z", "assignees": [{"username": "mate"}]}' ;;
+  */issues/22*) echo '{"iid": 22, "state": "opened", "labels": [], "updated_at": "2026-09-29 10:00", "assignees": [{"username": "mate"}]}' ;;
+  */issues/23*) echo '{"iid": 23, "state": "opened", "labels": [], "updated_at": "2026-09-29T18:05:00Z", "assignees": [{"username": "mate"}]}' ;;
+  */issues/24*) echo '{"iid": 24, "state": "opened", "labels": [], "created_at": "2026-09-29T08:00:00Z", "updated_at": "2026-09-29T10:00:00Z", "assignees": [{"username": "mate"}]}' ;;
   */issues/17*) echo '{"iid": 17, "state": "opened", "labels": [], "updated_at": "2026-09-29T17:00:00.000Z", "assignees": [{"username": "mate"}]}' ;;
   */issues/18*) echo '{"iid": 18, "state": "opened", "labels": [], "updated_at": "2026-09-29T16:00:00.000Z", "assignees": [{"username": "mate"}]}' ;;
   */issues/21*) echo '{"iid": 21, "state": "opened", "labels": ["area:model"], "updated_at": "2026-09-29T20:00:00.000Z", "assignees": []}' ;;
@@ -193,6 +206,19 @@ if grep -q -- "-X POST .*/issues/13/notes" "$TMP/curl.log" \
   && grep -q "Ветка: worktree-13-x" "$TMP/curl.log"; then
   echo "ok:   take: перехват оставил комментарий с временем и веткой"
 else echo "FAIL: take: нет комментария перехвата, лог: $(cat "$TMP/curl.log")"; FAIL=1; fi
+CURL_MR_EXIT=22 take_case refuse "take: MR не прочитались (exit 22) — просроченная #13 не перехватывается" 13 "движение неизвестно"
+CURL_BR_EXIT=28 take_case refuse "take: ветки не прочитались (exit 28) — не перехватывается" 13 "движение неизвестно"
+CURL_MR_EMPTY=1 take_case refuse "take: пустое тело 200 вместо MR — не перехватывается" 13 "движение неизвестно"
+CURL_BR_OBJECT=1 take_case refuse "take: объект вместо массива веток — не перехватывается" 13 "движение неизвестно"
+CURL_BR_NULL=1 take_case refuse "take: null вместо массива веток — не перехватывается" 13 "движение неизвестно"
+CURL_MR_PARTIAL=1 take_case refuse "take: curl упал после «[]» (exit 18) — не перехватывается" 13 "движение неизвестно"
+CURL_BR_FULL=1 take_case refuse "take: больше 20 страниц веток — ошибка, не усечение" 13 "движение неизвестно"
+take_case refuse "take: неразобранная дата — отказ, а не «давно»" 22 "дата не разобрана"
+take_case refuse "take: ровно 2 ч без движения — ещё отказ" 23 "2026-09-29 18:05 UTC"
+take_case take   "take: ветка этапа 1 старше задачи — не её ветка" 24 "origin/main"
+if grep -q "worktree-24-stage1" "$TMP/curl.log"; then
+  echo "FAIL: take: ветка старше задачи попала в комментарий"; FAIL=1
+else echo "ok:   take: ветка старше задачи не попала в комментарий"; fi
 ISSUES_STALE_HOURS=3 take_case refuse "take: порог ISSUES_STALE_HOURS=3 — те же 2 ч 55 мин свежие" 13
 take_case take   "take: area:model занята, но без движения 10 ч — не блокирует" 21
 if grep -q -- "-X POST .*/issues/21/notes" "$TMP/curl.log"; then
