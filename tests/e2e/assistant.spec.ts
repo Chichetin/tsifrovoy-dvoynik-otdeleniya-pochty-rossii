@@ -51,6 +51,44 @@ test('агент без сервера: вопрос → шаги → «Прим
   await expect(assistant.locator('.agent__exchange')).toHaveCount(0);
 });
 
+test('#32 без сервера: «где слепые пятна» — камера закрывает пятно, «было → стало» в %, слой камер, применить → сохранить → открыть', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo/before.json'));
+  await showTab(page, 'Ассистент');
+  const assistant = panel(page);
+  await assistant.getByLabel('Вопрос ассистенту').fill('Где слепые пятна камер в клиентском зале?');
+  await assistant.getByLabel('Вопрос ассистенту').press('Enter');
+  const answer = assistant.locator('.agent__answer');
+  await expect(answer).toContainText('Без LLM');
+  // Numbers are the calculation's: 300 of 1 008 squares now, 72,1 % with the first variant.
+  await expect(answer).toContainText('Клиентские зоны видны камерами на 29,8 %, с этим вариантом — на 72,1 % (+42,3 п. п.).');
+  // Existing cameras are named by id and lead to the plan.
+  await answer.getByRole('button', { name: 'eq_25', exact: true }).click();
+  await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'object:eq_25');
+
+  // The camera layer is offered with the answer (sectors and hatched blind spots).
+  await expect(assistant.getByRole('button', { name: 'Включить слой «Камеры и зоны обзора»' })).toBeVisible();
+
+  // Applying the variant is the person's click. (Any plan change — the layer's
+  // visibility included — makes the answer's buttons stale, so apply comes first.)
+  await assistant.getByRole('button', { name: /^Применить: Камера видеонаблюдения/ }).click();
+  await expect(assistant.getByRole('status')).toContainText('Применено');
+  await showTab(page, 'Слои');
+  const cameras = page.getByLabel('Слои').locator('.layers__item').filter({ has: page.getByLabel('Имя слоя Камеры и зоны обзора') });
+  await cameras.getByRole('button', { name: 'Показывать слой Камеры и зоны обзора' }).click();
+  const table = cameras.getByRole('table', { name: 'Покрытие клиентских зон камерами' });
+  // The layer counts the applied camera exactly as the assistant promised.
+  await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('72,1 %');
+
+  const [download] = await Promise.all([page.waitForEvent('download'), exportPlan(page, 'JSON')]);
+  const saved = testInfo.outputPath('camera-roundtrip.json');
+  await download.saveAs(saved);
+  await page.getByTestId('plan-file-input').setInputFiles(saved);
+  await showTab(page, 'Слои');
+  await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('72,1 %');
+});
+
 test('агент с моделью: шаги потоком, id в тексте ведут на план, действие показывает вариант', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.route('**/api/assistant/agent', async (route) => {

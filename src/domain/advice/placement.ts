@@ -335,7 +335,7 @@ function withinReach(position: Point, reaches: Reach[]): boolean {
 }
 
 /** A placement as it would sit in the plan, before its zone is resolved. */
-function trialObject(
+export function trialObject(
   id: Id,
   type: ObjectType,
   position: Point,
@@ -615,7 +615,7 @@ function farEnough(position: Point, taken: { position: Point }[], separation_m: 
   );
 }
 
-function issueKey(entry: Issue): string {
+export function issueKey(entry: Issue): string {
   return `${entry.code}|${entry.severity}|${entry.refs
     .map((ref) => `${ref.kind}:${ref.id}`)
     .join(',')}`;
@@ -630,7 +630,7 @@ function withObject(plan: PlanDocument, object: Equipment): PlanDocument {
  * that would introduce an error are dropped; warnings — our own stocking rules —
  * are counted and rank the survivors.
  */
-function verify(
+export function verify(
   plan: PlanDocument,
   baseline: Set<string>,
   object: Equipment,
@@ -643,7 +643,7 @@ function verify(
 }
 
 /** Ids the plan already uses, so a reserved id cannot shadow a real one. */
-function usedIds(plan: PlanDocument): Set<Id> {
+export function usedIds(plan: PlanDocument): Set<Id> {
   return new Set<Id>([
     plan.room.id,
     ...plan.walls.map((wall) => wall.id),
@@ -654,7 +654,7 @@ function usedIds(plan: PlanDocument): Set<Id> {
   ]);
 }
 
-function reserveId(taken: Set<Id>, prefix: string, index: number): Id {
+export function reserveId(taken: Set<Id>, prefix: string, index: number): Id {
   let id = `${prefix}_${index}`;
   let suffix = 0;
   while (taken.has(id)) {
