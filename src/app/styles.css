@@ -2153,6 +2153,18 @@ span.inventory__num {
   gap: 8px;
 }
 
+.props__position-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.props__position-actions .files__button {
+  max-width: 100%;
+  white-space: normal;
+}
+
 .props__extra {
   margin-top: 8px;
   font-size: 12px;
@@ -2564,3 +2576,6 @@ span.inventory__num {
   margin: 0 0 var(--space-2);
   color: var(--color-muted);
 }
+
+.onboarding__demo { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.shell__bar .files__button--demo { padding-inline: 4px; }

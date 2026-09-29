@@ -23,12 +23,11 @@ test('готовый план → правка → файл → новая ст�
 
   const card = page.getByLabel('Свойства');
   await expect(card).toHaveAttribute('data-entity-id', 'eq_kiosk');
-  // Поля координат — две отдельные правки, и промежуточное положение тоже
-  // проверяется физикой (D-286): (1,1; 0,6) въехало бы в стойку выдачи, а
-  // (0,6; 2,1) свободно. Человек в этом случае видит «Правка отклонена» и
-  // ведёт объект в другом порядке или мышью — здесь сразу верный порядок.
+  // Координаты — одна правка: физика проверяет итоговую точку, а не
+  // промежуточное положение при редактировании первого поля (#1).
   await card.getByLabel('Y, м').fill('2.1');
   await card.getByLabel('X, м').fill('1.1');
+  await card.getByRole('button', { name: 'Применить координаты' }).click();
   await card.getByLabel('Поворот, °').fill('90');
   // The organizer catalog has no editable attributes for this type; a second
   // Q01 scenario covers a catalog-defined attribute. Rename this object here.

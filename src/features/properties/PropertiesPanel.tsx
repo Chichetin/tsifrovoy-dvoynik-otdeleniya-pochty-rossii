@@ -30,6 +30,7 @@ import { findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
+import { ObjectPositionFields } from './ObjectPositionFields';
 
 type Errors = Record<string, string>;
 
@@ -493,16 +494,9 @@ export function PropertiesPanel({
           type?.provenance,
         )}
 
-        <div className="props__pair">
-          {numberField('position.x', 'X, м', position[0], (next) => ({
-            ...object,
-            position: [next, position[1]],
-          }))}
-          {numberField('position.y', 'Y, м', position[1], (next) => ({
-            ...object,
-            position: [position[0], next],
-          }))}
-        </div>
+        <ObjectPositionFields key={`${object.id}:${position[0]}:${position[1]}`}
+          object={object} position={position} onCommand={onCommand}
+          moving={liveGesture?.objectId === object.id} />
 
         <div className="props__pair">
           {numberField('size_m.x', 'Ширина, м', object.size_m[0], (next) => ({

@@ -14,13 +14,18 @@ export type EquipmentHoverSummary = {
  * атрибуты, зона, размеры и находки проверки открываются по клику в
  * «Свойствах».
  */
-export const HOVER_HINT = 'Чтобы узнать подробнее, нажмите на предмет';
+export const HOVER_HINT = 'Нажмите на сам предмет на плане — слева откроются «Свойства»';
+export const HOVER_TOOL_HINT = 'Для подробностей включите «Выбор» сверху и нажмите на сам предмет на плане';
+
+export function equipmentHoverHint(picking: boolean): string {
+  return picking ? HOVER_HINT : HOVER_TOOL_HINT;
+}
 
 /**
  * Карточка отвечает на один вопрос — «что это за предмет» — и называет его так
  * же, как перечень оборудования. Всё остальное читается с одного взгляда хуже,
  * чем открывается кликом, поэтому сюда не попадает (заказ участника 22.09).
  */
-export function equipmentHoverSummary(object: Equipment): EquipmentHoverSummary {
-  return { title: object.label, hint: HOVER_HINT };
+export function equipmentHoverSummary(object: Equipment, picking = true): EquipmentHoverSummary {
+  return { title: object.label, hint: equipmentHoverHint(picking) };
 }

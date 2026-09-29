@@ -19,6 +19,7 @@ export type OnboardingProps = {
   open: boolean;
   onClose: (outcome: TourOutcome) => void;
   steps?: readonly TourStep[];
+  onOpenDemo?: (variant: 'before' | 'after') => void;
 };
 
 /** The ring stands this far outside the panel, px. */
@@ -31,11 +32,11 @@ function focusables(dialog: HTMLElement): HTMLElement[] {
 }
 
 /** Closed renders nothing; every opening mounts the card afresh, from step one. */
-export function Onboarding({ open, onClose, steps = TOUR_STEPS }: OnboardingProps): React.JSX.Element | null {
-  return open ? <TourCard onClose={onClose} steps={steps} /> : null;
+export function Onboarding({ open, onClose, steps = TOUR_STEPS, onOpenDemo }: OnboardingProps): React.JSX.Element | null {
+  return open ? <TourCard onClose={onClose} steps={steps} onOpenDemo={onOpenDemo} /> : null;
 }
 
-function TourCard({ onClose, steps }: Required<Omit<OnboardingProps, 'open'>>): React.JSX.Element {
+function TourCard({ onClose, steps, onOpenDemo }: Omit<OnboardingProps, 'open' | 'steps'> & { steps: readonly TourStep[] }): React.JSX.Element {
   const [step, setStep] = useState(0);
   const [boxes, setBoxes] = useState<TargetBox[]>([]);
   const [screen, setScreen] = useState<Size>(() => ({ width: window.innerWidth, height: window.innerHeight }));
@@ -161,6 +162,10 @@ function TourCard({ onClose, steps }: Required<Omit<OnboardingProps, 'open'>>): 
         <p id="onboarding-text" className="onboarding__text">
           {current.text}
         </p>
+        {current.id === 'open' && onOpenDemo !== undefined ? <div className="onboarding__demo">
+          <button type="button" className="files__button is-primary" onClick={() => onOpenDemo('before')}>Исходный демо-план</button>
+          <button type="button" className="files__button" onClick={() => onOpenDemo('after')}>Изменённый демо-план</button>
+        </div> : null}
         <div className="onboarding__actions">
           <button type="button" className="files__button" onClick={() => onClose('skipped')}>
             Пропустить

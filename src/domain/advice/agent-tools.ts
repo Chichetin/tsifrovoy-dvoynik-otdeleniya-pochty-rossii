@@ -26,6 +26,8 @@ export type AgentToolState = {
   names: PlanIndex;
   /** Everything the read tools calculated in this exchange, by id. */
   recommendations: Map<Id, Recommendation>;
+  /** Placement's requested type remains known even when no candidate fits. */
+  placementTypes: Map<Id, Id>;
   actions: AssistantAction[];
   refs: Ref[];
 };
@@ -33,7 +35,7 @@ export type AgentToolState = {
 export type AgentToolOutcome = { output: unknown; step: AgentStep };
 
 export function createAgentToolState(plan: PlanDocument, before: PlanDocument | null): AgentToolState {
-  return { plan, before, names: planIndex(plan), recommendations: new Map(), actions: [], refs: [] };
+  return { plan, before, names: planIndex(plan), recommendations: new Map(), placementTypes: new Map(), actions: [], refs: [] };
 }
 
 const PANEL_LABELS: Record<AgentPanel, string> = {
@@ -306,6 +308,7 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       return {
         output: {
           count: rows.length,
+          filter: { typeId, zoneId },
           objects: rows.slice(0, MAX_LISTED_OBJECTS).map((object) => ({
             id: object.id,
             label: object.label,
@@ -328,6 +331,7 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       const calculated = calculateAdvice(plan, { scenario: 'place', typeId, zoneId });
       if (!calculated.ok) return fail(name, label, calculated.issues.map((issue) => issue.message).join('; '));
       remember(state, calculated.value);
+      for (const entry of calculated.value) state.placementTypes.set(entry.id, typeId);
       return { output: { recommendations: calculated.value.map((entry) => recommendationView(state, entry)) }, step: { tool: name, label, ok: true } };
     }
 
@@ -339,7 +343,7 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       if (!calculated.ok) return fail(name, label, calculated.issues.map((issue) => issue.message).join('; '));
       remember(state, calculated.value);
       return {
-        output: { recommendations: calculated.value.map((entry) => recommendationView(state, entry)), note: calculated.value.length === 0 ? 'Нарушений правил комплектования нет.' : undefined },
+        output: { zoneId, recommendations: calculated.value.map((entry) => recommendationView(state, entry)), note: calculated.value.length === 0 ? 'Нарушений правил комплектования нет.' : undefined },
         step: { tool: name, label, ok: true },
       };
     }

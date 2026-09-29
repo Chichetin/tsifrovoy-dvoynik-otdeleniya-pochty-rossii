@@ -20,7 +20,7 @@ import type { Point, Polygon, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
 import { focusViewport, planExtent, refExtent } from './focus';
-import { isFitHotkey } from './hotkeys';
+import { isFitHotkey, isTypingTarget } from './hotkeys';
 import {
   type CanvasSize,
   fitToExtent,
@@ -392,7 +392,7 @@ export function EditorCanvas({
   // takes the capture phase, which runs ahead of every bubbling one.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || isTypingTarget(event.target)) return;
       if (Konva.isDragging()) return;
       onPointer({ phase: 'cancel', point: [0, 0], shift: false, alt: false, button: 0 });
       onSelect(null);

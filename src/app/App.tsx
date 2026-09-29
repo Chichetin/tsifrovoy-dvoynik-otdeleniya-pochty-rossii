@@ -25,6 +25,7 @@ import {
   type ObjectMount,
 } from '../domain/object-mount';
 import { validatePlan } from '../domain/validation';
+import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
@@ -235,6 +236,7 @@ export function App(): React.JSX.Element {
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
   const [tourOpen, setTourOpen] = useState(() => shouldShowTour(tourStorage()));
+  const [demoRequest, setDemoRequest] = useState<{ id: number; variant: 'before' | 'after' } | null>(null);
   const closeTour = useCallback((outcome: TourOutcome) => {
     rememberTour(tourStorage(), outcome);
     setTourOpen(false);
@@ -614,7 +616,7 @@ export function App(): React.JSX.Element {
 
   const runAgentAction = useCallback(
     (action: AssistantAction, answer: AgentAnswer) => {
-      if (answer.revision !== revision) {
+      if (answer.revision !== store.getState().revision) {
         setAgentActionStatus('План изменился после ответа — спросите заново.');
         return;
       }
@@ -644,7 +646,9 @@ export function App(): React.JSX.Element {
           }
           // The one edit an answer can lead to: the person pressed the button,
           // and the variant goes in as an ordinary command with its undo step.
-          const result = dispatchAndSelect({ type: 'object.put', object: candidate.object });
+          const current = store.getState();
+          const object = candidateObjectForInsert(current.document, candidate, current.retired);
+          const result = dispatchAndSelect({ type: 'object.put', object });
           setPreview(null);
           setAgentActionStatus(
             result.ok
@@ -669,7 +673,7 @@ export function App(): React.JSX.Element {
           return;
       }
     },
-    [dispatch, dispatchAndSelect, document, focusOn, highlight, revision, revealLeftTab, showRightTab],
+    [dispatch, dispatchAndSelect, document, focusOn, highlight, store, revealLeftTab, showRightTab],
   );
 
   const clearChat = useCallback(() => {
@@ -796,6 +800,7 @@ export function App(): React.JSX.Element {
           document={document}
           dirty={dirty}
           revision={revision}
+          demoRequest={demoRequest}
           read={readPlanFile}
           encode={encodePlan}
           onReplace={replaceDocument}
@@ -1088,7 +1093,10 @@ export function App(): React.JSX.Element {
         </aside>
       </div>
 
-      <Onboarding open={tourOpen} onClose={closeTour} />
+      <Onboarding open={tourOpen} onClose={closeTour} onOpenDemo={(variant) => {
+        closeTour('done');
+        setDemoRequest((previous) => ({ id: (previous?.id ?? 0) + 1, variant }));
+      }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
     </div>
   );

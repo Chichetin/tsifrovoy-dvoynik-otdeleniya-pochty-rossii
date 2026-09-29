@@ -56,6 +56,10 @@ test('первый вход: четыре шага по настоящим па�
 
   // Клавиатура: Tab до «Далее», Enter нажимает её.
   await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Исходный демо-план' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Изменённый демо-план' })).toBeFocused();
+  await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Далее' })).toBeFocused();
   await page.keyboard.press('Enter');

@@ -243,54 +243,77 @@ test.describe('жесты над оборудованием', () => {
     await expect(card(page)).toContainText(RACK);
   });
 
-  test('наведение называет предмет и зовёт кликнуть за подробностями', async ({ page }) => {
-    const raw: unknown = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
-    const parsed = parsePlanDocument(raw);
-    if (!parsed.ok) throw new Error('demo/before.json не разобрался');
-    const issue = validatePlan(parsed.value).find((entry) =>
-      entry.refs.some((ref) => ref.kind === 'object'),
-    );
-    const ref = issue?.refs.find((entry) => entry.kind === 'object');
-    const object = parsed.value.objects.find((entry) => entry.id === ref?.id);
-    if (issue === undefined || object === undefined) throw new Error('В демо нет находки по объекту');
+  for (const width of [1280, 1440]) {
+    test(`наведение учитывает инструмент и открывает свойства — ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const raw: unknown = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
+      const parsed = parsePlanDocument(raw);
+      if (!parsed.ok) throw new Error('demo/before.json не разобрался');
+      const issue = validatePlan(parsed.value).find((entry) =>
+        entry.refs.some((ref) => ref.kind === 'object'),
+      );
+      const ref = issue?.refs.find((entry) => entry.kind === 'object');
+      const object = parsed.value.objects.find((entry) => entry.id === ref?.id);
+      if (issue === undefined || object === undefined) throw new Error('В демо нет находки по объекту');
 
-    await page.goto('/');
-    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
-    await expect(inventoryRows(page)).toHaveCount(53);
-    const point = toScreen(await canvasView(page), object.position[0], object.position[1]);
-    const pagePoint = await onPage(page, point);
-    await page.mouse.move(0, 0);
-    await page.mouse.move(pagePoint.x, pagePoint.y);
+      await page.goto('/');
+      await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+      await expect(inventoryRows(page)).toHaveCount(53);
+      const point = toScreen(await canvasView(page), object.position[0], object.position[1]);
+      const pagePoint = await onPage(page, point);
+      await page.mouse.move(0, 0);
+      await page.mouse.move(pagePoint.x, pagePoint.y);
 
-    await expect.poll(() => page.evaluate(() => {
-      type Node = { visible(): boolean };
-      const stage = (window as unknown as { Konva?: { stages: { findOne(selector: string): Node | undefined }[] } }).Konva?.stages[0];
-      return stage?.findOne('.equipment-hover')?.visible() ?? false;
-    })).toBe(true);
-    // Карточка набрана несколькими узлами (имя, тип, факты, подсказка),
-    // поэтому текст собирается со всех, а не с первого.
-    const text = await page.evaluate(() => {
-      type Node = { find(selector: string): { text(): string }[] };
-      const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
-      return stage.findOne('.equipment-hover').find('Text').map((node) => node.text()).join('\n');
+      await expect.poll(() => page.evaluate(() => {
+        type Node = { visible(): boolean };
+        const stage = (window as unknown as { Konva?: { stages: { findOne(selector: string): Node | undefined }[] } }).Konva?.stages[0];
+        return stage?.findOne('.equipment-hover')?.visible() ?? false;
+      })).toBe(true);
+      // Карточка набрана несколькими узлами (имя, тип, факты, подсказка),
+      // поэтому текст собирается со всех, а не с первого.
+      const text = await page.evaluate(() => {
+        type Node = { find(selector: string): { text(): string }[] };
+        const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+        return stage.findOne('.equipment-hover').find('Text').map((node) => node.text()).join('\n');
+      });
+      expect(text).toContain(object.label);
+      expect(text).toContain('Нажмите на сам предмет на плане — слева откроются «Свойства»');
+      // Паспорт объекта и находки проверки карточка не дублирует — они в
+      // «Свойствах» и в панели «Проверка», по клику.
+      expect(text).not.toContain(`ID: ${object.id}`);
+      expect(text).not.toContain('Размер:');
+      expect(text).not.toContain('Поворот:');
+      expect(text).not.toContain(object.typeId);
+      expect(text).not.toContain(issue.message);
+
+      await page.locator('.library__item', { hasText: RACK }).first().click();
+      await page.mouse.move(pagePoint.x, pagePoint.y);
+      const hintText = () => page.evaluate(() => {
+        type Node = { find(selector: string): { text(): string }[] };
+        const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+        return stage.findOne('.equipment-hover').find('Text').map((node) => node.text()).join('\n');
+      });
+      await expect.poll(hintText).toContain('Для подробностей включите «Выбор» сверху');
+      // Keyboard activation changes the tool while the pointer stays over the object.
+      await page.getByRole('button', { name: 'Выбор', exact: true }).focus();
+      await page.screenshot({ path: `docs/verification/2026-09-29-hover-mode-${width}.png` });
+      await page.keyboard.press('Enter');
+      await expect.poll(hintText).toContain('слева откроются «Свойства»');
+      await page.mouse.click(pagePoint.x, pagePoint.y);
+      await expect(card(page)).toBeVisible();
+      await expect(card(page).getByLabel('Название')).toHaveValue(object.label);
+      const saved = parsePlanDocument(JSON.parse(await savePlan(page)) as unknown);
+      expect(saved.ok).toBe(true);
+      if (saved.ok) expect(saved.value).toEqual(parsed.value);
+
+      await page.mouse.move(0, 0);
+      await expect.poll(() => page.evaluate(() => {
+        type Node = { visible(): boolean };
+        const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
+        return stage.findOne('.equipment-hover').visible();
+      })).toBe(false);
     });
-    expect(text).toContain(object.label);
-    expect(text).toContain('Чтобы узнать подробнее, нажмите на предмет');
-    // Паспорт объекта и находки проверки карточка не дублирует — они в
-    // «Свойствах» и в панели «Проверка», по клику.
-    expect(text).not.toContain(`ID: ${object.id}`);
-    expect(text).not.toContain('Размер:');
-    expect(text).not.toContain('Поворот:');
-    expect(text).not.toContain(object.typeId);
-    expect(text).not.toContain(issue.message);
-
-    await page.mouse.move(0, 0);
-    await expect.poll(() => page.evaluate(() => {
-      type Node = { visible(): boolean };
-      const stage = (window as unknown as { Konva: { stages: { findOne(selector: string): Node }[] } }).Konva.stages[0]!;
-      return stage.findOne('.equipment-hover').visible();
-    })).toBe(false);
-  });
+  }
 
   test('клик в перечне не перерисовывает слой оборудования (D-177)', async ({ page }) => {
     await page.goto('/');
