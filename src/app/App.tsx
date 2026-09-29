@@ -236,6 +236,7 @@ export function App(): React.JSX.Element {
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
   const [tourOpen, setTourOpen] = useState(() => shouldShowTour(tourStorage()));
+  const [demoRequest, setDemoRequest] = useState<{ id: number; variant: 'before' | 'after' } | null>(null);
   const closeTour = useCallback((outcome: TourOutcome) => {
     rememberTour(tourStorage(), outcome);
     setTourOpen(false);
@@ -799,6 +800,7 @@ export function App(): React.JSX.Element {
           document={document}
           dirty={dirty}
           revision={revision}
+          demoRequest={demoRequest}
           read={readPlanFile}
           encode={encodePlan}
           onReplace={replaceDocument}
@@ -1091,7 +1093,10 @@ export function App(): React.JSX.Element {
         </aside>
       </div>
 
-      <Onboarding open={tourOpen} onClose={closeTour} />
+      <Onboarding open={tourOpen} onClose={closeTour} onOpenDemo={(variant) => {
+        closeTour('done');
+        setDemoRequest((previous) => ({ id: (previous?.id ?? 0) + 1, variant }));
+      }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
     </div>
   );
