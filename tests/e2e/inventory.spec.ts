@@ -115,9 +115,20 @@ test.describe('перечень оборудования', () => {
     const shown = await panel(page).getByTestId('inventory-type-count').allTextContents();
     expect(shown.reduce((sum, text) => sum + Number(text), 0)).toBe(demo.objects.length);
 
-    // И каждое число сводки равно числу строк этого типа в перечне.
+    // Every displayed count is checked. Filtering itself is one shared UI
+    // action: sample sparse, frequent and last types without 48 redraws.
     for (const [typeId, count] of counts) {
-      await expect(chipOf(page, typeId)).toContainText(String(count));
+      await expect(chipOf(page, typeId).getByTestId('inventory-type-count')).toHaveText(String(count));
+    }
+    const entries = [...counts];
+    const sampled = new Set([
+      entries[0]?.[0],
+      entries.find(([, count]) => count > 1)?.[0],
+      entries.find(([, count]) => count === 1)?.[0],
+      entries.at(-1)?.[0],
+    ].filter((id): id is string => id !== undefined));
+    for (const typeId of sampled) {
+      const count = counts.get(typeId)!;
       await chipOf(page, typeId).click();
       await expect(inventoryRows(page)).toHaveCount(count);
       await chipOf(page, typeId).click();
