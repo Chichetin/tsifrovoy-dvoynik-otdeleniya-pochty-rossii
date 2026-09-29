@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SessionStart: stdout попадает в контекст сессии. Показывает, где агент стоит в Git,
-# предупреждает о работе в основной копии на main и выводит активные задачи HANDOFF.
-# Ничего не блокирует и не ходит в сеть (без git fetch).
+# предупреждает о работе в основной копии на main, выводит открытые blocker, мои задачи и
+# занятые области из GitLab Issues (D-298). Реестр занятости — Issues, не HANDOFF.md.
+# Ничего не блокирует. Нет токена или сети — одна строка предупреждения.
 set -uo pipefail
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
@@ -13,18 +14,12 @@ echo "[git] ветка: ${branch:-detached}; незакоммиченных пу
 # В связанном worktree git-dir и git-common-dir различаются.
 if [ "$(git rev-parse --git-dir)" = "$(git rev-parse --git-common-dir)" ] && [ "$branch" = main ]; then
   echo "[git] ВНИМАНИЕ: ты в основной копии на main. Задачу, меняющую файлы, делай в своём worktree:"
-  echo "      git worktree add .claude/worktrees/<поток>-<тема> -b worktree-<поток>-<тема> origin/main (GIT.md)"
+  echo "      bash scripts/issues.sh take <N>, затем git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main (GIT.md)"
   [ "$dirty" != 0 ] && echo "      Незакоммиченные изменения здесь могут быть чужими — не коммить и не трогай их."
 fi
 
-handoff_rows() { # строки таблицы из раздела HANDOFF.md без шапки
-  awk -v s="$1" '/^## /{on=(index($0, s) > 0); next} on && /^\|/' HANDOFF.md | tail -n +3
-}
-
-if [ -f HANDOFF.md ]; then
-  rows="$(handoff_rows 'Активные задачи')"
-  if [ -n "$rows" ]; then
-    echo "[HANDOFF] активные задачи (у файла один владелец — чужое не трогать):"
-    printf '%s\n' "$rows"
-  fi
+[ -f scripts/issues.sh ] || exit 0
+if ! ISSUES_TIMEOUT=4 timeout 8 bash scripts/issues.sh board 2>/dev/null; then
+  echo "[issues] GitLab недоступен или нет токена — занятость не видна (bash scripts/issues.sh mine)."
 fi
+exit 0
