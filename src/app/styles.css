@@ -979,7 +979,7 @@ body {
 
 @media (max-width: 1500px) {
   .toolbar__group-gap { margin-inline: 2px; }
-  /* D-313: D-316's 20 px slack still fell to 15.2/13.5 px on Linux system
+  /* D-314: D-316's 20 px slack still fell to 15.2/13.5 px on Linux system
      fonts. One more pixel off each side of a tool button's padding (labelled
      buttons only — the 44 px floor and icon buttons are untouched, since
      icon buttons and «Зона» already sit at that floor) buys 12 px back
