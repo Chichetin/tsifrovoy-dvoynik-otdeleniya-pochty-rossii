@@ -26,7 +26,7 @@
  * lost to a closed tab because a question stayed on screen unanswered.
  */
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DocumentOrigin } from '../../contracts/commands';
 import type { Issue, PlanDocument, Result } from '../../contracts/model';
 import type { RequestState } from '../../contracts/ui';
@@ -45,6 +45,7 @@ import type { OpenedPlan } from '../../persistence/format';
 import { pngFileName, renderPlanPng } from '../../persistence/plan-png';
 import { planFileName, renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
 import { FileDialog } from './FileDialog';
+import { DEMO_PLANS, readDemoText, type DemoPlan } from './demo-plan';
 
 export type FileControlsProps = {
   document: PlanDocument;
@@ -64,6 +65,8 @@ export type FileControlsProps = {
    * `null` switches the draft off, which is what a stand or a test wants.
    */
   storage?: DraftStorage | null;
+  /** App bridges the first-run tour to the same file-opening controller. */
+  demoRequest?: { id: number; variant: DemoPlan } | null;
 };
 
 /**
@@ -153,16 +156,22 @@ export function FileControls({
   onNew,
   onExported,
   storage: given,
+  demoRequest = null,
 }: FileControlsProps): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null);
   const openSequence = useRef(0);
+  const activeDemoFetch = useRef<AbortController | null>(null);
+  const seenDemoRequest = useRef<number | null>(null);
+  const [demoMenuOpen, setDemoMenuOpen] = useState(false);
+  const demoTrigger = useRef<HTMLButtonElement>(null);
+  const demoMenu = useRef<HTMLDivElement>(null);
   /** Bumped by every export: a late PNG must not overwrite a later export's result. */
   const exportSequence = useRef(0);
   const currentDocument = useRef({ plan, revision });
   useLayoutEffect(() => {
     currentDocument.current = { plan, revision };
   }, [plan, revision]);
-  useEffect(() => () => { openSequence.current += 1; }, []);
+  useEffect(() => () => { openSequence.current += 1; activeDemoFetch.current?.abort(); }, []);
   const [state, setState] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
   const [errorDetails, setErrorDetails] = useState<readonly string[]>([]);
@@ -256,7 +265,7 @@ export function FileControls({
     return () => active.cancel();
   }, [plan, answered, encode, start.opening]);
 
-  const accept = (opened: OpenedPlan, origin: DocumentOrigin): void => {
+  const accept = useCallback((opened: OpenedPlan, origin: DocumentOrigin): void => {
     openSequence.current += 1;
     // Документ заменён целиком — вопрос о черновике отвечен самим действием.
     setOffered(null);
@@ -269,14 +278,15 @@ export function FileControls({
     );
     setErrorDetails([]);
     setState({ status: 'done' });
-  };
+  }, [onReplace]);
 
-  const showIssueError = (message: string, issues: Issue[]): void => {
+  const showIssueError = useCallback((message: string, issues: Issue[]): void => {
     setErrorDetails(technicalDetails(issues));
     setState({ status: 'error', message });
-  };
+  }, []);
 
-  const open = async (file: File): Promise<void> => {
+  const openSource = useCallback(async (load: () => Promise<string>, demo = false): Promise<void> => {
+    activeDemoFetch.current?.abort();
     const sequence = ++openSequence.current;
     const stillCurrent = (): boolean => {
       if (sequence !== openSequence.current) return false;
@@ -290,18 +300,18 @@ export function FileControls({
       }
       return true;
     };
-    setBusy('читаем файл…');
+    setBusy(demo ? 'загружаем демо-план…' : 'читаем файл…');
     setState({ status: 'loading' });
     setNotice(null);
     setErrorDetails([]);
     let text: string;
     try {
-      text = await file.text();
+      text = await load();
     } catch (error) {
       if (!stillCurrent()) return;
       setState({
         status: 'error',
-        message: `Файл не прочитался: ${error instanceof Error ? error.message : String(error)}`,
+        message: `${demo ? 'Демо-план не открыт' : 'Файл не прочитался'}: ${error instanceof Error ? error.message : String(error)}`,
       });
       setErrorDetails([]);
       return;
@@ -318,7 +328,38 @@ export function FileControls({
       return;
     }
     accept(opened.value, 'file');
-  };
+  }, [plan, revision, read, accept, showIssueError]);
+
+  const open = (file: File): Promise<void> => openSource(() => file.text());
+  const openDemo = useCallback((variant: DemoPlan): void => {
+    setDemoMenuOpen(false);
+    demoTrigger.current?.focus();
+    if (needsReplacementWarning(plan, dirty, revision) &&
+        !window.confirm(replacementWarning('Открыть', dirty))) return;
+    void openSource(() => {
+      const controller = new AbortController();
+      activeDemoFetch.current = controller;
+      return readDemoText(variant, { signal: controller.signal });
+    }, true);
+  }, [plan, dirty, revision, openSource]);
+
+  useEffect(() => {
+    if (demoRequest === null || demoRequest.id === seenDemoRequest.current) return;
+    seenDemoRequest.current = demoRequest.id;
+    openDemo(demoRequest.variant);
+  }, [demoRequest, openDemo]);
+
+  useEffect(() => {
+    if (!demoMenuOpen) return;
+    demoMenu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const outside = (event: PointerEvent): void => {
+      const target = event.target as Node | null;
+      if (demoMenu.current?.contains(target) || demoTrigger.current?.contains(target)) return;
+      setDemoMenuOpen(false);
+    };
+    window.document.addEventListener('pointerdown', outside);
+    return () => window.document.removeEventListener('pointerdown', outside);
+  }, [demoMenuOpen]);
 
   const restore = (draft: PlanDraft): void => {
     // Спрашиваем, когда в плане уже что-то есть: только что открытый файл по
@@ -554,6 +595,7 @@ export function FileControls({
           if (needsReplacementWarning(plan, dirty, revision) &&
               !window.confirm(replacementWarning('Новый', dirty))) return;
           openSequence.current += 1;
+          activeDemoFetch.current?.abort();
           onNew();
           if (storage !== null) clearDraft(storage);
           // Чистый лист — тоже ответ на предложение: черновика больше нет.
@@ -576,11 +618,39 @@ export function FileControls({
         onClick={() => {
           if (needsReplacementWarning(plan, dirty, revision) &&
               !window.confirm(replacementWarning('Открыть', dirty))) return;
+          openSequence.current += 1;
+          activeDemoFetch.current?.abort();
+          setState({ status: 'idle' });
           input.current?.click();
         }}
       >
         Открыть существующий
       </button>
+
+      <div className="files__export">
+        <button ref={demoTrigger} type="button" className="files__button files__button--demo"
+          aria-haspopup="menu" aria-expanded={demoMenuOpen}
+          onClick={() => { setMenuOpen(false); setDemoMenuOpen((value) => !value); }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+              event.preventDefault(); setMenuOpen(false); setDemoMenuOpen(true);
+            }
+          }}>Демо</button>
+        {demoMenuOpen ? <div ref={demoMenu} className="files__menu" role="menu" aria-label="Демо-планы"
+          onKeyDown={(event) => {
+            const items = Array.from(demoMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+            const at = items.indexOf(window.document.activeElement as HTMLElement);
+            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDemoMenuOpen(false); demoTrigger.current?.focus(); }
+            else if (event.key === 'Tab') setDemoMenuOpen(false);
+            else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+              event.preventDefault();
+              const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (at + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length;
+              items[index]?.focus();
+            }
+          }}>
+          {DEMO_PLANS.map((item) => <button key={item.id} type="button" role="menuitem" className="files__menu-item" onClick={() => openDemo(item.id)}>{item.label}</button>)}
+        </div> : null}
+      </div>
 
       <div className="files__export">
         <button
@@ -591,6 +661,7 @@ export function FileControls({
           aria-expanded={menuOpen}
           title="Скачать план: файл JSON или картинку"
           onClick={() => {
+            setDemoMenuOpen(false);
             menuStart.current = 'first';
             setMenuOpen((open) => !open);
           }}

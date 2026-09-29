@@ -2576,3 +2576,6 @@ span.inventory__num {
   margin: 0 0 var(--space-2);
   color: var(--color-muted);
 }
+
+.onboarding__demo { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.shell__bar .files__button--demo { padding-inline: 4px; }
