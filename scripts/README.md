@@ -13,7 +13,7 @@
 Следующие файлы создаются при реализации соответствующих пакетов:
 
 - `gitlab-mr.sh` — создание и слияние Merge Request через API GitLab (`list`, `show`, `merge`, `create`).
-- `issues.sh` — задачи команды в GitLab Issues (D-298): `list`, `free`, `mine`, `view`, `take`, `create`, `comment`, `labels`, `board` (сводка для хука начала сессии). Нужны `curl` и `jq`; токен — `GITLAB_TOKEN` или git credential helper, не печатается.
+- `issues.sh` — задачи команды в GitLab Issues (D-298): `list`, `free`, `mine`, `view`, `take`, `create`, `comment`, `labels`, `board` (сводка для хука начала сессии; строка «можно перехватить» — чужие задачи без движения > 2 ч, D-313). Нужны `curl` и `jq`; токен — `GITLAB_TOKEN` или git credential helper, не печатается.
 - `generate-benchmark.ts` — Q02.
 - `measure-advice.ts` — время расчёта ассистента (`measurePlan`, `validatePlan`, три сценария) на нагрузочных планах, медиана трёх прогонов (D-205).
 - `package-demo.ts` — E01.

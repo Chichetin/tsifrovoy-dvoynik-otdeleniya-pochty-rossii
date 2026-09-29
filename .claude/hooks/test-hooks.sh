@@ -77,20 +77,30 @@ expect_out lacks "нет токена — без падения и без зад
 cat > "$TMP/bin/curl" <<'CURL'
 #!/usr/bin/env bash
 [ -n "${CURL_FAIL:-}" ] && exit 7
+[ -n "${CURL_LOG:-}" ] && printf '%s\n' "$*" >> "$CURL_LOG"
 case "$*" in
   *http_code*/issues/15*) printf 404; exit 0 ;;
   *http_code*) printf 200; exit 0 ;;
 esac
 case "$*" in
   *PUT*) echo '{}' ;;
+  *POST*/notes*) echo '{"id": 1}' ;;
+  *merge_requests*) echo '[{"source_branch": "worktree-17-y", "updated_at": "2026-09-29T19:00:00.000Z"}]' ;;
+  *repository/branches*) echo '[{"name": "worktree-13-old", "commit": {"committed_date": "2026-09-28T10:00:00Z"}},
+    {"name": "worktree-13-x", "commit": {"committed_date": "2026-09-29T20:10:00.000+03:00"}},
+    {"name": "worktree-18-z", "commit": {"committed_date": "2026-09-29T19:50:00.000Z"}}]' ;;
   */issues/16*) echo '{"iid": 16, "state": "opened", "labels": ["area:assistant"], "assignees": []}' ;;
   */api/v4/user*) echo '{"id": 1, "username": "me"}' ;;
   */issues/12*) echo '{"iid": 12, "state": "opened", "assignees": [{"username": "me"}]}' ;;
-  */issues/13*) echo '{"iid": 13, "state": "opened", "assignees": [{"username": "mate"}]}' ;;
+  */issues/13*) echo '{"iid": 13, "state": "opened", "labels": [], "updated_at": "2026-09-29T17:10:00.000Z", "assignees": [{"username": "mate"}]}' ;;
+  */issues/17*) echo '{"iid": 17, "state": "opened", "labels": [], "updated_at": "2026-09-29T17:00:00.000Z", "assignees": [{"username": "mate"}]}' ;;
+  */issues/18*) echo '{"iid": 18, "state": "opened", "labels": [], "updated_at": "2026-09-29T16:00:00.000Z", "assignees": [{"username": "mate"}]}' ;;
+  */issues/21*) echo '{"iid": 21, "state": "opened", "labels": ["area:model"], "updated_at": "2026-09-29T20:00:00.000Z", "assignees": []}' ;;
   */issues/14*) echo '{"iid": 14, "state": "closed", "assignees": [{"username": "me"}]}' ;;
   */issues*) cat <<'JSON'
 [{"iid": 3, "title": "Направляющие при перетаскивании", "labels": ["area:editor", "P1"], "assignees": [{"username": "me"}]},
- {"iid": 5, "title": "Проверка чата", "labels": ["area:assistant", "P0"], "assignees": [{"username": "mate"}]},
+ {"iid": 5, "title": "Проверка чата", "labels": ["area:assistant", "P0"], "updated_at": "2026-09-29T19:30:00.000Z", "assignees": [{"username": "mate"}]},
+ {"iid": 20, "title": "Брошенная модель", "labels": ["area:model"], "updated_at": "2026-09-29T10:00:00.000Z", "assignees": [{"username": "gone"}]},
  {"iid": 7, "title": "Никем не взята", "labels": ["area:panels"], "assignees": []},
  {"iid": 9, "title": "Демо не открывается", "labels": ["blocker", "area:release"], "assignees": []}]
 JSON
@@ -99,11 +109,16 @@ esac
 CURL
 chmod +x "$TMP/bin/curl"
 export PATH="$TMP/bin:$PATH" GITLAB_TOKEN=test-token
+# «Сейчас» для правила двух часов (D-313): 29.09 20:05 UTC
+export ISSUES_NOW="$(jq -n '"2026-09-29T20:05:00Z" | fromdateiso8601')"
 expect_out has   "мои задачи видны"                          "#3 Направляющие при перетаскивании"
 expect_out has   "занятая другим область видна"              "area:assistant: #5 mate"
 expect_out lacks "свободная задача не считается занятой"     "area:panels:"
 expect_out has   "blocker виден"                             "#9 Демо не открывается"
 expect_out lacks "обычная задача не считается blocker"       "  #7 Никем не взята"
+expect_out has   "board: кандидат на перехват"               "можно перехватить (без движения > 2 ч): #20 gone, 10 ч"
+expect_out lacks "board: свежая чужая задача — не кандидат"  "#5 mate, "
+expect_out lacks "board: брошенная area: не занята"          "area:model: #20"
 CURL_FAIL=1 expect_out has "GitLab недоступен — предупреждение, без падения" "GitLab недоступен"
 git worktree add -q .claude/worktrees/wt-test -b worktree-wt-test 2>/dev/null
 (cd .claude/worktrees/wt-test && expect_out lacks "worktree — без предупреждения" "основной копии")
@@ -152,6 +167,37 @@ if out="$(bash scripts/issues.sh take 16 2>&1)"; then
   echo "FAIL: take: занятая area: не остановила, вывод: $out"; FAIL=1
 elif printf '%s' "$out" | grep -q "area:assistant занята"; then echo "ok:   take: занятая area: — отказ"
 else echo "FAIL: take: неожиданный отказ: $out"; FAIL=1; fi
+# --- take по правилу двух часов (D-313): движение = задача, её MR, её ветка
+take_case() { # take_case <refuse|take> <описание> <N> [шаблон вывода]
+  local out code
+  : > "$TMP/curl.log"
+  out="$(CURL_LOG="$TMP/curl.log" bash scripts/issues.sh take "$3" 2>&1)"; code=$?
+  local put note
+  put="$(grep -c -- "-X PUT .*/issues/$3 " "$TMP/curl.log")"
+  note="$(grep -c -- "-X POST .*/issues/$3/notes" "$TMP/curl.log")"
+  if [ "$1" = refuse ] && { [ "$code" = 0 ] || [ "$put" != 0 ] || [ "$note" != 0 ]; }; then
+    echo "FAIL: $2 — ожидался отказ без PUT/notes (код $code, PUT $put, notes $note), вывод: $out"; FAIL=1
+  elif [ "$1" = take ] && { [ "$code" != 0 ] || [ "$put" != 1 ]; }; then
+    echo "FAIL: $2 — ожидалось назначение (код $code, PUT $put), вывод: $out"; FAIL=1
+  elif [ -n "${4:-}" ] && ! printf '%s' "$out" | grep -q -- "$4"; then
+    echo "FAIL: $2 — нет «$4», вывод: $out"; FAIL=1
+  else
+    echo "ok:   $2"
+  fi
+}
+take_case refuse "take: чужая, свежий MR (1 ч 5 мин) — отказ"      17 "Перехватить можно после 2026-09-29 21:00 UTC"
+take_case refuse "take: чужая, свежий коммит в ветке — отказ"      18 "2026-09-29 19:50 UTC"
+take_case take   "take: чужая без движения 2 ч 55 мин — перехват" 13 "git worktree add .claude/worktrees/13-x -b worktree-13-x origin/worktree-13-x"
+if grep -q -- "-X POST .*/issues/13/notes" "$TMP/curl.log" \
+  && grep -q "без движения с 2026-09-29 17:10 UTC (2 ч 55 мин)" "$TMP/curl.log" \
+  && grep -q "Ветка: worktree-13-x" "$TMP/curl.log"; then
+  echo "ok:   take: перехват оставил комментарий с временем и веткой"
+else echo "FAIL: take: нет комментария перехвата, лог: $(cat "$TMP/curl.log")"; FAIL=1; fi
+ISSUES_STALE_HOURS=3 take_case refuse "take: порог ISSUES_STALE_HOURS=3 — те же 2 ч 55 мин свежие" 13
+take_case take   "take: area:model занята, но без движения 10 ч — не блокирует" 21
+if grep -q -- "-X POST .*/issues/21/notes" "$TMP/curl.log"; then
+  echo "FAIL: take: свободная задача получила комментарий перехвата"; FAIL=1
+else echo "ok:   take: свободная задача берётся без комментария перехвата"; fi
 
 # --- check-worktrees.sh (SubagentStop: секреты во всех worktree)
 expect pass  "worktrees: секретов нигде нет"           check-worktrees.sh
