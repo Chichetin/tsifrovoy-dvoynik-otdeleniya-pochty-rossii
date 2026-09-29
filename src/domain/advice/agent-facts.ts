@@ -4,14 +4,18 @@
  * recommendations. User questions and conversation history are not evidence.
  */
 import { z } from 'zod';
-import type { Fact, FactPhase, MetricCode } from '../../contracts/advice';
+import type { Candidate, Fact, FactPhase, FactUnit, MetricCode, Recommendation } from '../../contracts/advice';
 import type { Id, Ref } from '../../contracts/model';
 import type { AgentToolRecord } from './agent-fallback';
 import type { AgentToolState } from './agent-tools';
+import { cameraCandidateEffect } from './camera-placement';
 
-type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations';
-export type AgentFact = Omit<Fact, 'metric'> & {
+type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent';
+/** Chat-only unit: the share of client zones seen by cameras (#32), not part of the advice contract. */
+type ChatUnit = FactUnit | 'percent';
+export type AgentFact = Omit<Fact, 'metric' | 'unit'> & {
   metric: ChatMetric;
+  unit: ChatUnit;
   /** The scope distinguishes a filtered count from a whole-room count. */
   scope: string;
   recommendationId?: Id;
@@ -34,6 +38,7 @@ const METRIC_LABELS: Record<ChatMetric, string> = {
   'validation.warnings': 'Предупреждения проверки',
   'zones.count': 'Количество зон',
   'equipment.violations': 'Нарушения правил комплектования',
+  'coverage.percent': 'Доля клиентских зон, видимая камерами',
 };
 const PHASE_LABELS: Record<FactPhase, string> = {
   current: 'сейчас', before: 'было', after: 'стало', delta: 'изменение',
@@ -85,6 +90,23 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
         }
       }
     }
+    const coverage = entry.name === 'plan_overview' ? record(output.cameraCoverage) : null;
+    if (coverage !== null) {
+      const percent = (id: string, value: unknown, refs: Ref[], scope: string): void => {
+        if (typeof value !== 'number' || !Number.isFinite(value)) return;
+        facts.push({ id, metric: 'coverage.percent', phase: 'current', value, unit: 'percent', refs, scope });
+      };
+      const zones = Array.isArray(coverage.zones) ? coverage.zones.map(record).filter((zone) => zone !== null) : [];
+      const cameraRefs: Ref[] = [...new Set(zones.flatMap((zone) => (Array.isArray(zone.cameraIds) ? zone.cameraIds : [])))]
+        .filter((id): id is string => typeof id === 'string' && state.plan.objects.some((object) => object.id === id))
+        .map((id) => ({ kind: 'object', id }));
+      percent(`${prefix}.coverage`, coverage.percent, [...roomRefs, ...cameraRefs], 'все клиентские зоны');
+      for (const zone of zones) {
+        if (typeof zone.zoneId !== 'string' || !state.plan.zones.some((z) => z.id === zone.zoneId)) continue;
+        const refs: Ref[] = [{ kind: 'zone', id: zone.zoneId }];
+        percent(`${prefix}.${zone.zoneId}.coverage`, zone.percent, refs, subject(state, refs));
+      }
+    }
     if (entry.name === 'zone_details' && typeof output.zoneId === 'string' && state.plan.zones.some((z) => z.id === output.zoneId)) {
       const refs: Ref[] = [{ kind: 'zone', id: output.zoneId }];
       const scope = subject(state, refs);
@@ -112,6 +134,7 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
     }
   }
   for (const recommendation of state.recommendations.values()) {
+    if (recommendation.scenario === 'place') facts.push(...coverageFacts(state, recommendation));
     const rule = recommendation.scenario === 'equipment'
       ? state.plan.catalog.rules.find((r) => recommendation.ruleIds.includes(r.id) && r.kind === 'count') : undefined;
     const typeId = recommendation.scenario === 'place' ? state.placementTypes.get(recommendation.id) : rule?.objectTypeId;
@@ -133,11 +156,44 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
   return facts;
 }
 
+function candidateScope(recommendation: Recommendation, candidate: Candidate): string {
+  return `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`;
+}
+
+/**
+ * #32: for a camera variant, the share of client zones seen before, after and
+ * the change — recomputed from the plan and the candidate by the same
+ * `cameraCoverage` the layer draws. «Before» cites the cameras that see the
+ * client zones now, so the answer highlights them.
+ */
+function coverageFacts(state: AgentToolState, recommendation: Recommendation): AgentFact[] {
+  const facts: AgentFact[] = [];
+  const roomRefs: Ref[] = [{ kind: 'room', id: state.plan.room.id }];
+  for (const candidate of recommendation.candidates) {
+    const effect = cameraCandidateEffect(state.plan, candidate);
+    if (effect === null || effect.before.total.percent === null || effect.after.total.percent === null) continue;
+    const cameras = [...new Set(effect.before.zones.flatMap((zone) => zone.cameraIds))];
+    const scope = `все клиентские зоны; ${candidateScope(recommendation, candidate)}`;
+    const base = { recommendationId: recommendation.id, candidateId: candidate.id, metric: 'coverage.percent' as const, unit: 'percent' as const, scope };
+    const id = (phase: FactPhase): string => JSON.stringify([recommendation.id, `${candidate.id}.coverage.${phase}`]);
+    facts.push(
+      { ...base, id: id('before'), phase: 'before', value: effect.before.total.percent, refs: [...roomRefs, ...cameras.map((cameraId) => ({ kind: 'object' as const, id: cameraId }))] },
+      { ...base, id: id('after'), phase: 'after', value: effect.after.total.percent, refs: roomRefs },
+      // The change of the shares as rendered (tenths): «29,8 → 72,1, +42,3» adds up on paper.
+      { ...base, id: id('delta'), phase: 'delta', value: Math.round(effect.after.total.percent * 10) / 10 - Math.round(effect.before.total.percent * 10) / 10, refs: roomRefs },
+    );
+  }
+  return facts;
+}
+
+const UNIT_LABELS: Record<ChatUnit, string> = { m2: 'м²', m: 'м', count: 'шт.', percent: '%' };
+
 /** Signed deltas and units come from the selected fact, not from the model. */
 export function renderAgentFact(fact: AgentFact): string {
-  const value = Math.round(fact.value * 100) / 100;
+  const value = Math.round(fact.value * (fact.unit === 'percent' ? 10 : 100)) / (fact.unit === 'percent' ? 10 : 100);
   const number = `${fact.phase === 'delta' && value > 0 ? '+' : ''}${String(value).replace('.', ',')}`;
-  const unit = fact.unit === 'm2' ? 'м²' : fact.unit === 'm' ? 'м' : 'шт.';
+  // A change of a share is in percentage points, not per cent of the share.
+  const unit = fact.unit === 'percent' && fact.phase === 'delta' ? 'п. п.' : UNIT_LABELS[fact.unit];
   return `${fact.metricLabel ?? METRIC_LABELS[fact.metric]} — ${fact.scope}: ${number} ${unit} (${PHASE_LABELS[fact.phase]}).`;
 }
 

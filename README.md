@@ -26,8 +26,9 @@
 
 1. Прочитать [CLAUDE.md](CLAUDE.md), [правила Git](GIT.md) и [HANDOFF](HANDOFF.md).
 2. Найти свой модуль в [карте каталогов и владельцев](docs/project-structure.md).
-3. Взять пакет из [плана 34 задач для пяти потоков](docs/plans/2026-09-16-parallel-plan.md)
-   и работать в личном worktree.
+3. Взять задачу в GitLab Issues (`bash scripts/issues.sh free` → `take <N>`) и работать в
+   worktree `.claude/worktrees/<N>-<тема>` на ветке `worktree-<N>-<тема>`. Без взятой
+   задачи правки, коммиты и merge не проходят проверки (D-298, D-299).
 
 ## Где что находится
 
