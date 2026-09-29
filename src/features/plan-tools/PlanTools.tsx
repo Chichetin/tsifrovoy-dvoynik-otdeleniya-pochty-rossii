@@ -142,7 +142,8 @@ export function PlanTools({
   session,
   onTool,
   onCommand,
-}: PlanToolsProps): React.JSX.Element {
+  drawingActive = false,
+}: PlanToolsProps & { drawingActive?: boolean }): React.JSX.Element {
   const notice = useNotice();
   const intent = deleteIntent(session.selection, plan);
   const tool = session.tool;
@@ -208,7 +209,7 @@ export function PlanTools({
 
       {/* Hints live in a plaque over the canvas, not in the header row: a long
           line there wrapped the header and moved the plan (operator №16). */}
-      {session.tool.kind !== 'object.place' && shapeType === null && hint === null && notice === null ? null : (
+      {drawingActive || (session.tool.kind !== 'object.place' && shapeType === null && hint === null && notice === null) ? null : (
         <div className="toolbar__hints">
           {session.tool.kind === 'object.place' ? (
             <span className="toolbar__note">Клик по плану ставит объект</span>

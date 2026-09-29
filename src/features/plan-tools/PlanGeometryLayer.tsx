@@ -88,9 +88,10 @@ export function PlanGeometryLayer({
   document: plan,
   session,
   draft,
+  draftCursor = null,
   onCommand,
   onSelect,
-}: PlanGeometryLayerProps): React.JSX.Element {
+}: PlanGeometryLayerProps & { draftCursor?: Point | null }): React.JSX.Element {
   const { viewport, selection } = session;
   // While a drawing tool is active the click belongs to the tool: the shape
   // under the pointer must not steal the selection from what was just drawn,
@@ -642,6 +643,7 @@ export function PlanGeometryLayer({
       })}
 
       {draft === null || draft.length === 0 ? null : (
+        <Group name="drawing-draft" listening={false}>
         <Line
           points={flatten(draft, viewport)}
           stroke={draftInvalid ? INVALID_STROKE : DRAFT_STROKE}
@@ -650,6 +652,16 @@ export function PlanGeometryLayer({
           closed={draft.length > 2}
           listening={false}
         />
+        {draftCursor === null ? null : <Line points={flatten([draft[draft.length - 1]!, draftCursor], viewport)} stroke={DRAFT_STROKE} strokeWidth={2} dash={[3, 5]} />}
+        {session.tool.kind === 'wall.draw' ? null : draft.map((point, index) => {
+          const [x, y] = modelToScreen(point, viewport);
+          return <Group key={index} x={x} y={y}>
+            <Circle radius={index === 0 ? 10 : 8} fill="#FFFFFF" stroke={draftInvalid ? INVALID_STROKE : DRAFT_STROKE} strokeWidth={index === 0 ? 3 : 2} />
+            <Text x={-8} y={-6} width={16} align="center" text={String(index + 1)} fontSize={12} fill="#212529" />
+            {index === 0 ? <Text x={14} y={-7} text={draft.length >= 3 ? '1 — замкнуть' : 'Начало'} fontSize={12} fill={DRAFT_STROKE} /> : null}
+          </Group>;
+        })}
+        </Group>
       )}
 
       {picking && isSelected('room', plan.room.id) ? ringHandles(roomRef, plan.room.boundary, true) : null}
