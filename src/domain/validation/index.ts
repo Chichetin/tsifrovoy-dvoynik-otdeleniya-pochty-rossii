@@ -29,7 +29,7 @@ import {
   TOLERANCE,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
-import { carriesInventoryNumber, inventoryNumberOf } from '../commands/inventory-number';
+import { carriesInventoryNumber, inventoryNumberOf } from '../commands';
 import { outerWallIds } from '../commands/room-walls';
 import { countInZoneScope } from '../inventory';
 import {
