@@ -12,14 +12,15 @@
  * атрибуты зон в файле пока некому заполнить.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Equipment, Id, Layer, LayerType, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { OBJECT_MOUNTS, countByMount, type ObjectMount } from '../../domain/object-mount';
-import { legendOf } from './legend';
+import { BLIND_SPOT_SWATCH_CSS, visibleCoverage } from './coverage';
+import { formatValue, legendOf } from './legend';
 
 /** Пустое поле — это «значения нет», а не ноль. */
 function parseValue(input: string): number | null {
@@ -101,6 +102,11 @@ export function LayersPanel({
   pictograms?: PictogramsView;
 }): React.JSX.Element {
   const [newTypeId, setNewTypeId] = useState<string>('');
+  // Same calculation and the same memo key as the canvas: once per revision (D-307).
+  const coverage = useMemo(
+    () => visibleCoverage({ layers: plan.layers, zones: plan.zones, objects: plan.objects, catalog: plan.catalog }),
+    [plan.layers, plan.zones, plan.objects, plan.catalog],
+  );
 
   const ordered = plan.layers.slice().sort((a, b) => a.order - b.order);
   const used = new Set(plan.layers.map((layer) => layer.typeId));
@@ -165,6 +171,55 @@ export function LayersPanel({
       type: 'object.put',
       object: { ...object, attributes: { ...object.attributes, [key]: parseValue(input) } },
     });
+  };
+
+  /** Seen share of each client zone and of all of them, with the hatch that marks the rest. */
+  const coverageView = (type: LayerType): React.JSX.Element | null => {
+    const result = coverage.get(type.id);
+    if (result === undefined) return null;
+    if (result.zones.length === 0) {
+      return <p className="panel__empty">Клиентских зон на плане нет — покрытие считать не по чему</p>;
+    }
+    const zones = new Map(plan.zones.map((zone) => [zone.id, zone]));
+    const percent = (value: number | null): string => (value === null ? '—' : formatValue(value, '%'));
+    return (
+      <div className="layers__coverage" role="group" aria-label={`Покрытие клиентских зон, слой ${type.label}`}>
+        <p className="layers__legend-text">
+          <span className="layers__swatch" style={{ background: BLIND_SPOT_SWATCH_CSS }} />
+          штриховка — слепые пятна клиентских зон
+        </p>
+        <table className="layers__data" aria-label="Покрытие клиентских зон камерами">
+          <thead>
+            <tr>
+              <th scope="col">Клиентская зона</th>
+              <th scope="col">Видно</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.zones.map((entry) => (
+              <tr key={entry.zoneId}>
+                <th scope="row">
+                  <button
+                    type="button"
+                    className="table__link"
+                    onClick={() => onSelect({ kind: 'zone', id: entry.zoneId })}
+                  >
+                    {zones.get(entry.zoneId)?.name ?? entry.zoneId}
+                  </button>
+                </th>
+                <td>{percent(entry.percent)}</td>
+              </tr>
+            ))}
+            <tr>
+              <th scope="row">Все клиентские зоны</th>
+              <td>
+                <strong>{percent(result.total.percent)}</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    );
   };
 
   const dataTable = (type: LayerType): React.JSX.Element | null => {
@@ -476,6 +531,7 @@ export function LayersPanel({
                       {type.note}
                     </p>
                   </details>
+                  {layer.visible ? coverageView(type) : null}
                   {layer.visible ? dataTable(type) : null}
                 </>
               )}

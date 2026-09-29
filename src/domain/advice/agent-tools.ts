@@ -18,6 +18,7 @@ import { buildInventory } from '../inventory';
 import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
+import { cameraCoverage } from './camera-coverage';
 import { calculateAdvice } from './index';
 
 export type AgentToolState = {
@@ -70,7 +71,7 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'plan_overview',
     description:
-      'Сводка текущего плана: площадь помещения, занято и свободно, зоны с площадями и числом объектов, оборудование по типам, информационные слои, число ошибок проверки. Вызывай первым, если вопрос общий.',
+      'Сводка текущего плана: площадь помещения, занято и свободно, зоны с площадями и числом объектов, оборудование по типам, информационные слои, покрытие клиентских зон камерами (доля, слепые пятна), число ошибок проверки. Вызывай первым, если вопрос общий.',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -89,7 +90,7 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'find_place',
     description:
-      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало.',
+      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало.',
     parameters: {
       type: 'object',
       properties: { typeId: { type: 'string' }, zoneId: { type: ['string', 'null'] } },
@@ -216,6 +217,33 @@ function fail(tool: AgentToolName, label: string, error: string): AgentToolOutco
   return { output: { error }, step: { tool, label, ok: false } };
 }
 
+/**
+ * #32: share of the client zones the cameras see, per zone and in total — the
+ * same calculation the camera layer hatches. `null` without a sector layer
+ * type in the catalog or without client zones.
+ */
+function coverageView(state: AgentToolState): unknown {
+  for (const type of state.plan.catalog.layerTypes) {
+    if (type.representation.kind !== 'object-field') continue;
+    const coverage = cameraCoverage(state.plan, type.representation);
+    if (coverage.zones.length === 0) return null;
+    return {
+      layerTypeId: type.id,
+      percent: coverage.total.percent === null ? null : round(coverage.total.percent),
+      blind_m2: round(coverage.total.blind_m2),
+      zones: coverage.zones.map((zone) => ({
+        zoneId: zone.zoneId,
+        name: zoneName(state, zone.zoneId),
+        percent: zone.percent === null ? null : round(zone.percent),
+        blind_m2: round(zone.blind_m2),
+        cameraIds: zone.cameraIds,
+      })),
+      method: 'Сетка 0,25 м, сектор по углу и дальности камеры; стены обзор не перекрывают, видео не подключается.',
+    };
+  }
+  return null;
+}
+
 function overview(state: AgentToolState): AgentToolOutcome {
   const { plan } = state;
   const measured = measurePlan(plan);
@@ -249,6 +277,7 @@ function overview(state: AgentToolState): AgentToolOutcome {
         errors: issues.filter((issue) => issue.severity === 'error').length,
         warnings: issues.filter((issue) => issue.severity !== 'error').length,
       },
+      cameraCoverage: coverageView(state),
     },
     step: { tool: 'plan_overview', label: 'Сводка плана: площади, зоны, оборудование', ok: true },
   };

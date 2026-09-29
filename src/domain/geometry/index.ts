@@ -365,6 +365,56 @@ export function viewSector(
   return [centre, ...arc];
 }
 
+/**
+ * Does the sector of `viewSector` hold `point`? The exact wedge, not its
+ * polygon: the arc is a true circle here, while the drawn polygon cuts it into
+ * `steps` chords. Same conventions — rotation 0 looks along +Y, positive turns
+ * clockwise; the apex itself is inside; 360° and wider is a full circle.
+ */
+export function pointInViewSector(
+  centre: Point,
+  rotation_deg: number,
+  angle_deg: number,
+  radius_m: number,
+  point: Point,
+): boolean {
+  return viewSectorTest(centre, rotation_deg, angle_deg, radius_m)(point);
+}
+
+/**
+ * `pointInViewSector` with the sector fixed once: heading, half-angle cosine
+ * and squared reach are computed here, the returned test is arithmetic only.
+ * For grids that ask the same camera about thousands of points (D-307).
+ */
+export function viewSectorTest(
+  centre: Point,
+  rotation_deg: number,
+  angle_deg: number,
+  radius_m: number,
+): (point: Point) => boolean {
+  const [cx, cy] = centre;
+  const reach = radius_m + TOLERANCE.coordinate_m;
+  const reach2 = reach * reach;
+  const apex2 = TOLERANCE.coordinate_m * TOLERANCE.coordinate_m;
+  const span = Math.min(Math.max(angle_deg, 0), 360);
+  const full = span >= 360;
+  // Local +Y turned clockwise by the rotation, as in `toWorld`.
+  const heading = (rotation_deg * Math.PI) / 180;
+  const hx = Math.sin(heading);
+  const hy = Math.cos(heading);
+  // Within half the span of the heading ⇔ cos(off) ≥ cos(span / 2); a hair of
+  // slack keeps a point exactly on an edge inside despite rounding.
+  const cosHalf = Math.cos(((span / 2) * Math.PI) / 180) - 1e-12;
+  return ([x, y]: Point): boolean => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const distance2 = dx * dx + dy * dy;
+    if (distance2 > reach2) return false;
+    if (distance2 <= apex2 || full) return true;
+    return hx * dx + hy * dy >= cosHalf * Math.sqrt(distance2);
+  };
+}
+
 /** Area of an object's floor projection. Rotation does not change it. */
 export function footprintArea(object: Equipment): number {
   return polygonArea(footprint(object));
