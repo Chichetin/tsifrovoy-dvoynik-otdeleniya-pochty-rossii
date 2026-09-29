@@ -967,6 +967,21 @@ body {
   }
 }
 
+/* D-316: extra width reserve for font metrics on the final demo header.
+   Keep labels and the 44px tool target; spend inter-group whitespace first. */
+@media (min-width: 1340px) and (max-width: 1500px) {
+  .shell__bar { column-gap: var(--space-2); padding-inline: var(--space-2); }
+}
+
+@media (max-width: 1339px) {
+  .shell__bar { column-gap: var(--space-1); padding-inline: var(--space-1); }
+}
+
+@media (max-width: 1500px) {
+  .toolbar__group-gap { margin-inline: 2px; }
+  .shell__bar .toolbar__button { min-width: 44px; padding-inline: 5px; }
+}
+
 /* D-261: the history goes icon-only below 1460 px (was 1400): at 1400–1459 px
    the named buttons left the free column at 0–12 px in the worst state. The
    icon buttons are square like the hotkeys button, the names stay in the
