@@ -34,6 +34,14 @@ import { nextFreeId } from './ids';
 import { outerWallIds, rebuildOuterWalls } from './room-walls';
 
 export { nextFreeId } from './ids';
+export {
+  DEFAULT_INVENTORY_SERIES,
+  INVENTORY_NUMBER_KEY,
+  carriesInventoryNumber,
+  inventoryNumberOf,
+  nextInventoryNumber,
+  withInventoryNumber,
+} from './inventory-number';
 
 /**
  * Thickness for outer walls of a plan that had none (team assumption, D-134).
