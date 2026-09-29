@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
 import { parsePlanDocument } from '../../contracts/schema';
-import { HOVER_HINT, equipmentHoverSummary } from './hover-summary';
+import { HOVER_HINT, HOVER_TOOL_HINT, equipmentHoverSummary } from './hover-summary';
 
 function plan() {
   const parsed = parsePlanDocument(nested);
@@ -10,6 +10,11 @@ function plan() {
 }
 
 describe('подсказка объекта', () => {
+  test('в режиме установки сначала направляет к инструменту выбора', () => {
+    const object = plan().objects[0]!;
+    expect(equipmentHoverSummary(object, false)).toEqual({ title: object.label, hint: HOVER_TOOL_HINT });
+    expect(equipmentHoverSummary(object, true).hint).toBe(HOVER_HINT);
+  });
   test('называет предмет и зовёт кликнуть за подробностями', () => {
     const document = plan();
     const object = document.objects[0]!;
