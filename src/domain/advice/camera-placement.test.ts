@@ -164,6 +164,26 @@ describe('куда поставить камеру, чтобы закрыть с
     const desk = demo.objects.find((object) => object.typeId === 'ot_workplace')!;
     expect(cameraCandidateEffect(demo, { object: desk })).toBeNull();
   });
+
+  test('эффект считается один раз на план и вариант, у разных вариантов — свой', () => {
+    const recommendation = place(demo, null);
+    const [first, second] = recommendation.candidates;
+    const once = cameraCandidateEffect(demo, first!);
+    expect(cameraCandidateEffect(demo, first!)).toBe(once);
+    const other = cameraCandidateEffect(demo, second!);
+    expect(other?.after.total.percent).not.toBe(once?.after.total.percent);
+    expect(other?.before).toBe(once?.before);
+    // A changed plan is a new document: counted afresh.
+    const edited = { ...demo, objects: demo.objects.filter((object) => object.id !== 'eq_26') };
+    expect(cameraCandidateEffect(edited, first!)?.before.total.covered).toBeLessThan(300);
+  });
+
+  test('камера не занимает пол: свободная площадь варианта «стало» = «сейчас»', () => {
+    for (const candidate of place(demo, null).candidates) {
+      const free = (phase: string) => candidate.facts.find((fact) => fact.metric === 'area.free' && fact.phase === phase)!.value;
+      expect(free('after')).toBe(free('current'));
+    }
+  });
 });
 
 describe('чат: покрытие камерами в фактах и в ответе без LLM', () => {
@@ -208,6 +228,12 @@ describe('чат: покрытие камерами в фактах и в отв
     expect(routeAgentQuery(demo, 'Где слепые пятна у камер?', false)).toEqual([
       { name: 'find_place', args: { typeId: 'ot_camera', zoneId: null } },
     ]);
+    // Not about cameras at all: a storage room, a floor covering, a rack next to a camera.
+    expect(routeAgentQuery(demo, 'Что лежит в камере хранения?', false)[0]?.args).not.toMatchObject({ typeId: 'ot_camera' });
+    expect(routeAgentQuery(demo, 'Какое покрытие пола в зале?', false)[0]?.args).not.toMatchObject({ typeId: 'ot_camera' });
+    const rack = routeAgentQuery(demo, 'Куда поставить стеллаж рядом с камерой?', false)[0];
+    expect(rack?.name).toBe('find_place');
+    expect(rack?.args.typeId).not.toBe('ot_camera');
     // A zone name that resembles another type's label does not steal the question.
     expect(routeAgentQuery(demo, 'Куда поставить камеру в зоне очереди?', false)[0]).toMatchObject({
       name: 'find_place',
@@ -215,7 +241,7 @@ describe('чат: покрытие камерами в фактах и в отв
     });
   });
 
-  test('ответ без LLM: вариант на плане, слой камер включается, «было → стало» и id камер в тексте', () => {
+  test('ответ без LLM: вариант на плане, «было → стало» и id камер в тексте; слой назван словами, не действием', () => {
     const answer = answerWithoutModel(demo, null, 'Где слепые пятна камер?', 3, 'нет ключа');
     expect(answer.mode).toBe('fallback');
     expect(answer.text).toContain('Клиентские зоны видны камерами на 29,8 %, с этим вариантом — на 72,1 % (+42,3 п. п.).');
@@ -223,9 +249,11 @@ describe('чат: покрытие камерами в фактах и в отв
     expect(answer.actions).toEqual(
       expect.arrayContaining([
         { kind: 'preview-candidate', recommendationId: 'adv_place_ot_camera_room_main', candidateId: 'adv_ot_camera_1' },
-        { kind: 'show-layer', layerId: 'l_lt_cameras' },
       ]),
     );
+    // Showing the layer would change the plan and make «Применить» stale: no such action.
+    expect(answer.actions.some((action) => action.kind === 'show-layer')).toBe(false);
+    expect(answer.text).toContain('Секторы и слепые пятна покажет слой «Камеры и зоны обзора» в панели «Слои»');
     expect(answer.refs).toEqual(expect.arrayContaining([{ kind: 'object', id: 'eq_25' }, { kind: 'zone', id: 'z_queue' }]));
   });
 

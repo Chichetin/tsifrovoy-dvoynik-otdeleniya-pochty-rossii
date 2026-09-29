@@ -70,7 +70,8 @@ function blindCells(coverage: CameraCoverage, scope: (point: Point) => boolean):
 
 /** The largest 4-connected patch; on a tie, the one met first in row order. */
 function largestPatch(cells: readonly Cell[]): Cell[] {
-  const key = (ix: number, iy: number): string => `${ix},${iy}`;
+  // Numeric keys: a big plan has tens of thousands of blind squares.
+  const key = (ix: number, iy: number): number => (iy + 1_000_000) * 2_000_003 + (ix + 1_000_000);
   const left = new Map(cells.map((entry) => [key(entry.ix, entry.iy), entry]));
   let best: Cell[] = [];
   for (const start of cells) {
@@ -131,12 +132,36 @@ export type CameraEffect = { before: CameraCoverage; after: CameraCoverage };
  * a percentage from anywhere else.
  */
 export function cameraCandidateEffect(plan: PlanDocument, candidate: Pick<Candidate, 'object'>): CameraEffect | null {
+  const cached = effects.get(plan)?.get(candidate.object);
+  if (cached !== undefined) return cached;
   const representation = fieldRepresentationFor(plan.catalog, candidate.object.typeId);
-  if (representation === null || clientZones(plan).length === 0) return null;
-  return {
-    before: cameraCoverage(plan, representation),
-    after: coverageWith(plan, representation, candidate.object),
-  };
+  const effect =
+    representation === null || clientZones(plan).length === 0
+      ? null
+      : { before: baseCoverage(plan, representation), after: coverageWith(plan, representation, candidate.object) };
+  const byObject = effects.get(plan) ?? new WeakMap<Equipment, CameraEffect | null>();
+  byObject.set(candidate.object, effect);
+  effects.set(plan, byObject);
+  return effect;
+}
+
+/**
+ * The agent collects facts after every tool call, the fallback text asks
+ * again: the plan and the candidate objects of one exchange are the same
+ * objects each time, so their coverage is counted once. Documents are
+ * immutable (a change is a new object), so identity is a safe key.
+ */
+const effects = new WeakMap<PlanDocument, WeakMap<Equipment, CameraEffect | null>>();
+const bases = new WeakMap<PlanDocument, Map<CameraFieldRepresentation, CameraCoverage>>();
+
+function baseCoverage(plan: PlanDocument, representation: CameraFieldRepresentation): CameraCoverage {
+  const byRepresentation = bases.get(plan) ?? new Map<CameraFieldRepresentation, CameraCoverage>();
+  const known = byRepresentation.get(representation);
+  if (known !== undefined) return known;
+  const coverage = cameraCoverage(plan, representation);
+  byRepresentation.set(representation, coverage);
+  bases.set(plan, byRepresentation);
+  return coverage;
 }
 
 /**
@@ -157,10 +182,11 @@ export function cameraPlacementAdvice(
   const layer = editableContentLayer(plan.layers);
   if (layer === undefined) return null;
 
-  const before = cameraCoverage(plan, representation);
+  const before = baseCoverage(plan, representation);
   const scopeZones = zone === null ? clients : [zone];
+  // Every blind square is in some client zone already: only a chosen zone narrows the scope.
   const inScope = (point: Point): boolean =>
-    scopeZones.some((entry) => locatePoint(point, entry.polygon) !== 'outside');
+    zone === null || locatePoint(point, zone.polygon) !== 'outside';
   const patch = largestPatch(blindCells(before, inScope));
   if (patch.length === 0) return null;
 
@@ -210,7 +236,9 @@ export function cameraPlacementAdvice(
   const candidates: Candidate[] = [];
   const effects: string[] = [];
   for (const [index, entry] of chosen.entries()) {
-    const afterArea = measurePlan({ ...plan, objects: [...plan.objects, entry.object] });
+    // An object that does not occupy floor leaves the areas as they are (measurePlan
+    // counts only floor objects); measuring the whole plan again costs ~0,8 s at 1 000 objects.
+    const afterArea = type.occupiesFloor ? measurePlan({ ...plan, objects: [...plan.objects, entry.object] }) : measured;
     if (!afterArea.ok) continue;
     const id = entry.object.id;
     candidates.push({

@@ -51,7 +51,7 @@ test('агент без сервера: вопрос → шаги → «Прим
   await expect(assistant.locator('.agent__exchange')).toHaveCount(0);
 });
 
-test('#32 без сервера: «где слепые пятна» — камера закрывает пятно, «было → стало» в %, слой камер, применить → сохранить → открыть', async ({ page }, testInfo) => {
+test('#32 без сервера: «где слепые пятна» → посмотрел → применил → слой считает то же → сохранить → открыть', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo/before.json'));
@@ -67,11 +67,12 @@ test('#32 без сервера: «где слепые пятна» — каме
   await answer.getByRole('button', { name: 'eq_25', exact: true }).click();
   await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'object:eq_25');
 
-  // The camera layer is offered with the answer (sectors and hatched blind spots).
-  await expect(assistant.getByRole('button', { name: 'Включить слой «Камеры и зоны обзора»' })).toBeVisible();
+  // The layer is named in words, not offered as a button: showing it would
+  // change the plan and make «Применить» of this answer stale.
+  await expect(answer).toContainText('Секторы и слепые пятна покажет слой «Камеры и зоны обзора» в панели «Слои»');
+  await expect(assistant.getByRole('button', { name: /^Включить слой/ })).toHaveCount(0);
 
-  // Applying the variant is the person's click. (Any plan change — the layer's
-  // visibility included — makes the answer's buttons stale, so apply comes first.)
+  // Asked → looked → applied, in that order, with nothing else in between.
   await assistant.getByRole('button', { name: /^Применить: Камера видеонаблюдения/ }).click();
   await expect(assistant.getByRole('status')).toContainText('Применено');
   await showTab(page, 'Слои');
