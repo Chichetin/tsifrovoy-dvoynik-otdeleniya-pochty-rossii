@@ -20,6 +20,7 @@ import { type BoundingBox, boundingBox, footprint, modelToScreen, viewSector } f
 import { labelWidth, placeLabels, type Box } from './label-layout';
 import { formatValue, legendLine, legendOf } from './legend';
 import { heatRegions } from './heat-regions';
+import { BLIND_SPOT, visibleCoverage } from './coverage';
 import { zoneNameAnchor } from './zone-name-anchor';
 
 const CAPTION_FILL = '#495057';
@@ -124,6 +125,13 @@ export function InformationLayer({
     () => new Map(plan.zones.map((zone) => [zone.id, zoneNameAnchor(zone.polygon, objectBoxes)])),
     [plan.zones, objectBoxes],
   );
+  // Coverage of client zones (D-306/D-307): once per document revision — a pan
+  // or zoom frame redraws the strips, it does not count the squares again.
+  const coverage = useMemo(
+    () => visibleCoverage({ layers: plan.layers, zones: plan.zones, objects: plan.objects, catalog: plan.catalog }),
+    [plan.layers, plan.zones, plan.objects, plan.catalog],
+  );
+
   // `zoneAnchors` is built from `plan.zones` itself right above, so every
   // zone passed in below is already a key: the map is never missing one.
   const anchorOf = (zone: Zone): Point => zoneAnchors.get(zone.id) as Point;
@@ -139,13 +147,16 @@ export function InformationLayer({
         : [{ id: layer.id, type }];
     });
 
-  // Canvas legend, top left: one row per active layer.
-  const legendRows = active.map((entry, index) => ({
-    ...entry,
-    legend: legendOf(entry.type),
-    text: legendLine(entry.type, legendOf(entry.type)),
-    y: 12 + index * LEGEND_ROW,
-  }));
+  // Canvas legend, top left: one row per active layer, plus the blind-spot
+  // hatch under a sector layer that has client zones to cover.
+  const legendRows = active
+    .flatMap((entry) => {
+      const row = { ...entry, key: entry.id, blind: false, legend: legendOf(entry.type), text: legendLine(entry.type, legendOf(entry.type)) };
+      const percent = coverage.get(entry.type.id)?.total.percent ?? null;
+      if (percent === null) return [row];
+      return [row, { ...row, key: `${entry.id}-blind`, blind: true, text: `Слепые пятна клиентских зон · видно ${formatValue(percent, '%')}` }];
+    })
+    .map((row, index) => ({ ...row, y: 12 + index * LEGEND_ROW }));
   const legendWidth = Math.max(0, ...legendRows.map((row) => 44 + labelWidth(row.text, LEGEND_FONT)));
   const legendBox: Box = { x: 6, y: 6, width: legendWidth, height: legendRows.length * LEGEND_ROW + 6 };
 
@@ -234,6 +245,53 @@ export function InformationLayer({
         />,
       );
     }
+
+    // Blind spots of client zones: hatched strips, one shape for the whole layer.
+    const blind = coverage.get(type.id)?.blind ?? [];
+    if (blind.length > 0) {
+      const rects = blind.map((strip) => {
+        const [ax, ay] = screen([strip.x, strip.y]);
+        const [bx, by] = screen([strip.x + strip.width, strip.y + strip.height]);
+        return { x: Math.min(ax, bx), y: Math.min(ay, by), width: Math.abs(bx - ax), height: Math.abs(by - ay) };
+      });
+      const minX = Math.min(...rects.map((rect) => rect.x));
+      const minY = Math.min(...rects.map((rect) => rect.y));
+      const maxX = Math.max(...rects.map((rect) => rect.x + rect.width));
+      const maxY = Math.max(...rects.map((rect) => rect.y + rect.height));
+      fills.push(
+        <Shape
+          key={`${layerId}-blind`}
+          name="camera-blind"
+          sceneFunc={(context, shape) => {
+            context.beginPath();
+            for (const rect of rects) context.rect(rect.x, rect.y, rect.width, rect.height);
+            context.fillStrokeShape(shape);
+            // Diagonal lines, clipped to the strips: a hatch reads as «not seen»
+            // on any zone colour and does not hide what stands there.
+            context.save();
+            context.clip();
+            context.beginPath();
+            const height = maxY - minY;
+            const step = BLIND_SPOT.spacing_px;
+            const first = Math.floor((minX - height) / step) * step;
+            for (let x = first; x <= maxX; x += step) {
+              context.moveTo(x, maxY);
+              context.lineTo(x + height, minY);
+            }
+            context.setAttr('strokeStyle', BLIND_SPOT.line);
+            context.setAttr('lineWidth', 1);
+            context.stroke();
+            context.restore();
+          }}
+          fill={BLIND_SPOT.tint}
+          // Extent of the hatch for hit-free bounds: Konva cannot measure a sceneFunc.
+          width={maxX - minX}
+          height={maxY - minY}
+          perfectDrawEnabled={false}
+          listening={false}
+        />,
+      );
+    }
   }
 
   // Zone names of the geometry layer and the legend are fixed; labels move around them.
@@ -310,7 +368,34 @@ export function InformationLayer({
         />
       )}
       {legendRows.flatMap((row) => [
-        row.legend.kind === 'scale' ? (
+        row.blind ? (
+          <Shape
+            key={`legend-${row.key}-hatch`}
+            name="camera-blind-legend"
+            x={12}
+            y={row.y + 2}
+            sceneFunc={(context, shape) => {
+              const side = SWATCH + 2;
+              context.beginPath();
+              context.rect(0, 0, side, side);
+              context.fillStrokeShape(shape);
+              context.save();
+              context.clip();
+              context.beginPath();
+              for (const offset of [-side / 2, 0, side / 2]) {
+                context.moveTo(offset, side);
+                context.lineTo(offset + side, 0);
+              }
+              context.setAttr('strokeStyle', BLIND_SPOT.color);
+              context.setAttr('lineWidth', 1);
+              context.stroke();
+              context.restore();
+            }}
+            fill={BLIND_SPOT.tint}
+            perfectDrawEnabled={false}
+            listening={false}
+          />
+        ) : row.legend.kind === 'scale' ? (
           <Rect
             key={`legend-${row.id}-scale`}
             x={12}
@@ -334,7 +419,7 @@ export function InformationLayer({
           />
         ),
         <Text
-          key={`caption-${row.id}`}
+          key={`caption-${row.key}`}
           name="info-caption"
           x={50}
           y={row.y + 1}

@@ -378,23 +378,41 @@ export function pointInViewSector(
   radius_m: number,
   point: Point,
 ): boolean {
-  const dx = point[0] - centre[0];
-  const dy = point[1] - centre[1];
-  const distance = Math.hypot(dx, dy);
-  if (distance > radius_m + TOLERANCE.coordinate_m) return false;
-  if (distance <= TOLERANCE.coordinate_m) return true;
-  const span = Math.min(Math.max(angle_deg, 0), 360);
-  if (span >= 360) return true;
-  const [hx, hy] = rotateOffsetForHeading(rotation_deg);
-  // Unsigned angle between the heading and the direction to the point.
-  const off = Math.abs(Math.atan2(hx * dy - hy * dx, hx * dx + hy * dy)) * (180 / Math.PI);
-  return off <= span / 2 + 1e-9;
+  return viewSectorTest(centre, rotation_deg, angle_deg, radius_m)(point);
 }
 
-/** Unit heading of an object turned by `rotation_deg`: local +Y, clockwise. */
-function rotateOffsetForHeading(rotation_deg: number): Point {
-  const angle = (rotation_deg * Math.PI) / 180;
-  return [Math.sin(angle), Math.cos(angle)];
+/**
+ * `pointInViewSector` with the sector fixed once: heading, half-angle cosine
+ * and squared reach are computed here, the returned test is arithmetic only.
+ * For grids that ask the same camera about thousands of points (D-307).
+ */
+export function viewSectorTest(
+  centre: Point,
+  rotation_deg: number,
+  angle_deg: number,
+  radius_m: number,
+): (point: Point) => boolean {
+  const [cx, cy] = centre;
+  const reach = radius_m + TOLERANCE.coordinate_m;
+  const reach2 = reach * reach;
+  const apex2 = TOLERANCE.coordinate_m * TOLERANCE.coordinate_m;
+  const span = Math.min(Math.max(angle_deg, 0), 360);
+  const full = span >= 360;
+  // Local +Y turned clockwise by the rotation, as in `toWorld`.
+  const heading = (rotation_deg * Math.PI) / 180;
+  const hx = Math.sin(heading);
+  const hy = Math.cos(heading);
+  // Within half the span of the heading ⇔ cos(off) ≥ cos(span / 2); a hair of
+  // slack keeps a point exactly on an edge inside despite rounding.
+  const cosHalf = Math.cos(((span / 2) * Math.PI) / 180) - 1e-12;
+  return ([x, y]: Point): boolean => {
+    const dx = x - cx;
+    const dy = y - cy;
+    const distance2 = dx * dx + dy * dy;
+    if (distance2 > reach2) return false;
+    if (distance2 <= apex2 || full) return true;
+    return hx * dx + hy * dy >= cosHalf * Math.sqrt(distance2);
+  };
 }
 
 /** Area of an object's floor projection. Rotation does not change it. */

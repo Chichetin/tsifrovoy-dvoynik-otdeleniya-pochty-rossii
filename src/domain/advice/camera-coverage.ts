@@ -19,7 +19,7 @@
 
 import type { Catalog, Id, LayerRepresentation, PlanDocument, Point, Zone } from '../../contracts/model';
 import { findZoneType } from '../catalog';
-import { boundingBox, locatePoint, pointInViewSector } from '../geometry';
+import { boundingBox, locatePoint, pointInViewSector, viewSectorTest } from '../geometry';
 
 export type CameraFieldRepresentation = Extract<LayerRepresentation, { kind: 'object-field' }>;
 
@@ -132,29 +132,17 @@ export function fieldSees(field: CameraField, point: Point): boolean {
   return pointInViewSector(field.position, field.rotation_deg, field.angle_deg, field.range_m, point);
 }
 
-/** A grid square: its column, row and centre. */
-export type GridCell = { ix: number; iy: number; centre: Point };
+/** Column and row range of the grid squares a polygon's bounding box touches, end-exclusive. */
+type GridSpan = { fromX: number; toX: number; fromY: number; toY: number };
 
-export function cellKey(ix: number, iy: number): string {
-  return `${ix},${iy}`;
-}
-
-/** Squares whose centre is inside the polygon or on its edge. */
-export function zoneCells(zone: Pick<Zone, 'polygon'>, cell_m: number = COVERAGE_GRID.cell_m): GridCell[] {
-  if (zone.polygon.length < 3) return [];
-  const box = boundingBox(zone.polygon);
-  const cells: GridCell[] = [];
-  const fromX = Math.floor(box.minX / cell_m);
-  const toX = Math.ceil(box.maxX / cell_m);
-  const fromY = Math.floor(box.minY / cell_m);
-  const toY = Math.ceil(box.maxY / cell_m);
-  for (let iy = fromY; iy < toY; iy += 1) {
-    for (let ix = fromX; ix < toX; ix += 1) {
-      const centre: Point = [(ix + 0.5) * cell_m, (iy + 0.5) * cell_m];
-      if (locatePoint(centre, zone.polygon) !== 'outside') cells.push({ ix, iy, centre });
-    }
-  }
-  return cells;
+function spanOf(polygon: Zone['polygon'], cell_m: number): GridSpan {
+  const box = boundingBox(polygon);
+  return {
+    fromX: Math.floor(box.minX / cell_m),
+    toX: Math.ceil(box.maxX / cell_m),
+    fromY: Math.floor(box.minY / cell_m),
+    toY: Math.ceil(box.maxY / cell_m),
+  };
 }
 
 function tally(cells: number, covered: number, cell_m: number): CoverageTally {
@@ -169,40 +157,50 @@ function tally(cells: number, covered: number, cell_m: number): CoverageTally {
   };
 }
 
-/** Unseen squares merged along each row: far fewer shapes to draw than squares. */
-export function blindStrips(cells: readonly GridCell[], cell_m: number = COVERAGE_GRID.cell_m): BlindRect[] {
-  const sorted = [...cells].sort((a, b) => a.iy - b.iy || a.ix - b.ix);
-  const strips: BlindRect[] = [];
-  let start: GridCell | null = null;
-  let last: GridCell | null = null;
-  const flush = (): void => {
-    if (start === null || last === null) return;
-    strips.push({ x: start.ix * cell_m, y: start.iy * cell_m, width: (last.ix - start.ix + 1) * cell_m, height: cell_m });
-  };
-  for (const entry of sorted) {
-    if (last !== null && start !== null && entry.iy === last.iy && entry.ix === last.ix + 1) {
-      last = entry;
-      continue;
+/**
+ * Columns of one grid row whose square centre lies in the polygon or on its
+ * edge. A scanline, not a point test per square: the crossings of the row's
+ * centre line with the edges give the inside runs directly. A row that runs
+ * exactly through a vertex is answered square by square with `locatePoint`,
+ * the same rule as everywhere else, so no edge case is decided differently.
+ */
+function rowColumns(polygon: Zone['polygon'], iy: number, span: GridSpan, cell_m: number): number[] {
+  const y = (iy + 0.5) * cell_m;
+  const columns: number[] = [];
+  if (polygon.some((vertex) => Math.abs(vertex[1] - y) <= 1e-9)) {
+    for (let ix = span.fromX; ix < span.toX; ix += 1) {
+      if (locatePoint([(ix + 0.5) * cell_m, y], polygon) !== 'outside') columns.push(ix);
     }
-    flush();
-    start = entry;
-    last = entry;
+    return columns;
   }
-  flush();
-  return strips;
+  const crossings: number[] = [];
+  for (let i = 0; i < polygon.length; i += 1) {
+    const [ax, ay] = polygon[i]!;
+    const [bx, by] = polygon[(i + 1) % polygon.length]!;
+    if ((ay < y && by > y) || (by < y && ay > y)) crossings.push(ax + ((y - ay) / (by - ay)) * (bx - ax));
+  }
+  crossings.sort((a, b) => a - b);
+  for (let i = 0; i + 1 < crossings.length; i += 2) {
+    // Inclusive at both ends: a centre on a vertical edge belongs to the zone.
+    const from = Math.max(span.fromX, Math.ceil(crossings[i]! / cell_m - 0.5 - 1e-9));
+    const to = Math.min(span.toX - 1, Math.floor(crossings[i + 1]! / cell_m - 0.5 + 1e-9));
+    for (let ix = from; ix <= to; ix += 1) columns.push(ix);
+  }
+  return columns;
 }
 
-/** Which cameras could see this square at all: a box test before the angle. */
-function reaches(field: CameraField, centre: Point): boolean {
-  return (
-    Math.abs(centre[0] - field.position[0]) <= field.range_m &&
-    Math.abs(centre[1] - field.position[1]) <= field.range_m
-  );
-}
+const OUTSIDE = 0;
+const BLIND = 1;
+const SEEN = 2;
 
 /**
  * Coverage of the plan's client zones by the cameras of `representation`.
- * Every square is decided once, whatever number of nested zones holds it.
+ *
+ * One flat grid over all client zones: a square is decided once, whatever
+ * number of nested zones holds it; each camera visits only the squares within
+ * its range; the blind strips are read off the grid row by row. No object per
+ * square, so a 5 000 m² plan with dozens of cameras is counted within a frame
+ * or two (D-307).
  */
 export function cameraCoverage(
   plan: Pick<PlanDocument, 'zones' | 'objects' | 'catalog'>,
@@ -210,42 +208,102 @@ export function cameraCoverage(
   cell_m: number = COVERAGE_GRID.cell_m,
 ): CameraCoverage {
   const cameras = cameraFields(plan, representation);
-  const decided = new Map<string, { cell: GridCell; seenBy: number[] }>();
-  const decide = (cell: GridCell): number[] => {
-    const key = cellKey(cell.ix, cell.iy);
-    const known = decided.get(key);
-    if (known !== undefined) return known.seenBy;
-    const seenBy: number[] = [];
-    cameras.forEach((field, index) => {
-      if (reaches(field, cell.centre) && fieldSees(field, cell.centre)) seenBy.push(index);
-    });
-    decided.set(key, { cell, seenBy });
-    return seenBy;
-  };
+  const client = clientZones(plan).filter((zone) => zone.polygon.length >= 3);
+  const spans = client.map((zone) => spanOf(zone.polygon, cell_m));
+  const grid: GridSpan =
+    spans.length === 0
+      ? { fromX: 0, toX: 0, fromY: 0, toY: 0 }
+      : {
+          fromX: Math.min(...spans.map((span) => span.fromX)),
+          toX: Math.max(...spans.map((span) => span.toX)),
+          fromY: Math.min(...spans.map((span) => span.fromY)),
+          toY: Math.max(...spans.map((span) => span.toY)),
+        };
+  const width = grid.toX - grid.fromX;
+  const height = grid.toY - grid.fromY;
+  const state = new Uint8Array(width * height);
 
-  const zones: ZoneCoverage[] = clientZones(plan).map((zone) => {
-    const cells = zoneCells(zone, cell_m);
-    const seers = new Set<number>();
-    let covered = 0;
-    for (const cell of cells) {
-      const seenBy = decide(cell);
-      if (seenBy.length > 0) covered += 1;
-      for (const index of seenBy) seers.add(index);
+  // Which squares each client zone holds; a square of nested zones is in both
+  // lists. `owner` keeps the first zone of a square, `moreOwners` the rest.
+  const owner = new Int32Array(width * height).fill(-1);
+  const moreOwners = new Map<number, number[]>();
+  const members: number[][] = client.map((zone, zoneIndex) => {
+    const span = spans[zoneIndex]!;
+    const list: number[] = [];
+    for (let iy = span.fromY; iy < span.toY; iy += 1) {
+      for (const ix of rowColumns(zone.polygon, iy, span, cell_m)) {
+        const at = (iy - grid.fromY) * width + (ix - grid.fromX);
+        if (state[at] === OUTSIDE) {
+          state[at] = BLIND;
+          owner[at] = zoneIndex;
+        } else {
+          const more = moreOwners.get(at);
+          if (more === undefined) moreOwners.set(at, [zoneIndex]);
+          else more.push(zoneIndex);
+        }
+        list.push(at);
+      }
     }
+    return list;
+  });
+
+  // Each camera looks only at the squares its range can reach.
+  const zoneSeers = client.map(() => new Set<number>());
+  let seen = 0;
+  cameras.forEach((field, index) => {
+    const sees = viewSectorTest(field.position, field.rotation_deg, field.angle_deg, field.range_m);
+    const fromX = Math.max(grid.fromX, Math.floor((field.position[0] - field.range_m) / cell_m));
+    const toX = Math.min(grid.toX - 1, Math.floor((field.position[0] + field.range_m) / cell_m));
+    const fromY = Math.max(grid.fromY, Math.floor((field.position[1] - field.range_m) / cell_m));
+    const toY = Math.min(grid.toY - 1, Math.floor((field.position[1] + field.range_m) / cell_m));
+    for (let iy = fromY; iy <= toY; iy += 1) {
+      for (let ix = fromX; ix <= toX; ix += 1) {
+        const at = (iy - grid.fromY) * width + (ix - grid.fromX);
+        if (state[at] === OUTSIDE) continue;
+        if (!sees([(ix + 0.5) * cell_m, (iy + 0.5) * cell_m])) continue;
+        if (state[at] === BLIND) {
+          state[at] = SEEN;
+          seen += 1;
+        }
+        zoneSeers[owner[at]!]!.add(index);
+        for (const other of moreOwners.get(at) ?? []) zoneSeers[other]!.add(index);
+      }
+    }
+  });
+
+  const zones: ZoneCoverage[] = client.map((zone, zoneIndex) => {
+    const list = members[zoneIndex]!;
+    let covered = 0;
+    for (const at of list) if (state[at] === SEEN) covered += 1;
+    const seers = zoneSeers[zoneIndex]!;
     return {
       zoneId: zone.id,
-      ...tally(cells.length, covered, cell_m),
+      ...tally(list.length, covered, cell_m),
       cameraIds: cameras.filter((_, index) => seers.has(index)).map((field) => field.objectId),
     };
   });
 
-  const all = [...decided.values()];
-  const blindCells = all.filter((entry) => entry.seenBy.length === 0).map((entry) => entry.cell);
-  return {
-    cell_m,
-    zones,
-    total: tally(all.length, all.length - blindCells.length, cell_m),
-    blind: blindStrips(blindCells, cell_m),
-    cameras,
-  };
+  // Unseen squares merged along each row: far fewer shapes to draw than squares.
+  const blind: BlindRect[] = [];
+  let decided = 0;
+  for (let row = 0; row < height; row += 1) {
+    let start = -1;
+    for (let column = 0; column <= width; column += 1) {
+      const value = column < width ? state[row * width + column] : OUTSIDE;
+      if (value !== OUTSIDE) decided += 1;
+      const isBlind = value === BLIND;
+      if (isBlind && start < 0) start = column;
+      if (!isBlind && start >= 0) {
+        blind.push({
+          x: (grid.fromX + start) * cell_m,
+          y: (grid.fromY + row) * cell_m,
+          width: (column - start) * cell_m,
+          height: cell_m,
+        });
+        start = -1;
+      }
+    }
+  }
+
+  return { cell_m, zones, total: tally(decided, seen, cell_m), blind, cameras };
 }

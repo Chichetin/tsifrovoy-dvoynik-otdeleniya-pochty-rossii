@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'vitest';
 import type { Equipment, PlanDocument, Polygon, Zone } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
+import { locatePoint } from '../geometry';
 import {
   COVERAGE_GRID,
   cameraCoverage,
@@ -168,6 +169,31 @@ describe('покрытие клиентских зон камерами', () => 
     // The corner square next to the camera is seen, so no strip starts at the origin.
     expect(result.blind.some((strip) => strip.x === 0 && strip.y === 0)).toBe(false);
   });
+});
+
+describe('квадраты зоны по строкам — то же, что проверка каждой точки', () => {
+  const bruteForce = (polygon: Polygon): number => {
+    let count = 0;
+    for (let iy = -20; iy < 60; iy += 1) {
+      for (let ix = -20; ix < 60; ix += 1) {
+        const centre: [number, number] = [(ix + 0.5) * 0.25, (iy + 0.5) * 0.25];
+        if (locatePoint(centre, polygon) !== 'outside') count += 1;
+      }
+    }
+    return count;
+  };
+  const shapes: Record<string, Polygon> = {
+    'вогнутая Г': [[0, 0], [4, 0], [4, 1], [1, 1], [1, 3], [0, 3]],
+    'треугольник': [[0, 0], [5, 0], [1.3, 4.1]],
+    'рёбра по центрам квадратов': rect(0.125, 0.375, 2.625, 1.875),
+    'вершина на линии центров': [[0, 0.625], [2, 0], [3.5, 0.625], [2, 2.125]],
+  };
+  for (const [name, polygon] of Object.entries(shapes)) {
+    test(name, () => {
+      const result = cameraCoverage(plan([zone('z_a', polygon)], []), representation);
+      expect(result.total.cells).toBe(bruteForce(polygon));
+    });
+  }
 });
 
 describe('числа на демо-планах', () => {
