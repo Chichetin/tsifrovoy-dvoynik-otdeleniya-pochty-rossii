@@ -445,3 +445,66 @@ test.describe('слои в браузере', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('покрытие клиентских зон камерами (#32, D-307)', () => {
+  test('демо-план: штриховка слепых пятен и доля по зонам; правка камеры меняет долю, файл её не хранит', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.goto('/');
+    await showTab(page, 'Слои');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+
+    const cameras = layerItem(page, 'Камеры и зоны обзора');
+    const table = cameras.getByRole('table', { name: 'Покрытие клиентских зон камерами' });
+    // Layer off: nothing counted on screen, nothing hatched.
+    await expect(table).toHaveCount(0);
+    await expect.poll(() => konvaCount(page, '.camera-blind')).toBe(0);
+
+    await cameras.getByRole('button', { name: 'Показывать слой Камеры и зоны обзора' }).click();
+    await expect(table).toBeVisible();
+    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('29,8 %');
+    await expect(table.getByRole('row', { name: /Зона очереди/ })).toContainText('0 %');
+    await expect(table.getByRole('row', { name: /Зона ожидания/ })).toContainText('42,3 %');
+    await expect.poll(() => konvaCount(page, '.camera-blind')).toBe(1);
+    // No «conditional numbers» caution next to the numbers, in any wording (D-281);
+    // the catalog's own note in the collapsed «Что показывает слой» is not a caution.
+    const coverage = cameras.getByRole('group', { name: 'Покрытие клиентских зон, слой Камеры и зоны обзора' });
+    await expect(coverage.getByText(/условн|не измерение/i)).toHaveCount(0);
+    // Showing a layer is not an edit.
+    await expectUnsavedEdits(page, false);
+
+    // Keyboard: the zone name in the coverage table is a button that selects the zone.
+    const queueButton = table.getByRole('button', { name: 'Зона очереди' });
+    await queueButton.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toBeVisible();
+    await showTab(page, 'Слои');
+
+    // A wider, longer camera over the waiting zone: the share grows at once.
+    await cameras.getByLabel('Угол обзора, Камера зоны ожидания (eq_26)').fill('180');
+    await cameras.getByLabel('Дальность обзора, Камера зоны ожидания (eq_26)').fill('9');
+    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).not.toContainText('29,8 %');
+    const grown = await table.getByRole('row', { name: /Все клиентские зоны/ }).textContent();
+    await expectUnsavedEdits(page, true);
+
+    // Save → reopen: the file keeps the camera's attributes, the coverage is
+    // recounted from them and comes out the same; no coverage field in the file.
+    const saved = await savePlan(page);
+    expect(saved).not.toContain('coverage');
+    const camera = (JSON.parse(saved) as { objects: { id: string; attributes: Record<string, unknown> }[] }).objects.find(
+      (object) => object.id === 'eq_26',
+    );
+    expect(camera?.attributes).toMatchObject({ viewAngleDeg: 180, viewRangeM: 9 });
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'coverage.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(saved),
+    });
+    await showTab(page, 'Слои');
+    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toHaveText(grown ?? '');
+    expect(errors).toEqual([]);
+  });
+});

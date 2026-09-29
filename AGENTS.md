@@ -1,19 +1,28 @@
 # AGENTS.md — правила для coding agents
 
 Перед любой работой **полностью прочитать `CLAUDE.md`** — это канонический набор
-правил проекта. Затем `GIT.md`, `HANDOFF.md` и относящиеся к задаче документы из
+правил проекта. Затем `GIT.md`, свою задачу в GitLab Issues, `HANDOFF.md` и относящиеся к задаче документы из
 `docs/`. Условия хакатона — `task.md`.
 
 Краткий обязательный протокол:
 
+0. **Без взятой задачи не начинать** (D-299): ни правки файла, ни коммита, ни push, пока
+   задача GitLab #N не назначена на человека, от имени которого ты работаешь, и ты не в
+   worktree `.claude/worktrees/<N>-<тема>` на ветке `worktree-<N>-<тема>`. Проверка —
+   `bash scripts/issues.sh check` (код 0). Git-хуки `.githooks/pre-commit` и `pre-push`
+   откажут в коммите и push иначе; после `npm ci` они подключены сами. Нет задачи —
+   попросить человека взять или завести её, а не работать «пока без неё».
 1. Начать с `git fetch --prune && git status -sb`; не трогать чужие незакоммиченные
-   изменения. **Файлы менять только в своём worktree**, не в основной копии на `main`:
-   `git worktree add .claude/worktrees/<поток>-<тема> -b worktree-<поток>-<тема> origin/main`.
+   изменения. Взять задачу: `bash scripts/issues.sh free` → `bash scripts/issues.sh take <N>`
+   (занятую другим или чужую `area:` не брать). **Файлы менять только в своём worktree**,
+   не в основной копии на `main`:
+   `git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main`.
 2. **Push в `main` закрыт на сервере.** Результат — push своей ветки с Merge Request в
-   `main` (`git push -u origin HEAD -o merge_request.create -o merge_request.target=main`),
-   merge — в GitLab (подробно — `GIT.md`, «Финиш»).
-3. Для нетривиальной задачи записать в `HANDOFF.md`: что меняем, чем проверим, что
-   намеренно не трогаем.
+   `main` (`git push -u origin HEAD -o merge_request.create -o merge_request.target=main
+   -o merge_request.description="Closes #<N>"`), merge — в GitLab (подробно — `GIT.md`, «Финиш»).
+3. Нетривиальная работа без задачи — сначала завести задачу (`bash scripts/issues.sh create`,
+   шаблон `.gitlab/issue_templates/Задача.md`): что меняем, чем проверим, что намеренно не
+   трогаем. Риск показа или сдачи — задача с меткой `blocker`.
 4. Проверять реальным запуском: тесты + сценарий в браузере «открыть → загрузить демо →
    изменить → сохранить → открыть заново». «Должно работать» — не результат.
 5. Никаких секретов в репозитории: ключи LLM только в `.env`, в `.env.example` —
@@ -34,6 +43,6 @@
     `webapp-testing` + `playwright`, снимок «после», `accessibility-scan` +
     `accessibility-inspect` и `web-design-guidelines`; условные `diff`/`fix`/
     `audit`/`trace` запускаются по области риска. Записать команды и артефакты в
-    `HANDOFF.md`.
+    описание MR.
 
 Если правило здесь и в `CLAUDE.md` трактуется по-разному, действует более строгое.

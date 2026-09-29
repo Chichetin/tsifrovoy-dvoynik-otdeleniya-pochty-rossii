@@ -160,6 +160,47 @@ describe('LayersPanel', () => {
     expect(heat.textContent).not.toContain('Числа условные');
   });
 
+  test('слой камер (D-307): покрытие по каждой клиентской зоне и итог, штриховка слепых пятен в легенде', () => {
+    const plan = demo(['l_lt_cameras']);
+    const onSelect = vi.fn();
+    render(<LayersPanel document={plan} session={session} onCommand={vi.fn()} onSelect={onSelect} />);
+    const cameras = within(item('Камеры и зоны обзора'));
+    const group = cameras.getByRole('group', { name: 'Покрытие клиентских зон, слой Камеры и зоны обзора' });
+    expect(group.textContent).toContain('слепые пятна клиентских зон');
+    const swatch = group.querySelector('.layers__swatch') as HTMLElement;
+    expect(swatch.style.background).toContain('repeating-linear-gradient');
+
+    const table = within(group).getByRole('table', { name: 'Покрытие клиентских зон камерами' });
+    const rows = within(table).getAllByRole('row').slice(1).map((row) => row.textContent);
+    // Demo numbers fixed by camera-coverage.test.ts: 300 of 1008 squares seen.
+    expect(rows).toEqual([
+      'Клиентский зал29,8\u00a0%',
+      'Входная группа0\u00a0%',
+      'Зона ожидания42,3\u00a0%',
+      'Зона очереди0\u00a0%',
+      'Все клиентские зоны29,8\u00a0%',
+    ]);
+    // Service rooms are not client zones and are not listed.
+    expect(table.textContent).not.toContain('Служебная зона');
+
+    fireEvent.click(within(table).getByRole('button', { name: 'Зона очереди' }));
+    expect(onSelect).toHaveBeenCalledWith({ kind: 'zone', id: 'z_queue' });
+    // No «conditional» caution in any wording (D-281).
+    expect(group.textContent).not.toMatch(/условн|не измерение/i);
+  });
+
+  test('слой камер выключен — покрытия в панели нет; клиентских зон нет — сказано словами', () => {
+    renderPanel(demo());
+    expect(within(item('Камеры и зоны обзора')).queryByRole('table', { name: 'Покрытие клиентских зон камерами' })).toBeNull();
+    cleanup();
+
+    const base = demo(['l_lt_cameras']);
+    renderPanel({ ...base, zones: base.zones.filter((zone) => zone.typeId === 'zt_service' || zone.typeId === 'zt_storage') });
+    const cameras = within(item('Камеры и зоны обзора'));
+    expect(cameras.queryByRole('table', { name: 'Покрытие клиентских зон камерами' })).toBeNull();
+    expect(cameras.getByText('Клиентских зон на плане нет — покрытие считать не по чему')).toBeTruthy();
+  });
+
   test('у выключенного информационного слоя легенды нет, у обычного — никогда', () => {
     renderPanel(demo(['l_lt_staff']));
     // Раскрытие «Что показывает слой» — тоже group, поэтому легенду ищем по имени.

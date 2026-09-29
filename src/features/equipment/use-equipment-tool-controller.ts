@@ -9,7 +9,7 @@
 import { useCallback } from 'react';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { defaultAttributes, findObjectType } from '../../domain/catalog';
-import { takenIds } from '../../domain/commands';
+import { takenIds, withInventoryNumber } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { nextObjectId } from './selection-edit';
 import { snapPosition } from './transform';
@@ -50,9 +50,11 @@ export const useEquipmentToolController: UsePlanToolController = ({
       const placement = isWallMounted(type)
         ? wallMountPlacement(plan.walls, plan.room.boundary, type.defaultSize_m, event.point)
         : null;
+      // D-310: the new item enters the inventory with the next number of the
+      // plan's series, in the same command — one undo removes both.
       onCommand({
         type: 'object.put',
-        object: {
+        object: withInventoryNumber(plan, {
           id: nextObjectId(taken),
           typeId: type.id,
           label: type.label,
@@ -65,7 +67,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
           zoneId: null,
           layerId: layer.id,
           attributes: defaultAttributes(type),
-        },
+        }),
       });
     },
     [onCommand, plan, session.retired, tool],

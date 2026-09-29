@@ -19,10 +19,30 @@ import type { Id, PlanDocument, Ref, Result } from '../../contracts/model';
 import { findObjectType, rulesForObjectType } from '../catalog';
 import { measurePlan } from '../metrics';
 import { checkEquipment } from './equipment';
+import { cameraPlacementAdvice } from './camera-placement';
 import { comparePlans } from './compare';
 import { PLACEMENT_SEARCH, findPlacements, zoneFit, type ZoneFit } from './placement';
 
 export { checkEquipment } from './equipment';
+export {
+  CLIENT_ZONE_ATTRIBUTE,
+  COVERAGE_GRID,
+  cameraCoverage,
+  cameraFields,
+  clientZones,
+  fieldRepresentationFor,
+  isClientZone,
+} from './camera-coverage';
+export { CAMERA_SEARCH, cameraCandidateEffect, cameraPlacementAdvice, coverageWith } from './camera-placement';
+export type { CameraEffect } from './camera-placement';
+export type {
+  BlindRect,
+  CameraCoverage,
+  CameraField,
+  CameraFieldRepresentation,
+  CoverageTally,
+  ZoneCoverage,
+} from './camera-coverage';
 export { candidateObjectForInsert } from './candidate-object';
 export { comparePlans, diffPlans } from './compare';
 export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements, zoneFit } from './placement';
@@ -151,6 +171,12 @@ function placementAdvice(
   plan: PlanDocument,
   request: Extract<AdviceRequest, { scenario: 'place' }>,
 ): Result<Recommendation[]> {
+  // A sector type (camera) with a blind spot to close is placed by coverage (#32, D-308).
+  if (request.anchor === undefined) {
+    const byCoverage = cameraPlacementAdvice(plan, request);
+    if (byCoverage !== null) return byCoverage;
+  }
+
   const found = findPlacements(plan, request);
   if (!found.ok) return found;
 

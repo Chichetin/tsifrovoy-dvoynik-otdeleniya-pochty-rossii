@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import type { Equipment, Opening, Polygon, Viewport, Wall } from '../../contracts/model';
+import type { Equipment, Opening, Point, Polygon, Viewport, Wall } from '../../contracts/model';
 import {
   contains,
   footprint,
@@ -30,6 +30,7 @@ import {
   rotateOffset,
   screenToModel,
   viewSector,
+  pointInViewSector,
   wallObstacles,
   wallPolygon,
   boundingBox,
@@ -484,5 +485,42 @@ describe('контур объекта (D-277)', () => {
     const camera = equipment({ size_m: [2, 2], outline: triangle });
     expect(intersects(footprint({ ...camera, outline: undefined }), partition)).toBe(true);
     expect(intersects(footprint(camera), partition)).toBe(false);
+  });
+});
+
+describe('точка в секторе обзора', () => {
+  test('при нулевом повороте видит точку по +Y и не видит за спиной', () => {
+    expect(pointInViewSector([0, 0], 0, 90, 5, [0, 3])).toBe(true);
+    expect(pointInViewSector([0, 0], 0, 90, 5, [0, -3])).toBe(false);
+  });
+
+  test('поворот на 90° по часовой переводит взгляд на +X', () => {
+    expect(pointInViewSector([0, 0], 90, 60, 5, [3, 0])).toBe(true);
+    expect(pointInViewSector([0, 0], 90, 60, 5, [0, 3])).toBe(false);
+    expect(pointInViewSector([0, 0], 270, 60, 5, [-3, 0])).toBe(true);
+  });
+
+  test('граница угла входит, за ней — нет', () => {
+    // 90° sector looking at +Y: the edges run along ±45°.
+    expect(pointInViewSector([0, 0], 0, 90, 5, [2, 2])).toBe(true);
+    expect(pointInViewSector([0, 0], 0, 90, 5, [2.1, 1.9])).toBe(false);
+  });
+
+  test('граница дальности входит, дальше — нет', () => {
+    expect(pointInViewSector([1, 1], 0, 90, 4, [1, 5])).toBe(true);
+    expect(pointInViewSector([1, 1], 0, 90, 4, [1, 5.1])).toBe(false);
+  });
+
+  test('сама камера в секторе, обзор 360° видит всё в пределах дальности', () => {
+    expect(pointInViewSector([1, 1], 0, 30, 2, [1, 1])).toBe(true);
+    expect(pointInViewSector([1, 1], 0, 360, 2, [1, -0.5])).toBe(true);
+    expect(pointInViewSector([1, 1], 0, 360, 2, [1, -1.5])).toBe(false);
+  });
+
+  test('совпадает с нарисованным сектором: середина дуги внутри', () => {
+    const sector = viewSector([2, 3], 45, 90, 5);
+    const middle = sector[1 + Math.floor((sector.length - 1) / 2)]!;
+    const inner: Point = [2 + (middle[0] - 2) * 0.9, 3 + (middle[1] - 3) * 0.9];
+    expect(pointInViewSector([2, 3], 45, 90, 5, inner)).toBe(true);
   });
 });

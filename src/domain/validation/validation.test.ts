@@ -508,6 +508,51 @@ describe('инвентарные номера', () => {
   test('разные номера — тишина', () => {
     expect(duplicates(withObjects(['A-1', 'A-2', 'a-1']))).toEqual([]);
   });
+
+  function missing(plan: PlanDocument): Issue[] {
+    return validatePlan(plan).filter(
+      (entry) => entry.code === VALIDATION_ISSUE_CODES.OBJECT_MISSING_INVENTORY_NUMBER,
+    );
+  }
+
+  test('объект без номера — предупреждение с названием объекта и его следом (D-312)', () => {
+    const plan = withObjects(['A-1', null]);
+    const found = missing(plan);
+    expect(found).toHaveLength(1);
+    expect(found[0]?.severity).toBe('warning');
+    expect(found[0]?.refs).toEqual([{ kind: 'object', id: 'eq_2' }]);
+    expect(found[0]?.message).toBe(
+      'У объекта «Окно 2» нет инвентарного номера: впишите номер с ярлыка предмета в карточке.',
+    );
+    const second = plan.objects[1];
+    expect(found[0]?.polygon).toHaveLength(4);
+    expect(found[0]?.polygon?.[0]?.[1]).toBeCloseTo((second?.position[1] ?? 0) - 0.25);
+  });
+
+  test('пустая строка, пробелы, отсутствие атрибута и не-строка — «нет номера»; число — номер', () => {
+    const found = missing(withObjects(['', '  ', undefined, null, true, 1024, 'A-1']));
+    expect(found.map((entry) => entry.refs[0]?.id)).toEqual(['eq_1', 'eq_2', 'eq_3', 'eq_4', 'eq_5']);
+  });
+
+  test('нефизический тип и тип без атрибута в справочнике номера не требуют', () => {
+    const plan = withObjects([null, null]);
+    const [type] = plan.catalog.objectTypes;
+    if (type === undefined) throw new Error('в фикстуре нет типа');
+    const mark = { ...type, id: 'ot_mark', physical: false };
+    const bare = { ...type, id: 'ot_bare', attributes: [] };
+    const other: PlanDocument = {
+      ...plan,
+      catalog: { ...plan.catalog, objectTypes: [type, mark, bare] },
+      objects: plan.objects.map((object, index) => ({ ...object, typeId: index === 0 ? 'ot_mark' : 'ot_bare' })),
+    };
+    expect(missing(other)).toEqual([]);
+    expect(missing({ ...plan, objects: [...plan.objects, { ...plan.objects[0]!, id: 'eq_9', attributes: { inventoryNumber: 'A-1' } }] })).toHaveLength(2);
+  });
+
+  test('план, где номера нет ни у одного объекта, реестр не ведёт — тишина', () => {
+    expect(missing(withObjects([null, undefined, '  ']))).toEqual([]);
+    expect(missing(withObjects([null, undefined, '  ', 'A-1']))).toHaveLength(3);
+  });
 });
 
 describe('контуры объектов в проверке (D-277)', () => {
