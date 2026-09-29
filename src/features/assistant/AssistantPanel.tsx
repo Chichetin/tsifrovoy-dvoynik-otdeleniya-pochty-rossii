@@ -102,7 +102,10 @@ export function AssistantPanel({
   onAskAgent,
   onAgentAction,
   onClearChat,
-}: AssistantPanelProps): React.JSX.Element {
+  comparison,
+  comparisonBusy = false,
+  comparisonUnrelated = false,
+}: AssistantPanelProps & { comparison?: React.ReactNode; comparisonBusy?: boolean; comparisonUnrelated?: boolean }): React.JSX.Element {
   const [scenario, setScenario] = useState<Scenario>('place');
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
   const [zoneId, setZoneId] = useState<string>('');
@@ -129,7 +132,7 @@ export function AssistantPanel({
   const stale = response !== null && response.revision !== revision;
 
   function ask(): void {
-    if (placeUnavailable) return;
+    if (placeUnavailable || (scenario === 'compare' && (comparisonBusy || comparisonUnrelated))) return;
     setAskedQuery(query.trim() === '' ? null : query.trim());
     if (scenario === 'place') {
       onAsk(
@@ -217,6 +220,8 @@ export function AssistantPanel({
           </label>
         )}
 
+        {scenario === 'compare' ? comparison : null}
+
         <label className="assistant__field">
           Пожелание к варианту (необязательно)
           <input
@@ -231,7 +236,7 @@ export function AssistantPanel({
           type="button"
           className="files__button is-primary"
           onClick={ask}
-          disabled={state.status === 'loading' || placeUnavailable}
+          disabled={state.status === 'loading' || placeUnavailable || (scenario === 'compare' && (comparisonBusy || comparisonUnrelated))}
           title={placeUnavailable ? 'Сначала добавьте тип оборудования в справочник' : undefined}
         >
           {state.status === 'loading' ? 'Считаем…' : 'Спросить'}
