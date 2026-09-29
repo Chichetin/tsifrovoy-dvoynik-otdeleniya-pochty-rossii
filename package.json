@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "test:perf": "playwright test -c playwright.perf.config.ts",
     "serve": "tsx --env-file-if-exists=.env server/main.ts",
-    "package:demo": "tsx scripts/package-demo.ts"
+    "package:demo": "tsx scripts/package-demo.ts",
+    "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath .githooks',{stdio:'ignore'})}catch{}\""
   },
   "dependencies": {
     "@fastify/static": "10.1.3",
