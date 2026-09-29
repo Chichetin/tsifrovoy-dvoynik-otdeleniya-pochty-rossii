@@ -70,3 +70,52 @@ test('готовый план → правка → файл → новая ст�
   expect(after).toEqual(before); // IDs, geometry, catalog, attributes, layers and links.
   expect(errors).toEqual([]);
 });
+
+test('инвентарный номер новой скамьи выдан при постановке и переживает файл (D-310)', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+  const inventory = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+  await expect(inventory).toHaveCount(53);
+
+  // Та же точка свободного пола, что в demo.spec.ts: (120, 456) — модель (2,2; 2).
+  await showTab(page, 'Библиотека');
+  await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
+  await page.getByTestId('editor-canvas').click({ position: { x: 120, y: 456 } });
+  await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+  await expect(inventory).toHaveCount(54);
+
+  const card = page.getByLabel('Свойства');
+  const openBench = async (): Promise<void> => {
+    await showTab(page, 'Инвентаризация');
+    await expandInventoryRows(page);
+    await page.getByLabel('Инвентаризация').locator('tbody tr', { hasText: 'ИНВ-ДЕМО-054' }).getByRole('button').first().click();
+    await expect(card).toHaveAttribute('data-entity-id', 'eq_54');
+  };
+  await openBench();
+  // Следующий номер серии плана: последний в before.json — ИНВ-ДЕМО-053.
+  await expect(card.getByLabel('Инвентарный номер')).toHaveValue('ИНВ-ДЕМО-054');
+
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  const file = await (await started).path();
+  expect(file).not.toBeNull();
+  const saved = JSON.parse(readFileSync(file as string, 'utf8'));
+  const numbers = (plan: { objects: { id: string; attributes: Record<string, unknown> }[] }) =>
+    plan.objects.map((object) => [object.id, object.attributes['inventoryNumber']]);
+  expect(numbers(saved)).toContainEqual(['eq_54', 'ИНВ-ДЕМО-054']);
+
+  await page.reload();
+  await page.getByTestId('plan-file-input').setInputFiles(file as string);
+  await expect(inventory).toHaveCount(54);
+  await openBench();
+  await expect(card.getByLabel('Инвентарный номер')).toHaveValue('ИНВ-ДЕМО-054');
+
+  const again = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  const second = await (await again).path();
+  expect(second).not.toBeNull();
+  expect(numbers(JSON.parse(readFileSync(second as string, 'utf8')))).toEqual(numbers(saved));
+  expect(errors).toEqual([]);
+});
