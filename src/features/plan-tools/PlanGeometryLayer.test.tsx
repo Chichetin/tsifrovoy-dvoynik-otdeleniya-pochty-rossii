@@ -205,3 +205,83 @@ describe('Enter и смена инструмента завершают выде
     expect(onSelect).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * #43: подпись «1 — замкнуть» стояла справа от первого угла и её
+ * перечёркивало первое ребро контура. Проверяется то, что видит рисующий:
+ * подпись поднята над углом (а не лежит на линии ребра) и несёт
+ * непрозрачную плашку — фон, который сохраняет её читаемой, даже если
+ * ребро всё же пройдёт под ней; цвет подписи совпадает с цветом контура.
+ */
+describe('подпись замыкания первого угла (D-315)', () => {
+  const plan = demo();
+
+  function draftStartCaption(draft: [number, number][]): { label: Konva.Label; text: Konva.Text } {
+    const stage = createRef<Konva.Stage>();
+    const session: EditorSession = {
+      tool: { kind: 'zone.draw' },
+      viewport: { origin: [0, 0], scale: 48 },
+      selection: null,
+      preview: null,
+      focus: null,
+    };
+    render(
+      <Stage ref={stage} width={800} height={600}>
+        <PlanGeometryLayer
+          document={plan}
+          session={session}
+          draft={draft}
+          onCommand={() => ({ ok: true, value: plan })}
+          onSelect={() => undefined}
+        />
+      </Stage>,
+    );
+    if (stage.current === null) throw new Error('Stage не смонтировался');
+    const label = stage.current.findOne('.draft-start-caption') as Konva.Label | undefined;
+    if (label === undefined) throw new Error('подпись первого угла не найдена');
+    const text = label.findOne('Text') as Konva.Text | undefined;
+    if (text === undefined) throw new Error('текст подписи не найден');
+    return { label, text };
+  }
+
+  test('подпись поднята над первым углом, а не лежит справа на ребре 1→2', () => {
+    const [, firstY] = [0, 0];
+    const { label } = draftStartCaption([
+      [0, 0],
+      [3, 0],
+      [3, 2],
+    ]);
+    // Экранный y растёт вниз: подпись над вершиной — это отрицательный сдвиг.
+    expect(label.y()).toBeLessThan(firstY);
+  });
+
+  test('у подписи непрозрачная плашка под текстом', () => {
+    const { label } = draftStartCaption([
+      [0, 0],
+      [3, 0],
+      [3, 2],
+    ]);
+    const tag = label.findOne('Tag') as Konva.Shape | undefined;
+    if (tag === undefined) throw new Error('подложка подписи не найдена');
+    expect(tag.getAbsoluteOpacity()).toBeGreaterThan(0.5);
+  });
+
+  test('самопересекающийся контур красит подпись в цвет ошибки контура', () => {
+    const { text } = draftStartCaption([
+      [0, 0],
+      [3, 0],
+      [0, 3],
+      [3, 3],
+    ]);
+    expect(text.fill()).toBe('#E03131');
+  });
+
+  test('валидный контур красит подпись в обычный цвет черновика', () => {
+    const { text } = draftStartCaption([
+      [0, 0],
+      [3, 0],
+      [3, 2],
+    ]);
+    expect(text.fill()).toBe('#1971C2');
+  });
+});

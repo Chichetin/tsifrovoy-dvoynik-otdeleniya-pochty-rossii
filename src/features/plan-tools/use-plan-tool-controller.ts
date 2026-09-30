@@ -106,7 +106,9 @@ export const usePlanToolController = ({
   const [cursor, setCursor] = useState<Point | null>(null);
   const tool = session.tool;
   const kind = tool.kind;
-  const contextKey = `${kind}\u0000${tool.kind === 'shape.draw' ? tool.typeId : ''}\u0000${plan.id}\u0000${plan.name}\u0000${documentEpoch}`;
+  // `plan.name` сюда не входит: переименование плана во время рисования не
+  // должно стирать поставленные углы, документ при этом не меняется.
+  const contextKey = `${kind}\u0000${tool.kind === 'shape.draw' ? tool.typeId : ''}\u0000${plan.id}\u0000${documentEpoch}`;
   const [draftContext, setDraftContext] = useState(contextKey);
   if (draftContext !== contextKey) {
     setDraftContext(contextKey);
@@ -280,15 +282,24 @@ export const usePlanToolController = ({
     if (ringDraft !== null) closeRing(ringDraft);
   }, [closeRing, ringDraft]);
   const removeLast = useCallback(() => {
-    if (!RING_TOOLS.has(kind)) return;
-    setDraft((current) => current === null || current.length <= 1 ? null : current.slice(0, -1));
+    if (!RING_TOOLS.has(kind) || draft === null) return;
+    if (draft.length <= 1) {
+      // Опустевший черновик снимает и курсор рисования: обещанной следующей
+      // точки без первого угла больше нет (иначе он завис бы над пустым местом).
+      setDraft(null);
+      setCursor(null);
+    } else {
+      setDraft(draft.slice(0, -1));
+    }
     setNotice(null);
-  }, [kind]);
+  }, [draft, kind]);
   useEffect(() => {
     if (!RING_TOOLS.has(kind)) return undefined;
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Enter' && event.key !== 'Backspace') return;
-      if (event.key === 'Enter' && ringDraft === null) return;
+      // Без черновика нет угла, который можно вернуть: Backspace принадлежит
+      // выделению (например, удалению зоны), а не вооружённому инструменту.
+      if (ringDraft === null) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isTextTarget(event.target)) return;
       if (event.key === 'Enter' && event.target instanceof Element && event.target.closest('.drawing-controls__actions') !== null) return;
@@ -297,7 +308,7 @@ export const usePlanToolController = ({
       event.stopImmediatePropagation();
       if (event.repeat) return;
       if (event.key === 'Backspace') removeLast();
-      else if (ringDraft !== null) closeRing(ringDraft);
+      else closeRing(ringDraft);
     };
     const onDoubleClick = (event: MouseEvent): void => {
       if (ringDraft === null) return;

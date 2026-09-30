@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Layer, Line, Text } from 'react-konva';
+import { Circle, Group, Label, Layer, Line, Tag, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
@@ -658,7 +658,22 @@ export function PlanGeometryLayer({
           return <Group key={index} x={x} y={y}>
             <Circle radius={index === 0 ? 10 : 8} fill="#FFFFFF" stroke={draftInvalid ? INVALID_STROKE : DRAFT_STROKE} strokeWidth={index === 0 ? 3 : 2} />
             <Text x={-8} y={-6} width={16} align="center" text={String(index + 1)} fontSize={12} fill="#212529" />
-            {index === 0 ? <Text x={14} y={-7} text={draft.length >= 3 ? '1 — замкнуть' : 'Начало'} fontSize={12} fill={DRAFT_STROKE} /> : null}
+            {index === 0 ? (
+              // Над углом, а не справа: справа лежит первое ребро контура
+              // (1→2), и подпись без сдвига перечёркивалась им. Непрозрачная
+              // плашка — на случай, если контур всё же пройдёт под подписью
+              // на другом масштабе (та же техника, что у подсказки привязки,
+              // D-224). Цвет — как у самого контура: красный при самопересечении.
+              <Label name="draft-start-caption" x={-4} y={-30} listening={false}>
+                <Tag fill="#FFFFFF" opacity={0.9} cornerRadius={2} />
+                <Text
+                  text={draft.length >= 3 ? '1 — замкнуть' : 'Начало'}
+                  fontSize={12}
+                  fill={draftInvalid ? INVALID_STROKE : DRAFT_STROKE}
+                  padding={3}
+                />
+              </Label>
+            ) : null}
           </Group>;
         })}
         </Group>

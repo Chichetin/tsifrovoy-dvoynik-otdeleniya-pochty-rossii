@@ -115,6 +115,20 @@ describe('явное завершение и исправление чернов
     hook.rerender({ typeId: 'type-b', epoch: 1 });
     expect(hook.result.current.draft).toBeNull();
   });
+  it('переименование плана во время рисования не сбрасывает углы', () => {
+    const plan = planWith([]);
+    const session: EditorSession = { tool: { kind: 'zone.draw' }, viewport: { origin: [0, 0], scale: 50 }, selection: null, preview: null, focus: null };
+    const hook = renderHook(
+      (document: PlanDocument) => usePlanToolController({ document, session, onCommand: () => ({ ok: true, value: document }) }),
+      { initialProps: plan },
+    );
+    act(() => hook.result.current.handlePointer(down([1, 1])));
+    act(() => hook.result.current.handlePointer(down([3, 1])));
+    expect(hook.result.current.draft).toHaveLength(2);
+    hook.rerender({ ...plan, name: 'Переименованный план' });
+    expect(hook.result.current.draft).toHaveLength(2);
+  });
+
   it('кнопка завершения использует прежнюю проверку и одну команду', () => {
     const { hook, click, commands } = setup({ kind: 'zone.draw' }, planWith([]));
     click([1, 1]); click([3, 1]);
@@ -142,6 +156,18 @@ describe('явное завершение и исправление чернов
     expect(commands).toHaveLength(1);
   });
 
+  it('возврат последнего угла до пустого черновика снимает и курсор рисования', () => {
+    const { hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    click([1, 1]);
+    act(() =>
+      hook.result.current.handlePointer({ phase: 'move', point: [2, 2], shift: false, alt: false, button: 0 }),
+    );
+    expect(hook.result.current.cursor).not.toBeNull();
+    act(() => hook.result.current.removeLast());
+    expect(hook.result.current.draft).toBeNull();
+    expect(hook.result.current.cursor).toBeNull();
+  });
+
   it('Backspace убирает угол и не доходит до удаления выбранного объекта', () => {
     const { hook, click, commands } = setup({ kind: 'zone.draw' }, planWith([]));
     click([1, 1]); click([3, 1]);
@@ -161,9 +187,27 @@ describe('явное завершение и исправление чернов
     act(() => hook.result.current.removeLast());
     expect(hook.result.current.draft).toBeNull();
     window.addEventListener('keydown', deleteListener);
-    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', repeat: true, cancelable: true })));
+    const event = new KeyboardEvent('keydown', { key: 'Backspace', repeat: true, cancelable: true });
+    act(() => window.dispatchEvent(event));
     window.removeEventListener('keydown', deleteListener);
-    expect(deletes).toBe(0);
+    // Черновика больше нет: Backspace принадлежит выделению, а не рисованию.
+    expect(deletes).toBe(1);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('регрессия: инструмент «Зона» вооружён, но угла ещё нет — Backspace удаляет выделение', () => {
+    const { hook } = setup({ kind: 'zone.draw' }, planWith([]));
+    expect(hook.result.current.draft).toBeNull();
+    let deletes = 0;
+    const deleteListener = () => {
+      deletes += 1;
+    };
+    window.addEventListener('keydown', deleteListener);
+    const event = new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true });
+    act(() => window.dispatchEvent(event));
+    window.removeEventListener('keydown', deleteListener);
+    expect(deletes).toBe(1);
+    expect(event.defaultPrevented).toBe(false);
   });
 
   it('отказ store сохраняет контур для исправления', () => {
