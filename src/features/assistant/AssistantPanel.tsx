@@ -102,7 +102,10 @@ export function AssistantPanel({
   onAskAgent,
   onAgentAction,
   onClearChat,
-}: AssistantPanelProps): React.JSX.Element {
+  comparison,
+  comparisonBusy = false,
+  comparisonUnrelated = false,
+}: AssistantPanelProps & { comparison?: React.ReactNode; comparisonBusy?: boolean; comparisonUnrelated?: boolean }): React.JSX.Element {
   const [scenario, setScenario] = useState<Scenario>('place');
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
   const [zoneId, setZoneId] = useState<string>('');
@@ -128,8 +131,19 @@ export function AssistantPanel({
   const names = useMemo(() => planIndex(plan), [plan]);
   const stale = response !== null && response.revision !== revision;
 
+  // Explains, not just disables: a compare-scenario question can be blocked
+  // by the source file still loading or by a source that belongs to a
+  // different plan (its object ids are not proven to be the same items).
+  const askDisabledTitle = placeUnavailable
+    ? 'Сначала добавьте тип оборудования в справочник'
+    : scenario === 'compare' && comparisonBusy
+      ? 'Дождитесь окончания загрузки исходного файла'
+      : scenario === 'compare' && comparisonUnrelated
+        ? 'У исходного файла и текущего плана разные id: сопоставление объектов не подтверждено, объяснение недоступно'
+        : undefined;
+
   function ask(): void {
-    if (placeUnavailable) return;
+    if (placeUnavailable || (scenario === 'compare' && (comparisonBusy || comparisonUnrelated))) return;
     setAskedQuery(query.trim() === '' ? null : query.trim());
     if (scenario === 'place') {
       onAsk(
@@ -217,6 +231,8 @@ export function AssistantPanel({
           </label>
         )}
 
+        {scenario === 'compare' ? comparison : null}
+
         <label className="assistant__field">
           Пожелание к варианту (необязательно)
           <input
@@ -231,8 +247,8 @@ export function AssistantPanel({
           type="button"
           className="files__button is-primary"
           onClick={ask}
-          disabled={state.status === 'loading' || placeUnavailable}
-          title={placeUnavailable ? 'Сначала добавьте тип оборудования в справочник' : undefined}
+          disabled={state.status === 'loading' || placeUnavailable || (scenario === 'compare' && (comparisonBusy || comparisonUnrelated))}
+          title={askDisabledTitle}
         >
           {state.status === 'loading' ? 'Считаем…' : 'Спросить'}
         </button>

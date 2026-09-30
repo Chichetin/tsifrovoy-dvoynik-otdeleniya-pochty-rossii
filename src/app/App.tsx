@@ -27,6 +27,8 @@ import {
 import { validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
+import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
@@ -115,6 +117,8 @@ export function App(): React.JSX.Element {
   const [gesturePreview] = useState(createObjectGesturePreviewChannel);
   const document = useStore(store, (state) => state.document);
   const baseline = useStore(store, (state) => state.baseline);
+  const comparison = useComparisonSource();
+  const clearComparison = comparison.clear;
   const revision = useStore(store, (state) => state.revision);
   const contentRevision = useStore(store, (state) => state.contentRevision);
   const selection = useStore(store, (state) => state.selection);
@@ -552,7 +556,7 @@ export function App(): React.JSX.Element {
       // The panel knows no document history and sends the current plan as
       // "before"; only the app knows the real one.
       const grounded: AdviceRequest =
-        request.scenario === 'compare' ? { ...request, before: baseline } : request;
+        request.scenario === 'compare' ? { ...request, before: comparison.source?.plan ?? baseline } : request;
       const asked = { plan: document, revision: contentRevision, request: grounded, ...(query === undefined ? {} : { query }) };
       void requestAdvice(asked).then((result) => {
         // The document may have been replaced, or another request may have
@@ -571,7 +575,7 @@ export function App(): React.JSX.Element {
         setAdviceState({ status: 'done' });
       });
     },
-    [baseline, contentRevision, document],
+    [baseline, comparison.source, contentRevision, document],
   );
 
   // D-258: ring on the plan without selecting — the agent points, the
@@ -724,9 +728,10 @@ export function App(): React.JSX.Element {
       // Открыт другой документ: вид считается заново, даже если файл несёт ту
       // же личность, что и прежний.
       setDocumentEpoch((epoch) => epoch + 1);
+      clearComparison();
       forgetAdvice();
     },
-    [store, forgetAdvice],
+    [store, forgetAdvice, clearComparison],
   );
 
   const startNewPlan = useCallback(() => {
@@ -736,8 +741,9 @@ export function App(): React.JSX.Element {
     setTool({ kind: 'select' });
     setLastError(null);
     setDocumentEpoch((epoch) => epoch + 1);
+    clearComparison();
     forgetAdvice();
-  }, [forgetAdvice]);
+  }, [forgetAdvice, clearComparison]);
 
   const shownError = lastError !== null && isEditErrorCurrent(lastError, document, revision) ? lastError : null;
 
@@ -1083,6 +1089,24 @@ export function App(): React.JSX.Element {
                   onAskAgent={askAgent}
                   onAgentAction={runAgentAction}
                   onClearChat={clearChat}
+                  comparisonBusy={comparison.loading}
+                  comparisonUnrelated={comparison.source !== null && comparison.source.plan.id !== document.id}
+                  comparison={<ComparisonPanel current={document} baseline={baseline} source={comparison.source}
+                    loading={comparison.loading} error={comparison.error} onFocus={focusOn}
+                    onLoad={async (file) => {
+                      adviceRequestSequence.current += 1;
+                      setAdvice(null);
+                      setAdviceState({ status: 'idle' });
+                      setPreview(null);
+                      await comparison.load(file);
+                    }}
+                    onClear={() => {
+                      comparison.clear();
+                      adviceRequestSequence.current += 1;
+                      setAdvice(null);
+                      setAdviceState({ status: 'idle' });
+                      setPreview(null);
+                    }} />}
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
