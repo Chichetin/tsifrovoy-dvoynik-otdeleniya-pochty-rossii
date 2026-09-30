@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
+import { QUOTED_ID_PATTERN } from '../../domain/advice';
 import type { PlanIndex } from '../../domain/plan-index';
 
 const PANEL_NAMES = { metrics: 'Площади', validation: 'Проверка', inventory: 'Инвентаризация' } as const;
@@ -22,7 +23,20 @@ export const AGENT_EXAMPLES = [
   'Как мои изменения повлияли на свободную площадь?',
 ] as const;
 
-const ID_PATTERN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi;
+/**
+ * Two ways the code writes a plan reference into an answer (D-320): a bare
+ * id such as `z_storage` — most of `composeFallbackText`/`renderAgentFact` —
+ * or, for text that already quotes a name itself, «name» (id), the same
+ * shape `QUOTED_ID_PATTERN` (`domain/advice`) matches — built on here rather
+ * than duplicated, so a change to one cannot silently drift from the other.
+ * Only a zone or an object turns into a button labelled with its name: a
+ * rule or a type is not a plan entity a click can show, so its id stays in
+ * the sentence exactly as the calculation wrote it (review of !318, #10).
+ */
+const ANSWER_REF_PATTERN = new RegExp(
+  `${QUOTED_ID_PATTERN.source}|\\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\\b`,
+  'gi',
+);
 
 type Props = {
   plan: PlanDocument;
@@ -60,23 +74,46 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
   }
 }
 
-/** Answer text with every plan id turned into a button that shows it. */
-function AnswerText({ text, plan, stale, onFocus }: { text: string; plan: PlanDocument; stale: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
+/**
+ * Answer text with every zone or object turned into a button labelled with
+ * its name — never with its id (#10): the id only decides whether a mention
+ * is clickable and lands in `title`/`data-ref-id` for whoever needs it.
+ */
+function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan: PlanDocument; names: PlanIndex; stale: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
   return (
     <div className="agent__text">
       {text.split(/\n{2,}/).map((paragraph, index) => {
         const parts: React.ReactNode[] = [];
         let last = 0;
-        for (const match of paragraph.matchAll(ID_PATTERN)) {
-          const ref = refFor(plan, match[0]);
-          if (ref === null) continue;
-          parts.push(paragraph.slice(last, match.index));
-          parts.push(
-            <button key={match.index} type="button" className="agent__id" disabled={stale} onClick={() => onFocus(ref)} title="Показать на плане">
-              {match[0]}
-            </button>,
-          );
-          last = match.index + match[0].length;
+        for (const match of paragraph.matchAll(ANSWER_REF_PATTERN)) {
+          const [whole, quotedName, quotedId] = match;
+          // A bare match (no quoted-name group) is the id itself: `whole` is `token`.
+          const token = quotedId ?? whole;
+          const ref = refFor(plan, token);
+          const start = match.index ?? last;
+          parts.push(paragraph.slice(last, start));
+          if (ref === null) {
+            // A rule or a type: the id is not a plan entity a click can show.
+            // Leave the sentence exactly as the calculation wrote it — id
+            // included — rather than quietly trim information (#10 review).
+            parts.push(whole);
+          } else {
+            const label = names.nameOf(ref) ?? quotedName ?? token;
+            parts.push(
+              <button
+                key={start}
+                type="button"
+                className="agent__id"
+                disabled={stale}
+                onClick={() => onFocus(ref)}
+                title={`Показать на плане · id ${token}`}
+                data-ref-id={token}
+              >
+                {label}
+              </button>,
+            );
+          }
+          last = start + whole.length;
         }
         parts.push(paragraph.slice(last));
         return <p key={index}>{parts}</p>;
@@ -159,12 +196,31 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                 {exchange.error === null ? null : <p className="files__error" role="alert">{exchange.error}</p>}
                 {answer === null ? null : (
                   <div className={`agent__answer${answer.mode === 'llm' ? '' : ' is-fallback'}`}>
-                    <AnswerText text={answer.text} plan={plan} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
+                    <AnswerText text={answer.text} plan={plan} names={names} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
                     <p className="agent__mode">
                       {answer.mode === 'llm'
                         ? 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'
                         : `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`}
                     </p>
+                    {/* id доступен без мыши и без клика по каждому упоминанию
+                        в тексте (review of !318, #10): та же клавиатурная
+                        альтернатива, что и «ID зон и объектов» в карточке
+                        рекомендации (AssistantPanel.tsx). Свой класс, не
+                        `agent__log`: тот же класс на «Ход проверки» сделал бы
+                        оба раскрытия неразличимы для селектора по классу. */}
+                    {answer.refs.length === 0 ? null : (
+                      <details className="agent__ids">
+                        <summary>ID зон и объектов ({answer.refs.length})</summary>
+                        <ul className="agent__steps">
+                          {answer.refs.map((ref) => (
+                            <li key={`${ref.kind}-${ref.id}`}>
+                              <code>{ref.id}</code>
+                              {names.nameOf(ref) === null ? null : <span> — {names.nameOf(ref)}</span>}
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
                     {answer.actions.length === 0 ? null : (
                       <div className="agent__actions" role="group" aria-label="Действия по ответу">
                         {answer.actions
