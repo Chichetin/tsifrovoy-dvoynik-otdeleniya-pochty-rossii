@@ -161,6 +161,9 @@ export function createPlanStore(
         return {
           document,
           revision: state.revision + 1,
+          contentRevision: state.contentRevision + (
+            sameContent(withoutVisibility(state.document), withoutVisibility(document)) ? 0 : 1
+          ),
           selection: primaryOf(keepSelection(document, state.selection), selected),
           selected,
           dirty: isDirty(document, state.baseline),
@@ -175,6 +178,7 @@ export function createPlanStore(
       document: initial,
       baseline: initial,
       revision: 0,
+      contentRevision: 0,
       selection: null,
       selected: NO_SELECTION,
       dirty: origin !== 'file',
@@ -236,6 +240,7 @@ export function createPlanStore(
           document: plan,
           baseline: plan,
           revision: state.revision + 1,
+          contentRevision: state.contentRevision + 1,
           selection: null,
           selected: NO_SELECTION,
           dirty: origin !== 'file',

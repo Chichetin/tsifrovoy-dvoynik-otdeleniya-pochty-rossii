@@ -158,6 +158,30 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
   expect(help!.x + help!.width, `«Горячие клавиши» левее «Экспорт»: ${label}`).toBeLessThanOrEqual(right!.x);
 }
 
+// Different system fonts made the 1280/1460 header 13 px too wide on Linux.
+// A small letter-spacing increase reproduces that width pressure on Windows.
+for (const width of [1280, 1339, 1340, 1460, 1500]) {
+  test(`шапка сохраняет запас при более широких надписях — ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Перегородка', exact: true }).click();
+    const canvas = await page.locator('.editor-canvas canvas').first().boundingBox();
+    const y = canvas!.y + canvas!.height / 2;
+    await page.mouse.click(canvas!.x + canvas!.width / 2 - 60, y);
+    await page.mouse.click(canvas!.x + canvas!.width / 2 + 60, y);
+    await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+    await page.mouse.click(canvas!.x + canvas!.width / 2, y);
+    await expect(page.getByText('Перегородка: тяните концы')).toBeVisible();
+    await page.addStyleTag({ content: '.shell__bar button { letter-spacing: 0.4px; }' });
+    const measured = await layout(page);
+    expect(measured.overflow, `${width}: более широкие надписи остаются в окне`).toBeLessThanOrEqual(0);
+    expect(measured.slack, `${width}: запас для отличий системных шрифтов`).toBeGreaterThanOrEqual(MIN_SLACK_PX);
+    if (width === 1280 || width === 1460) {
+      await page.screenshot({ path: `docs/verification/2026-09-29-header-${width}.png` });
+    }
+  });
+}
+
 for (const size of [
   { width: 1280, height: 800 },
   { width: 1366, height: 768 },
