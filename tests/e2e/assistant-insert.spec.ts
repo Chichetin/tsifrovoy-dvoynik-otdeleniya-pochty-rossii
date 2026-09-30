@@ -5,7 +5,7 @@ import { calculateAdvice } from '../../src/domain/advice';
 import { expect, exportPlan, test } from './fixtures';
 import { showTab } from './side-tabs';
 
-test('вариант ассистента после удаления вставляется с новым ID, выделяется и переживает undo и файл', async ({ page }, testInfo) => {
+test('слой из ответа не мешает применить вариант; после удаления новый ID переживает undo и файл', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.route('**/api/assistant/agent', async (route) => {
     const input = route.request().postDataJSON();
@@ -24,6 +24,7 @@ test('вариант ассистента после удаления встав
         steps: [], recommendations: calculated.value, refs: [],
         actions: [
           { kind: 'preview-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
+          { kind: 'show-layer', layerId: 'l_lt_cameras' },
           { kind: 'apply-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
         ],
       } }) + '\n',
@@ -40,6 +41,9 @@ test('вариант ассистента после удаления встав
     await expect(assistant.locator('.agent__answer').last().getByRole('button', { name: /^Применить:/ })).toBeEnabled();
   };
   await ask();
+  await assistant.getByRole('button', { name: 'Включить слой «Камеры и зоны обзора»' }).click();
+  await expect(assistant.locator('.agent__answer').last().getByRole('button', { name: /^Применить:/ })).toBeEnabled();
+  await page.screenshot({ path: 'docs/verification/2026-09-29-assistant-layer-action.png' });
   await assistant.getByRole('button', { name: /^Применить:/ }).click();
   await expect(assistant.getByRole('status')).toContainText('Применено');
   const properties = page.getByLabel('Свойства', { exact: true });
@@ -74,6 +78,7 @@ test('вариант ассистента после удаления встав
   const reopened = JSON.parse(readFileSync(saved, 'utf8')) as PlanDocument;
   const added = reopened.objects.find((object) => object.id === secondId);
   expect(added).toMatchObject({ typeId: 'ot_queue_terminal', zoneId: 'z_entrance', position: [Number(x), Number(y)] });
+  expect(reopened.layers.find((layer) => layer.id === 'l_lt_cameras')?.visible).toBe(true);
   expect(reopened.objects.some((object) => object.id === firstId)).toBe(false);
   await page.getByTestId('plan-file-input').setInputFiles(saved);
   await expect(rows).toHaveCount(54);

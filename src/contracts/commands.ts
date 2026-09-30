@@ -104,6 +104,8 @@ export type PlanStore = {
   /** Snapshot used for dirty comparison and the assistant's «before». */
   readonly baseline: PlanDocument;
   readonly revision: number;
+  /** Changes only when plan content changes; layer visibility is a view setting. */
+  readonly contentRevision: number;
   readonly selection: Ref | null;
   /**
    * Objects picked as a group (marquee, Shift+click). `selection` is the

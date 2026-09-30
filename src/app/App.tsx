@@ -116,6 +116,7 @@ export function App(): React.JSX.Element {
   const document = useStore(store, (state) => state.document);
   const baseline = useStore(store, (state) => state.baseline);
   const revision = useStore(store, (state) => state.revision);
+  const contentRevision = useStore(store, (state) => state.contentRevision);
   const selection = useStore(store, (state) => state.selection);
   const dirty = useStore(store, (state) => state.dirty);
 
@@ -552,7 +553,7 @@ export function App(): React.JSX.Element {
       // "before"; only the app knows the real one.
       const grounded: AdviceRequest =
         request.scenario === 'compare' ? { ...request, before: baseline } : request;
-      const asked = { plan: document, revision, request: grounded, ...(query === undefined ? {} : { query }) };
+      const asked = { plan: document, revision: contentRevision, request: grounded, ...(query === undefined ? {} : { query }) };
       void requestAdvice(asked).then((result) => {
         // The document may have been replaced, or another request may have
         // started while this one was in flight. In either case this answer no
@@ -570,7 +571,7 @@ export function App(): React.JSX.Element {
         setAdviceState({ status: 'done' });
       });
     },
-    [baseline, document, revision],
+    [baseline, contentRevision, document],
   );
 
   // D-258: ring on the plan without selecting — the agent points, the
@@ -589,8 +590,8 @@ export function App(): React.JSX.Element {
         setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
       };
       setAgentActionStatus(null);
-      setExchanges((previous) => [...previous, { id, question, revision, steps: [], answer: null, error: null }]);
-      const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
+      setExchanges((previous) => [...previous, { id, question, revision: contentRevision, steps: [], answer: null, error: null }]);
+      const input = { plan: document, revision: contentRevision, query: question, history: turnsOf(exchanges), before: baseline };
       void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
         if (sequence !== agentSequence.current) return;
         if (!result.ok) {
@@ -611,12 +612,12 @@ export function App(): React.JSX.Element {
         }
       });
     },
-    [baseline, document, exchanges, highlight, revision],
+    [baseline, contentRevision, document, exchanges, highlight],
   );
 
   const runAgentAction = useCallback(
     (action: AssistantAction, answer: AgentAnswer) => {
-      if (answer.revision !== store.getState().revision) {
+      if (answer.revision !== store.getState().contentRevision) {
         setAgentActionStatus('План изменился после ответа — спросите заново.');
         return;
       }
@@ -1071,7 +1072,7 @@ export function App(): React.JSX.Element {
               assistant: (
                 <AssistantPanel
                   document={document}
-                  revision={revision}
+                  revision={contentRevision}
                   response={advice}
                   state={adviceState}
                   onPreview={setPreview}
