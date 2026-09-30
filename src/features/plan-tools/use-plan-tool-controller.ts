@@ -91,14 +91,30 @@ const DRAWING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
   'measure',
 ]);
 
-export const usePlanToolController: UsePlanToolController = ({
+export type DrawingController = ToolController & {
+  finish(): void;
+  removeLast(): void;
+  cursor: Point | null;
+};
+
+export const usePlanToolController = ({
   document: plan,
   session,
   onCommand,
-}): ToolController => {
+}: Parameters<UsePlanToolController>[0], documentEpoch = 0): DrawingController => {
   const [draft, setDraft] = useState<Point[] | null>(null);
+  const [cursor, setCursor] = useState<Point | null>(null);
   const tool = session.tool;
   const kind = tool.kind;
+  // `plan.name` сюда не входит: переименование плана во время рисования не
+  // должно стирать поставленные углы, документ при этом не меняется.
+  const contextKey = `${kind}\u0000${tool.kind === 'shape.draw' ? tool.typeId : ''}\u0000${plan.id}\u0000${documentEpoch}`;
+  const [draftContext, setDraftContext] = useState(contextKey);
+  if (draftContext !== contextKey) {
+    setDraftContext(contextKey);
+    setDraft(null);
+    setCursor(null);
+  }
   const committing = useRef(false);
   const scale = session.viewport.scale;
 
@@ -129,9 +145,12 @@ export const usePlanToolController: UsePlanToolController = ({
 
   const cancel = useCallback(() => {
     setDraft(null);
+    setCursor(null);
+    setNotice(null);
     setSnapHint(null);
     setMeasurement(null);
   }, []);
+
 
   /**
    * «Своя фигура» (D-279): the drawn ring is a new object of the armed type,
@@ -194,7 +213,7 @@ export const usePlanToolController: UsePlanToolController = ({
               ? droppedOpeningNotice(plan.openings.length, result.value.openings.length)
               : null,
           );
-          return true;
+          return result.ok;
         }
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
         // One id space for the whole plan plus what a delete retired this session (D-198).
@@ -209,7 +228,7 @@ export const usePlanToolController: UsePlanToolController = ({
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
         const id = nextFreeId('z_', taken);
-        onCommand({
+        const result = onCommand({
           type: 'zone.put',
           zone: {
             id,
@@ -223,8 +242,8 @@ export const usePlanToolController: UsePlanToolController = ({
             attributes: {},
           },
         });
-        setNotice(null);
-        return true;
+        if (result.ok) setNotice(null);
+        return result.ok;
       } finally {
         committing.current = false;
       }
@@ -247,6 +266,7 @@ export const usePlanToolController: UsePlanToolController = ({
       }
       if (commit(ring)) {
         setDraft(null);
+        setCursor(null);
         setSnapHint(null);
         return;
       }
@@ -258,28 +278,51 @@ export const usePlanToolController: UsePlanToolController = ({
   // Enter и двойной клик слушаются только пока контур рисуется: без черновика
   // Enter остаётся кнопке в фокусе, а двойной клик — холсту.
   const ringDraft = RING_TOOLS.has(kind) ? draft : null;
+  const finish = useCallback(() => {
+    if (ringDraft !== null) closeRing(ringDraft);
+  }, [closeRing, ringDraft]);
+  const removeLast = useCallback(() => {
+    if (!RING_TOOLS.has(kind) || draft === null) return;
+    if (draft.length <= 1) {
+      // Опустевший черновик снимает и курсор рисования: обещанной следующей
+      // точки без первого угла больше нет (иначе он завис бы над пустым местом).
+      setDraft(null);
+      setCursor(null);
+    } else {
+      setDraft(draft.slice(0, -1));
+    }
+    setNotice(null);
+  }, [draft, kind]);
   useEffect(() => {
-    if (ringDraft === null) return undefined;
+    if (!RING_TOOLS.has(kind)) return undefined;
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Enter' || event.repeat) return;
+      if (event.key !== 'Enter' && event.key !== 'Backspace') return;
+      // Без черновика нет угла, который можно вернуть: Backspace принадлежит
+      // выделению (например, удалению зоны), а не вооружённому инструменту.
+      if (ringDraft === null) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isTextTarget(event.target)) return;
+      if (event.key === 'Enter' && event.target instanceof Element && event.target.closest('.drawing-controls__actions') !== null) return;
       // Иначе тот же Enter нажал бы кнопку инструмента, оставшуюся в фокусе.
       event.preventDefault();
-      closeRing(ringDraft);
+      event.stopImmediatePropagation();
+      if (event.repeat) return;
+      if (event.key === 'Backspace') removeLast();
+      else closeRing(ringDraft);
     };
     const onDoubleClick = (event: MouseEvent): void => {
+      if (ringDraft === null) return;
       if (!(event.target instanceof Element) || event.target.closest(CANVAS_SELECTOR) === null) return;
       // Последнюю точку уже поставили два клика двойного клика; дубль снимет closeRing.
       closeRing(ringDraft);
     };
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     window.addEventListener('dblclick', onDoubleClick);
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('dblclick', onDoubleClick);
     };
-  }, [closeRing, ringDraft]);
+  }, [closeRing, kind, removeLast, ringDraft]);
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
   const drawWall = useCallback(
@@ -374,13 +417,12 @@ export const usePlanToolController: UsePlanToolController = ({
   const handlePointer = useCallback(
     (event: WorldPointer): void => {
       if (event.phase === 'cancel') {
-        setDraft(null);
-        setSnapHint(null);
-        setMeasurement(null);
+        cancel();
         return;
       }
       if (event.phase === 'move') {
         showTarget(event);
+        if (RING_TOOLS.has(kind) && draft !== null) setCursor(settle(event));
         if (kind === 'measure') measure(event);
         return;
       }
@@ -440,8 +482,8 @@ export const usePlanToolController: UsePlanToolController = ({
       }
       setDraft([...current, point]);
     },
-    [closeRing, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
+    [cancel, closeRing, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
   );
 
-  return { handlePointer, cancel, draft };
+  return { handlePointer, cancel, draft, cursor, finish, removeLast };
 };

@@ -100,6 +100,128 @@ function setup(tool: Tool, plan: PlanDocument, retired: ReadonlySet<string> = ne
   return { commands, hook, click };
 }
 
+describe('явное завершение и исправление черновика', () => {
+  beforeEach(() => cleanup());
+  afterEach(() => cleanup());
+  it('смена типа своей фигуры и повторное открытие документа сбрасывают углы', () => {
+    const plan = planWith([]);
+    const session: EditorSession = { tool: { kind: 'shape.draw', typeId: 'type-a' }, viewport: { origin: [0, 0], scale: 50 }, selection: null, preview: null, focus: null };
+    const hook = renderHook(({ typeId, epoch }) => usePlanToolController({ document: plan, session: { ...session, tool: { kind: 'shape.draw', typeId } }, onCommand: () => ({ ok: true, value: plan }) }, epoch), { initialProps: { typeId: 'type-a', epoch: 0 } });
+    act(() => hook.result.current.handlePointer(down([1, 1])));
+    expect(hook.result.current.draft).toHaveLength(1);
+    hook.rerender({ typeId: 'type-b', epoch: 0 });
+    expect(hook.result.current.draft).toBeNull();
+    act(() => hook.result.current.handlePointer(down([2, 2])));
+    hook.rerender({ typeId: 'type-b', epoch: 1 });
+    expect(hook.result.current.draft).toBeNull();
+  });
+  it('переименование плана во время рисования не сбрасывает углы', () => {
+    const plan = planWith([]);
+    const session: EditorSession = { tool: { kind: 'zone.draw' }, viewport: { origin: [0, 0], scale: 50 }, selection: null, preview: null, focus: null };
+    const hook = renderHook(
+      (document: PlanDocument) => usePlanToolController({ document, session, onCommand: () => ({ ok: true, value: document }) }),
+      { initialProps: plan },
+    );
+    act(() => hook.result.current.handlePointer(down([1, 1])));
+    act(() => hook.result.current.handlePointer(down([3, 1])));
+    expect(hook.result.current.draft).toHaveLength(2);
+    hook.rerender({ ...plan, name: 'Переименованный план' });
+    expect(hook.result.current.draft).toHaveLength(2);
+  });
+
+  it('кнопка завершения использует прежнюю проверку и одну команду', () => {
+    const { hook, click, commands } = setup({ kind: 'zone.draw' }, planWith([]));
+    click([1, 1]); click([3, 1]);
+    act(() => hook.result.current.finish());
+    expect(commands).toHaveLength(0);
+    expect(hook.result.current.draft).toHaveLength(2);
+    click([3, 3]);
+    act(() => hook.result.current.finish());
+    expect(commands).toHaveLength(1);
+    expect(hook.result.current.draft).toBeNull();
+    act(() => hook.result.current.finish());
+    expect(commands).toHaveLength(1);
+  });
+
+  it('самопересечение исправляется возвратом шага без команды', () => {
+    const { hook, click, commands } = setup({ kind: 'zone.draw' }, planWith([]));
+    click([1, 1]); click([3, 1]); click([1, 3]); click([3, 3]);
+    act(() => hook.result.current.finish());
+    expect(commands).toHaveLength(0);
+    expect(getNotice()).toBe(DRAFT_SELF_INTERSECTION_NOTICE);
+    act(() => hook.result.current.removeLast());
+    expect(hook.result.current.draft).toHaveLength(3);
+    expect(getNotice()).toBeNull();
+    act(() => hook.result.current.finish());
+    expect(commands).toHaveLength(1);
+  });
+
+  it('возврат последнего угла до пустого черновика снимает и курсор рисования', () => {
+    const { hook, click } = setup({ kind: 'zone.draw' }, planWith([]));
+    click([1, 1]);
+    act(() =>
+      hook.result.current.handlePointer({ phase: 'move', point: [2, 2], shift: false, alt: false, button: 0 }),
+    );
+    expect(hook.result.current.cursor).not.toBeNull();
+    act(() => hook.result.current.removeLast());
+    expect(hook.result.current.draft).toBeNull();
+    expect(hook.result.current.cursor).toBeNull();
+  });
+
+  it('Backspace убирает угол и не доходит до удаления выбранного объекта', () => {
+    const { hook, click, commands } = setup({ kind: 'zone.draw' }, planWith([]));
+    click([1, 1]); click([3, 1]);
+    let deletes = 0;
+    const deleteListener = () => { deletes += 1; };
+    window.addEventListener('keydown', deleteListener);
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true })));
+    window.removeEventListener('keydown', deleteListener);
+    expect(deletes).toBe(0);
+    expect(commands).toHaveLength(0);
+    expect(hook.result.current.draft).toHaveLength(1);
+    window.addEventListener('keydown', deleteListener);
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', repeat: true, cancelable: true })));
+    window.removeEventListener('keydown', deleteListener);
+    expect(deletes).toBe(0);
+    expect(hook.result.current.draft).toHaveLength(1);
+    act(() => hook.result.current.removeLast());
+    expect(hook.result.current.draft).toBeNull();
+    window.addEventListener('keydown', deleteListener);
+    const event = new KeyboardEvent('keydown', { key: 'Backspace', repeat: true, cancelable: true });
+    act(() => window.dispatchEvent(event));
+    window.removeEventListener('keydown', deleteListener);
+    // Черновика больше нет: Backspace принадлежит выделению, а не рисованию.
+    expect(deletes).toBe(1);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('регрессия: инструмент «Зона» вооружён, но угла ещё нет — Backspace удаляет выделение', () => {
+    const { hook } = setup({ kind: 'zone.draw' }, planWith([]));
+    expect(hook.result.current.draft).toBeNull();
+    let deletes = 0;
+    const deleteListener = () => {
+      deletes += 1;
+    };
+    window.addEventListener('keydown', deleteListener);
+    const event = new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true });
+    act(() => window.dispatchEvent(event));
+    window.removeEventListener('keydown', deleteListener);
+    expect(deletes).toBe(1);
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('отказ store сохраняет контур для исправления', () => {
+    const plan = planWith([]);
+    const session: EditorSession = { tool: { kind: 'zone.draw' }, viewport: { origin: [0, 0], scale: 50 }, selection: null, preview: null, focus: null };
+    const hook = renderHook(() => usePlanToolController({ document: plan, session, onCommand: () => ({ ok: false, issues: [{ code: 'locked', severity: 'error', message: 'Слой заперт', refs: [] }] }) }));
+    for (const point of [[1, 1], [3, 1], [3, 3]] as Point[]) act(() => hook.result.current.handlePointer(down(point)));
+    act(() => hook.result.current.finish());
+    expect(hook.result.current.draft).toHaveLength(3);
+    act(() => hook.result.current.cancel());
+    expect(hook.result.current.draft).toBeNull();
+  });
+});
+
 /** Тот же стенд, но команда действительно применяется к плану. */
 function setupApplying(tool: Tool, plan: PlanDocument) {
   const commands: Command[] = [];

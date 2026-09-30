@@ -46,7 +46,7 @@ export const SELF_INTERSECTION_NOTICE =
   'Контур самопересекается — правка отклонена, план не изменён';
 export const MIN_VERTICES_NOTICE = 'В контуре должно остаться не меньше трёх вершин';
 export const DRAFT_SELF_INTERSECTION_NOTICE =
-  'Контур самопересекается — добавьте точки или отмените рисование клавишей Esc';
+  'Контур самопересекается. Уберите последний угол и обведите границу по порядку, либо отмените рисование.';
 export const RING_TOO_FEW_POINTS_NOTICE =
   'Чтобы замкнуть контур, нужно не меньше трёх точек — поставьте ещё или отмените рисование клавишей Esc';
 export const HIDDEN_ZONE_NOTICE =

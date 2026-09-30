@@ -52,6 +52,7 @@ import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
@@ -456,7 +457,7 @@ export function App(): React.JSX.Element {
     },
     [dispatchAndSelect, store, tool],
   );
-  const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand });
+  const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand }, documentEpoch);
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -759,7 +760,9 @@ export function App(): React.JSX.Element {
         </h1>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
-          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
+          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch}
+            drawingActive={tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw'}
+          />
         </div>
         <div className="shell__view" role="group" aria-label="Вид плана">
           <button type="button" className="files__button" aria-pressed={view === '2d'} onClick={() => setView('2d')}>
@@ -821,6 +824,12 @@ export function App(): React.JSX.Element {
 
       <div className={`shell__body${planOnly ? ' shell__body--plan-only' : ''}`}>
         <aside id="side-panel-left" className="shell__side" data-tour="side-left">
+          {tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw' ? (
+            <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
+              shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
+              draft={planTool.draft} onFinish={planTool.finish} onRemoveLast={planTool.removeLast}
+              onCancel={() => { planTool.cancel(); setTool({ kind: 'select' }); }} />
+          ) : null}
           <SideTabs
             label="Панели слева"
             idPrefix="side-left"
@@ -1000,6 +1009,7 @@ export function App(): React.JSX.Element {
               document={document}
               session={session}
               draft={planTool.draft}
+              draftCursor={planTool.cursor}
               onCommand={dispatch}
               onSelect={selectOnPlan}
             />
