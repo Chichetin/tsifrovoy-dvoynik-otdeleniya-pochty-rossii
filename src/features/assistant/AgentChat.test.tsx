@@ -85,6 +85,14 @@ describe('чат агента', () => {
     expect(screen.getByText(/Ход проверки: 1 шаг/)).toBeDefined();
   });
 
+  test('ответ: id виден без DevTools в раскрытии «ID зон и объектов» (review !318)', () => {
+    const shown = answer({ refs: [{ kind: 'zone', id: zone.id }] });
+    renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
+    const details = [...screen.getAllByText(/^ID зон и объектов/)].map((node) => node.closest('details'))[0]!;
+    expect(details.textContent).toContain(zone.id);
+    expect(details.textContent).toContain(zone.name);
+  });
+
   test('«name» (id) канонической формы сворачивается в одну кнопку с именем, без дубля и без id (D-320)', () => {
     const shown = answer({ text: `Зона «${zone.name}» (${zone.id}) свободна.` });
     renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
@@ -93,13 +101,14 @@ describe('чат агента', () => {
     expect(screen.getByRole('button', { name: zone.name })).toBeDefined();
   });
 
-  test('id, за которым в тексте не стоит зона или объект (например тип или правило), остаётся как есть и без кнопки (D-320)', () => {
+  test('id, за которым в тексте не стоит зона или объект (например тип или правило), остаётся как есть и без кнопки (D-320, review !318)', () => {
     const shown = answer({ text: 'Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.' });
     renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
     const text = screen.getByRole('group', { name: 'Действия по ответу' }).parentElement!.querySelector('.agent__text')!;
-    // Neither is a plan entity a click could show: the rule id is left exactly as
-    // written, the quoted type name loses only its id.
-    expect(text.textContent).toBe('Правило rule_bench_min и тип «Рабочее место» в тексте.');
+    // Neither is a plan entity a click could show: the sentence is left
+    // exactly as the calculation wrote it, id included — no click to offer,
+    // so trimming the id would only take away information (review of !318).
+    expect(text.textContent).toBe('Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.');
     expect(text.querySelector('button')).toBeNull();
   });
 

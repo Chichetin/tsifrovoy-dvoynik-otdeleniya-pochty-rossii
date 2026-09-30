@@ -447,9 +447,11 @@ export function composeFallbackText(
 /**
  * «name» (id): the shape a structured recommendation still writes for its
  * assumptions and limitations (`index.ts`, `equipment.ts`) — text that is
- * printed as-is, without the chat's per-mention buttons (D-320).
+ * printed as-is, without the chat's per-mention buttons (D-320). `AgentChat`
+ * builds on the same pattern (its `.source`) instead of keeping a second
+ * copy, so the two never drift apart (review of !318, #10).
  */
-const QUOTED_ID_PATTERN = /«([^»]{1,120})»\s*\(([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\)/gi;
+export const QUOTED_ID_PATTERN = /«([^»]{1,120})»\s*\(([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\)/gi;
 
 /**
  * The sentence as a person reads it: the id that would let a click focus the

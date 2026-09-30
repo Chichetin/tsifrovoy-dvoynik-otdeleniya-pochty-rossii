@@ -278,6 +278,6 @@ export { AGENT_TOOL_SPECS, createAgentToolState, isAgentTool, runAgentTool } fro
 export type { AgentToolOutcome, AgentToolState } from './agent-tools';
 export { agentEvidence, checkAgentText, describeProblems } from './agent-text';
 export type { AgentEvidence, AgentTextProblem } from './agent-text';
-export { composeFallbackText, hideNamedIds, routeAgentQuery } from './agent-fallback';
+export { composeFallbackText, hideNamedIds, QUOTED_ID_PATTERN, routeAgentQuery } from './agent-fallback';
 export { answerWithoutModel, finishAgentAnswer } from './agent';
 export { collectAgentFacts, renderAgentFact, renderAgentFactSelection } from './agent-facts';
