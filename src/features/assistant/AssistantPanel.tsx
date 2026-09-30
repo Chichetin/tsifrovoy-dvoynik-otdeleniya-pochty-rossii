@@ -131,6 +131,17 @@ export function AssistantPanel({
   const names = useMemo(() => planIndex(plan), [plan]);
   const stale = response !== null && response.revision !== revision;
 
+  // Explains, not just disables: a compare-scenario question can be blocked
+  // by the source file still loading or by a source that belongs to a
+  // different plan (its object ids are not proven to be the same items).
+  const askDisabledTitle = placeUnavailable
+    ? 'Сначала добавьте тип оборудования в справочник'
+    : scenario === 'compare' && comparisonBusy
+      ? 'Дождитесь окончания загрузки исходного файла'
+      : scenario === 'compare' && comparisonUnrelated
+        ? 'У исходного файла и текущего плана разные id: сопоставление объектов не подтверждено, объяснение недоступно'
+        : undefined;
+
   function ask(): void {
     if (placeUnavailable || (scenario === 'compare' && (comparisonBusy || comparisonUnrelated))) return;
     setAskedQuery(query.trim() === '' ? null : query.trim());
@@ -237,7 +248,7 @@ export function AssistantPanel({
           className="files__button is-primary"
           onClick={ask}
           disabled={state.status === 'loading' || placeUnavailable || (scenario === 'compare' && (comparisonBusy || comparisonUnrelated))}
-          title={placeUnavailable ? 'Сначала добавьте тип оборудования в справочник' : undefined}
+          title={askDisabledTitle}
         >
           {state.status === 'loading' ? 'Считаем…' : 'Спросить'}
         </button>

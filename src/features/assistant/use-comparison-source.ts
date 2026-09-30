@@ -5,6 +5,15 @@ import { readPlanFile, type OpenedPlan } from '../../persistence/format';
 export type ComparisonSource = OpenedPlan & { fileName: string };
 type SourceFile = Pick<File, 'name' | 'text'>;
 
+/**
+ * A rejected file never touches `source`: the base picked earlier (if any)
+ * is still there. Said explicitly, so the person does not have to guess
+ * whether the panel below still shows a real comparison or nothing.
+ */
+function withPreservedBaseNote(message: string, kept: ComparisonSource | null): string {
+  return kept === null ? message : `${message} Предыдущая база сравнения («${kept.fileName}») сохранена.`;
+}
+
 /** Separate from editor state: loading never replaces a document or save baseline. */
 export function useComparisonSource() {
   const [source, setSource] = useState<ComparisonSource | null>(null);
@@ -31,22 +40,24 @@ export function useComparisonSource() {
       if (ticket !== request.current) return;
       const decoded = readPlanFile(text);
       if (!decoded.ok) {
-        setError(decoded.issues.map((issue) => issue.message).join(' '));
+        setError(withPreservedBaseNote(decoded.issues.map((issue) => issue.message).join(' '), source));
         return;
       }
       // A structurally valid file may still contain uncomputable geometry.
       const report = buildPlanComparison(decoded.value.plan, decoded.value.plan);
       if (!report.ok) {
-        setError(report.issues.map((issue) => issue.message).join(' '));
+        setError(withPreservedBaseNote(report.issues.map((issue) => issue.message).join(' '), source));
         return;
       }
       setSource({ ...decoded.value, fileName: file.name });
     } catch {
-      if (ticket === request.current) setError('Не удалось прочитать исходный файл. Предыдущая база сравнения сохранена.');
+      if (ticket === request.current) {
+        setError(withPreservedBaseNote('Не удалось прочитать исходный файл.', source));
+      }
     } finally {
       if (ticket === request.current) setLoading(false);
     }
-  }, []);
+  }, [source]);
 
   return { source, loading, error, load, clear };
 }

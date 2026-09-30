@@ -29,12 +29,20 @@ for (const width of [1280, 1440]) {
     await expect(panel.getByTestId('comparison-area.free')).toContainText('114,73');
     await expect(panel.getByTestId('comparison-area.free')).toContainText('113,93');
     await expect(panel.getByTestId('comparison-equipment.count')).toContainText('53');
-    await expect(panel.getByTestId('comparison-issues.error')).toContainText('1');
-    await expect(panel.getByTestId('comparison-issues.warning')).toContainText('2');
+    const errorRow = panel.getByTestId('comparison-issues.error');
+    await expect(errorRow.locator('td').nth(0)).toHaveText('1');
+    await expect(errorRow.locator('td').nth(1)).toHaveText('0');
+    const warningRow = panel.getByTestId('comparison-issues.warning');
+    await expect(warningRow.locator('td').nth(0)).toHaveText('2');
+    await expect(warningRow.locator('td').nth(1)).toHaveText('0');
     await expect(panel).toContainText('Скамья ожидания 2');
     await expect(panel).toContainText('Табло над зоной очереди');
     await expect(panel).toContainText('Терминал электронной очереди');
-    await panel.screenshot({ path: `docs/verification/2026-09-29-comparison-file-${width}.png` });
+    // The committed snapshot is refreshed on request only, so an ordinary run
+    // does not rewrite a tracked file: UPDATE_SNAPSHOTS=1 npx playwright test …
+    if (process.env['UPDATE_SNAPSHOTS'] === '1') {
+      await panel.screenshot({ path: `docs/verification/2026-09-29-comparison-file-${width}.png` });
+    }
     const handle = page.getByRole('separator', { name: 'Изменить ширину правой панели' });
     await handle.focus();
     await page.keyboard.press('Home');
@@ -45,7 +53,9 @@ for (const width of [1280, 1440]) {
     expect(await table.evaluate((node) => node.scrollWidth)).toBeLessThanOrEqual(await table.evaluate((node) => node.clientWidth));
     await expect(panel.getByTestId('comparison-area.free')).toContainText('Свободно');
     await panel.locator('.comparison__changes').scrollIntoViewIfNeeded();
-    await page.locator('#side-panel-right').screenshot({ path: `docs/verification/2026-09-29-comparison-file-${width}-compact.png` });
+    if (process.env['UPDATE_SNAPSHOTS'] === '1') {
+      await page.locator('#side-panel-right').screenshot({ path: `docs/verification/2026-09-29-comparison-file-${width}-compact.png` });
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await handle.focus();
     await page.keyboard.press('End');
