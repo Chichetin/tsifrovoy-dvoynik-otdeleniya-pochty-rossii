@@ -86,6 +86,46 @@ test('несвязанные планы: предупреждение вмест
   expect(screen.queryByTestId('approval-sheet-changes')).toBeNull();
 });
 
+test('находки и правила: у каждой строки свой источник, не общая пометка «не норматив Почты»', () => {
+  const zone = base.zones[0];
+  if (zone === undefined) throw new Error('в minimal.json нет зон');
+  const distanceRule = {
+    id: 'rule_test_distance', kind: 'distance-to-entrance' as const, source: 'organizer-material' as const,
+    rationale: 'Тест: правило организаторов.', objectTypeId: source.typeId, maxDistance_m: 3, entranceId: null,
+  };
+  const countRule = {
+    id: 'rule_test_count', kind: 'count' as const, source: 'team-assumption' as const,
+    rationale: 'Тест: правило команды.', zoneTypeId: zone.typeId, objectTypeId: source.typeId, scope: 'inclusive' as const, min: 2, max: null,
+  };
+  const withRules: PlanDocument = { ...base, catalog: { ...base.catalog, rules: [distanceRule, countRule] } };
+  // Далеко от входа (нарушение расстояния) и одно рабочее место (нарушение минимума).
+  const farBefore: PlanDocument = { ...withRules, objects: [{ ...source, position: [2, 2] }] };
+  // Рядом со входом (1,5 м по прямой), два рабочих места — оба правила соблюдены.
+  const nearAfter: PlanDocument = {
+    ...withRules,
+    objects: [
+      { ...source, position: [4.6, 6.5] },
+      { ...source, id: 'eq_extra', position: [3, 6.5], attributes: { inventoryNumber: 'ОПС-0002' } },
+    ],
+  };
+
+  render(<ApprovalSheet before={farBefore} after={nearAfter} beforeSource="before.json" onClose={vi.fn()} />);
+
+  const findings = screen.getByTestId('approval-sheet-issue-deltas').textContent ?? '';
+  expect(findings).toContain('Устранено:');
+  expect((findings.match(/Устранено:/g) ?? []).length).toBe(2);
+  expect(findings).not.toContain('Появилось:');
+
+  const table = screen.getByTestId('approval-sheet-rule-effects');
+  const rows = table.querySelectorAll('tbody tr');
+  expect(rows.length).toBe(2);
+  const distanceRow = Array.from(rows).find((row) => row.textContent?.includes('до входа'));
+  const countRow = Array.from(rows).find((row) => row.textContent?.includes('зоне'));
+  expect(distanceRow?.textContent).toContain('материалы организаторов');
+  expect(distanceRow?.textContent).not.toContain('не норматив Почты России');
+  expect(countRow?.textContent).toContain('не норматив Почты России');
+});
+
 test('невычислимая геометрия — отказ, а не пустой лист без объяснения', () => {
   const broken: PlanDocument = {
     ...before,

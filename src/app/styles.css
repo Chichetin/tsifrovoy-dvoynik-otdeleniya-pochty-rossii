@@ -2764,6 +2764,38 @@ span.inventory__num {
   font-size: var(--text-xs);
 }
 
+.approval-sheet__issues {
+  margin: 0 0 var(--space-4);
+  padding-left: 0;
+  list-style: none;
+  font-size: var(--text-s);
+}
+
+.approval-sheet__issues li {
+  margin-bottom: 6px;
+  padding: 2px 0 2px 10px;
+  border-left: 3px solid var(--color-line);
+}
+
+.approval-sheet__issues li.is-resolved {
+  border-left-color: var(--color-success);
+}
+
+.approval-sheet__issues li.is-new {
+  border-left-color: var(--color-danger);
+}
+
+/* Источник конкретного правила комплектования/расстояния — не общая пометка
+   допущений расчёта (D-327): организаторское правило не выглядит командным. */
+.approval-sheet__source {
+  font-size: var(--text-xs);
+  color: var(--color-muted);
+}
+
+.approval-sheet__source.is-organizer {
+  color: var(--color-ink);
+}
+
 .approval-sheet__assumptions {
   margin: 0 0 var(--space-2);
   padding-left: 18px;
@@ -2785,24 +2817,27 @@ span.inventory__num {
 .approval-sheet .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
 @media print {
-  body * {
-    visibility: hidden;
+  /* D-328 (ревью !319): `.approval-sheet` renders through a body-level portal
+     (`ApprovalSheet.tsx`), so it is a direct child of `body` — everything
+     else (`#root`, the whole `.shell`) goes with one `display: none`, no
+     fight with the editor canvas's inline pixel height (set by a
+     ResizeObserver, `src/features/editor`) or any other invisible sibling
+     that would otherwise keep the page tall enough for a second, blank one. */
+  html, body {
+    height: auto;
+    background: none;
   }
-  .approval-sheet,
-  .approval-sheet * {
-    visibility: visible;
+  body > *:not(.approval-sheet) {
+    display: none !important;
   }
   .approval-sheet {
-    position: absolute;
+    position: static;
     inset: auto;
-    top: 0;
-    left: 0;
-    width: 100%;
+    display: block;
     margin: 0;
     padding: 0;
     background: none;
     overflow: visible;
-    display: block;
   }
   .approval-sheet__panel {
     width: 100%;
@@ -2814,5 +2849,46 @@ span.inventory__num {
     padding: 0;
     border-radius: 0;
     box-shadow: none;
+  }
+  /* «Автор» — a plain typed line on paper, not a form control. */
+  .approval-sheet__facts input {
+    border: none;
+    outline: none;
+    padding: 0;
+    background: none;
+  }
+  /* On screen the plan images are wide (min(900px, 100%) panel ÷ 2 columns),
+     so tall enough by their own aspect ratio to push the rest of the sheet
+     onto a second, mostly empty page. Capped by height in print — width
+     stays `auto` so the SVG's own `viewBox` still sets its aspect ratio. */
+  .approval-sheet__images svg {
+    width: auto;
+    height: 32mm;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+  /* Screen spacing is generous on purpose (a modal, read on a monitor); print
+     tightens it so the whole sheet — images, three tables, three lists —
+     fits one A4 page (`page.pdf({ format: 'A4' })`, Chromium's own default
+     margins) instead of spilling a mostly empty second one:
+     `tests/e2e/approval-sheet.spec.ts` counts `/Type /Page` objects in the
+     generated PDF, not just this dialog's on-screen height. */
+  .approval-sheet__page h3 {
+    margin: 5px 0 2px;
+  }
+  .approval-sheet__table,
+  .approval-sheet__issues,
+  .approval-sheet__changes,
+  .approval-sheet__assumptions {
+    margin-bottom: 6px;
+  }
+  .approval-sheet__table th,
+  .approval-sheet__table td {
+    padding: 2px 6px;
+  }
+  .approval-sheet__issues li,
+  .approval-sheet__changes li,
+  .approval-sheet__assumptions li {
+    margin-bottom: 2px;
   }
 }

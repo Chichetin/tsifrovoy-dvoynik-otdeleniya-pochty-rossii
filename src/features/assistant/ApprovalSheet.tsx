@@ -8,9 +8,18 @@
  * feature (`docs/project-structure.md`). The focus trap below repeats that
  * one's shape on purpose, so the two dialogs in the app behave the same way
  * without sharing a file neither owns.
+ *
+ * Rendered through a portal into `document.body` (D-328, ревью !319): nested
+ * under the assistant panel, `@media print` cannot hide every sibling on the
+ * way up without also hiding this dialog, and the editor canvas sizes itself
+ * in *pixels via an inline style* the stylesheet cannot shrink — either kept
+ * the invisible rest of the page tall enough for a second, blank printed
+ * page. A body-level portal sidesteps both: `position: fixed` already places
+ * it by the viewport regardless of DOM depth, so nothing changes on screen.
  */
 
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { PlanDocument } from '../../contracts/model';
 import type { ComparisonMetric } from '../../domain/plan-comparison';
 import { formatNumber } from '../../domain/number-format';
@@ -27,7 +36,13 @@ const METRIC_LABELS: Record<ComparisonMetric, string> = {
 
 const CHANGE_LABELS = { added: 'Добавлен', removed: 'Удалён', moved: 'Перемещён', updated: 'Обновлён' };
 
-const RULE_NOTE = 'Допущения и правила расчёта — решение команды, не норматив Почты России.';
+/**
+ * Только про допущения `comparePlans` (как считается площадь, что не суммируется
+ * дважды) — не про правила комплектования и расстояния. У каждого такого
+ * правила свой источник в таблице ниже (D-327): часть — материалы организаторов,
+ * а не команда, и общая пометка «не норматив Почты» им не подходит.
+ */
+const ASSUMPTIONS_NOTE = 'Допущения расчёта показателей — решение команды, не норматив Почты России.';
 
 export type ApprovalSheetProps = {
   /** База «до» — выбранный файл сравнения или сессия открытия/сохранения (как в ComparisonPanel). */
@@ -87,7 +102,7 @@ export function ApprovalSheet({ before, after, beforeSource, onClose }: Approval
   // the comparison must not be rebuilt each time.
   const sheet = useMemo(() => buildApprovalSheet(before, after), [before, after]);
 
-  return (
+  return createPortal(
     <div className="approval-sheet" data-testid="approval-sheet"
       onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div
@@ -166,6 +181,57 @@ export function ApprovalSheet({ before, after, beforeSource, onClose }: Approval
               </tbody>
             </table>
 
+            <h3>Находки проверки: устранены / появились</h3>
+            {!sheet.value.comparison.related ? (
+              <p className="panel__empty">Сопоставление находок не подтверждено: у файлов разные ID планов.</p>
+            ) : sheet.value.comparison.issueDeltas.length === 0 ? (
+              <p className="panel__empty">Список находок проверки не изменился.</p>
+            ) : (
+              <ul className="approval-sheet__issues" data-testid="approval-sheet-issue-deltas">
+                {sheet.value.comparison.issueDeltas.map((delta, index) => (
+                  <li
+                    key={`${delta.status}-${delta.issue.code}-${index}`}
+                    className={delta.status === 'resolved' ? 'is-resolved' : 'is-new'}
+                  >
+                    <strong>{delta.status === 'resolved' ? 'Устранено: ' : 'Появилось: '}</strong>
+                    {delta.issue.message}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {sheet.value.comparison.ruleEffects.length === 0 ? null : (
+              <>
+                <h3>Показатели по правилам «было → стало»</h3>
+                <table className="approval-sheet__table" data-testid="approval-sheet-rule-effects">
+                  <caption className="sr-only">Правила комплектования и расстояния — было и стало</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Показатель</th>
+                      <th scope="col">Было</th>
+                      <th scope="col">Стало</th>
+                      <th scope="col">Источник правила</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sheet.value.comparison.ruleEffects.map((row, index) => {
+                      const digits = row.unit === 'count' ? 0 : 2;
+                      return (
+                        <tr key={`${row.ruleId}-${row.label}-${index}`}>
+                          <th scope="row">{row.label}</th>
+                          <td>{row.before === null ? '—' : formatNumber(row.before, digits)}</td>
+                          <td>{row.after === null ? '—' : formatNumber(row.after, digits)}</td>
+                          <td className={row.source === 'organizer-material' ? 'approval-sheet__source is-organizer' : 'approval-sheet__source is-team'}>
+                            {row.sourceNote}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </>
+            )}
+
             <h3>Изменения в плане</h3>
             {sheet.value.comparison.changes === null ? (
               <p className="panel__empty">Сопоставление предметов не подтверждено: у файлов разные ID планов.</p>
@@ -185,17 +251,18 @@ export function ApprovalSheet({ before, after, beforeSource, onClose }: Approval
 
             {(sheet.value.assumptions.length === 0 && sheet.value.limitations.length === 0) ? null : (
               <>
-                <h3>Использованные правила и допущения</h3>
+                <h3>Допущения расчёта показателей «было → стало»</h3>
                 <ul className="approval-sheet__assumptions" data-testid="approval-sheet-assumptions">
                   {sheet.value.assumptions.map((line) => <li key={line}>{line}</li>)}
                   {sheet.value.limitations.map((line) => <li key={line}>{line}</li>)}
                 </ul>
-                <p className="approval-sheet__rule-note">{RULE_NOTE}</p>
+                <p className="approval-sheet__rule-note">{ASSUMPTIONS_NOTE}</p>
               </>
             )}
           </article>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

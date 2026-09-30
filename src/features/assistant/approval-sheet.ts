@@ -1,9 +1,12 @@
 /**
  * S2-39 (#35): data for the approval sheet — the one page that leaves the
  * screen for a manager's signature. Every number on it is `buildPlanComparison`,
- * the same calculation «Эффект изменений» already shows; the assumptions are
- * `comparePlans`'s own, the deterministic compare scenario, not a model call.
- * Nothing here reads an LLM response.
+ * the same calculation «Эффект изменений» already shows, extended with the
+ * checks block and the rule numbers it now also carries (`issueDeltas`,
+ * `ruleEffects` — `validatePlan`, `countInZoneScope` and the entrance-distance
+ * primitives the check itself uses, no new formula). The assumptions are
+ * `comparePlans`'s own, the deterministic compare scenario. Nothing here reads
+ * an LLM response.
  */
 
 import type { PlanDocument, Result } from '../../contracts/model';
@@ -16,7 +19,7 @@ export type ApprovalSheetData = {
   /** Inline-ready markup: no XML prolog, which only the standalone `.svg` file needs. */
   beforeSvg: string;
   afterSvg: string;
-  /** Team assumptions the comparison rests on — never a Почта норматив. */
+  /** Team assumptions the comparison itself rests on — never a Почта норматив. */
   assumptions: string[];
   limitations: string[];
 };
@@ -24,6 +27,15 @@ export type ApprovalSheetData = {
 /** The XML prolog is only meaningful for a file saved on its own (D-061). */
 function inlineSvg(svg: string): string {
   return svg.replace(/^<\?xml[^>]*\?>\n?/, '');
+}
+
+/**
+ * Экспорт «Экспорт → SVG» рисует только видимые слои — верно для картинки
+ * рабочего стола. Лист согласования — другой документ: руководитель должен
+ * видеть план целиком, а не то, что случайно скрыто у автора листа сейчас.
+ */
+function withAllLayersVisible(plan: PlanDocument): PlanDocument {
+  return { ...plan, layers: plan.layers.map((layer) => ({ ...layer, visible: true })) };
 }
 
 export function buildApprovalSheet(before: PlanDocument, after: PlanDocument): Result<ApprovalSheetData> {
@@ -38,8 +50,8 @@ export function buildApprovalSheet(before: PlanDocument, after: PlanDocument): R
     ok: true,
     value: {
       comparison: comparison.value,
-      beforeSvg: inlineSvg(renderPlanSvg(before)),
-      afterSvg: inlineSvg(renderPlanSvg(after)),
+      beforeSvg: inlineSvg(renderPlanSvg(withAllLayersVisible(before))),
+      afterSvg: inlineSvg(renderPlanSvg(withAllLayersVisible(after))),
       assumptions: facts?.assumptions ?? [],
       limitations: facts?.limitations ?? [],
     },

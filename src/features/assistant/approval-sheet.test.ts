@@ -104,4 +104,33 @@ describe('buildApprovalSheet', () => {
     expect(sheet.value.comparison.changes).toBeNull();
     expect(sheet.value.comparison.warning).not.toBeNull();
   });
+
+  test('находки и правила справочника «было → стало» проходят на лист из сравнения', () => {
+    const sheet = buildApprovalSheet(before, after);
+    if (!sheet.ok) throw new Error('сравнение не построилось');
+    const resolvedCodes = sheet.value.comparison.issueDeltas
+      .filter((delta) => delta.status === 'resolved')
+      .map((delta) => delta.issue.code)
+      .sort();
+    expect(resolvedCodes).toEqual(['RULE_COUNT_ABOVE_MAX', 'RULE_COUNT_BELOW_MIN', 'RULE_TOO_FAR_FROM_ENTRANCE']);
+    const distance = sheet.value.comparison.ruleEffects.find((row) => row.ruleId === 'rule_queue_terminal_entrance');
+    expect(distance?.before).toBeCloseTo(6.62, 2);
+    expect(distance?.after).toBeCloseTo(2.25, 2);
+    expect(distance?.sourceNote).toContain('материалы организаторов');
+  });
+
+  test('картинки листа рисуют объекты со скрытых слоёв — руководитель видит план целиком', () => {
+    const base = fixture('minimal.json');
+    const hiddenObject = { ...base.objects[0]!, id: 'eq_hidden', layerId: 'l_hidden' };
+    const withHiddenLayer: PlanDocument = {
+      ...base,
+      layers: [...base.layers, { id: 'l_hidden', name: 'Скрытый слой', visible: false, locked: false, order: 1, typeId: null }],
+      objects: [...base.objects, hiddenObject],
+    };
+    const sheet = buildApprovalSheet(withHiddenLayer, withHiddenLayer);
+    if (!sheet.ok) throw new Error('сравнение не построилось');
+    // «Экспорт → SVG» скрыл бы этот объект (слой невидим); лист согласования — нет.
+    expect(sheet.value.beforeSvg).toContain('data-id="eq_hidden"');
+    expect(sheet.value.afterSvg).toContain('data-id="eq_hidden"');
+  });
 });

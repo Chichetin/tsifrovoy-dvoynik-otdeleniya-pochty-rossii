@@ -40,6 +40,12 @@ test('лист согласования показывает изменения 
   await expect(author).toHaveValue('Иванова И. И., руководитель ОПС');
 
   // Эффект «было → стало» — те же числа, что demo/effect.md берёт из расчёта.
+  const totalRow = dialog.getByTestId('approval-sheet-metric-area.total');
+  await expect(totalRow.locator('td').nth(0)).toHaveText('132,00');
+  await expect(totalRow.locator('td').nth(1)).toHaveText('132,00');
+  const occupiedRow = dialog.getByTestId('approval-sheet-metric-area.occupied');
+  await expect(occupiedRow.locator('td').nth(0)).toHaveText('17,27');
+  await expect(occupiedRow.locator('td').nth(1)).toHaveText('18,07');
   const freeRow = dialog.getByTestId('approval-sheet-metric-area.free');
   await expect(freeRow.locator('td').nth(0)).toHaveText('114,73');
   await expect(freeRow.locator('td').nth(1)).toHaveText('113,93');
@@ -50,6 +56,29 @@ test('лист согласования показывает изменения 
   const warningRow = dialog.getByTestId('approval-sheet-metric-issues.warning');
   await expect(warningRow.locator('td').nth(0)).toHaveText('2');
   await expect(warningRow.locator('td').nth(1)).toHaveText('0');
+
+  // Находки проверки: расстояние до входа и оба правила комплектования закрыты.
+  const findings = dialog.getByTestId('approval-sheet-issue-deltas');
+  await expect(findings).toContainText('6,62');
+  await expect(findings).toContainText('главного входа');
+  await expect(findings).toContainText('материалы организаторов');
+  await expect(findings).toContainText('при минимуме 2');
+  await expect(findings).toContainText('при максимуме 1');
+  await expect(findings.getByText('Появилось:')).toHaveCount(0);
+
+  // Показатели по правилам «было → стало» — терминал 6,62 → 2,25 м, скамьи 1 → 2, табло 2 → 1.
+  const ruleEffects = dialog.getByTestId('approval-sheet-rule-effects');
+  const distanceRuleRow = ruleEffects.locator('tr', { hasText: 'до входа' });
+  await expect(distanceRuleRow.locator('td').nth(0)).toHaveText('6,62');
+  await expect(distanceRuleRow.locator('td').nth(1)).toHaveText('2,25');
+  await expect(distanceRuleRow).toContainText('материалы организаторов');
+  const benchRuleRow = ruleEffects.locator('tr', { hasText: 'Зона ожидания' });
+  await expect(benchRuleRow.locator('td').nth(0)).toHaveText('1');
+  await expect(benchRuleRow.locator('td').nth(1)).toHaveText('2');
+  await expect(benchRuleRow).toContainText('не норматив Почты России');
+  const displayRuleRow = ruleEffects.locator('tr', { hasText: 'Клиентский зал' });
+  await expect(displayRuleRow.locator('td').nth(0)).toHaveText('2');
+  await expect(displayRuleRow.locator('td').nth(1)).toHaveText('1');
 
   // Изменения — по названиям, id мелко рядом.
   const changes = dialog.getByTestId('approval-sheet-changes');
@@ -105,6 +134,10 @@ test('печать: @media print оставляет на странице тол
   await expect(dialog.getByTestId('approval-sheet-close')).toBeHidden();
   await expect(dialog.locator('.approval-sheet__page')).toBeVisible();
   await expect(dialog.getByTestId('approval-sheet-changes')).toBeVisible();
+  // Ревью !319: серого фона body под листом больше нет, поле «Автор» — без
+  // рамки и рабочей обводки формы, печатается как простая строка.
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(dialog.getByTestId('approval-sheet-author')).toHaveCSS('border-style', 'none');
 
   if (process.env['UPDATE_SNAPSHOTS'] === '1') {
     await dialog.locator('.approval-sheet__page').screenshot({ path: 'docs/verification/2026-09-30-approval-sheet/print.png' });
@@ -112,6 +145,19 @@ test('печать: @media print оставляет на странице тол
 
   await page.emulateMedia({ media: 'screen' });
   await expect(page.locator('.shell__bar')).toBeVisible();
+});
+
+/** Число объектов `/Type /Page` (не `/Pages`) в необжатом PDF — без внешних зависимостей на разбор PDF. */
+function countPdfPages(pdf: Buffer): number {
+  const matches = pdf.toString('latin1').match(/\/Type\s*\/Page(?!s)/g);
+  return matches === null ? 0 : matches.length;
+}
+
+test('печать: A4 укладывается в одну страницу PDF — вторая пустая не появляется', async ({ page }) => {
+  const dialog = await openSheet(page);
+  await expect(dialog).toBeVisible();
+  const pdf = await page.pdf({ format: 'A4' });
+  expect(countPdfPages(pdf)).toBe(1);
 });
 
 test('несвязанные планы: предупреждение вместо перепутанных изменений', async ({ page }) => {
