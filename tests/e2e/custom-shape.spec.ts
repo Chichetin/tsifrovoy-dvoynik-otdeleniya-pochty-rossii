@@ -27,6 +27,7 @@ const DEMO = join(process.cwd(), 'demo', 'before.json');
 const TYPE_NAME = 'Стойка угловая e2e';
 const RACK = 'Шкаф / стеллаж для посылок';
 const card = (page: Page) => page.getByLabel('Свойства');
+const demo = JSON.parse(readFileSync(DEMO, 'utf8')) as Saved;
 
 /** Two animation frames: Konva has drawn the scene and its hit canvas. */
 async function settle(page: Page): Promise<void> {
@@ -73,17 +74,8 @@ async function savePlan(page: Page): Promise<{ path: string; plan: Saved }> {
   return { path: path as string, plan: JSON.parse(readFileSync(path as string, 'utf8')) as Saved };
 }
 
-test('форма вершиной → новый тип → объект этого типа → сохранить → открыть заново', async ({ page }) => {
-  const errors: string[] = [];
-  page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('/');
-  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-
-  // The biggest rectangular object of the demo that is easy to hit, has nothing
-  // on top of it — and has room to grow. Жест ниже вытягивает угол наружу
-  // примерно на 0,7 м по обеим осям, а объект, выросший в соседа, физика не
-  // пропускает (D-286): у цели должно быть свободно справа и сверху.
-  const demo = JSON.parse(readFileSync(DEMO, 'utf8')) as Saved;
+/** A large unobstructed rectangle with room for the vertex gesture. */
+function growableTarget(): Saved['objects'][number] {
   const GROWTH_M = 0.8;
   const spaceOf = (object: Saved['objects'][number], pad = 0): [number, number, number, number] => {
     const turn = (object.rotation_deg * Math.PI) / 180;
@@ -102,28 +94,46 @@ test('форма вершиной → новый тип → объект это�
         (other) => other.id === object.id || !overlap(spaceOf(object, GROWTH_M), spaceOf(other)),
       ),
     )
-    .sort((a, b) => b.size_m[0] * b.size_m[1] - a.size_m[0] * a.size_m[1])[0]!;
+    .sort((a, b) => b.size_m[0] * b.size_m[1] - a.size_m[0] * a.size_m[1])[0];
+  if (target === undefined) throw new Error('Демо не содержит объекта для проверки формы');
+  return target;
+}
 
-  // Double click on the object: shape mode, vertex handles appear.
+test('режим формы выключается Enter и сменой инструмента', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
+  const target = growableTarget();
   const centre = await nodeOnPage(page, `equipment-${target.id}`);
   await page.mouse.dblclick(centre.x, centre.y);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
-  // D-290: while the vertices are shown, the object's own resize and rotation
-  // handles are gone; Enter ends the mode and brings them back (Escape also
-  // clears the selection on the canvas, so nothing would be left to show).
+  // D-290: shape vertices replace the object's resize and rotation handles.
   await expect.poll(() => objectHandles(page)).toBe(0);
   await page.keyboard.press('Enter');
   await expect.poll(() => objectHandles(page)).toBeGreaterThan(0);
   await page.mouse.dblclick(centre.x, centre.y);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 
-  // Another tool ends the mode, and its line goes with it (D-282); back under
-  // «Выбор» the mode is off until the next double click.
+  // D-282: switching tools clears the mode and its hint.
   const tools = page.getByRole('toolbar', { name: 'Инструменты плана' });
   await tools.getByRole('button', { name: 'Зона', exact: true }).click();
   await expect(page.getByTestId('plan-tools-notice')).toHaveCount(0);
   await tools.getByRole('button', { name: 'Выбор', exact: true }).click();
   await expect(page.getByTestId('plan-tools-notice')).toHaveCount(0);
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
+});
+
+test('форма вершиной → новый тип → объект этого типа → сохранить → открыть заново', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(DEMO);
+
+  // The complete edit → type → placement → reopened-file route still runs in
+  // one session; mode exit/re-entry has its own focused test above.
+  const target = growableTarget();
+  // Double click on the object: shape mode, vertex handles appear.
+  const centre = await nodeOnPage(page, `equipment-${target.id}`);
   await page.mouse.dblclick(centre.x, centre.y);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 

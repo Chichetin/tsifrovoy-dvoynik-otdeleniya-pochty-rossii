@@ -981,6 +981,30 @@ body {
   }
 }
 
+/* D-316: extra width reserve for font metrics on the final demo header.
+   Keep labels; spend inter-group whitespace first. Below introduces a 44px
+   tool button floor (new versus main) before touching any name. */
+@media (min-width: 1340px) and (max-width: 1500px) {
+  .shell__bar { column-gap: var(--space-2); padding-inline: var(--space-2); }
+}
+
+@media (max-width: 1339px) {
+  .shell__bar { column-gap: var(--space-1); padding-inline: var(--space-1); }
+}
+
+@media (max-width: 1500px) {
+  .toolbar__group-gap { margin-inline: 2px; }
+  /* D-319: D-316's 20 px slack still fell to 15.2/13.5 px on Linux system
+     fonts. One more pixel off each side of a tool button's padding buys
+     12 px back across the six labelled tools above the 44 px floor, without
+     shortening any name. The 44 px floor itself is D-316's, new versus main:
+     it overrides `.toolbar__button--icon`'s 30 px width/min-width, so the
+     icon-only «Удалить перегородку» renders 44×30 px here (was 30×30 on
+     main) and «Зона» 44 px (was ~40 px natural) — a wider hit target, not a
+     regression; button height stays 30 px everywhere, unchanged. */
+  .shell__bar .toolbar__button { min-width: 44px; padding-inline: 4px; }
+}
+
 /* D-261: the history goes icon-only below 1460 px (was 1400): at 1400–1459 px
    the named buttons left the free column at 0–12 px in the worst state. The
    icon buttons are square like the hotkeys button, the names stay in the
