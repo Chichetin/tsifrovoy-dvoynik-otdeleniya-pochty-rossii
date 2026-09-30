@@ -49,9 +49,16 @@ function record(value: unknown): Record<string, unknown> | null {
     ? value as Record<string, unknown> : null;
 }
 
+/**
+ * «name» (id): the chat UI turns this exact shape into a single button
+ * labelled with the name (D-320). A room is never a button (`AgentChat`'s
+ * matcher only resolves zones and objects among plan entities), so it is
+ * named without an id to strand — the plain `${ref.id}` form used to leave
+ * one bare and unclickable in the answer.
+ */
 function subject(state: AgentToolState, refs: readonly Ref[]): string {
   return refs.map((ref) => {
-    if (ref.kind === 'room') return `помещение (${ref.id})`;
+    if (ref.kind === 'room') return `«${state.names.nameOf(ref) ?? 'Помещение'}»`;
     return `«${state.names.nameOf(ref) ?? ref.id}» (${ref.id})`;
   }).join(', ');
 }

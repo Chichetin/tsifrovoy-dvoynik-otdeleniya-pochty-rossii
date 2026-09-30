@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
 import type { PlanDocument } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
-import { renderExplanation } from '../../domain/advice';
+import { hideNamedIds, renderExplanation } from '../../domain/advice';
 import { AgentChat } from './AgentChat';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
@@ -81,12 +81,15 @@ function equipmentSubject(
   return `${type} · ${zone}`;
 }
 
-/** Где окажется вариант: имя и id зоны из плана, чтобы его можно было найти. */
+/**
+ * Где окажется вариант: название зоны из плана (D-320); id остаётся доступен
+ * рядом, в списке «Ссылки» карточки, где по нему можно перейти на план.
+ */
 function candidateZone(index: PlanIndex, candidate: Candidate): string {
   const zoneId = candidate.object.zoneId;
   if (zoneId === null) return 'вне зон';
   const name = index.zoneName(zoneId);
-  return name === null ? `зона ${zoneId}` : `зона «${name}» (${zoneId})`;
+  return name === null ? `зона ${zoneId}` : `зона «${name}»`;
 }
 
 export function AssistantPanel({
@@ -353,9 +356,11 @@ export function AssistantPanel({
                         <button
                           type="button"
                           className="table__link"
+                          title={`Показать на плане: ${names.nameOf(change.ref) ?? change.ref.id}`}
+                          data-ref-id={change.ref.id}
                           onClick={() => onFocus(change.ref)}
                         >
-                          {change.ref.id}
+                          {names.nameOf(change.ref) ?? change.ref.id}
                         </button>
                         <span>{change.kind}</span>
                       </li>
@@ -369,9 +374,11 @@ export function AssistantPanel({
                       key={`${ref.kind}-${ref.id}`}
                       type="button"
                       className="table__link"
+                      title={`Показать на плане: ${names.nameOf(ref) ?? ref.id}`}
+                      data-ref-id={ref.id}
                       onClick={() => onFocus(ref)}
                     >
-                      {ref.id}
+                      {names.nameOf(ref) ?? ref.id}
                     </button>
                   ))}
                 </p>
@@ -389,7 +396,7 @@ export function AssistantPanel({
 
                 <ul className="advice__limitations">
                   {recommendation.limitations.map((limitation) => (
-                    <li key={limitation}>{limitation}</li>
+                    <li key={limitation}>{hideNamedIds(limitation)}</li>
                   ))}
                 </ul>
               </article>

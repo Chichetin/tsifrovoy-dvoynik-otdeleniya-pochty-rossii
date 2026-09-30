@@ -22,7 +22,16 @@ export const AGENT_EXAMPLES = [
   'Как мои изменения повлияли на свободную площадь?',
 ] as const;
 
-const ID_PATTERN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi;
+/**
+ * Two ways the code writes a plan reference into an answer (D-320): a bare
+ * id such as `z_storage` — most of `composeFallbackText`/`renderAgentFact` —
+ * or, for text that already quotes a name itself, «name» (id). Either way
+ * the reader never sees the id: a zone or an object turns into a button
+ * labelled with its name; anything else (a rule, a type) keeps its quoted
+ * name and drops the id, or — for a bare token nothing here recognises —
+ * is left exactly as written.
+ */
+const ANSWER_REF_PATTERN = /«([^»]{1,120})»\s*\(([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\)|\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b/gi;
 
 type Props = {
   plan: PlanDocument;
@@ -60,23 +69,44 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
   }
 }
 
-/** Answer text with every plan id turned into a button that shows it. */
-function AnswerText({ text, plan, stale, onFocus }: { text: string; plan: PlanDocument; stale: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
+/**
+ * Answer text with every zone or object turned into a button labelled with
+ * its name — never with its id (#10): the id only decides whether a mention
+ * is clickable and lands in `title`/`data-ref-id` for whoever needs it.
+ */
+function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan: PlanDocument; names: PlanIndex; stale: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
   return (
     <div className="agent__text">
       {text.split(/\n{2,}/).map((paragraph, index) => {
         const parts: React.ReactNode[] = [];
         let last = 0;
-        for (const match of paragraph.matchAll(ID_PATTERN)) {
-          const ref = refFor(plan, match[0]);
-          if (ref === null) continue;
-          parts.push(paragraph.slice(last, match.index));
-          parts.push(
-            <button key={match.index} type="button" className="agent__id" disabled={stale} onClick={() => onFocus(ref)} title="Показать на плане">
-              {match[0]}
-            </button>,
-          );
-          last = match.index + match[0].length;
+        for (const match of paragraph.matchAll(ANSWER_REF_PATTERN)) {
+          const [whole, quotedName, quotedId, bareId] = match;
+          const token = quotedId ?? bareId ?? '';
+          const ref = refFor(plan, token);
+          const start = match.index ?? last;
+          parts.push(paragraph.slice(last, start));
+          if (ref === null) {
+            // A rule or a type: the id is not a plan entity a click can show —
+            // drop it, keep the quoted name if the sentence already gave one.
+            parts.push(quotedName === undefined ? token : `«${quotedName}»`);
+          } else {
+            const label = names.nameOf(ref) ?? quotedName ?? token;
+            parts.push(
+              <button
+                key={start}
+                type="button"
+                className="agent__id"
+                disabled={stale}
+                onClick={() => onFocus(ref)}
+                title={`Показать на плане · id ${token}`}
+                data-ref-id={token}
+              >
+                {label}
+              </button>,
+            );
+          }
+          last = start + whole.length;
         }
         parts.push(paragraph.slice(last));
         return <p key={index}>{parts}</p>;
@@ -159,7 +189,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                 {exchange.error === null ? null : <p className="files__error" role="alert">{exchange.error}</p>}
                 {answer === null ? null : (
                   <div className={`agent__answer${answer.mode === 'llm' ? '' : ' is-fallback'}`}>
-                    <AnswerText text={answer.text} plan={plan} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
+                    <AnswerText text={answer.text} plan={plan} names={names} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
                     <p className="agent__mode">
                       {answer.mode === 'llm'
                         ? 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'

@@ -191,6 +191,9 @@ describe('ответ без модели называет зоны, типы и 
   }
 
   test('комплектование: тип, зона с id, учтённые объекты и правило команды', () => {
+    // «name» (id): the chat UI turns this shape into a single button labelled
+    // with the name (D-320) — this test still checks the calculation's raw
+    // text, which keeps both, in AgentChat.test.tsx's format.
     const { text, problems } = answer(before, 'Чего не хватает или что лишнее по оборудованию?');
     expect(text).toContain('«Центральное информационное табло»');
     expect(text).toContain('«Клиентский зал» (z_client)');
@@ -199,7 +202,7 @@ describe('ответ без модели называет зоны, типы и 
     expect(text).toContain('rule_info_display_max');
     expect(text).toContain('«Скамья / кресла для ожидания»');
     expect(text).toContain('«Зона ожидания» (z_waiting)');
-    expect(text).toContain('Учтены: eq_7 «Табло над зоной ожидания», eq_8 «Табло над зоной очереди».');
+    expect(text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8).');
     expect(text).toContain('eq_6');
     expect(text).toContain('rule_bench_min');
     // The rationale already says «Правило команды» — the mark is not repeated.
@@ -268,7 +271,7 @@ describe('ответ без модели называет зоны, типы и 
     expect(result.text.split('\n\n')[0]).toContain('не рекомендуется');
     expect(result.text).toContain('rule_info_display_max');
     expect(result.text).toContain('Сначала уберите лишнее');
-    expect(result.text).toContain('Учтены: eq_7 «Табло над зоной ожидания», eq_8 «Табло над зоной очереди».');
+    expect(result.text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8).');
     expect(result.text).not.toContain('Место найдено');
     expect(result.actions.some((action) => action.kind === 'apply-candidate')).toBe(false);
     expect(result.recommendations.every((entry) => entry.scenario === 'equipment')).toBe(true);

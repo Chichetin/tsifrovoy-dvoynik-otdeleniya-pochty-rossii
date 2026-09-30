@@ -124,3 +124,70 @@ test('числа ответа записаны по-русски: запятая
     .filter((text) => text.endsWith('м²'));
   for (const text of areaFacts) expect(text).toMatch(/^[+-]?\d[\d\u00a0]*,\d\d\u00a0м²$/);
 });
+
+test('#10: зона варианта, ссылки и изменения показывают названия, а id — в title/data-ref-id', () => {
+  const zone = parsed.value.zones[0]!;
+  const object = parsed.value.objects[0]!;
+  const calculated = calculateAdvice(parsed.value, { scenario: 'place', typeId: 'ot_workplace', zoneId: null });
+  if (!calculated.ok) throw new Error('расчёт не выполнился');
+  const candidate = calculated.value[0]?.candidates[0];
+  if (candidate === undefined) throw new Error('в minimal.json не нашлось варианта места');
+  const recommendation = {
+    ...calculated.value[0]!,
+    // A recommendation the calculation would build, but with a change and a
+    // ref added by hand: real data to check the panel, not the calculation.
+    refs: [{ kind: 'zone' as const, id: zone.id }, { kind: 'object' as const, id: object.id }],
+    changes: [{ ref: { kind: 'object' as const, id: object.id }, kind: 'moved' as const }],
+  };
+  render(
+    <AssistantPanel
+      document={parsed.value}
+      revision={0}
+      response={{ revision: 0, recommendations: [recommendation], explanations: [], mode: 'fallback', fallbackReason: 'проверка' }}
+      state={{ status: 'done' }}
+      onPreview={vi.fn()}
+      onFocus={vi.fn()}
+      onAsk={vi.fn()}
+    />,
+  );
+  const panel = screen.getByLabelText('Ассистент');
+
+  const zoneSpan = panel.querySelector('.advice__zone')!;
+  expect(zoneSpan.textContent).not.toContain(zone.id);
+  expect(zoneSpan.textContent).toContain(zone.name);
+
+  const changeButton = panel.querySelector('.advice__changes button')!;
+  expect(changeButton.textContent).toBe(object.label);
+  expect(changeButton.getAttribute('data-ref-id')).toBe(object.id);
+  expect(changeButton.getAttribute('title')).toContain(object.label);
+
+  const refButtons = [...panel.querySelectorAll('.advice__refs button')];
+  expect(refButtons.map((node) => node.textContent)).toEqual([zone.name, object.label]);
+  for (const button of refButtons) expect(button.textContent).not.toMatch(/\b(z|eq)_[a-z0-9_]+\b/);
+  expect(refButtons[0]!.getAttribute('data-ref-id')).toBe(zone.id);
+  expect(refButtons[1]!.getAttribute('data-ref-id')).toBe(object.id);
+});
+
+test('#10: ограничение со ссылкой на зону теряет id в тексте карточки (D-321)', () => {
+  const zone = parsed.value.zones[0]!;
+  const calculated = calculateAdvice(parsed.value, { scenario: 'place', typeId: 'ot_workplace', zoneId: null });
+  if (!calculated.ok) throw new Error('расчёт не выполнился');
+  const recommendation = {
+    ...calculated.value[0]!,
+    limitations: [...calculated.value[0]!.limitations, `Мест не нашлось в уместных зонах: «${zone.name}» (${zone.id}).`],
+  };
+  render(
+    <AssistantPanel
+      document={parsed.value}
+      revision={0}
+      response={{ revision: 0, recommendations: [recommendation], explanations: [], mode: 'fallback', fallbackReason: 'проверка' }}
+      state={{ status: 'done' }}
+      onPreview={vi.fn()}
+      onFocus={vi.fn()}
+      onAsk={vi.fn()}
+    />,
+  );
+  const limitations = screen.getByLabelText('Ассистент').querySelector('.advice__limitations')!;
+  expect(limitations.textContent).toContain(zone.name);
+  expect(limitations.textContent).not.toContain(zone.id);
+});
