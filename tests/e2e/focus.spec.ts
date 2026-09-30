@@ -89,7 +89,8 @@ async function panAway(page: Page): Promise<void> {
   for (let stroke = 0; stroke < 3; stroke += 1) {
     await page.mouse.move(x + width - 20, y + height / 2);
     await page.mouse.down();
-    await page.mouse.move(x + 20, y + height / 2, { steps: 10 });
+    // Two pointer updates cross the drag threshold without ten canvas redraws.
+    await page.mouse.move(x + 20, y + height / 2, { steps: 2 });
     await page.mouse.up();
   }
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
