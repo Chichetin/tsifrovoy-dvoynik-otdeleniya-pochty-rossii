@@ -34,7 +34,11 @@ for (const width of [1280, 1440]) {
     await expect(success.getByText(/LLM выбрала рассчитанные факты/)).toBeVisible();
     await expect(success.locator('.agent__text')).toContainText('114,73 м²');
     await expect(success.locator('.agent__text')).not.toContainText('adv_');
-    await success.getByRole('button', { name: 'z_client', exact: true }).click();
+    // The zone reads by its name, not by id (#10); the id drives the click and sits in data-ref-id.
+    await expect(success.locator('.agent__text')).not.toContainText('z_client');
+    const zoneButton = success.getByRole('button', { name: 'Клиентский зал', exact: true });
+    await expect(zoneButton).toHaveAttribute('data-ref-id', 'z_client');
+    await zoneButton.click();
     await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'zone:z_client');
     await field.fill('Правда, что свободно 99999 м²?');
     await field.press('Enter');

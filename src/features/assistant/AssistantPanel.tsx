@@ -14,9 +14,9 @@
 
 import { useMemo, useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
-import type { PlanDocument } from '../../contracts/model';
+import type { PlanDocument, Ref } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
-import { renderExplanation } from '../../domain/advice';
+import { hideNamedIds, renderExplanation } from '../../domain/advice';
 import { AgentChat } from './AgentChat';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
@@ -81,12 +81,34 @@ function equipmentSubject(
   return `${type} · ${zone}`;
 }
 
-/** Где окажется вариант: имя и id зоны из плана, чтобы его можно было найти. */
+/**
+ * Где окажется вариант: название зоны из плана (D-320); id остаётся доступен
+ * рядом, в раскрытии «ID зон и объектов» карточки (D-323).
+ */
 function candidateZone(index: PlanIndex, candidate: Candidate): string {
   const zoneId = candidate.object.zoneId;
   if (zoneId === null) return 'вне зон';
   const name = index.zoneName(zoneId);
-  return name === null ? `зона ${zoneId}` : `зона «${name}» (${zoneId})`;
+  return name === null ? `зона ${zoneId}` : `зона «${name}»`;
+}
+
+/**
+ * Every zone or object this recommendation names — its own `refs` and every
+ * change's `ref` — deduplicated, in the order they first appear. This is
+ * what «какие `id` зон и объектов» (CLAUDE.md, «ИИ-ассистент») asks the
+ * card to show: not only clickable buttons named after the entity (D-320),
+ * but the ids themselves, visible without opening DevTools (D-323).
+ */
+function recommendationRefs(recommendation: Recommendation): Ref[] {
+  const seen = new Set<string>();
+  const refs: Ref[] = [];
+  for (const ref of [...recommendation.refs, ...recommendation.changes.map((change) => change.ref)]) {
+    const key = `${ref.kind}:${ref.id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    refs.push(ref);
+  }
+  return refs;
 }
 
 export function AssistantPanel({
@@ -300,6 +322,7 @@ export function AssistantPanel({
             const sentence =
               explanation === undefined ? null : renderExplanation(recommendation, explanation);
             const subject = equipmentSubject(plan, names, recommendation);
+            const idRefs = recommendationRefs(recommendation);
 
             return (
               <article key={recommendation.id} className="advice">
@@ -353,9 +376,11 @@ export function AssistantPanel({
                         <button
                           type="button"
                           className="table__link"
+                          title={`Показать на плане · id ${change.ref.id}`}
+                          data-ref-id={change.ref.id}
                           onClick={() => onFocus(change.ref)}
                         >
-                          {change.ref.id}
+                          {names.nameOf(change.ref) ?? change.ref.id}
                         </button>
                         <span>{change.kind}</span>
                       </li>
@@ -369,12 +394,34 @@ export function AssistantPanel({
                       key={`${ref.kind}-${ref.id}`}
                       type="button"
                       className="table__link"
+                      title={`Показать на плане · id ${ref.id}`}
+                      data-ref-id={ref.id}
                       onClick={() => onFocus(ref)}
                     >
-                      {ref.id}
+                      {names.nameOf(ref) ?? ref.id}
                     </button>
                   ))}
                 </p>
+
+                {/* D-323: id виден без DevTools — объяснимость (CLAUDE.md,
+                    «ИИ-ассистент») требует называть id зон и объектов, а
+                    подписи кнопок выше — только их имена. Свой класс, не
+                    `advice__more`: тот же класс на «Допущения и правила»
+                    сделал бы оба раскрытия неотличимы для `.first()` в
+                    существующих e2e (review !318). */}
+                {idRefs.length === 0 ? null : (
+                  <details className="advice__ids">
+                    <summary>ID зон и объектов ({idRefs.length})</summary>
+                    <ul>
+                      {idRefs.map((ref) => (
+                        <li key={`${ref.kind}-${ref.id}`}>
+                          <code>{ref.id}</code>
+                          {names.nameOf(ref) === null ? null : <span> — {names.nameOf(ref)}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
 
                 {recommendation.assumptions.length === 0 ? null : (
                   <details className="advice__more">
@@ -389,7 +436,7 @@ export function AssistantPanel({
 
                 <ul className="advice__limitations">
                   {recommendation.limitations.map((limitation) => (
-                    <li key={limitation}>{limitation}</li>
+                    <li key={limitation}>{hideNamedIds(limitation)}</li>
                   ))}
                 </ul>
               </article>

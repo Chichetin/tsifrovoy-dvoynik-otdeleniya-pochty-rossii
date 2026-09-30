@@ -67,6 +67,12 @@ function countRulesFor(plan: PlanDocument, typeId: Id): CountRule[] {
   return rulesFor(plan, typeId).filter((rule): rule is CountRule => rule.kind === 'count');
 }
 
+/**
+ * «name» (id): the chat UI (`AgentChat`) turns this exact shape into a single
+ * button labelled with the name, dropping the id from what is shown — one
+ * place decides what a person calls `z_storage`, this module only has to
+ * write the shape consistently (D-320).
+ */
 function zoneTitle(plan: PlanDocument, zoneId: Id): string {
   return `«${plan.zones.find((zone) => zone.id === zoneId)?.name ?? zoneId}» (${zoneId})`;
 }
@@ -374,7 +380,7 @@ function equipmentDetails(state: AgentToolState, recommendation: Recommendation)
   const zoneId = recommendation.refs.find((ref) => ref.kind === 'zone')?.id ?? null;
   const objects = recommendation.refs
     .filter((ref) => ref.kind === 'object')
-    .map((ref) => `${ref.id} «${state.names.nameOf(ref) ?? ref.id}»`);
+    .map((ref) => `«${state.names.nameOf(ref) ?? ref.id}» (${ref.id})`);
   const shown = objects.length <= LISTED_OBJECTS ? objects.join(', ') : `${objects.slice(0, LISTED_OBJECTS).join(', ')} и другие, всего ${objects.length}`;
   const typeId = rule?.kind === 'count' ? rule.objectTypeId : null;
   const typeLabel = typeId === null ? null : (state.names.objectTypeLabel(typeId) ?? typeId);
@@ -436,4 +442,22 @@ export function composeFallbackText(
     parts.push('Вариант показан на плане полупрозрачно — его можно применить кнопкой ниже.');
   }
   return parts.length === 0 ? 'Расчёт не нашёл, что ответить на этот вопрос. Уточните, о какой зоне или оборудовании речь.' : parts.join('\n\n');
+}
+
+/**
+ * «name» (id): the shape a structured recommendation still writes for its
+ * assumptions and limitations (`index.ts`, `equipment.ts`) — text that is
+ * printed as-is, without the chat's per-mention buttons (D-320). `AgentChat`
+ * builds on the same pattern (its `.source`) instead of keeping a second
+ * copy, so the two never drift apart (review of !318, #10).
+ */
+export const QUOTED_ID_PATTERN = /«([^»]{1,120})»\s*\(([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\)/gi;
+
+/**
+ * The sentence as a person reads it: the id that would let a click focus the
+ * plan is dropped, the quoted name stays — for a card or a list that shows a
+ * calculated sentence without offering that click itself (D-321).
+ */
+export function hideNamedIds(text: string): string {
+  return text.replace(QUOTED_ID_PATTERN, '«$1»');
 }

@@ -63,8 +63,11 @@ test('#32 без сервера: «где слепые пятна» → посм
   await expect(answer).toContainText('Без LLM');
   // Numbers are the calculation's: 300 of 1 008 squares now, 72,1 % with the first variant.
   await expect(answer).toContainText('Клиентские зоны видны камерами на 29,8 %, с этим вариантом — на 72,1 % (+42,3 п. п.).');
-  // Existing cameras are named by id and lead to the plan.
-  await answer.getByRole('button', { name: 'eq_25', exact: true }).click();
+  // Existing cameras are named by their card label, not by id (#10); the id
+  // still drives the click and is kept in the button's title/data-ref-id.
+  const cameraButton = answer.getByRole('button', { name: 'Камера зала (вход)', exact: true });
+  await expect(cameraButton).toHaveAttribute('data-ref-id', 'eq_25');
+  await cameraButton.click();
   await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'object:eq_25');
 
   // The layer is named in words, not offered as a button: showing it would
@@ -125,7 +128,10 @@ test('агент с моделью: шаги потоком, id в тексте 
   const assistant = panel(page);
   await assistant.getByRole('button', { name: /кассовое окно ближе к входу/ }).click();
   await expect(assistant.getByText(/LLM выбрала рассчитанные факты/)).toBeVisible();
-  await assistant.getByRole('button', { name: 'z_client', exact: true }).click();
+  // The zone reads by its name, not by id (#10); the id still drives the click.
+  const zoneButton = assistant.getByRole('button', { name: 'Клиентский зал', exact: true });
+  await expect(zoneButton).toHaveAttribute('data-ref-id', 'z_client');
+  await zoneButton.click();
   await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'zone:z_client');
   await assistant.getByRole('button', { name: 'Открыть «Площади»' }).click();
   await expect(page.getByRole('tab', { name: /^Площади/ })).toHaveAttribute('aria-selected', 'true');
@@ -249,18 +255,19 @@ test.describe('ассистент в браузере', () => {
     const count = await candidates.count();
     expect(count).toBeGreaterThan(0);
     for (let index = 0; index < count; index += 1) {
+      // Названием, не голым id (#10); id остаётся в «Ссылки» ниже.
       const zone = candidates.nth(index).getByTestId('candidate-zone');
-      await expect(zone).toContainText(/зона «.+» \(z_\w+\)/);
-      await expect(zone).not.toContainText('z_queue');
+      await expect(zone).toContainText(/зона «.+»/);
+      await expect(zone).not.toContainText('Зона очереди');
     }
     // Уместны зоны, где рабочие места уже стоят в демо: клиентский зал и служебная.
     await expect(candidates.first().getByTestId('candidate-zone')).toContainText(
-      /«(Клиентский зал|Служебная зона)» \(z_(client|back)\)/,
+      /«(Клиентский зал|Служебная зона)»/,
     );
 
-    // Зона варианта — среди ссылок рекомендации, правило уместности — в допущениях.
-    await expect(panel(page).locator('.advice__refs')).toContainText(/z_(client|back)/);
-    await expect(panel(page).locator('.advice__refs')).not.toContainText('z_queue');
+    // Зона варианта — среди ссылок рекомендации (названием, id — в title/data-ref-id), правило уместности — в допущениях.
+    await expect(panel(page).locator('.advice__refs')).toContainText(/Клиентский зал|Служебная зона/);
+    await expect(panel(page).locator('.advice__refs')).not.toContainText('Зона очереди');
     await panel(page).locator('.advice__more summary').click();
     await expect(panel(page).locator('.advice__more')).toContainText('rule_workplace_min');
     await expect(panel(page).locator('.advice__more')).toContainText('по текущей расстановке');
@@ -275,7 +282,7 @@ test.describe('ассистент в браузере', () => {
     await expect(benches.first()).toBeVisible();
     const benchCount = await benches.count();
     for (let index = 0; index < benchCount; index += 1) {
-      await expect(benches.nth(index).getByTestId('candidate-zone')).toContainText(/\(z_(waiting|queue|staff)\)/);
+      await expect(benches.nth(index).getByTestId('candidate-zone')).toContainText(/Зона ожидания|Зона очереди|Комната персонала/);
     }
   });
 
