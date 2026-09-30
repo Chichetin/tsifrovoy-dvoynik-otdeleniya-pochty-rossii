@@ -15,9 +15,10 @@
 import { useMemo, useState } from 'react';
 import type { Equipment, Id, Layer, LayerType, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
-import { findLayerType } from '../../domain/catalog';
+import { findLayerType, findObjectType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
+import { objectColorValue } from '../../domain/object-color';
 import { OBJECT_MOUNTS, countByMount, type ObjectMount } from '../../domain/object-mount';
 import { BLIND_SPOT_SWATCH_CSS, visibleCoverage } from './coverage';
 import { formatValue, legendOf } from './legend';
@@ -102,6 +103,7 @@ export function LayersPanel({
   pictograms?: PictogramsView;
 }): React.JSX.Element {
   const [newTypeId, setNewTypeId] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<{ typeId: Id; value: string } | null>(null);
   // Same calculation and the same memo key as the canvas: once per revision (D-307).
   const coverage = useMemo(
     () => visibleCoverage({ layers: plan.layers, zones: plan.zones, objects: plan.objects, catalog: plan.catalog }),
@@ -173,6 +175,13 @@ export function LayersPanel({
     });
   };
 
+  const setObjectText = (object: Equipment, key: string, value: string): void => {
+    onCommand({
+      type: 'object.put',
+      object: { ...object, attributes: { ...object.attributes, [key]: value } },
+    });
+  };
+
   /** Seen share of each client zone and of all of them, with the hatch that marks the rest. */
   const coverageView = (type: LayerType): React.JSX.Element | null => {
     const result = coverage.get(type.id);
@@ -225,6 +234,45 @@ export function LayersPanel({
   const dataTable = (type: LayerType): React.JSX.Element | null => {
     const representation = type.representation;
     if (representation.kind === 'objects') return null;
+
+    if (representation.kind === 'object-color') {
+      if (plan.objects.length === 0) return <p className="panel__empty">На плане пока нет оборудования</p>;
+      const filtered = statusFilter?.typeId === type.id
+        ? plan.objects.filter((object) => objectColorValue(representation, object.attributes).value === statusFilter.value)
+        : plan.objects;
+      return (
+        <table className="layers__data" aria-label={`Состояния объектов, слой ${type.label}`}>
+          <tbody>
+            {filtered.map((object) => {
+              const supported = findObjectType(plan.catalog, object.typeId)?.attributes
+                .some((attribute) => attribute.key === representation.attribute && attribute.type === 'string') ?? false;
+              return (
+                <tr key={object.id}>
+                  <th scope="row">
+                    <button type="button" className="table__link" onClick={() => onSelect({ kind: 'object', id: object.id })}>
+                      {object.label}
+                    </button>
+                  </th>
+                  <td>
+                    <select
+                      aria-label={`${type.label}, ${object.label} (${object.id})`}
+                      value={objectColorValue(representation, object.attributes).value}
+                      disabled={!supported}
+                      title={supported ? undefined : 'У этого типа объекта нет атрибута состояния'}
+                      onChange={(event) => setObjectText(object, representation.attribute, event.target.value)}
+                    >
+                      {representation.values.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+    }
 
     if (representation.kind === 'object-field') {
       const types = new Set(representation.objectTypeIds);
@@ -312,6 +360,7 @@ export function LayersPanel({
 
   const legendView = (layer: Layer, type: LayerType): React.JSX.Element | null => {
     const legend = legendOf(type);
+    const palette = type.representation.kind === 'object-color' ? type.representation : null;
     if (legend.kind === 'none') return null;
     return (
       <div className="layers__legend" role="group" aria-label={`Легенда слоя ${layer.name}`}>
@@ -327,12 +376,37 @@ export function LayersPanel({
             </div>
             <p className="layers__legend-text">{legend.threshold}</p>
           </>
-        ) : (
+        ) : legend.kind === 'palette' && palette !== null ? (
+          <div className="layers__palette" aria-label={`Фильтр состояний, слой ${type.label}`}>
+            <button
+              type="button"
+              aria-pressed={statusFilter?.typeId !== type.id}
+              onClick={() => setStatusFilter(null)}
+            >
+              Все {plan.objects.length}
+            </button>
+            {legend.values.map((value) => {
+              const count = plan.objects.filter((object) => objectColorValue(palette, object.attributes).value === value.value).length;
+              const pressed = statusFilter?.typeId === type.id && statusFilter.value === value.value;
+              return (
+                <button
+                  key={value.value}
+                  type="button"
+                  aria-pressed={pressed}
+                  onClick={() => setStatusFilter(pressed ? null : { typeId: type.id, value: value.value })}
+                >
+                  <span className="layers__swatch" style={{ background: value.color }} />
+                  {value.label} {count}
+                </button>
+              );
+            })}
+          </div>
+        ) : legend.kind === 'swatch' ? (
           <p className="layers__legend-text">
             <span className="layers__swatch" style={{ background: legend.color }} />
             {legend.text}
           </p>
-        )}
+        ) : null}
       </div>
     );
   };

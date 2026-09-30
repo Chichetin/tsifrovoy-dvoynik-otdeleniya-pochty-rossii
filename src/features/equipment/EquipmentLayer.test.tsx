@@ -17,8 +17,9 @@ import { createRef } from 'react';
 import { Stage } from 'react-konva';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
+import layerTypes from '../../../data/catalog/layer-types.json';
 import type { Candidate } from '../../contracts/advice';
-import type { ObjectSymbol, PlanDocument, Ref } from '../../contracts/model';
+import type { LayerType, ObjectSymbol, PlanDocument, Ref } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { EditorSession } from '../../contracts/ui';
 import { EquipmentLayer } from './EquipmentLayer';
@@ -100,6 +101,27 @@ function drawnSymbols(plan: PlanDocument, selection: Ref | null, preview: Candid
       && !SERVICE_GROUPS.has(node.name()))
     .map((group) => (group as Konva.Group).getChildren()[0] as Konva.Shape);
 }
+
+test('слой состояния перекрашивает объект и отключение возвращает цвет типа', () => {
+  const base = planWith('rect');
+  const status = (layerTypes as LayerType[]).find((type) => type.id === 'lt_equipment_status')!;
+  const object = base.objects[0]!;
+  const plan: PlanDocument = {
+    ...base,
+    catalog: { ...base.catalog, layerTypes: [...base.catalog.layerTypes, status] },
+    layers: [...base.layers, { id: 'l_status', name: status.label, visible: true, locked: false, order: 99, typeId: status.id }],
+    objects: base.objects.map((entry) => entry.id === object.id
+      ? { ...entry, attributes: { ...entry.attributes, equipmentStatus: 'repair' } }
+      : entry),
+  };
+  const colour = (document: PlanDocument): string | undefined => {
+    const group = renderLayer(document, null, null).findOne(`.equipment-${object.id}`) as Konva.Group | undefined;
+    return (group?.getChildren()[0] as Konva.Shape | undefined)?.getAttr('fill') as string | undefined;
+  };
+  expect(colour(plan)).toBe('#A15C00');
+  expect(colour({ ...plan, layers: plan.layers.map((layer) => layer.id === 'l_status' ? { ...layer, visible: false } : layer) }))
+    .toBe(base.catalog.objectTypes.find((type) => type.id === object.typeId)?.color);
+});
 
 /** Имена ручек выбранного объекта на слое выделения. */
 function handleNames(plan: PlanDocument, objectId: string, hideHandlesFor: string | null = null): string[] {

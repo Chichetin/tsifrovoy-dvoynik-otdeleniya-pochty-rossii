@@ -184,6 +184,7 @@
             "zoneId": "z_waiting",
             "layerId": "l_base",
             "attributes": {
+              "equipmentStatus": "unknown",
               "seats": 3
             }
           },
@@ -275,6 +276,7 @@
             "zoneId": "z_waiting",
             "layerId": "l_base",
             "attributes": {
+              "equipmentStatus": "unknown",
               "seats": 3
             }
           },
@@ -366,6 +368,7 @@
             "zoneId": "z_waiting",
             "layerId": "l_base",
             "attributes": {
+              "equipmentStatus": "unknown",
               "seats": 3
             }
           },
@@ -707,7 +710,9 @@
             "height_m": 1.4,
             "zoneId": "z_entrance",
             "layerId": "l_base",
-            "attributes": {}
+            "attributes": {
+              "equipmentStatus": "unknown"
+            }
           },
           "facts": [
             {
@@ -796,7 +801,9 @@
             "height_m": 1.4,
             "zoneId": "z_entrance",
             "layerId": "l_base",
-            "attributes": {}
+            "attributes": {
+              "equipmentStatus": "unknown"
+            }
           },
           "facts": [
             {
@@ -885,7 +892,9 @@
             "height_m": 1.4,
             "zoneId": "z_entrance",
             "layerId": "l_base",
-            "attributes": {}
+            "attributes": {
+              "equipmentStatus": "unknown"
+            }
           },
           "facts": [
             {

@@ -14,6 +14,7 @@ export type LayerLegend =
   | { kind: 'scale'; from: string; to: string; low: string; high: string; threshold: string }
   /** One colour: a badge or a sector. */
   | { kind: 'swatch'; color: string; text: string }
+  | { kind: 'palette'; values: { value: string; label: string; color: string }[] }
   | { kind: 'none' };
 
 /** Number with a unit, decimal comma and a non-breaking space as the rest of the interface. */
@@ -48,6 +49,8 @@ export function legendOf(type: LayerType): LayerLegend {
         color: representation.color,
         text: `сектор обзора; без атрибутов камеры — ${representation.angle_deg}°, ${formatValue(representation.range_m, 'м')}`,
       };
+    case 'object-color':
+      return { kind: 'palette', values: representation.values };
     case 'objects':
       return { kind: 'none' };
   }

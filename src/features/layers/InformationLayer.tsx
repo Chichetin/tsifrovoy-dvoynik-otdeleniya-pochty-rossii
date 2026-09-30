@@ -79,6 +79,7 @@ function layerColor(type: LayerType): string {
   const representation = type.representation;
   if (representation.kind === 'zone-heat') return representation.colors[1];
   if (representation.kind === 'objects') return CAPTION_FILL;
+  if (representation.kind === 'object-color') return representation.values[0]?.color ?? CAPTION_FILL;
   return representation.color;
 }
 
@@ -169,6 +170,7 @@ export function InformationLayer({
     const representation = type.representation;
     // Ordinary layers are drawn by the geometry and equipment layers.
     if (representation.kind === 'objects') continue;
+    if (representation.kind === 'object-color') continue;
 
     if (representation.kind === 'zone-heat' || representation.kind === 'zone-count') {
       const valueOf = (zone: Zone): number | null =>
@@ -407,6 +409,18 @@ export function InformationLayer({
             fillLinearGradientColorStops={[0, row.legend.from, 1, row.legend.to]}
             listening={false}
           />
+        ) : row.legend.kind === 'palette' ? (
+          <>{row.legend.values.map((value, index) => (
+            <Rect
+              key={`legend-${row.id}-${value.value}`}
+              x={12 + index * 9}
+              y={row.y + 2}
+              width={8}
+              height={SWATCH + 2}
+              fill={value.color}
+              listening={false}
+            />
+          ))}</>
         ) : (
           <Rect
             key={`legend-${row.id}-swatch`}

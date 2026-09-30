@@ -82,11 +82,18 @@ const BASE_LAYER = 'l_base';
 /** The one object the recommendation adds; the editor would name it this way. */
 const NEW_BENCH_ID = 'eq_54';
 const NEW_BENCH_LABEL = 'Скамья ожидания 2';
-const NEW_BENCH_ATTRIBUTES = { inventoryNumber: 'ИНВ-ДЕМО-054', seats: 3 } as const;
+const NEW_BENCH_ATTRIBUTES = { inventoryNumber: 'ИНВ-ДЕМО-054', seats: 3, equipmentStatus: 'unknown' } as const;
 /** The information display our own rule calls one too many. */
 const EXCESS_DISPLAY_ID = 'eq_8';
 /** The queue terminal standing too far from the entrance. */
 const QUEUE_TERMINAL_ID = 'eq_1';
+
+/** Synthetic states make the new informational layer demonstrable on both plans. */
+function demoEquipmentStatus(id: Id): 'working' | 'repair' | 'retired' {
+  if (id === EXCESS_DISPLAY_ID) return 'retired';
+  if (id === 'eq_16' || id === 'eq_23') return 'repair';
+  return 'working';
+}
 
 function fail(what: string, issues: Issue[]): never {
   const detail = issues.map((issue) => `${issue.code}: ${issue.message}`).join('\n  ');
@@ -193,7 +200,7 @@ function objectOf(catalog: Catalog, source: ObjectSource): Equipment {
     height_m: type.defaultHeight_m,
     zoneId: null,
     layerId: BASE_LAYER,
-    attributes: { ...source.attributes },
+    attributes: { ...source.attributes, equipmentStatus: demoEquipmentStatus(source.id) },
   };
 }
 

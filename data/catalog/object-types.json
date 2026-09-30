@@ -15,6 +15,13 @@
     "color": "#4C6EF5",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -52,6 +59,13 @@
     "color": "#748FFC",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -75,6 +89,13 @@
     "symbol": "rect",
     "color": "#5C7CFA",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -100,6 +121,13 @@
     "color": "#3B5BDB",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -123,6 +151,13 @@
     "symbol": "rect",
     "color": "#1971C2",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -155,6 +190,13 @@
     "color": "#1864AB",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -178,6 +220,13 @@
     "symbol": "rect",
     "color": "#0CA678",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -210,6 +259,13 @@
     "color": "#12B886",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -233,6 +289,13 @@
     "symbol": "rect",
     "color": "#087F5B",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -258,6 +321,13 @@
     "color": "#099268",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -281,6 +351,13 @@
     "symbol": "rect",
     "color": "#F76707",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -313,6 +390,13 @@
     "color": "#E8590C",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -344,6 +428,13 @@
     "color": "#F59F00",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -374,6 +465,13 @@
     "symbol": "triangle",
     "color": "#7048E8",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -413,6 +511,13 @@
     "color": "#5F3DC4",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -437,6 +542,13 @@
     "color": "#9775FA",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -460,6 +572,13 @@
     "symbol": "rect",
     "color": "#B197FC",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -492,6 +611,13 @@
     "color": "#E03131",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -522,6 +648,13 @@
     "symbol": "rect",
     "color": "#C92A2A",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -554,6 +687,13 @@
     "color": "#A61E4D",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -585,6 +725,13 @@
     "color": "#D6336C",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -608,6 +755,13 @@
     "symbol": "rect",
     "color": "#868E96",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
@@ -640,6 +794,13 @@
     "color": "#495057",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -664,6 +825,13 @@
     "color": "#343A40",
     "attributes": [
       {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
+      {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",
         "type": "string",
@@ -687,6 +855,13 @@
     "symbol": "circle",
     "color": "#212529",
     "attributes": [
+      {
+        "key": "equipmentStatus",
+        "label": "Состояние",
+        "type": "string",
+        "required": false,
+        "default": "unknown"
+      },
       {
         "key": "inventoryNumber",
         "label": "Инвентарный номер",

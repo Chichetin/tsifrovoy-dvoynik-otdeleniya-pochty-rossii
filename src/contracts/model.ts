@@ -194,6 +194,13 @@ export type LayerRepresentation =
     }
   /** Numeric zone attribute shown as a badge in the middle of the zone. */
   | { kind: 'zone-count'; attribute: string; unit: string; color: string }
+  /** Recolour objects by a string attribute; missing values use the declared default. */
+  | {
+      kind: 'object-color';
+      attribute: string;
+      defaultValue: string;
+      values: { value: string; label: string; color: string }[];
+    }
   /** Sector of view drawn from objects of the listed types. */
   | {
       kind: 'object-field';

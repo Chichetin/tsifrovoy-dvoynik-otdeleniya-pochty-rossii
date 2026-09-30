@@ -99,7 +99,7 @@ describe('справочники из data/catalog', () => {
   test('значения по умолчанию собираются из атрибутов типа', () => {
     const bench = findObjectType(catalog, 'ot_bench');
     expect(bench).not.toBeNull();
-    expect(defaultAttributes(bench as ObjectType)).toEqual({ seats: 3 });
+    expect(defaultAttributes(bench as ObjectType)).toEqual({ seats: 3, equipmentStatus: 'unknown' });
   });
 });
 
@@ -353,6 +353,27 @@ describe('проверка справочника ловит ошибки ред
       ),
     };
     expect(codesOf(bad)).toContain(CATALOG_ISSUE_CODES.INVALID_COLOR);
+  });
+
+  test('шкала состояния отвергает повтор, неверный цвет и отсутствующий default', () => {
+    const status = catalog.layerTypes.find((type) => type.id === 'lt_equipment_status');
+    expect(status?.representation.kind).toBe('object-color');
+    if (status?.representation.kind !== 'object-color') return;
+    const broken: LayerType = {
+      ...status,
+      representation: {
+        ...status.representation,
+        defaultValue: 'missing',
+        values: [...status.representation.values, {
+          value: status.representation.values[0]!.value,
+          label: 'Повтор', color: 'red',
+        }],
+      },
+    };
+    const codes = codesOf({ ...catalog, layerTypes: [broken] });
+    expect(codes).toContain(CATALOG_ISSUE_CODES.DUPLICATE_LAYER_VALUE);
+    expect(codes).toContain(CATALOG_ISSUE_CODES.UNKNOWN_LAYER_DEFAULT);
+    expect(codes).toContain(CATALOG_ISSUE_CODES.INVALID_COLOR);
   });
 });
 

@@ -160,7 +160,7 @@ test('демо 1440×900: карточки слоёв компактны — б�
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
 
-  // Пять слоёв демо со свёрнутыми пояснениями умещаются в панели без прокрутки
+  // Слои демо со свёрнутыми пояснениями умещаются в панели без прокрутки
   // (D-197), а библиотека — соседняя вкладка той же колонки (D-249): её первая
   // группа видна сразу после переключения, тоже без прокрутки.
   expect(
@@ -175,7 +175,7 @@ test('демо 1440×900: карточки слоёв компактны — б�
 
   // Цель нажатия у значков замка, порядка и удаления — не меньше 24×24 (WCAG 2.5.8).
   const icons = panel(page).locator('.layers__toggle');
-  expect(await icons.count()).toBe(5 * 4);
+  expect(await icons.count()).toBe((await panel(page).locator('.layers__item').count()) * 4);
   for (const box of await icons.evaluateAll((nodes) =>
     nodes.map((node) => node.getBoundingClientRect()).map(({ width, height }) => ({ width, height })),
   )) {

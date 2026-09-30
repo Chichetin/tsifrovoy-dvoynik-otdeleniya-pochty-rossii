@@ -11,6 +11,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page , exportPlan, expectUnsavedEdits } from './fixtures';
 import { showTab, sideTab } from './side-tabs';
+import type { PlanDocument } from '../../src/contracts/model';
 
 const panel = (page: Page) => page.getByLabel('Слои');
 const layerItem = (page: Page, name: string) =>
@@ -106,6 +107,120 @@ async function savePlan(page: Page): Promise<string> {
 // полного `test:e2e`.
 
 test.describe('слои в браузере', () => {
+  test('состояние оборудования: цвет, правка и повторное открытие', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await showTab(page, 'Слои');
+    await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
+    const status = layerItem(page, 'Состояние оборудования');
+    const symbolColor = (): Promise<string | null> => page.evaluate(() => {
+      type Node = { name(): string; getChildren(): { getAttr(name: string): string }[] };
+      type Stage = { find(selector: (node: Node) => boolean): Node[] };
+      const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
+      const group = stage?.find((node) => node.name().startsWith('equipment-eq_'))[0];
+      return group?.getChildren()[0]?.getAttr('fill') ?? null;
+    });
+    await expect.poll(symbolColor).toBe('#4C6EF5');
+    await status.getByRole('button', { name: 'Показывать слой Состояние оборудования' }).click();
+    await expect.poll(symbolColor).toBe('#868E96');
+    const table = status.getByRole('table', { name: 'Состояния объектов, слой Состояние оборудования' });
+    const choice = table.getByRole('combobox').first();
+    await expect(choice).toHaveValue('unknown');
+    await choice.selectOption('repair');
+    await expect.poll(symbolColor).toBe('#A15C00');
+    await expect(status.getByRole('group', { name: 'Легенда слоя Состояние оборудования' }))
+      .toContainText('В ремонте');
+    const saved = await savePlan(page);
+    const parsed = JSON.parse(saved) as { objects: { attributes: Record<string, unknown> }[] };
+    expect(parsed.objects[0]?.attributes.equipmentStatus).toBe('repair');
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'status.json', mimeType: 'application/json', buffer: Buffer.from(saved),
+    });
+    await showTab(page, 'Слои');
+    await expect.poll(symbolColor).toBe('#A15C00');
+    await expect(layerItem(page, 'Состояние оборудования').getByRole('combobox').first()).toHaveValue('repair');
+    expect(errors).toEqual([]);
+  });
+
+  test('демо-план: статусы видны по цвету и сохраняются после изменения', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/');
+    await showTab(page, 'Слои');
+    await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+    await showTab(page, 'Слои');
+    const status = layerItem(page, 'Состояние оборудования');
+    await status.getByRole('button', { name: 'Показывать слой Состояние оборудования' }).click();
+    const colorOf = (id: string): Promise<string | null> => page.evaluate((objectId) => {
+      type Node = { getChildren(): { getAttr(name: string): string }[] };
+      type Stage = { findOne(selector: string): Node | undefined };
+      const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
+      return stage?.findOne(`.equipment-${objectId}`)?.getChildren()[0]?.getAttr('fill') ?? null;
+    }, id);
+    await expect.poll(() => colorOf('eq_8')).toBe('#C92A2A');
+    await expect.poll(() => colorOf('eq_16')).toBe('#A15C00');
+    await expect.poll(() => colorOf('eq_13')).toBe('#087F5B');
+    await status.getByRole('combobox', { name: /Компьютер оператора 1 \(eq_16\)/ }).selectOption('working');
+    await expect.poll(() => colorOf('eq_16')).toBe('#087F5B');
+    const repairFilter = status.getByRole('button', { name: 'В ремонте 1' });
+    await repairFilter.focus();
+    await page.keyboard.press('Enter');
+    await expect(repairFilter).toHaveAttribute('aria-pressed', 'true');
+    await expect(status.getByRole('table', { name: 'Состояния объектов, слой Состояние оборудования' }).locator('tbody tr')).toHaveCount(1);
+    if (process.env.UPDATE_SNAPSHOTS === '1') {
+      await status.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: join(process.cwd(), 'docs', 'verification', '2026-09-30-equipment-status-1280.png') });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await status.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: join(process.cwd(), 'docs', 'verification', '2026-09-30-equipment-status-1440.png') });
+    }
+    const saved = await savePlan(page);
+    const objects = (JSON.parse(saved) as { objects: { id: string; attributes: Record<string, unknown> }[] }).objects;
+    expect(objects.find((object) => object.id === 'eq_16')?.attributes.equipmentStatus).toBe('working');
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'demo-status.json', mimeType: 'application/json', buffer: Buffer.from(saved),
+    });
+    await showTab(page, 'Слои');
+    await expect.poll(() => colorOf('eq_16')).toBe('#087F5B');
+    expect(errors).toEqual([]);
+  });
+
+  test('второй цветовой слой появляется из данных файла без специального UI-кода', async ({ page }) => {
+    const plan = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+    for (const type of plan.catalog.objectTypes) {
+      type.attributes.push({ key: 'servicePriority', label: 'Приоритет обслуживания', type: 'string', required: false, default: 'ordinary' });
+    }
+    plan.catalog.layerTypes.push({
+      id: 'lt_service_priority', label: 'Приоритет обслуживания', note: 'Сотрудник назначает вручную.',
+      representation: {
+        kind: 'object-color', attribute: 'servicePriority', defaultValue: 'ordinary',
+        values: [
+          { value: 'ordinary', label: 'Обычный', color: '#1971C2' },
+          { value: 'urgent', label: 'Срочно', color: '#C92A2A' },
+        ],
+      },
+    });
+    plan.layers.push({ id: 'l_priority', name: 'Приоритет обслуживания', visible: true, locked: false, order: 99, typeId: 'lt_service_priority' });
+    plan.objects[0]!.attributes.servicePriority = 'urgent';
+    await page.goto('/');
+    await page.getByTestId('plan-file-input').setInputFiles({
+      name: 'priority.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(plan)),
+    });
+    await showTab(page, 'Слои');
+    const priority = layerItem(page, 'Приоритет обслуживания');
+    await expect(priority.getByRole('button', { name: 'Срочно 1' })).toBeVisible();
+    await expect(priority.getByRole('combobox', { name: /Терминал электронной очереди \(eq_1\)/ })).toHaveValue('urgent');
+    await expect.poll(() => page.evaluate(() => {
+      type Node = { getChildren(): { getAttr(name: string): string }[] };
+      type Stage = { findOne(selector: string): Node | undefined };
+      return (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0]
+        ?.findOne('.equipment-eq_1')?.getChildren()[0]?.getAttr('fill') ?? null;
+    })).toBe('#C92A2A');
+  });
+
   test('создать, переименовать, скрыть, запереть и удалить с переносом', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
@@ -146,7 +261,7 @@ test.describe('слои в браузере', () => {
     await expect(created).toHaveCount(2);
 
     // Имя слоя правится на месте.
-    await panel(page).getByLabel('Имя слоя Слой 6').fill('Перепланировка');
+    await panel(page).getByLabel('Имя слоя Слой 7').fill('Перепланировка');
     await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toBeVisible();
 
     // Скрытие: объект пропадает с холста, но не из инвентаризации и проверок.
@@ -181,6 +296,7 @@ test.describe('слои в браузере', () => {
       'Тепловая нагрузка зон',
       'Сотрудники по зонам',
       'Очередь по зонам',
+      'Состояние оборудования',
       'Перепланировка',
     ]);
     await layerItem(page, 'Перепланировка')
@@ -190,8 +306,9 @@ test.describe('слои в браузере', () => {
       'Камеры и зоны обзора',
       'Тепловая нагрузка зон',
       'Сотрудники по зонам',
-      'Перепланировка',
       'Очередь по зонам',
+      'Перепланировка',
+      'Состояние оборудования',
     ]);
 
     // Все правки слоёв переживают сохранение и повторное открытие.
@@ -209,8 +326,9 @@ test.describe('слои в браузере', () => {
       'Камеры и зоны обзора',
       'Тепловая нагрузка зон',
       'Сотрудники по зонам',
-      'Перепланировка',
       'Очередь по зонам',
+      'Перепланировка',
+      'Состояние оборудования',
     ]);
     await expect(inventoryRows).toHaveCount(1);
 
@@ -227,6 +345,9 @@ test.describe('слои в браузере', () => {
     }
     await layerItem(page, 'Очередь по зонам')
       .getByRole('button', { name: 'Удалить слой Очередь по зонам' })
+      .click();
+    await layerItem(page, 'Состояние оборудования')
+      .getByRole('button', { name: 'Удалить слой Состояние оборудования' })
       .click();
 
     const remaining = panel(page).locator('.layers__item');

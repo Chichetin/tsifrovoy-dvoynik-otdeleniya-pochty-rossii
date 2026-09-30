@@ -59,6 +59,18 @@ describe('legendOf', () => {
     ).toEqual({ kind: 'none' });
   });
 
+  test('слой состояния показывает значения и цвета из справочника', () => {
+    expect(legendOf(byId('lt_equipment_status'))).toEqual({
+      kind: 'palette',
+      values: [
+        { value: 'unknown', label: 'Не указано', color: '#868E96' },
+        { value: 'working', label: 'Работает', color: '#087F5B' },
+        { value: 'repair', label: 'В ремонте', color: '#A15C00' },
+        { value: 'retired', label: 'Списано', color: '#C92A2A' },
+      ],
+    });
+  });
+
   test('дробный порог пишется с запятой, единица не отрывается от числа', () => {
     const legend = legendOf({
       id: 'lt_x',

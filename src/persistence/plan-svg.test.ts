@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { PlanDocument, Point } from '../contracts/model';
+import type { LayerType, PlanDocument, Point } from '../contracts/model';
 import { footprint } from '../domain/geometry';
 import { decodePlan } from './codec';
 import { renderPlanSvg, svgFileName } from './plan-svg';
@@ -85,6 +85,23 @@ describe('SVG плана', () => {
     const svg = renderPlanSvg(plan);
     for (const type of plan.catalog.zoneTypes) expect(svg).toContain(`fill="${type.color}"`);
     for (const type of plan.catalog.objectTypes) expect(svg).toContain(`fill="${type.color}"`);
+  });
+
+  test('экспорт повторяет видимый цветовой слой состояния', () => {
+    const base = loadFixture('nested.json');
+    const status = JSON.parse(readFileSync(join(process.cwd(), 'data', 'catalog', 'layer-types.json'), 'utf8')) as LayerType[];
+    const type = status.find((entry) => entry.id === 'lt_equipment_status')!;
+    const object = base.objects[0]!;
+    const plan: PlanDocument = {
+      ...base,
+      catalog: { ...base.catalog, layerTypes: [...base.catalog.layerTypes, type] },
+      layers: [...base.layers, { id: 'l_status', name: type.label, visible: true, locked: false, order: 99, typeId: type.id }],
+      objects: base.objects.map((entry) => entry.id === object.id
+        ? { ...entry, attributes: { ...entry.attributes, equipmentStatus: 'repair' } }
+        : entry),
+    };
+    expect(renderPlanSvg(plan)).toContain(`data-id="${object.id}"><polygon points=`);
+    expect(renderPlanSvg(plan)).toMatch(new RegExp(`data-id="${object.id}"><polygon[^>]+fill="#A15C00"`));
   });
 
   test('повёрнутый объект стоит на картинке там же, где его отпечаток в модели', () => {

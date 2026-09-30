@@ -52,7 +52,7 @@ test('новый тип в каталоге → атрибут и слой → �
   await page.getByLabel('Слои').getByRole('button', { name: 'Добавить слой' }).click();
   // Вкладка «Слои» заменила карточку, выделение осталось — вернуть (D-268).
   await showProps(page);
-  await card.getByLabel('Слой').selectOption({ label: 'Слой 6' });
+  await card.getByLabel('Слой').selectOption({ label: 'Слой 7' });
 
   const before = JSON.parse(await save(page));
   expect(before.objects).toHaveLength(1);

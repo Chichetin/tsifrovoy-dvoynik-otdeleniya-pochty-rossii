@@ -307,6 +307,17 @@ function canonicalLayerRepresentation(representation: LayerType['representation'
         range_m: representation.range_m,
         color: representation.color,
       } satisfies Record<keyof typeof representation, Json>;
+    case 'object-color':
+      return {
+        kind: representation.kind,
+        attribute: representation.attribute,
+        defaultValue: representation.defaultValue,
+        values: representation.values.map((option) => ({
+          value: option.value,
+          label: option.label,
+          color: option.color,
+        })),
+      } satisfies Record<keyof typeof representation, Json>;
     default:
       return { kind: representation.kind } satisfies Record<keyof typeof representation, Json>;
   }

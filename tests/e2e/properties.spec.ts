@@ -57,6 +57,20 @@ async function selectPlacedObject(page: Page): Promise<void> {
 }
 
 test.describe('карточка свойств', () => {
+  test('состояние оборудования выбирается по понятным названиям из каталога', async ({ page }) => {
+    await page.goto('/');
+    await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
+    await selectPlacedObject(page);
+
+    const status = card(page).getByRole('combobox', { name: 'Состояние', exact: true });
+    await expect(status).toHaveValue('unknown');
+    await expect(status.locator('option')).toHaveText(['Не указано', 'Работает', 'В ремонте', 'Списано']);
+    await status.selectOption({ label: 'В ремонте' });
+
+    const saved = JSON.parse(await savePlan(page)) as { objects: { attributes: Record<string, unknown> }[] };
+    expect(saved.objects[0]?.attributes.equipmentStatus).toBe('repair');
+  });
+
   test('без выбора карточки свойств нет вовсе; выбор показывает её над вкладками (D-249)', async ({
     page,
   }) => {
