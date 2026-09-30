@@ -1,7 +1,8 @@
-import { useId, useMemo, useRef } from 'react';
+import { useId, useMemo, useRef, useState } from 'react';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import { buildPlanComparison, type ComparisonMetric } from '../../domain/plan-comparison';
 import { formatNumber } from '../../domain/number-format';
+import { ApprovalSheet } from './ApprovalSheet';
 import type { ComparisonSource } from './use-comparison-source';
 
 const LABELS: Record<ComparisonMetric, string> = {
@@ -23,7 +24,10 @@ export function ComparisonPanel({ current, baseline, source, loading, error, onL
 }): React.JSX.Element {
   const input = useRef<HTMLInputElement>(null);
   const id = useId();
-  const report = useMemo(() => buildPlanComparison(source?.plan ?? baseline, current), [baseline, current, source]);
+  const beforeDocument = source?.plan ?? baseline;
+  const beforeSource = source === null ? 'состояние при открытии или сохранении' : source.fileName;
+  const report = useMemo(() => buildPlanComparison(beforeDocument, current), [beforeDocument, current]);
+  const [sheetOpen, setSheetOpen] = useState(false);
   return (
     <section className="comparison" aria-label="Сравнение планов">
       <p className="comparison__source">
@@ -35,6 +39,10 @@ export function ComparisonPanel({ current, baseline, source, loading, error, onL
           {source === null ? 'Сравнить с файлом…' : 'Заменить исходный файл…'}
         </button>
         {source === null ? null : <button type="button" className="files__button" onClick={onClear}>Сбросить исходный файл</button>}
+        <button type="button" className="files__button" data-testid="approval-sheet-open"
+          disabled={!report.ok} onClick={() => setSheetOpen(true)}>
+          Лист согласования…
+        </button>
       </div>
       <label className="sr-only" htmlFor={id}>Исходный файл для сравнения</label>
       <input id={id} ref={input} className="sr-only" type="file" accept=".json,application/json" data-testid="comparison-file-input"
@@ -76,6 +84,10 @@ export function ComparisonPanel({ current, baseline, source, loading, error, onL
           <p className="panel__empty">Список показывает предметы, зоны, слои и помещение. Изменения стен, проёмов и справочника сюда не входят. Числа пересчитываются при редактировании.</p>
         </>}
       </>}
+      {sheetOpen ? (
+        <ApprovalSheet before={beforeDocument} after={current} beforeSource={beforeSource}
+          onClose={() => setSheetOpen(false)} />
+      ) : null}
     </section>
   );
 }
