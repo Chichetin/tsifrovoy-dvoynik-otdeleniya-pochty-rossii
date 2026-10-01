@@ -1,0 +1,31 @@
+// @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
+import { act, cleanup, renderHook } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
+import type { PlanDocument } from '../../contracts/model';
+import type { EditorSession } from '../../contracts/ui';
+import { useInternalRoomController } from './use-internal-room-controller';
+afterEach(cleanup);
+it('Backspace убирает угол, Delete не удаляет прежний выбор; Enter не применяет комнату', () => {
+  const plan = JSON.parse(readFileSync('demo/after.json', 'utf8')) as PlanDocument;
+  const session: EditorSession = { tool: { kind: 'room.draw' }, viewport: { origin: [0, 0], scale: 50 }, selection: { kind: 'wall', id: plan.walls[0]!.id }, preview: null, focus: null };
+  const onCommand = vi.fn(() => ({ ok: true as const, value: plan }));
+  const hook = renderHook(() => useInternalRoomController({ document: plan, session, onCommand }, true, 0));
+  const click = (point: [number, number]) => act(() => hook.result.current.handlePointer({ phase: 'down', point, button: 0, alt: true, shift: false }));
+  click([1, 1]); click([4, 4]);
+  expect(hook.result.current.ready).toBe(true);
+  const back = new KeyboardEvent('keydown', { key: 'Backspace', cancelable: true });
+  act(() => window.dispatchEvent(back));
+  expect(back.defaultPrevented).toBe(true); expect(hook.result.current.ready).toBe(false);
+  expect(hook.result.current.start).toEqual([1, 1]);
+  const remove = new KeyboardEvent('keydown', { key: 'Delete', cancelable: true });
+  act(() => window.dispatchEvent(remove));
+  expect(remove.defaultPrevented).toBe(true); expect(hook.result.current.draft).toBeNull();
+  click([1, 1]); click([4, 4]);
+  act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true })));
+  expect(onCommand).not.toHaveBeenCalled();
+  const button = document.createElement('button'); document.body.append(button);
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  act(() => button.dispatchEvent(enter));
+  expect(enter.defaultPrevented).toBe(false); button.remove();
+});

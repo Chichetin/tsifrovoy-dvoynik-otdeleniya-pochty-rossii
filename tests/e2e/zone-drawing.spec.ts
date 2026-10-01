@@ -23,8 +23,10 @@ for (const width of [1280, 1440]) {
       await page.keyboard.up('Alt');
     };
     await page.getByRole('button', { name: 'Помещение', exact: true }).click();
+    await page.getByRole('radio', { name: 'Изменить внешний контур' }).check();
     for (const [x, y] of [[60, 240], [500, 240], [500, 550], [60, 550]]) await click(x!, y!);
     await page.getByRole('button', { name: 'Завершить помещение', exact: true }).click();
+    await page.getByRole('button', { name: 'Применить внешний контур', exact: true }).click();
     await page.getByRole('button', { name: 'Зона', exact: true }).click();
     const controls = page.getByRole('region', { name: 'Рисование контура' });
     await expect(controls).toContainText('Нажмите первый угол');
@@ -72,8 +74,10 @@ test('зона по видимым действиям переживает фа�
     await page.keyboard.up('Alt');
   };
   await page.getByRole('button', { name: 'Помещение', exact: true }).click();
+    await page.getByRole('radio', { name: 'Изменить внешний контур' }).check();
   for (const [x, y] of [[60, 240], [500, 240], [500, 550], [60, 550]]) await click(x!, y!);
   await page.getByRole('button', { name: 'Завершить помещение', exact: true }).click();
+    await page.getByRole('button', { name: 'Применить внешний контур', exact: true }).click();
   await page.getByRole('button', { name: 'Зона', exact: true }).click();
   const controls = page.getByRole('region', { name: 'Рисование контура' });
   for (const [x, y] of [[120, 320], [360, 320], [360, 480]]) await click(x!, y!);

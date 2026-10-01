@@ -165,10 +165,12 @@ async function drawRing(
   options: { alt?: boolean } = {},
 ): Promise<void> {
   await page.getByRole('button', { name: tool, exact: true }).click();
+  if (tool === 'Помещение') await page.getByRole('radio', { name: 'Изменить внешний контур' }).check();
   for (const point of ring) await clickAt(page, point, options);
   const first = ring[0];
   if (first === undefined) throw new Error('пустой контур');
   await clickAt(page, first, options);
+  if (tool === 'Помещение') await page.getByRole('button', { name: 'Применить внешний контур', exact: true }).click();
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 }
 

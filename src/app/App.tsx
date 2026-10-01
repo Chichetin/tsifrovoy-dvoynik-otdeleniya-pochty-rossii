@@ -52,6 +52,8 @@ import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { InternalRoomControls } from '../features/plan-tools/InternalRoomControls';
+import { useInternalRoomController } from '../features/plan-tools/use-internal-room-controller';
 import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
@@ -126,6 +128,7 @@ export function App(): React.JSX.Element {
   const dirty = useStore(store, (state) => state.dirty);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
+  const [roomMode, setRoomMode] = useState<'internal' | 'boundary'>('internal');
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
@@ -458,6 +461,16 @@ export function App(): React.JSX.Element {
     [dispatchAndSelect, store, tool],
   );
   const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand }, documentEpoch);
+  const dispatchInternalRoom = useCallback((command: Command): Result<PlanDocument> => {
+    const result = dispatchPlanCommand(command);
+    if (result.ok && command.type === 'batch') {
+      const zone = command.commands.find((step) => step.type === 'zone.put');
+      if (zone?.type === 'zone.put') selectOnPlan({ kind: 'zone', id: zone.zone.id });
+    }
+    return result;
+  }, [dispatchPlanCommand, selectOnPlan]);
+  const internalRoom = useInternalRoomController({ document, session, onCommand: dispatchInternalRoom }, view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal', documentEpoch);
+  const drawingRoom = view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal';
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -824,7 +837,12 @@ export function App(): React.JSX.Element {
 
       <div className={`shell__body${planOnly ? ' shell__body--plan-only' : ''}`}>
         <aside id="side-panel-left" className="shell__side" data-tour="side-left">
-          {tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw' ? (
+          {view === '2d' && tool.kind === 'room.draw' ? <fieldset className="drawing-controls"><legend>Что построить</legend>
+            <label><input type="radio" name="room-mode" checked={roomMode === 'internal'} onChange={() => { planTool.cancel(); setRoomMode('internal'); }} /> Комнату внутри отделения</label>
+            <label><input type="radio" name="room-mode" checked={roomMode === 'boundary'} onChange={() => { internalRoom.cancel(); setRoomMode('boundary'); }} /> Изменить внешний контур</label>
+          </fieldset> : null}
+          {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} onApply={internalRoom.apply} onCancel={internalRoom.cancel} /> : null}
+          {view === '2d' && !drawingRoom && (tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw') ? (
             <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
               shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
               roomBoundary={tool.kind === 'room.draw'} pendingRoom={planTool.pendingRoom} onConfirmRoom={planTool.confirmRoom}
@@ -975,7 +993,8 @@ export function App(): React.JSX.Element {
             document={document}
             session={session}
             onPointer={(event) => {
-              planTool.handlePointer(event);
+              if (drawingRoom) internalRoom.handlePointer(event);
+              else planTool.handlePointer(event);
               if (event.phase === 'down' && tool.kind === 'object.place') {
                 const existing = findPlacementPick(
                   shownDocument,
@@ -1009,8 +1028,8 @@ export function App(): React.JSX.Element {
             <PlanGeometryLayer
               document={document}
               session={session}
-              draft={planTool.draft}
-              draftCursor={planTool.cursor}
+              draft={drawingRoom ? internalRoom.draft : planTool.draft}
+              draftCursor={drawingRoom ? null : planTool.cursor}
               onCommand={dispatch}
               onSelect={selectOnPlan}
             />

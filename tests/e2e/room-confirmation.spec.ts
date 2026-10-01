@@ -8,6 +8,7 @@ test('новый внешний контур не заменяет стены д
   const draw = async (width: number) => {
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await page.getByRole('button', { name: 'Помещение', exact: true }).click();
+    await page.getByRole('radio', { name: 'Изменить внешний контур' }).check();
     const box = await page.locator('.editor-canvas canvas').first().boundingBox();
     if (!box) throw new Error('Нет холста');
     await page.keyboard.down('Alt');
