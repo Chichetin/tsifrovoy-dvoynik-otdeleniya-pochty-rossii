@@ -69,10 +69,11 @@ test('расширение в соседнюю дверь отклоняется
   expect((await saved(page)).plan.openings).toEqual(fixture.openings);
   // The centre grip moves both edges as one gesture.
   const c=await at(1.5); await page.mouse.move(c.x,c.y); await page.mouse.down();
-  const target=await at(0.6); await page.mouse.move(target.x,target.y,{steps:8}); await page.mouse.up();
-  expect((await saved(page)).plan.openings[0]!.offset_m).toBeCloseTo(0.1,2);
+  const target=await at(1.1); await page.mouse.move(target.x,target.y,{steps:8}); await page.mouse.up();
+  expect((await saved(page)).plan.openings[0]!.offset_m).toBeCloseTo(0.6,2);
   await drag(page,'opening-resize-start',await at(-1));
-  expect((await saved(page)).plan.openings[0]!.offset_m).toBe(0);
+  await expect(page.locator('.shell__error')).toContainText('другая стена');
+  expect((await saved(page)).plan.openings[0]!.offset_m).toBeCloseTo(0.6,2);
 });
 
  test('ручки остаются различимыми при увеличении и уменьшении масштаба', async ({page}) => {
@@ -133,4 +134,28 @@ test('новый проём поверх входа отклоняется ещ�
  const controls=page.getByRole('region',{name:'Создание проёма'});
  await expect(controls).toContainText('другой проём');await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
  expect((await saved(page)).plan.openings).toEqual(original.openings);
+});
+
+test('сужение проёма ручкой и полем не замуровывает предмет в проходе',async({page})=>{
+ await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+ const fixture=(await saved(page)).plan;const opening=fixture.openings[0]!;const wall={id:'interior-door-wall',from:[0,4] as [number,number],to:[12,4] as [number,number],height_m:3,thickness_m:0.2};fixture.walls.push(wall);opening.wallId=wall.id;
+ opening.offset_m=2;opening.width_m=2;
+ const type=fixture.catalog.objectTypes.find(type=>type.physical)!;
+ const length=Math.hypot(wall.to[0]-wall.from[0],wall.to[1]-wall.from[1]);
+ const at=(along:number):[number,number]=>[wall.from[0]+(wall.to[0]-wall.from[0])*along/length,wall.from[1]+(wall.to[1]-wall.from[1])*along/length];
+ fixture.objects=[{id:'passage-object',typeId:type.id,label:'Предмет в проходе',position:at(3.5),size_m:[0.25,0.25],rotation_deg:0,base_m:0,height_m:1,zoneId:null,layerId:fixture.layers[0]!.id,attributes:{}}];
+ await page.getByTestId('plan-file-input').setInputFiles({name:'occupied-door.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ const centre=await point(page,...at(3));await page.mouse.click(centre.x,centre.y);
+ await expect.poll(()=>handle(page,'opening-resize-end')).not.toBeNull();
+ await drag(page,'opening-resize-end',await point(page,...at(3.1)));
+ await expect(page.locator('.shell__error')).toContainText('стена перекрывает оборудование');
+ expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+ const card=page.getByLabel('Свойства');await card.getByLabel('Ширина, м').fill('1');
+ await expect(card.locator('.props__error')).toContainText('стена перекрывает оборудование');
+ if(process.env.UPDATE_SNAPSHOTS==='1') await page.screenshot({path:'docs/verification/2026-10-01-opening-blocked.png'});
+ expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+ await card.getByLabel('Ширина, м').fill('2.5');
+ const result=await saved(page);expect(result.plan.openings[0]!.width_m).toBe(2.5);
+ await page.getByTestId('plan-file-input').setInputFiles(result.path);
+ expect((await saved(page)).plan.openings).toEqual(result.plan.openings);
 });

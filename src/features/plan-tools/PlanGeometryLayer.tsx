@@ -476,7 +476,7 @@ export function PlanGeometryLayer({
             if (result.ok) setNotice(null);
           }} />;
       })}
-      <Label x={cx} y={cy - 32} offsetX={124} listening={false}>
+      <Label x={cx} y={cy - 52} offsetX={124} listening={false}>
         <Tag fill="#FFFFFF" />
         <Text text="Центр — двигать · края — ширина" fontSize={12} padding={4} fill={SELECTED_STROKE} />
       </Label>
