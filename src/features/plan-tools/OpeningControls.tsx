@@ -3,7 +3,7 @@ export function OpeningControls({ready,valid,message,kind,width,onKind,onWidth,o
   ready:boolean;valid:boolean;message:string|null;kind:OpeningKind;width:string;
   onKind(kind:OpeningKind):void;onWidth(width:string):void;onApply():void;onCancel():void;
 }) {
-  return <section className="drawing-controls" aria-label="Создание проёма">
+  return <section className="drawing-controls" aria-label="Создание проёма" data-opening-controls>
     <strong>{ready?'Проверьте и установите проём':'Наведите курсор на стену'}</strong>
     <span className="toolbar__note">Нажмите на стену, чтобы подготовить проём. Стена изменится только после установки. Другой клик меняет место.</span>
     <label>Вид проёма<select value={kind} onChange={e=>onKind(e.target.value as OpeningKind)}><option value="door">Дверь</option><option value="entrance">Вход</option><option value="window">Окно</option></select></label>

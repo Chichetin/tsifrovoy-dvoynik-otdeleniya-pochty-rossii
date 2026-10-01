@@ -6,8 +6,10 @@ import { openingsOverlap } from './opening-edit';
 import { moveOpeningTo } from './vertex-edit';
 import { nearestWall, OPENING_DEFAULTS } from './wall-draft';
 
-export function openingPreview(plan: PlanDocument, point: Point, kind: OpeningKind, width: number, retired?: ReadonlySet<Id>) {
-  const hit = nearestWall(plan.walls, point);
+export function openingPreview(plan: PlanDocument, point: Point, kind: OpeningKind, width: number, retired?: ReadonlySet<Id>, chosenWallId?: Id) {
+  // Once clicked, the draft belongs to that wall; undo must not redirect it.
+  const hit = nearestWall(chosenWallId === undefined ? plan.walls : plan.walls.filter(wall => wall.id === chosenWallId), point);
+  if (hit === null && chosenWallId !== undefined) return {opening:null,message:'Выбранная стена изменилась или удалена. Нажмите на стену заново.'};
   if (hit === null) return { opening: null, message: 'Наведите курсор на стену, затем нажмите, чтобы подготовить проём.' };
   if (!Number.isFinite(width) || width <= 0) return { opening: null, message: 'Укажите ширину больше нуля.' };
   const length = wallLength(hit.wall);

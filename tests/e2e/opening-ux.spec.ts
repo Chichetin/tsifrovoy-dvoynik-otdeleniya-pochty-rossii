@@ -105,6 +105,7 @@ test('предпросмотр и подтверждение: клик не ре
   await expect(controls.getByRole('button',{name:'Установить проём'})).toBeEnabled();
   expect((await saved(page)).plan.openings).toEqual(original.openings);
   if(process.env.UPDATE_SNAPSHOTS==='1') await page.screenshot({path:'docs/verification/2026-10-01-opening-preview.png'});
+  await controls.getByLabel('Ширина проёма, м').focus();
   await page.keyboard.press('Escape');
   await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
   await page.mouse.click(target.x,target.y);
@@ -123,6 +124,22 @@ test('предпросмотр и подтверждение: клик не ре
   await page.keyboard.press('Control+z');expect((await saved(page)).plan.openings).toEqual(original.openings);
   await page.getByTestId('plan-file-input').setInputFiles(result.path);
   expect((await saved(page)).plan.openings).toEqual(result.plan.openings);
+});
+
+test('Escape в координатах предмета сбрасывает поле, сохраняя черновик проёма',async({page})=>{
+ await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+ const fixture=(await saved(page)).plan;const type=fixture.catalog.objectTypes.find(type=>type.physical)!;
+ fixture.objects=[{id:'escape-item',typeId:type.id,label:'Предмет для отмены координат',position:[4,4],size_m:[0.4,0.4],rotation_deg:0,base_m:0,height_m:1,zoneId:null,layerId:fixture.layers[0]!.id,attributes:{}}];
+ await page.getByTestId('plan-file-input').setInputFiles({name:'escape-field.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ const item=await point(page,4,4);await page.mouse.click(item.x,item.y);
+ await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id','escape-item');
+ await page.getByRole('button',{name:'Проём',exact:true}).click();
+ const wall=await point(page,2,9);await page.mouse.click(wall.x,wall.y);
+ const apply=page.getByRole('region',{name:'Создание проёма'}).getByRole('button',{name:'Установить проём'});
+ await expect(apply).toBeEnabled();
+ const x=page.getByLabel('Свойства').getByLabel('X, м');await x.fill('5');await x.press('Escape');
+ await expect(x).toHaveValue('4');await expect(apply).toBeEnabled();
+ expect((await saved(page)).plan.objects).toEqual(fixture.objects);
 });
 
 test('новый проём поверх входа отклоняется ещё до применения',async({page})=>{
