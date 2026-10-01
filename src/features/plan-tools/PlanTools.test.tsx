@@ -323,10 +323,10 @@ describe('панель инструментов плана', () => {
     const { canvas, field } = page();
     show({ kind: 'opening', id: 'op_entrance' }, { kind: 'opening.place' });
     fireEvent.pointerDown(canvas);
-    expect(screen.queryByText(/Проём: тяните вдоль стены; Enter — готово/)).not.toBeNull();
+    expect(screen.queryByText(/Проём: центр — двигать, края — ширина; Enter — готово/)).not.toBeNull();
 
     fireEvent.focusIn(field);
-    expect(screen.queryByText(/тяните вдоль стены/)).toBeNull();
+    expect(screen.queryByText(/центр — двигать, края — ширина/)).toBeNull();
     cleanup();
     document.body.replaceChildren();
 
@@ -341,7 +341,7 @@ describe('панель инструментов плана', () => {
     const { canvas } = page();
     show({ kind: 'opening', id: 'op_entrance' });
     fireEvent.pointerDown(canvas);
-    expect(screen.getByText(/тяните вдоль стены/)).toBeDefined();
+    expect(screen.getByText(/центр — двигать, края — ширина/)).toBeDefined();
     expect(screen.getByText(/Enter — готово/)).toBeDefined();
   });
 

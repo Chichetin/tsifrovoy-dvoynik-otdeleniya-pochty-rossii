@@ -37,6 +37,7 @@ import {
 } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
+import { resizeOpening, introducesOpeningOverlap } from './opening-edit';
 import { WALL_LABEL_FONT_PX, wallLengthLabel } from './wall-length-label';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import { shouldFinishOpeningSelection } from './opening-focus';
@@ -99,9 +100,24 @@ export function PlanGeometryLayer({
   // a T-junction on a neighbour's edge would insert a vertex instead.
   const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
   const pick = (ref: Ref): (() => void) | undefined => (picking ? () => onSelect(ref) : undefined);
+  const openingDrag = useRef<Konva.Node | null>(null);
+  const canceledOpeningDrag = useRef(false);
   const [editing, setEditing] = useState<Editing | null>(null);
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || openingDrag.current === null || isTextTarget(event.target)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      canceledOpeningDrag.current = true;
+      openingDrag.current.stopDrag();
+      openingDrag.current = null;
+      setEditing(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   // One source for "which layers are on": zones, objects and labels must
   // follow the same visibility rule, so it is not rebuilt per consumer. Memoised
@@ -126,6 +142,7 @@ export function PlanGeometryLayer({
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (!isDeleteKey(event.key) || isTextTarget(event.target)) return;
+      if (openingDrag.current !== null) { event.preventDefault(); return; }
       const intent = deleteIntent(selection, plan);
       if (intent === null) return;
       event.preventDefault();
@@ -414,7 +431,7 @@ export function PlanGeometryLayer({
         stroke={SELECTED_STROKE}
         strokeWidth={1.5}
         draggable
-        onDragStart={() => setNotice(null)}
+        onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
         onDragMove={(event) =>
           setEditing({
             kind: 'opening',
@@ -425,11 +442,42 @@ export function PlanGeometryLayer({
           const moved = moveOpeningTo(opening, wall, nodeWorld(event.target));
           setEditing(null);
           event.target.position({ x, y });
+          openingDrag.current = null;
+          if (canceledOpeningDrag.current) return;
+          if (introducesOpeningOverlap(moved, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Переместите его на свободный участок стены.'); return; }
           const result = onCommand({ type: 'opening.put', opening: moved });
           if (result.ok) setNotice(null);
         }}
       />
     );
+  };
+
+  const openingHandles = (opening: Opening, wall: Wall): React.JSX.Element => {
+    const length = segmentLength(wall.from, wall.to);
+    if (length <= TOLERANCE.coordinate_m) return <Group />;
+    const at = (offset: number): Point => [wall.from[0] + (wall.to[0] - wall.from[0]) * offset / length, wall.from[1] + (wall.to[1] - wall.from[1]) * offset / length];
+    const [cx, cy] = modelToScreen(openingCentre(opening, wall), viewport);
+    return <Group name="opening-edit-handles">
+      {openingHandle(opening, wall)}
+      {(['start', 'end'] as const).map((edge) => {
+        const [x, y] = modelToScreen(at(edge === 'start' ? opening.offset_m : opening.offset_m + opening.width_m), viewport);
+        return <Circle key={edge} name={`opening-resize-${edge}`} x={x} y={y} radius={6} fill="#FFF3BF" stroke={SELECTED_STROKE} strokeWidth={2} hitStrokeWidth={12} draggable
+          onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
+          onDragMove={(event) => setEditing({ kind: 'opening', opening: resizeOpening(opening, wall, edge, nodeWorld(event.target)) })}
+          onDragEnd={(event) => {
+            const resized = resizeOpening(opening, wall, edge, nodeWorld(event.target));
+            setEditing(null); event.target.position({ x, y }); openingDrag.current = null;
+            if (canceledOpeningDrag.current) return;
+            if (introducesOpeningOverlap(resized, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Сузьте его или выберите свободный участок стены.'); return; }
+            const result = onCommand({ type: 'opening.put', opening: resized });
+            if (result.ok) setNotice(null);
+          }} />;
+      })}
+      <Label x={cx} y={cy - 32} offsetX={124} listening={false}>
+        <Tag fill="#FFFFFF" />
+        <Text text="Центр — двигать · края — ширина" fontSize={12} padding={4} fill={SELECTED_STROKE} />
+      </Label>
+    </Group>;
   };
 
   const ringShown = (ref: Ref, polygon: Polygon): { polygon: Polygon; invalid: boolean } => {
@@ -690,7 +738,7 @@ export function PlanGeometryLayer({
       {!picking || selectedWall === undefined ? null : wallHandles(selectedWall)}
       {!picking || selectedOpening === undefined || selectedOpeningWall === undefined
         ? null
-        : openingHandle(selectedOpening, selectedOpeningWall)}
+        : openingHandles(selectedOpening, selectedOpeningWall)}
     </Layer>
     {/* Маркер цели привязки — на своём слое: кадр жеста не должен
         перерисовывать зоны, стены и подписи (D-177, D-224). */}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Opening, Polygon, Wall, Zone } from '../../contracts/model';
+import type { Opening, Point, Polygon, Wall, Zone } from '../../contracts/model';
 import {
   canCommitRing,
   extrudeEdge,
@@ -144,6 +144,11 @@ describe('правка стен и проёмов', () => {
     expect(moved.wallId).toBe('w_1');
     expect(moved.width_m).toBe(1);
     expect(moved.kind).toBe('door');
+  });
+
+  it('округление не выводит проём за конец стены', () => {
+    const slanted = { ...wall, to: [10.004, 0] as Point };
+    expect(moveOpeningTo(door, slanted, [30, 0]).offset_m + door.width_m).toBeLessThanOrEqual(10.004);
   });
 
   it('moveOpeningTo на стене короче проёма оставляет offset 0', () => {

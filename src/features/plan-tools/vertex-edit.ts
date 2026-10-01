@@ -106,7 +106,7 @@ export function moveOpeningTo(opening: Opening, wall: Wall, point: Point): Openi
   const along = projectOnSegment(point, wall.from, wall.to).t * length;
   const maxOffset = Math.max(0, length - opening.width_m);
   const offset = Math.min(maxOffset, Math.max(0, along - opening.width_m / 2));
-  return { ...opening, offset_m: Math.round(offset * CM_PER_M) / CM_PER_M };
+  return { ...opening, offset_m: Math.min(maxOffset, Math.round(offset * CM_PER_M) / CM_PER_M) };
 }
 
 /** Nesting of a freshly drawn ring — the one rule from `domain/relations` (D-199). */
