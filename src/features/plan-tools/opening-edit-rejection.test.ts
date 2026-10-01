@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {expect,it} from 'vitest';
 import type {PlanDocument} from '../../contracts/model';
-import {openingEditRejection} from './opening-edit-rejection';
+import {openingDeleteRejection,openingEditRejection} from './opening-edit-rejection';
 function fixture(){
  const plan=JSON.parse(readFileSync('demo/after.json','utf8')) as PlanDocument;
  plan.walls=[{id:'wall',from:[0,0],to:[6,0],height_m:3,thickness_m:0.2}];
@@ -44,4 +44,18 @@ it('высота не выходит за стену при правке; пре
  const p=fixture();p.objects=[];const door=p.openings[0]!;
  expect(openingEditRejection(p,{...door,height_m:4})?.message).toContain('Высота');
  door.height_m=5;expect(openingEditRejection(p,{...door,height_m:4})).toBeNull();
+});
+
+it('удаление не замуровывает предмет, пустой или дублирующий проём удаляется',()=>{
+ const p=fixture();expect(openingDeleteRejection(p,'door')?.message).toContain('переместите предмет');
+ p.openings.push({...p.openings[0]!,id:'duplicate'});
+ expect(openingDeleteRejection(p,'door')).toBeNull();
+ p.openings.pop();p.objects=[];expect(openingDeleteRejection(p,'door')).toBeNull();
+ expect(openingDeleteRejection(p,'absent')).toBeNull();
+});
+it('удаление не блокируется прежней ошибкой стен или нефизической отметкой',()=>{
+ const p=fixture();p.objects[0]!.position=[1,0];expect(openingDeleteRejection(p,'door')).toBeNull();
+ p.objects[0]!.position=[3.5,0];
+ p.catalog.objectTypes.find(type=>type.id===p.objects[0]!.typeId)!.physical=false;
+ expect(openingDeleteRejection(p,'door')).toBeNull();
 });

@@ -159,3 +159,29 @@ test('сужение проёма ручкой и полем не замуров
  await page.getByTestId('plan-file-input').setInputFiles(result.path);
  expect((await saved(page)).plan.openings).toEqual(result.plan.openings);
 });
+
+test('удаление занятого проёма отказано; после перемещения предмета можно удалить и отменить',async({page})=>{
+ await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+ const fixture=(await saved(page)).plan;const wall={id:'interior-delete-wall',from:[0,4] as [number,number],to:[12,4] as [number,number],height_m:3,thickness_m:0.2};
+ fixture.walls.push(wall);
+ fixture.openings.push({id:'occupied-door',wallId:wall.id,kind:'door',offset_m:2,width_m:2,sill_m:0,height_m:2.1});
+ const type=fixture.catalog.objectTypes.find(type=>type.physical)!;
+ fixture.objects=[{id:'door-item',typeId:type.id,label:'Предмет в двери',position:[3.5,4],size_m:[0.25,0.25],rotation_deg:0,base_m:0,height_m:1,zoneId:null,layerId:fixture.layers[0]!.id,attributes:{}}];
+ await page.getByTestId('plan-file-input').setInputFiles({name:'delete-door.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ const door=await point(page,3,4);await page.mouse.click(door.x,door.y);
+ await page.getByRole('button',{name:'Удалить проём',exact:true}).click();
+ await expect(page.locator('.shell__error')).toContainText('Нельзя удалить проём');
+ expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+ await page.keyboard.press('Delete');expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+ // Move the item into the room, then deletion can legitimately restore the wall.
+ const item=await point(page,3.5,4);await page.mouse.click(item.x,item.y);
+ const card=page.getByLabel('Свойства');await card.getByLabel('Y, м', {exact:true}).fill('5');
+ await card.getByRole('button',{name:'Применить координаты',exact:true}).click();
+ const target=await point(page,3,4);await page.mouse.click(target.x,target.y);
+ await page.getByRole('button',{name:'Удалить проём',exact:true}).click();
+ expect((await saved(page)).plan.openings.some(o=>o.id==='occupied-door')).toBe(false);
+ await page.keyboard.press('Control+z');const undone=await saved(page);
+ expect(undone.plan.openings).toEqual(fixture.openings);
+ await page.getByTestId('plan-file-input').setInputFiles(undone.path);
+ expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+});

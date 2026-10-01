@@ -40,3 +40,21 @@ export function openingEditRejection(plan: PlanDocument, candidate: Opening): Is
   }
   return null;
 }
+
+/** Removing a hole restores solid wall, unless another opening still covers it. */
+export function openingDeleteRejection(plan: PlanDocument, id: string): Issue | null {
+  const opening = plan.openings.find(opening => opening.id === id);
+  if (opening === undefined) return null;
+  const wall = plan.walls.find(wall => wall.id === opening.wallId);
+  if (wall === undefined) return null;
+  const openings = plan.openings.filter(opening => opening.id !== id);
+  const blocked = plan.objects.find(object =>
+    (findObjectType(plan.catalog, object.typeId)?.physical ?? true) &&
+    objectHitsWall(object, wall, openings, plan.walls) &&
+    !objectHitsWall(object, wall, plan.openings, plan.walls));
+  return blocked === undefined ? null : {
+    code: 'OPENING_DELETE_BLOCKED', severity: 'error',
+    message: 'Нельзя удалить проём: восстановленная стена перекроет оборудование «' + blocked.label + '». Сначала переместите предмет.',
+    refs: [{kind:'opening',id}, {kind:'wall',id:wall.id}, {kind:'object',id:blocked.id}],
+  };
+}
