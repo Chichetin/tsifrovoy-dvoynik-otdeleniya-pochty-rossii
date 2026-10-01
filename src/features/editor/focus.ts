@@ -64,7 +64,7 @@ export function refExtent(plan: PlanDocument, ref: Ref): Polygon | null {
   }
   if (ref.kind === 'wall') {
     const wall = byId(plan.walls, ref.id);
-    return wall === undefined ? null : wallPolygon(wall);
+    return wall === undefined ? null : wallPolygon(wall, plan.walls);
   }
   if (ref.kind === 'opening') {
     const opening = byId(plan.openings, ref.id);

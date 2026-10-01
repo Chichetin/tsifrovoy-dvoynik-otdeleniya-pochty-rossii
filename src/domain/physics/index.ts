@@ -172,7 +172,7 @@ export function objectPhysicsIssues(plan: PlanDocument, object: Equipment): Issu
   if (physical) {
     const outer = outerWallIds(plan.walls, plan.room.boundary);
     for (const wall of plan.walls) {
-      if (!objectHitsWall(object, wall, plan.openings)) continue;
+      if (!objectHitsWall(object, wall, plan.openings, plan.walls)) continue;
       issues.push(
         issueOf(
           VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,

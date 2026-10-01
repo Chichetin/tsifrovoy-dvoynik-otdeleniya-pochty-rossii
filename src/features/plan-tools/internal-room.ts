@@ -113,9 +113,15 @@ export function createInternalRoom(plan: PlanDocument, polygon: Polygon, retired
     return owner !== undefined && intersects(wallPolygon(next), wallSpanPolygon(owner, opening.offset_m, opening.offset_m + opening.width_m));
   }))) return fail('Новая перегородка перекрывает существующий проём. Передвиньте угол комнаты за край двери или окна.');
   if (walls.length === 0) return fail('Этот контур уже полностью окружён стенами. Добавьте зону внутри него, а не повторную комнату.');
-  if (walls.some((wall) => plan.objects.some((object) => (findObjectType(plan.catalog, object.typeId)?.physical ?? true) && objectHitsWall(object, wall, [])))) {
+  if (walls.some((wall) => plan.objects.some((object) => (findObjectType(plan.catalog, object.typeId)?.physical ?? true) && objectHitsWall(object, wall, [], [...plan.walls, ...walls])))) {
     return fail('Новая стена пересекает оборудование. Переместите объект или измените размер комнаты.');
   }
+  const joinedWalls = [...plan.walls, ...walls];
+  if (plan.walls.some((wall) => plan.objects.some((object) =>
+    (findObjectType(plan.catalog, object.typeId)?.physical ?? true) &&
+    objectHitsWall(object, wall, plan.openings, joinedWalls) &&
+    !objectHitsWall(object, wall, plan.openings, plan.walls)
+  ))) return fail('Новый стык существующей стены пересекает оборудование. Переместите объект или измените размер комнаты.');
   const command: Command = { type: 'batch', commands: [
     ...walls.map((wall): Command => ({ type: 'wall.put', wall })),
     { type: 'zone.put', zone: { id: nextFreeId('z_', taken), name: `Комната ${plan.zones.length + 1}`, typeId: type.id,

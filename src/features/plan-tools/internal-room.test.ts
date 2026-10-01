@@ -68,3 +68,19 @@ it('общий конец не оправдывает длинное налож�
   const p = plan(); p.walls.push(wall('slanted', [4, 0], [4.04, 3.9]));
   expect(createInternalRoom(p, roomRectangle([0, 0], [4, 4])).ok).toBe(false);
 });
+
+it('новая комната не накрывает объект заполненным углом стыка', () => {
+  const p = plan(); const demo = JSON.parse(readFileSync('demo/after.json', 'utf8')) as PlanDocument;
+  p.objects = [{ ...demo.objects[0]!, position: [0.97, 0.97], size_m: [0.02, 0.02], rotation_deg: 0, base_m: 0, height_m: 1 }];
+  expect(createInternalRoom(p, roomRectangle([1, 1], [4, 4])).ok).toBe(false);
+});
+
+it('не вводит новое столкновение объекта со старой стеной после примыкания', () => {
+  const p = plan(); p.walls.push({ ...wall('shared', [4, 1], [4, 4]), thickness_m: 0.2 });
+  const demo = JSON.parse(readFileSync('demo/after.json', 'utf8')) as PlanDocument;
+  p.objects = [{ ...demo.objects[0]!, position: [4.08, 0.99], size_m: [0.01, 0.01], rotation_deg: 0, base_m: 0, height_m: 1 }];
+  expect(createInternalRoom(p, roomRectangle([1, 1], [4, 4])).ok).toBe(false);
+  // A pre-existing error far from the new room must not lock all construction.
+  p.objects[0] = { ...p.objects[0]!, position: [12, 7] };
+  expect(createInternalRoom(p, roomRectangle([1, 1], [4, 4])).ok).toBe(true);
+});

@@ -15,7 +15,7 @@ import type {
   Zone,
 } from '../../contracts/model';
 import { SCHEMA_VERSION } from '../../contracts/model';
-import { footprint, rotateOffset } from '../../domain/geometry';
+import { footprint, rotateOffset, wallPolygon } from '../../domain/geometry';
 import { buildScene, type ScenePrism } from './scene';
 
 const catalog: Catalog = {
@@ -455,3 +455,12 @@ function coversX(polygon: Polygon, x: number): boolean {
   const xs = polygon.map(([px]) => px);
   return Math.min(...xs) < x && x < Math.max(...xs);
 }
+
+test('3D использует общий с 2D контур углового стыка', () => {
+  const a: Wall = { id: 'joint_a', from: [0, 0], to: [4, 0], thickness_m: 0.2, height_m: 3 };
+  const b: Wall = { id: 'joint_b', from: [0, 0], to: [0, 3], thickness_m: 0.2, height_m: 3 };
+  const document = { ...plan, walls: [a, b], openings: [] };
+  const scene = buildScene(document);
+  expect(scene.prisms.find((prism) => prism.ref.id === a.id)?.polygon).toEqual(wallPolygon(a, document.walls));
+  expect(scene.prisms.find((prism) => prism.ref.id === b.id)?.polygon).toEqual(wallPolygon(b, document.walls));
+});

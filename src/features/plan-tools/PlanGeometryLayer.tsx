@@ -576,10 +576,10 @@ export function PlanGeometryLayer({
           оборудования, иначе объект, вставший на подпись, закрывает её
           целиком. Здесь их больше нет намеренно. */}
 
-      {plan.walls.map((wall) => (
+      {plan.walls.map(wallShown).map((wall, _index, shownWalls) => (
         <Line
           key={wall.id}
-          points={flatten(wallPolygon(wallShown(wall)), viewport)}
+          points={flatten(wallPolygon(wall, shownWalls), viewport)}
           closed
           fill={WALL_FILL}
           stroke={isSelected('wall', wall.id) ? SELECTED_STROKE : WALL_FILL}

@@ -91,7 +91,7 @@ export function buildScene(plan: PlanDocument, catalog: Catalog = plan.catalog):
     ...plan.zones
       .filter((zone) => shown.has(zone.layerId))
       .map((zone) => zonePrism(zone, plan.zones, catalog)),
-    ...plan.walls.flatMap((wall) => wallPrisms(wall, plan.openings)),
+    ...plan.walls.flatMap((wall) => wallPrisms(wall, plan.openings, plan.walls)),
     ...plan.openings.flatMap((opening) => openingPrism(opening, plan.walls)),
     ...plan.objects
       .filter((object) => shown.has(object.layerId))
@@ -139,7 +139,7 @@ function zonePrism(zone: Zone, zones: Zone[], catalog: Catalog): ScenePrism {
  * knows which openings clear the band. A doorway is therefore a real hole and
  * the wall above the lintel stays.
  */
-function wallPrisms(wall: Wall, openings: Opening[]): ScenePrism[] {
+function wallPrisms(wall: Wall, openings: Opening[], walls: Wall[]): ScenePrism[] {
   const own = openings.filter((opening) => opening.wallId === wall.id);
   const levels = [0, wall.height_m];
   for (const opening of own) {
@@ -154,7 +154,7 @@ function wallPrisms(wall: Wall, openings: Opening[]): ScenePrism[] {
     const base_m = bands[index]!;
     const top_m = bands[index + 1]!;
     if (top_m - base_m <= TOLERANCE.coordinate_m) continue;
-    for (const part of wallObstacles(wall, own, { base_m, top_m })) {
+    for (const part of wallObstacles(wall, own, { base_m, top_m }, walls)) {
       prisms.push({
         kind: 'wall',
         ref: { kind: 'wall', id: wall.id },

@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { PlanDocument, Point } from '../contracts/model';
-import { footprint } from '../domain/geometry';
+import { footprint, wallPolygon } from '../domain/geometry';
 import { decodePlan } from './codec';
 import { renderPlanSvg, svgFileName } from './plan-svg';
 
@@ -238,4 +238,20 @@ describe('SVG плана', () => {
     expect(svgFileName({ ...loadFixture('minimal.json'), name: 'ОПС 12 / зал' })).toBe('ОПС-12-зал.svg');
     expect(svgFileName({ ...loadFixture('minimal.json'), name: '   ' })).toBe('plan.svg');
   });
+});
+
+test('SVG экспортирует тот же угловой стык стен, что и холст', () => {
+  const plan = loadFixture('nested.json');
+  plan.walls = [
+    { id: 'joint_a', from: [0, 0], to: [4, 0], thickness_m: 0.2, height_m: 3 },
+    { id: 'joint_b', from: [0, 0], to: [0, 3], thickness_m: 0.2, height_m: 3 },
+  ];
+  plan.openings = [];
+  const svg = renderPlanSvg(plan);
+  for (const wall of plan.walls) {
+    const match = new RegExp(`<polygon points="([^"]+)"[^>]*data-id="${wall.id}"`).exec(svg);
+    if (!match) throw new Error('Стена не экспортирована');
+    const polygon = match[1]!.split(' ').map((pair) => pair.split(',').map(Number));
+    expect(polygon).toEqual(wallPolygon(wall, plan.walls));
+  }
 });
