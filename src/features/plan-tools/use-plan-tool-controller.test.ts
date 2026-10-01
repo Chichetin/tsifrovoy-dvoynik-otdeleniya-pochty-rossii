@@ -398,7 +398,7 @@ describe('рисование контура', () => {
   it('пропавший при правке контура проём объясняется строкой, а не молчанием', () => {
     // Настоящая команда: новый контур пересобирает наружные стены, и вход не
     // помещается на новое северное ребро длиной 1 м.
-    const { commands, click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
+    const { commands, hook, click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
 
     click([0, 0]);
     click([10, 0]);
@@ -406,13 +406,17 @@ describe('рисование контура', () => {
     click([9, 8]);
     click([0.05, 0.05]);
 
+    expect(commands).toHaveLength(0);
+    expect(plan().openings).toHaveLength(1);
+    expect(hook.result.current.pendingRoom).toBe(true);
+    act(() => hook.result.current.confirmRoom());
     expect(commands).toHaveLength(1);
     expect(plan().openings).toHaveLength(0);
     expect(getNotice()).toBe(OUTER_OPENING_DROPPED_NOTICE);
   });
 
   it('контур, на котором вход уцелел, ничего не сообщает', () => {
-    const { click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
+    const { hook, click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
 
     click([0, 0]);
     click([14, 0]);
@@ -420,6 +424,7 @@ describe('рисование контура', () => {
     click([0, 8]);
     click([0.05, 0.05]);
 
+    act(() => hook.result.current.confirmRoom());
     expect(plan().openings).toHaveLength(1);
     expect(getNotice()).toBeNull();
   });
@@ -895,5 +900,22 @@ describe('«Своя фигура» (D-279)', () => {
     expect(commands).toHaveLength(0);
     expect(getNotice()).toMatch(/выберите тип в библиотеке/);
     expect(hook.result.current.draft).toHaveLength(3);
+  });
+});
+
+
+describe('замена существующих наружных стен', () => {
+  it('Enter и повторное завершение не применяют контур без отдельного подтверждения', () => {
+    const { hook, click, commands } = setup({ kind: 'room.draw' }, planWithEntrance());
+    click([0, 0]); click([4, 0]); click([4, 4]); click([0, 4]);
+    act(() => hook.result.current.finish());
+    act(() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
+    expect(commands).toHaveLength(0);
+    expect(hook.result.current.pendingRoom).toBe(true);
+    act(() => hook.result.current.cancel());
+    act(() => hook.result.current.confirmRoom());
+    expect(commands).toHaveLength(0);
+    expect(hook.result.current.pendingRoom).toBe(false);
+    expect(hook.result.current.draft).toBeNull();
   });
 });

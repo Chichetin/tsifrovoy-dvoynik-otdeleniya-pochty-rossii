@@ -93,6 +93,8 @@ const DRAWING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
 
 export type DrawingController = ToolController & {
   finish(): void;
+  confirmRoom(): void;
+  pendingRoom: boolean;
   removeLast(): void;
   cursor: Point | null;
 };
@@ -103,6 +105,7 @@ export const usePlanToolController = ({
   onCommand,
 }: Parameters<UsePlanToolController>[0], documentEpoch = 0): DrawingController => {
   const [draft, setDraft] = useState<Point[] | null>(null);
+  const [pendingRoom, setPendingRoom] = useState(false);
   const [cursor, setCursor] = useState<Point | null>(null);
   const tool = session.tool;
   const kind = tool.kind;
@@ -112,6 +115,7 @@ export const usePlanToolController = ({
   const [draftContext, setDraftContext] = useState(contextKey);
   if (draftContext !== contextKey) {
     setDraftContext(contextKey);
+    setPendingRoom(false);
     setDraft(null);
     setCursor(null);
   }
@@ -144,6 +148,7 @@ export const usePlanToolController = ({
   }, [plan.id, plan.name]);
 
   const cancel = useCallback(() => {
+    setPendingRoom(false);
     setDraft(null);
     setCursor(null);
     setNotice(null);
@@ -264,6 +269,13 @@ export const usePlanToolController = ({
         setNotice(RING_TOO_FEW_POINTS_NOTICE);
         return;
       }
+      if (kind === 'room.draw' && plan.walls.length > 0 && canCommitRing(ring)) {
+        setDraft(ring);
+        setCursor(null);
+        setPendingRoom(true);
+        setSnapHint(null);
+        return;
+      }
       if (commit(ring)) {
         setDraft(null);
         setCursor(null);
@@ -272,7 +284,7 @@ export const usePlanToolController = ({
       }
       setDraft(ring);
     },
-    [commit, tolerance],
+    [commit, tolerance, kind, plan.walls.length],
   );
 
   // Enter и двойной клик слушаются только пока контур рисуется: без черновика
@@ -281,7 +293,17 @@ export const usePlanToolController = ({
   const finish = useCallback(() => {
     if (ringDraft !== null) closeRing(ringDraft);
   }, [closeRing, ringDraft]);
+  const confirmRoom = useCallback(() => {
+    if (!pendingRoom || kind !== 'room.draw' || draft === null) return;
+    if (commit(draft)) {
+      setPendingRoom(false);
+      setDraft(null);
+      setCursor(null);
+      setSnapHint(null);
+    }
+  }, [pendingRoom, kind, draft, commit]);
   const removeLast = useCallback(() => {
+    setPendingRoom(false);
     if (!RING_TOOLS.has(kind) || draft === null) return;
     if (draft.length <= 1) {
       // Опустевший черновик снимает и курсор рисования: обещанной следующей
@@ -465,6 +487,7 @@ export const usePlanToolController = ({
 
       if (!RING_TOOLS.has(kind)) return;
 
+      setPendingRoom(false);
       const current = draft ?? [];
       const first = current[0];
       // Closing is judged by where the click landed, not by where it snapped:
@@ -485,5 +508,5 @@ export const usePlanToolController = ({
     [cancel, closeRing, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
   );
 
-  return { handlePointer, cancel, draft, cursor, finish, removeLast };
+  return { handlePointer, cancel, draft, cursor, finish, removeLast, pendingRoom, confirmRoom };
 };

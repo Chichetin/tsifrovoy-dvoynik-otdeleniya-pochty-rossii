@@ -827,6 +827,7 @@ export function App(): React.JSX.Element {
           {tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw' ? (
             <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
               shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
+              roomBoundary={tool.kind === 'room.draw'} pendingRoom={planTool.pendingRoom} onConfirmRoom={planTool.confirmRoom}
               draft={planTool.draft} onFinish={planTool.finish} onRemoveLast={planTool.removeLast}
               onCancel={() => { planTool.cancel(); setTool({ kind: 'select' }); }} />
           ) : null}
