@@ -302,14 +302,9 @@ describe('рисование контура', () => {
     expect(command.zone.id).toBe('z_2');
   });
 
-  it('удалённый в этой сессии id проёму не выдаётся: после «удалить op_1» новый — op_2', () => {
-    const plan = planWith([]);
-    plan.walls = [{ id: 'w_1', from: [0, 4], to: [10, 4], thickness_m: 0.2, height_m: 3 }];
-    const { commands, click } = setup({ kind: 'opening.place' }, plan, new Set(['op_1']));
-    click([5, 4]);
-    const command = commands[0];
-    if (command?.type !== 'opening.put') throw new Error('ожидалась opening.put');
-    expect(command.opening.id).toBe('op_2');
+  it('рисование контуров не ставит проём немедленно: им управляет отдельный предпросмотр', () => {
+    const {commands,click}=setup({kind:'opening.place'},planWith([]));
+    click([5,4]);expect(commands).toHaveLength(0);
   });
 
   it('зона, нарисованная внутри другой, становится вложенной', () => {

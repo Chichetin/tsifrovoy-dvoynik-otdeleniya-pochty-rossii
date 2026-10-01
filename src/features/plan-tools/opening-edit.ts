@@ -18,10 +18,13 @@ export function resizeOpening(opening: Opening, wall: Wall, edge: 'start' | 'end
   return { ...opening, offset_m: offset, width_m: end - offset };
 }
 
-/** Permit repairing existing overlaps; refuse only an overlap with a new neighbour. */
-export function introducesOpeningOverlap(candidate: Opening, before: Opening, openings: Opening[]): boolean {
-  const overlaps = (a: Opening, b: Opening): boolean => a.id !== b.id && a.wallId === b.wallId &&
+/** Geometric intersection of two openings on the same wall, including height. */
+export function openingsOverlap(a: Opening, b: Opening): boolean {
+  return a.id !== b.id && a.wallId === b.wallId &&
     intervalsOverlap({ base_m: a.offset_m, top_m: a.offset_m + a.width_m }, { base_m: b.offset_m, top_m: b.offset_m + b.width_m }) &&
     intervalsOverlap({ base_m: a.sill_m, top_m: a.sill_m + a.height_m }, { base_m: b.sill_m, top_m: b.sill_m + b.height_m });
-  return openings.some((other) => overlaps(candidate, other) && !overlaps(before, other));
+}
+/** Permit repairing existing overlaps; refuse only an overlap with a new neighbour. */
+export function introducesOpeningOverlap(candidate: Opening, before: Opening, openings: Opening[]): boolean {
+  return openings.some((other) => openingsOverlap(candidate, other) && !openingsOverlap(before, other));
 }

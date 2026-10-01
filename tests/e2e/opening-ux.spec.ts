@@ -92,3 +92,45 @@ test('расширение в соседнюю дверь отклоняется
   }
   expect((await saved(page)).plan.openings).toEqual(document.openings);
 });
+
+test('предпросмотр и подтверждение: клик не режет стену, Escape и смена инструмента сохраняют план', async ({page})=>{
+  await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+  const original=(await saved(page)).plan;
+  await page.getByRole('button',{name:'Проём',exact:true}).click();
+  const controls=page.getByRole('region',{name:'Создание проёма'});
+  const target=await point(page,2,9);await page.mouse.move(target.x,target.y);
+  await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
+  await page.mouse.click(target.x,target.y);
+  await expect(controls.getByRole('button',{name:'Установить проём'})).toBeEnabled();
+  expect((await saved(page)).plan.openings).toEqual(original.openings);
+  if(process.env.UPDATE_SNAPSHOTS==='1') await page.screenshot({path:'docs/verification/2026-10-01-opening-preview.png'});
+  await page.keyboard.press('Escape');
+  await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
+  await page.mouse.click(target.x,target.y);
+  await page.getByRole('button',{name:'Выбор',exact:true}).click();
+  expect((await saved(page)).plan.openings).toEqual(original.openings);
+  await page.getByRole('button',{name:'Проём',exact:true}).click();
+  await page.mouse.click(target.x,target.y);
+  await controls.getByLabel('Вид проёма').selectOption('window');
+  await controls.getByLabel('Ширина проёма, м').fill('1.1');
+  await controls.getByRole('button',{name:'Установить проём'}).click();
+  const result=await saved(page);const added=result.plan.openings.find(o=>!original.openings.some(old=>old.id===o.id))!;
+  expect(added.kind).toBe('window');expect(added.width_m).toBe(1.1);
+  await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id',added.id);
+  await expect.poll(()=>handle(page,'opening-resize-end')).not.toBeNull();
+  expect(result.plan.walls).toEqual(original.walls);
+  await page.keyboard.press('Control+z');expect((await saved(page)).plan.openings).toEqual(original.openings);
+  await page.getByTestId('plan-file-input').setInputFiles(result.path);
+  expect((await saved(page)).plan.openings).toEqual(result.plan.openings);
+});
+
+test('новый проём поверх входа отклоняется ещё до применения',async({page})=>{
+ await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+ const original=(await saved(page)).plan;const o=original.openings[0]!;const w=original.walls.find(w=>w.id===o.wallId)!;
+ const length=Math.hypot(w.to[0]-w.from[0],w.to[1]-w.from[1]);const along=o.offset_m+o.width_m/2;
+ const target=await point(page,w.from[0]+(w.to[0]-w.from[0])*along/length,w.from[1]+(w.to[1]-w.from[1])*along/length);
+ await page.getByRole('button',{name:'Проём',exact:true}).click();await page.mouse.click(target.x,target.y);
+ const controls=page.getByRole('region',{name:'Создание проёма'});
+ await expect(controls).toContainText('другой проём');await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
+ expect((await saved(page)).plan.openings).toEqual(original.openings);
+});

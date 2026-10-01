@@ -11,7 +11,7 @@
  * worse outcome than a refusal with the draft still on screen.
  *
  * Перегородка — это тот же черновик, только из двух точек: первый клик ставит
- * начало, второй заканчивает стену. Проём — один клик по стене. Оба отказа
+ * начало, второй заканчивает стену. Проём создаётся контроллером предпросмотра с подтверждением. Отказы
  * (промах мимо стены, слишком короткий отрезок) объясняются строкой, а не
  * молчанием: клик, после которого ничего не произошло, читается как поломка.
  */
@@ -26,8 +26,6 @@ import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
 import { getMeasurement, setMeasurement } from './measure';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
-  NO_WALL_UNDER_POINTER_NOTICE,
-  OPENING_WIDER_THAN_WALL_NOTICE,
   RING_TOO_FEW_POINTS_NOTICE,
   SHAPE_NO_TYPE_NOTICE,
   SHAPE_TOO_SMALL_NOTICE,
@@ -39,7 +37,7 @@ import { objectFromRing } from './object-shape';
 import { setSnapHint } from './snap-marker';
 import { isTextTarget } from './text-target';
 import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
-import { createOpening, createWall, nearestWall } from './wall-draft';
+import { createWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
@@ -362,27 +360,6 @@ export const usePlanToolController = ({
     [onCommand, plan, session.retired],
   );
 
-  /** Проём на стене под курсором; мимо стены — объяснение, а не тишина. */
-  const placeOpening = useCallback(
-    (point: Point): void => {
-      const hit = nearestWall(plan.walls, point);
-      if (hit === null) {
-        setNotice(NO_WALL_UNDER_POINTER_NOTICE);
-        return;
-      }
-      const taken = takenIds(plan, session.retired);
-      // Вид проёма правится карточкой свойств; ставим обычную дверь.
-      const opening = createOpening(hit.wall, point, 'door', taken);
-      if (opening === null) {
-        setNotice(OPENING_WIDER_THAN_WALL_NOTICE);
-        return;
-      }
-      onCommand({ type: 'opening.put', opening });
-      setNotice(null);
-    },
-    [onCommand, plan, session.retired],
-  );
-
   /**
    * Куда сядет следующая точка и за что она зацепится — под курсором, до
    * клика (D-224). `Alt` выключает привязку, значит и обещать нечего.
@@ -455,10 +432,8 @@ export const usePlanToolController = ({
         return;
       }
 
-      if (kind === 'opening.place') {
-        placeOpening(event.point);
-        return;
-      }
+      // Opening placement belongs to useOpeningController: no immediate mutation here.
+      if (kind === 'opening.place') return;
 
       // A drawn vertex snaps to the plan's vertices and the grid (D-209);
       // Alt keeps the click where it was made. A guide-derived coordinate is
@@ -505,7 +480,7 @@ export const usePlanToolController = ({
       }
       setDraft([...current, point]);
     },
-    [cancel, closeRing, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
+    [cancel, closeRing, draft, drawWall, kind, measure, settle, showTarget],
   );
 
   return { handlePointer, cancel, draft, cursor, finish, removeLast, pendingRoom, confirmRoom };

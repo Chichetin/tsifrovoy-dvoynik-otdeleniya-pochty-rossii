@@ -66,7 +66,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
   {
     kind: 'opening.place',
     label: 'Проём',
-    hint: 'Клик по стене ставит дверь; вид и размер правятся в карточке свойств; Enter — готово',
+    hint: 'Наведите на стену, клик — черновик; выберите вид и ширину слева, затем «Установить проём»; Esc — отмена',
   },
 ];
 

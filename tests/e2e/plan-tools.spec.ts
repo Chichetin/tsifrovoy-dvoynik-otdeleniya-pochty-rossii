@@ -769,7 +769,6 @@ test.describe('инструменты плана', () => {
     page.on('pageerror', (error) => errors.push(error.message));
 
     const size = await openEditor(page);
-    const notice = page.getByTestId('plan-tools-notice');
 
     // Стартовый план — четыре наружные стены и один вход.
     const before = await savePlan(page);
@@ -796,11 +795,12 @@ test.describe('инструменты плана', () => {
     // Проём мимо любой стены: клик не теряется молча, а объясняется.
     await page.getByRole('button', { name: 'Проём', exact: true }).click();
     await clickAt(page, px(size, 0.2, 0.5));
-    await expect(notice).toContainText('нет стены');
+    await expect(page.getByRole('region',{name:'Создание проёма'})).toContainText('Наведите курсор на стену');
     expect((await savePlan(page)).openings).toHaveLength(before.openings.length);
 
     // Проём по самой перегородке: встаёт на неё и держится в её пределах.
     await clickAt(page, px(size, 0.45, 0.5));
+    await page.getByRole('button', { name: 'Установить проём', exact: true }).click();
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     const withOpening = await savePlan(page);
@@ -820,7 +820,7 @@ test.describe('инструменты плана', () => {
     expect(errors).toEqual([]);
   });
 
-  test('проём — фиксированной ширины: на плане только двигается, Enter и смена инструмента завершают его (D-267)', async ({
+  test('проём: подтверждение установки, точные свойства, Enter и смена инструмента снимают выделение', async ({
     page,
   }) => {
     const errors: string[] = [];
@@ -835,12 +835,11 @@ test.describe('инструменты плана', () => {
     await clickAt(page, px(size, 0.45, 0.25));
     await clickAt(page, px(size, 0.45, 0.75));
 
-    // Проём — клик по стене. Появляется сразу выделенным, шириной двери по
-    // умолчанию: на плане у него нет ручки шире одной — только двигать вдоль
-    // стены (D-267, п. 1).
+    // Клик готовит проём, отдельная кнопка устанавливает и выделяет его.
     await page.getByRole('button', { name: 'Проём', exact: true }).click();
     const openingPoint = px(size, 0.45, 0.5);
     await clickAt(page, openingPoint);
+    await page.getByRole('button', { name: 'Установить проём', exact: true }).click();
     const withOpening = await savePlan(page);
     const opening = withOpening.openings.find(
       (entry) => !before.openings.some((old) => old.id === entry.id),
@@ -865,7 +864,7 @@ test.describe('инструменты плана', () => {
     await expect(page.getByLabel('Свойства')).toHaveCount(0);
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
-    // Ширина правится только карточкой; в плане длина стены больше 0,9 м.
+    // Карточка остаётся точным способом задания ширины рядом с ручками.
     await clickAt(page, openingPoint);
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     await card.getByLabel('Ширина, м').fill('1.4');
@@ -925,6 +924,7 @@ test.describe('инструменты плана', () => {
     // Проём теперь ставится на свою стену: клик по середине верхнего ребра.
     await page.getByRole('button', { name: 'Проём', exact: true }).click();
     await clickAt(page, px(size, 0.42, 0.15));
+    await page.getByRole('button', { name: 'Установить проём', exact: true }).click();
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     const withOpening = await savePlan(page);

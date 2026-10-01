@@ -183,9 +183,12 @@ export function PlanGeometryLayer({
   // касается — оно живёт, пока пользователь его не снимет сам.
   const previousToolKind = useRef(session.tool.kind);
   useEffect(() => {
-    const changed = previousToolKind.current !== session.tool.kind;
+    const previous = previousToolKind.current;
+    const changed = previous !== session.tool.kind;
     previousToolKind.current = session.tool.kind;
-    if (changed && shouldFinishOpeningSelection(selection)) onSelect(null);
+    // Confirmed placement enters selection with its new opening already picked.
+    const placed = previous === 'opening.place' && session.tool.kind === 'select';
+    if (changed && !placed && shouldFinishOpeningSelection(selection)) onSelect(null);
   }, [session.tool.kind, selection, onSelect]);
 
   const pointerWorld = (event: Konva.KonvaEventObject<unknown>): Point | null => {

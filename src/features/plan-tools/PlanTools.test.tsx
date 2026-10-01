@@ -345,10 +345,10 @@ describe('панель инструментов плана', () => {
     expect(screen.getByText(/Enter — готово/)).toBeDefined();
   });
 
-  it('подсказка инструмента «Проём» тоже называет Enter — готово', () => {
+  it('подсказка инструмента «Проём» называет подготовку и применение', () => {
     show(null);
     const title = screen.getByRole('button', { name: 'Проём' }).getAttribute('title') ?? '';
-    expect(title).toContain('Enter — готово');
+    expect(title).toContain('Установить проём');
   });
 
   it('отказ гаснет при смене выделения: он был про прошлую фигуру', () => {

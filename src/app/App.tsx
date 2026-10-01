@@ -1,3 +1,6 @@
+import { useOpeningController } from '../features/plan-tools/use-opening-controller';
+import { OpeningControls } from '../features/plan-tools/OpeningControls';
+import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer';
 /**
  * U01: the one place where the editor is assembled.
  *
@@ -470,6 +473,13 @@ export function App(): React.JSX.Element {
     return result;
   }, [dispatchPlanCommand, selectOnPlan]);
   const internalRoom = useInternalRoomController({ document, session, onCommand: dispatchInternalRoom }, view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal', documentEpoch);
+  const placingOpening = view === '2d' && tool.kind === 'opening.place';
+  const applyOpeningCommand = useCallback((command: Command): Result<PlanDocument> => {
+    const result = dispatchPlanCommand(command);
+    if (result.ok) setTool({kind:'select'});
+    return result;
+  }, [dispatchPlanCommand, setTool]);
+  const openingTool = useOpeningController({document,session,onCommand:applyOpeningCommand}, placingOpening, documentEpoch);
   const drawingRoom = view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal';
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
@@ -841,6 +851,7 @@ export function App(): React.JSX.Element {
             <label><input type="radio" name="room-mode" checked={roomMode === 'internal'} onChange={() => { planTool.cancel(); setRoomMode('internal'); }} /> Комнату внутри отделения</label>
             <label><input type="radio" name="room-mode" checked={roomMode === 'boundary'} onChange={() => { internalRoom.cancel(); setRoomMode('boundary'); }} /> Изменить внешний контур</label>
           </fieldset> : null}
+          {placingOpening ? <OpeningControls ready={openingTool.ready} valid={openingTool.valid} message={openingTool.message} kind={openingTool.kind} width={openingTool.width} onKind={openingTool.changeKind} onWidth={openingTool.setWidth} onApply={openingTool.apply} onCancel={openingTool.cancel} /> : null}
           {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} onApply={internalRoom.apply} onCancel={internalRoom.cancel} /> : null}
           {view === '2d' && !drawingRoom && (tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw') ? (
             <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
@@ -993,7 +1004,8 @@ export function App(): React.JSX.Element {
             document={document}
             session={session}
             onPointer={(event) => {
-              if (drawingRoom) internalRoom.handlePointer(event);
+              if (placingOpening) openingTool.handlePointer(event);
+              else if (drawingRoom) internalRoom.handlePointer(event);
               else planTool.handlePointer(event);
               if (event.phase === 'down' && tool.kind === 'object.place') {
                 const existing = findPlacementPick(
@@ -1033,6 +1045,7 @@ export function App(): React.JSX.Element {
               onCommand={dispatch}
               onSelect={selectOnPlan}
             />
+            <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             <EquipmentLayer
               document={shownDocument}
               session={session}
