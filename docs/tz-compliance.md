@@ -149,3 +149,5 @@
 #7/D-342: на main b061906 ZIP проверен 13 unit и 2 browser, оба плана открыты и ручная рекомендация даёт after.json; Windows 5/5 хешей. Публичный deployment 5/5 (50.6 с) не подтверждает релизный SHA и режим живой модели. Отчёт verification/2026-10-02-release-kit.md; финальный PDF/релиз/другая сеть остаются открытыми.
 
 02.10 #7: записанный публичный POST /api/advice: HTTP 200, fallback, 60293 мс, 1 browser passed. Успешный live LLM не доказан. Безопасное evidence — verification/2026-10-02-public-assistant-mode.json; общий список требований — verification/2026-10-02-user-acceptance.md. Полная интегрированная приёмка открыта.
+
+02.10 #7: исправлена дверь у примыкания перегородки демо, пересобраны оба плана/public/ZIP. 17unit,2browser,Windows5/5; explanation llm историческое, новых модельных вызовов нет. Общая геометрическая приёмка остаётся открыта. verification/2026-10-02-release-kit.md.

@@ -39,6 +39,15 @@ import { readPlanFile } from '../src/persistence/format';
 
 const DEMO_DIR = join(process.cwd(), 'demo');
 
+test('дверь служебной зоны демо не захватывает примыкание перегородки хранения', () => {
+  for (const name of ['before.json', 'after.json']) {
+    const plan = JSON.parse(readFileSync(join(DEMO_DIR, name), 'utf8')) as PlanDocument;
+    const door = plan.openings.find((opening) => opening.id === 'op_door_back')!;
+    const partition = plan.walls.find((wall) => wall.id === 'w_storage')!;
+    expect(door.offset_m + door.width_m).toBeLessThan(partition.from[1] - partition.thickness_m / 2);
+  }
+});
+
 function demoFile(name: string): string {
   return readFileSync(join(DEMO_DIR, name), 'utf8');
 }

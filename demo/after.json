@@ -182,7 +182,7 @@
     {
       "id": "op_door_back",
       "wallId": "w_hall_back",
-      "offset_m": 5.4,
+      "offset_m": 5.15,
       "width_m": 0.9,
       "kind": "door",
       "sill_m": 0,
