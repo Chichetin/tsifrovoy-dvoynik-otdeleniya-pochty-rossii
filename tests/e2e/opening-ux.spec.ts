@@ -63,6 +63,37 @@ test('ошибочный проём: поля запрещают ухудшен�
   expect((await saved(page)).plan.openings).toEqual(repaired.plan.openings);
 });
 
+test('импортированное наложение проёмов можно уменьшать, но нельзя усиливать полями', async ({page}) => {
+  await page.goto('/'); await expect(page.getByTestId('editor-canvas')).toBeVisible();
+  const fixture=(await saved(page)).plan;
+  const opening=fixture.openings[0]!;
+  const wall=fixture.walls.find(w=>w.id===opening.wallId)!;
+  fixture.objects=[];fixture.walls=[wall];fixture.openings=[opening];
+  opening.offset_m=1;opening.width_m=2;opening.height_m=1;opening.sill_m=0;
+  fixture.openings.push({...opening,id:'overlapping-neighbour',offset_m:2.5,width_m:2,height_m:2});
+  await page.getByTestId('plan-file-input').setInputFiles({name:'overlapping-doors.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+  const length=Math.hypot(wall.to[0]-wall.from[0],wall.to[1]-wall.from[1]);
+  const centre=await point(page,wall.from[0]+(wall.to[0]-wall.from[0])*2/length,wall.from[1]+(wall.to[1]-wall.from[1])*2/length);
+  await page.mouse.click(centre.x,centre.y);
+  const width=page.getByRole('spinbutton',{name:'Ширина, м',exact:true});
+  await width.fill('2.5');await width.press('Enter');
+  await expect(page.locator('.shell__error')).toContainText('наложился');
+  expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+  await width.fill('1.8');await width.press('Enter');
+  const height=page.getByRole('spinbutton',{name:'Высота, м',exact:true});
+  await height.fill('1.5');await height.press('Enter');
+  await expect(page.locator('.shell__error')).toContainText('наложился');
+  expect((await saved(page)).plan.openings[0]!.height_m).toBe(1);
+  await height.fill('0.5');await height.press('Enter');
+  const repaired=await saved(page);
+  expect(repaired.plan.openings[0]!.width_m).toBe(1.8);
+  expect(repaired.plan.openings[0]!.height_m).toBe(0.5);
+  await page.keyboard.press('Control+z');
+  expect((await saved(page)).plan.openings[0]!.height_m).toBe(1);
+  await page.getByTestId('plan-file-input').setInputFiles(repaired.path);
+  expect((await saved(page)).plan.openings).toEqual(repaired.plan.openings);
+});
+
 test('ширина проёма мышью: другая грань фиксирована, Escape, undo и JSON сохраняют геометрию', async ({page}) => {
   await page.setViewportSize({width:1440,height:900}); await page.goto('/');
   await expect(page.getByTestId('editor-canvas')).toBeVisible();

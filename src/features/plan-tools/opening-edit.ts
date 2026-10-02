@@ -24,7 +24,16 @@ export function openingsOverlap(a: Opening, b: Opening): boolean {
     intervalsOverlap({ base_m: a.offset_m, top_m: a.offset_m + a.width_m }, { base_m: b.offset_m, top_m: b.offset_m + b.width_m }) &&
     intervalsOverlap({ base_m: a.sill_m, top_m: a.sill_m + a.height_m }, { base_m: b.sill_m, top_m: b.sill_m + b.height_m });
 }
-/** Permit repairing existing overlaps; refuse only an overlap with a new neighbour. */
+/** Opening intersection in the wall's horizontal/vertical plane, in square metres. */
+function overlapArea(a: Opening, b: Opening): number {
+  if (!openingsOverlap(a,b)) return 0;
+  const width=Math.min(a.offset_m+a.width_m,b.offset_m+b.width_m)-Math.max(a.offset_m,b.offset_m);
+  const height=Math.min(a.sill_m+a.height_m,b.sill_m+b.height_m)-Math.max(a.sill_m,b.sill_m);
+  return width*height;
+}
+
+/** Allow gradual repair, but refuse new or increased overlap with each neighbour. */
 export function introducesOpeningOverlap(candidate: Opening, before: Opening, openings: Opening[]): boolean {
-  return openings.some((other) => openingsOverlap(candidate, other) && !openingsOverlap(before, other));
+  return openings.some((other) => openingsOverlap(candidate,other) &&
+    (!openingsOverlap(before,other) || overlapArea(candidate,other)>overlapArea(before,other)+TOLERANCE.area_m2));
 }

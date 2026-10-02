@@ -24,6 +24,24 @@ it('отказывает в новом наложении, но допускае
   expect(introducesOpeningOverlap({ ...opening, width_m: 3 }, opening, [{ ...other, sill_m: 2.5, height_m: 0.3 }])).toBe(false);
 });
 
+it('прежнее наложение можно уменьшать, но нельзя увеличивать по ширине или высоте', () => {
+  const before={...opening,width_m:2,height_m:1};
+  const other={...opening,id:'other',offset_m:3,width_m:2,height_m:2};
+  expect(introducesOpeningOverlap({...before,width_m:2.5},before,[before,other])).toBe(true);
+  expect(introducesOpeningOverlap({...before,height_m:1.5},before,[other])).toBe(true);
+  expect(introducesOpeningOverlap({...before,width_m:1.5},before,[other])).toBe(false);
+  expect(introducesOpeningOverlap({...before,height_m:0.5},before,[other])).toBe(false);
+  expect(introducesOpeningOverlap({...before,kind:'window'},before,[other])).toBe(false);
+  expect(introducesOpeningOverlap({...before,width_m:2.5},before,[{...other,wallId:'another-wall'}])).toBe(false);
+});
+
+it('уменьшение общей суммы не разрешает усилить пересечение с отдельным соседом', () => {
+  const before={...opening,offset_m:1,width_m:3};
+  const left={...opening,id:'left',offset_m:0,width_m:2};
+  const right={...opening,id:'right',offset_m:3.5,width_m:2};
+  expect(introducesOpeningOverlap({...before,offset_m:1.7,width_m:2.5},before,[left,right])).toBe(true);
+});
+
 it('возвращает импортированный проём вне стены в её границы', () => {
   const invalid = { ...opening, offset_m: 8 };
   const end = resizeOpening(invalid, wall, 'end', [6, 0]);
