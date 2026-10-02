@@ -14,20 +14,22 @@ export function useInternalRoomController({ document: plan, session, onCommand }
   const [context, setContext] = useState(key);
   if (context !== key) { setContext(key); setStart(null); setEnd(null); setReady(false); }
   const cancel = useCallback(() => { setStart(null); setEnd(null); setReady(false); setNotice(null); }, []);
+  const removeLast = useCallback(() => {
+    if (ready) { setReady(false); setEnd(null); setNotice(null); }
+    else cancel();
+  }, [ready, cancel]);
   useEffect(() => {
     if (!active) return;
     const onKey = (event: KeyboardEvent) => {
       if (isTextTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.key === 'Backspace' || event.key === 'Delete') {
         event.preventDefault(); event.stopImmediatePropagation();
-        if (ready) { setReady(false); setEnd(null); }
-        else { setStart(null); setEnd(null); }
-        setNotice(null);
+        removeLast();
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [active, ready]);
+  }, [active, removeLast]);
   const draft = start === null ? null : end === null ? [start] : roomRectangle(start, end);
   const candidate = ready && draft !== null ? createInternalRoom(plan, draft, session.retired) : null;
   const message = candidate !== null && !candidate.ok ? candidate.message : null;
@@ -52,5 +54,6 @@ export function useInternalRoomController({ document: plan, session, onCommand }
     if (start === null) { setStart(point); setEnd(null); }
     else { setEnd(point); setReady(true); }
   };
-  return { draft, start, ready, message, valid: candidate?.ok === true, apply, cancel, handlePointer };
+  const corners = start === null ? [] : end === null ? [start] : [start, end];
+  return { draft, corners, start, ready, message, valid: candidate?.ok === true, apply, cancel, removeLast, handlePointer };
 }

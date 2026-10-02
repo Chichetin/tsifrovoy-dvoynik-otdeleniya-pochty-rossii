@@ -90,9 +90,10 @@ export function PlanGeometryLayer({
   session,
   draft,
   draftCursor = null,
+  rectangleCorners,
   onCommand,
   onSelect,
-}: PlanGeometryLayerProps & { draftCursor?: Point | null }): React.JSX.Element {
+}: PlanGeometryLayerProps & { draftCursor?: Point | null; rectangleCorners?: Point[] }): React.JSX.Element {
   const { viewport, selection } = session;
   // While a drawing tool is active the click belongs to the tool: the shape
   // under the pointer must not steal the selection from what was just drawn,
@@ -270,7 +271,7 @@ export function PlanGeometryLayer({
    * of an edge inserts and pulls it out in a single gesture (D-232).
    */
   const ringHandles = (ref: Ref, polygon: Polygon, editable: boolean): React.JSX.Element[] => {
-    if (!editable) return [];
+    if (!editable || !picking) return [];
     // Handles sit on the document's vertices: the dragged one is moved by
     // Konva itself, and the preview ring is drawn separately.
     const edges = polygon.map((from, index) => {
@@ -573,11 +574,11 @@ export function PlanGeometryLayer({
   const draftInvalid = draft !== null && draft.length >= 3 && !canCommitRing(draft);
 
   const selectedZone =
-    selection?.kind === 'zone' ? zones.find((zone) => zone.id === selection.id) : undefined;
+    picking && selection?.kind === 'zone' ? zones.find((zone) => zone.id === selection.id) : undefined;
   const selectedWall =
-    selection?.kind === 'wall' ? plan.walls.find((wall) => wall.id === selection.id) : undefined;
+    picking && selection?.kind === 'wall' ? plan.walls.find((wall) => wall.id === selection.id) : undefined;
   const selectedOpening =
-    selection?.kind === 'opening'
+    picking && selection?.kind === 'opening'
       ? plan.openings.find((opening) => opening.id === selection.id)
       : undefined;
   const selectedOpeningWall =
@@ -704,12 +705,12 @@ export function PlanGeometryLayer({
           listening={false}
         />
         {draftCursor === null ? null : <Line points={flatten([draft[draft.length - 1]!, draftCursor], viewport)} stroke={DRAFT_STROKE} strokeWidth={2} dash={[3, 5]} />}
-        {session.tool.kind === 'wall.draw' ? null : draft.map((point, index) => {
+        {session.tool.kind === 'wall.draw' ? null : (rectangleCorners ?? draft).map((point, index) => {
           const [x, y] = modelToScreen(point, viewport);
           return <Group key={index} x={x} y={y}>
             <Circle radius={index === 0 ? 10 : 8} fill="#FFFFFF" stroke={draftInvalid ? INVALID_STROKE : DRAFT_STROKE} strokeWidth={index === 0 ? 3 : 2} />
             <Text x={-8} y={-6} width={16} align="center" text={String(index + 1)} fontSize={12} fill="#212529" />
-            {index === 0 ? (
+            {index === 0 || rectangleCorners !== undefined ? (
               // Над углом, а не справа: справа лежит первое ребро контура
               // (1→2), и подпись без сдвига перечёркивалась им. Непрозрачная
               // плашка — на случай, если контур всё же пройдёт под подписью
@@ -718,7 +719,7 @@ export function PlanGeometryLayer({
               <Label name="draft-start-caption" x={-4} y={-30} listening={false}>
                 <Tag fill="#FFFFFF" opacity={0.9} cornerRadius={2} />
                 <Text
-                  text={draft.length >= 3 ? '1 — замкнуть' : 'Начало'}
+                  text={rectangleCorners !== undefined ? (index === 0 ? 'Первый угол' : 'Второй угол') : draft.length >= 3 ? '1 — замкнуть' : 'Начало'}
                   fontSize={12}
                   fill={draftInvalid ? INVALID_STROKE : DRAFT_STROKE}
                   padding={3}
