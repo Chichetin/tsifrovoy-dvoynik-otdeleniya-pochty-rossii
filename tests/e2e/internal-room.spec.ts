@@ -34,6 +34,21 @@ test('отмена рисунка убирает ошибочный угол и 
  await expect(controls).toContainText('Нажмите первый угол');
  await page.keyboard.down('z');await page.keyboard.up('z');await page.keyboard.up('Control');
  expect((await save()).walls).toEqual(first.walls);
+ await page.getByRole('button',{name:'Перегородка',exact:true}).click();
+ for(const action of ['button','Control+z','Backspace','Delete']) {
+  await click(6,6);
+  await expect(page.getByRole('button',{name:'Вернуть',exact:true})).toBeDisabled();
+  if(action==='button')await page.getByRole('button',{name:'Отменить',exact:true}).click();
+  else if(action==='Backspace'||action==='Delete') {
+   await page.keyboard.down(action);await page.keyboard.down(action);await page.keyboard.up(action);
+  } else await page.keyboard.press(action);
+  expect((await save()).walls).toEqual(first.walls);
+  expect((await save()).zones).toEqual(first.zones);
+  await click(8,6); // A new first point must not complete the cancelled wall.
+  expect((await save()).walls).toEqual(first.walls);
+  await page.keyboard.press('Escape');
+ }
+ await page.getByRole('button',{name:'Помещение',exact:true}).click();
  await page.getByRole('radio',{name:'Изменить внешний контур'}).check();
  const boundary=page.getByRole('region',{name:'Рисование контура'});
  await click(0,0);await click(10,0);await click(10,8);await click(0,8);

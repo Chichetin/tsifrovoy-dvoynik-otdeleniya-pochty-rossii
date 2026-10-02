@@ -435,6 +435,20 @@ describe('рисование контура', () => {
     expect(commands).toEqual([]);
   });
 
+  it('удержание Delete после отмены начала стены перехватывается до отпускания', () => {
+    const { hook, click } = setup({ kind: 'wall.draw' }, planWith([]));
+    click([1, 1]);
+    const key = (repeat: boolean) => {
+      const event = new KeyboardEvent('keydown', { key: 'Delete', repeat, bubbles: true, cancelable: true });
+      act(() => window.dispatchEvent(event)); return event;
+    };
+    expect(key(false).defaultPrevented).toBe(true);
+    expect(hook.result.current.draft).toBeNull();
+    expect(key(true).defaultPrevented).toBe(true);
+    act(() => window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Delete' })));
+    expect(key(false).defaultPrevented).toBe(false);
+  });
+
   it('инструмент выбора не рисует', () => {
     const { commands, hook, click } = setup({ kind: 'select' }, planWith([]));
     click([1, 1]);
@@ -797,6 +811,31 @@ describe('замыкание контура с клавиатуры и двой�
     pressEnter();
     expect(commands).toEqual([]);
     expect(hook.result.current.draft).toHaveLength(1);
+  });
+
+  it('возврат начала перегородки не создаёт стену, новый первый клик начинается заново', () => {
+    const { commands, hook, click } = setup({ kind: 'wall.draw' }, planWith([]));
+    click([1, 1]);
+    act(() => hook.result.current.removeLast());
+    expect(hook.result.current.draft).toBeNull();
+    expect(commands).toEqual([]);
+    click([3, 3]);
+    expect(hook.result.current.draft).toEqual([[3, 3]]);
+  });
+
+  it('Backspace отменяет начало перегородки, но не перехватывает текстовое поле', () => {
+    const { commands, hook, click } = setup({ kind: 'wall.draw' }, planWith([]));
+    click([1, 1]);
+    const input = document.createElement('input'); document.body.append(input);
+    const typing = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
+    act(() => input.dispatchEvent(typing));
+    expect(typing.defaultPrevented).toBe(false);
+    expect(hook.result.current.draft).toHaveLength(1);
+    const erase = new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true });
+    act(() => window.dispatchEvent(erase));
+    expect(erase.defaultPrevented).toBe(true);
+    expect(hook.result.current.draft).toBeNull();
+    expect(commands).toEqual([]);
   });
 
   it('двойной клик ставит последнюю точку и замыкает без дубля вершины', () => {

@@ -118,6 +118,7 @@ export const usePlanToolController = ({
     setCursor(null);
   }
   const committing = useRef(false);
+  const wallEraseKey = useRef<string | null>(null);
   const scale = session.viewport.scale;
 
   // Направляющие зависят только от плана, а спрашивают их на каждом движении
@@ -302,7 +303,7 @@ export const usePlanToolController = ({
   }, [pendingRoom, kind, draft, commit]);
   const removeLast = useCallback(() => {
     setPendingRoom(false);
-    if (!RING_TOOLS.has(kind) || draft === null) return;
+    if ((!RING_TOOLS.has(kind) && kind !== 'wall.draw') || draft === null) return;
     if (draft.length <= 1) {
       // Опустевший черновик снимает и курсор рисования: обещанной следующей
       // точки без первого угла больше нет (иначе он завис бы над пустым местом).
@@ -313,6 +314,26 @@ export const usePlanToolController = ({
     }
     setNotice(null);
   }, [draft, kind]);
+  useEffect(() => {
+    if (kind !== 'wall.draw') { wallEraseKey.current = null; return; }
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+      if (event.ctrlKey || event.metaKey || event.altKey || isTextTarget(event.target)) return;
+      if (draft === null && !(event.repeat && wallEraseKey.current === event.key)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!event.repeat) { wallEraseKey.current = event.key; removeLast(); }
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (wallEraseKey.current === event.key) wallEraseKey.current = null;
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
+  }, [draft, kind, removeLast]);
   useEffect(() => {
     if (!RING_TOOLS.has(kind)) return undefined;
     const onKey = (event: KeyboardEvent): void => {
