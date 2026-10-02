@@ -23,6 +23,20 @@ function object(overrides: Partial<Equipment> = {}): Equipment {
 const viewport: Viewport = { origin: [0, 0], scale: 40 };
 
 describe('подпись объекта на холсте', () => {
+  test('бирка со значком оставляет две строки для номера низкого предмета', () => {
+    const rack = object({ size_m: [1.2, 0.5], label: 'Стеллаж посылок 3' });
+    expect(objectLabel(rack, { origin: [0, 0], scale: 51 }, 24)?.lines).toBe(2);
+  });
+  test('если значок не оставляет читаемой ширины, подпись скрывается до увеличения', () => {
+    expect(objectLabel(object({ size_m: [1.2, 0.5] }), { ...viewport, scale: 32 }, 20)).toBeNull();
+  });
+  test('на малом масштабе номер стеллажа сохраняется, пользовательское имя не заменяется', () => {
+    const rack = object({ size_m: [1.2, 0.5], label: 'Стеллаж посылок 12' });
+    expect(objectLabel(rack, viewport, 20)?.text).toBe('Посылки 12');
+    expect(objectLabel(rack, { ...viewport, scale: 80 }, 20)?.text).toBe(rack.label);
+    expect(rack.label).toBe('Стеллаж посылок 12');
+    expect(objectLabel({ ...rack, label: 'Архив 12' }, viewport, 20)?.text).toBe('Архив 12');
+  });
   test('номер рабочего места остаётся в короткой подписи, полное имя остаётся в данных', () => {
     const workplace = object({ typeId: 'ot_workplace', label: 'Рабочее место оператора 3' });
     expect(planDisplayLabel(workplace)).toBe('Рабочее место 3');
