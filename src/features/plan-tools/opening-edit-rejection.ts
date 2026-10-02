@@ -16,14 +16,16 @@ export function openingEditRejection(plan: PlanDocument, candidate: Opening): Is
   const fail=(message:string,refs:Issue['refs']=[ref]):Issue=>({code:'OPENING_EDIT_BLOCKED',severity:'error',message,refs});
   const length=wallLength(wall);
   if(candidate.width_m>length)return null; // Preserve the existing field-specific command error.
+  const beforeWall=plan.walls.find(wall=>wall.id===before.wallId);
   const end=candidate.offset_m+candidate.width_m;
-  if(end>length+TOLERANCE.coordinate_m&&before.offset_m+before.width_m<=length+TOLERANCE.coordinate_m)
+  const oldEndExcess=Math.max(0,before.offset_m+before.width_m-wallLength(beforeWall??wall));
+  if(Math.max(0,end-length)>oldEndExcess+TOLERANCE.coordinate_m)
     return fail('Проём выходит за конец стены. Уменьшите отступ или ширину.');
   if(introducesOpeningOverlap(candidate,before,plan.openings))return fail('Проём наложился на другой проём. Выберите свободный участок стены.');
-  const beforeWall=plan.walls.find(wall=>wall.id===before.wallId);
   const limit=Math.min(wall.height_m,plan.room.ceilingHeight_m);
   const oldLimit=Math.min(beforeWall?.height_m??wall.height_m,plan.room.ceilingHeight_m);
-  if(candidate.sill_m+candidate.height_m>limit+TOLERANCE.coordinate_m&&before.sill_m+before.height_m<=oldLimit+TOLERANCE.coordinate_m)
+  const oldHeightExcess=Math.max(0,before.sill_m+before.height_m-oldLimit);
+  if(Math.max(0,candidate.sill_m+candidate.height_m-limit)>oldHeightExcess+TOLERANCE.coordinate_m)
     return fail('Высота проёма выходит за стену или потолок. Уменьшите высоту или отступ от пола.');
   const blockedByWall=(opening:Opening,host:Wall|undefined,other:Wall):boolean=>{
     if(host===undefined||host.id===other.id)return false;

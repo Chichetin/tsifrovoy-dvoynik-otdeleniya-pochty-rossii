@@ -29,6 +29,40 @@ async function drag(page: Page, name: string, to: {x:number;y:number}, escape = 
   await page.mouse.up();
 }
 
+test('ошибочный проём: поля запрещают ухудшение, разрешают постепенный ремонт и сохраняют его в JSON', async ({page}) => {
+  await page.goto('/'); await expect(page.getByTestId('editor-canvas')).toBeVisible();
+  const fixture=(await saved(page)).plan;
+  const opening=fixture.openings[0]!;
+  const wall=fixture.walls.find(w=>w.id===opening.wallId)!;
+  const length=Math.hypot(wall.to[0]-wall.from[0],wall.to[1]-wall.from[1]);
+  fixture.objects=[]; fixture.walls=[wall]; fixture.openings=[opening];
+  opening.offset_m=length-1; opening.width_m=1.5;
+  opening.height_m=Math.min(wall.height_m,fixture.room.ceilingHeight_m)+1;
+  opening.sill_m=0;
+  await page.getByTestId('plan-file-input').setInputFiles({name:'repair-door.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+  const along=length-0.25;
+  const centre=await point(page,wall.from[0]+(wall.to[0]-wall.from[0])*along/length,wall.from[1]+(wall.to[1]-wall.from[1])*along/length);
+  await page.mouse.click(centre.x,centre.y);
+  const offset=page.getByRole('spinbutton',{name:'Отступ от начала, м',exact:true});
+  await expect(offset).toBeVisible();
+  await offset.fill(String(opening.offset_m+0.2)); await offset.press('Enter');
+  await expect(page.locator('.shell__error')).toContainText('конец стены');
+  expect((await saved(page)).plan.openings).toEqual(fixture.openings);
+  await offset.fill(String(opening.offset_m-0.2)); await offset.press('Enter');
+  const height=page.getByRole('spinbutton',{name:'Высота, м',exact:true});
+  await height.fill(String(opening.height_m+0.5)); await height.press('Enter');
+  await expect(page.locator('.shell__error')).toContainText('Высота');
+  expect((await saved(page)).plan.openings[0]!.height_m).toBe(opening.height_m);
+  await height.fill(String(opening.height_m-0.5)); await height.press('Enter');
+  const repaired=await saved(page);
+  expect(repaired.plan.openings[0]!.offset_m).toBeCloseTo(opening.offset_m-0.2);
+  expect(repaired.plan.openings[0]!.height_m).toBe(opening.height_m-0.5);
+  await page.getByRole('button',{name:'Отменить',exact:true}).click();
+  expect((await saved(page)).plan.openings[0]!.height_m).toBe(opening.height_m);
+  await page.getByTestId('plan-file-input').setInputFiles(repaired.path);
+  expect((await saved(page)).plan.openings).toEqual(repaired.plan.openings);
+});
+
 test('ширина проёма мышью: другая грань фиксирована, Escape, undo и JSON сохраняют геометрию', async ({page}) => {
   await page.setViewportSize({width:1440,height:900}); await page.goto('/');
   await expect(page.getByTestId('editor-canvas')).toBeVisible();

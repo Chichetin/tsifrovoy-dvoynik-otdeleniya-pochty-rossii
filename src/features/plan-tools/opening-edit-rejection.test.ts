@@ -46,6 +46,19 @@ it('высота не выходит за стену при правке; пре
  door.height_m=5;expect(openingEditRejection(p,{...door,height_m:4})).toBeNull();
 });
 
+it('ошибочный импортированный проём можно исправлять, но нельзя выдвигать ещё дальше за стену',()=>{
+ const p=fixture();p.objects=[];const door=p.openings[0]!;
+ door.offset_m=5; // Existing end is 7 m on a 6 m wall.
+ expect(openingEditRejection(p,{...door,offset_m:5.5})?.message).toContain('конец стены');
+ expect(openingEditRejection(p,{...door,offset_m:4.5})).toBeNull();
+ expect(openingEditRejection(p,{...door,kind:'window'})).toBeNull();
+ door.offset_m=2;door.height_m=4;
+ expect(openingEditRejection(p,{...door,height_m:4.5})?.message).toContain('Высота');
+ expect(openingEditRejection(p,{...door,sill_m:0.5})?.message).toContain('Высота');
+ expect(openingEditRejection(p,{...door,height_m:3.5})).toBeNull();
+ expect(openingEditRejection(p,{...door,kind:'window'})).toBeNull();
+});
+
 it('удаление не замуровывает предмет, пустой или дублирующий проём удаляется',()=>{
  const p=fixture();expect(openingDeleteRejection(p,'door')?.message).toContain('переместите предмет');
  p.openings.push({...p.openings[0]!,id:'duplicate'});
