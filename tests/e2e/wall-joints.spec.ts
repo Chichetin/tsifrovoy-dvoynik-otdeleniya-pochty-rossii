@@ -53,10 +53,12 @@ test('оба демо используют ровные Т-стыки в 2D/3D �
         return values.filter((_, index) => index % 2 === 0).map((x, index) => [x, values[index * 2 + 1]!] as const);
       });
     });
-    // Storage partition meets the east wall's face at x=15-0.25/2.
-    expect(points.some(([x, y]) =>
-      Math.abs(visible[0]! + x / box.width * (visible[2]! - visible[0]!) - 14.875) < 0.002
-      && Math.abs(visible[3]! - y / box.height * (visible[3]! - visible[1]!) - 6.325) < 0.002)).toBe(true);
+    // Both ends meet wall faces; the revised demo door clears the west junction.
+    for (const expectedX of [9.425, 14.875]) {
+      expect(points.some(([x, y]) =>
+        Math.abs(visible[0]! + x / box.width * (visible[2]! - visible[0]!) - expectedX) < 0.002
+        && Math.abs(visible[3]! - y / box.height * (visible[3]! - visible[1]!) - 6.325) < 0.002)).toBe(true);
+    }
     const downloaded = page.waitForEvent('download');
     await exportPlan(page, 'JSON');
     await passPhysicsBlock(page);
@@ -64,12 +66,18 @@ test('оба демо используют ровные Т-стыки в 2D/3D �
     expect(JSON.parse(readFileSync(path!, 'utf8'))).toEqual(JSON.parse(readFileSync(`demo/${variant}.json`, 'utf8')));
     await page.getByTestId('plan-file-input').setInputFiles(path!);
     await expect(page.getByTestId('files-notice')).toContainText('учебное отделение');
+    if (variant === 'before' && process.env.SAVE_COMBINED_DEMO_SNAPSHOTS === '1') {
+      await page.screenshot({ path: 'docs/verification/2026-10-02-demo-joined-2d.png' });
+    }
     if (variant === 'before' && process.env.SAVE_T_JOINT_SNAPSHOTS === '1') {
       await page.screenshot({ path: 'docs/verification/2026-10-02-demo-t-joints-2d.png' });
     }
     await page.getByRole('button', { name: '3D', exact: true }).click();
     await expect(page.locator('.view3d canvas')).toBeVisible();
     await expect(page.getByTestId('view3d-error')).toHaveCount(0);
+    if (variant === 'before' && process.env.SAVE_COMBINED_DEMO_SNAPSHOTS === '1') {
+      await page.screenshot({ path: 'docs/verification/2026-10-02-demo-joined-3d.png' });
+    }
     if (variant === 'before' && process.env.SAVE_T_JOINT_SNAPSHOTS === '1') {
       await page.screenshot({ path: 'docs/verification/2026-10-02-demo-t-joints-3d.png' });
     }

@@ -22,7 +22,9 @@ export function openingPreview(plan: PlanDocument, point: Point, kind: OpeningKi
   if (opening.sill_m+opening.height_m > Math.min(hit.wall.height_m,plan.room.ceilingHeight_m)) return {opening,message:'Высота выбранного вида проёма больше стены или потолка.'};
   const polygon=wallSpanPolygon(hit.wall,opening.offset_m,opening.offset_m+opening.width_m);
   const interval={base_m:opening.sill_m,top_m:opening.sill_m+opening.height_m};
-  if(plan.walls.some(wall=>wall.id!==hit.wall.id&&wallObstacles(wall,plan.openings,interval,plan.walls).some(part=>intersects(polygon,part))))
+  // The proposed aperture also affects neighbouring T-junction footprints.
+  const proposedOpenings=[...plan.openings,opening];
+  if(plan.walls.some(wall=>wall.id!==hit.wall.id&&wallObstacles(wall,proposedOpenings,interval,plan.walls).some(part=>intersects(polygon,part))))
     return {opening,message:'Проём перекрывает другая стена. Выберите свободный участок.'};
   const blocked=plan.objects.find(object=>(findObjectType(plan.catalog,object.typeId)?.physical ?? true)&&
     intervalsOverlap(objectInterval(object),{base_m:opening.sill_m,top_m:opening.sill_m+opening.height_m})&&intersects(footprint(object),polygon));

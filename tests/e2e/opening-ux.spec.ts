@@ -283,6 +283,22 @@ test('новый проём поверх входа отклоняется ещ�
  expect((await saved(page)).plan.openings).toEqual(original.openings);
 });
 
+test('проём в месте Т-примыкания не прорезает соседнюю перегородку',async({page})=>{
+ await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+ const fixture=(await saved(page)).plan;const host=fixture.walls[0]!;
+ const join:[number,number]=[(host.from[0]+host.to[0])/2,(host.from[1]+host.to[1])/2];
+ fixture.openings=[];fixture.objects=[];fixture.zones=[];
+ fixture.walls.push({id:'cross-test',from:join,to:[join[0],join[1]+3],thickness_m:0.1,height_m:host.height_m});
+ page.on('dialog',dialog=>void dialog.accept());
+ await page.getByTestId('plan-file-input').setInputFiles({name:'t-junction.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ await page.getByRole('button',{name:'Проём',exact:true}).click();
+ const target=await point(page,...join);await page.mouse.click(target.x,target.y);
+ const controls=page.getByRole('region',{name:'Создание проёма'});
+ await expect(controls).toContainText('другая стена');
+ await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
+ expect((await saved(page)).plan.openings).toEqual([]);
+});
+
 test('сужение проёма ручкой и полем не замуровывает предмет в проходе',async({page})=>{
  await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
  const fixture=(await saved(page)).plan;const opening=fixture.openings[0]!;const wall={id:'interior-door-wall',from:[0,4] as [number,number],to:[12,4] as [number,number],height_m:3,thickness_m:0.2};fixture.walls.push(wall);opening.wallId=wall.id;

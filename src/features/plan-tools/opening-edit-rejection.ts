@@ -30,7 +30,8 @@ export function openingEditRejection(plan: PlanDocument, candidate: Opening): Is
   const blockedByWall=(opening:Opening,host:Wall|undefined,other:Wall):boolean=>{
     if(host===undefined||host.id===other.id)return false;
     const polygon=wallSpanPolygon(host,opening.offset_m,opening.offset_m+opening.width_m);
-    return wallObstacles(other,plan.openings,{base_m:opening.sill_m,top_m:opening.sill_m+opening.height_m},plan.walls).some(part=>intersects(polygon,part));
+    const proposedOpenings=plan.openings.map(entry=>entry.id===opening.id?opening:entry);
+    return wallObstacles(other,proposedOpenings,{base_m:opening.sill_m,top_m:opening.sill_m+opening.height_m},plan.walls).some(part=>intersects(polygon,part));
   };
   const blockingWall=plan.walls.find(other=>blockedByWall(candidate,wall,other)&&!blockedByWall(before,beforeWall,other));
   if(blockingWall!==undefined)return fail('Проём перекрывает другая стена. Выберите свободный участок.',[ref,{kind:'wall',id:blockingWall.id}]);
