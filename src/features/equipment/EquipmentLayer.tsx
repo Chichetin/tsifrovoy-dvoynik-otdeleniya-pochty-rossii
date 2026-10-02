@@ -31,7 +31,7 @@ import {
 import type { AxisSnap } from '../../domain/geometry';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
-import { LABEL_LINE_PX, objectLabel } from './object-label';
+import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
 import {
   arrowDelta,
   duplicateObjects,
@@ -670,7 +670,8 @@ export function EquipmentLayer({
   const render = (object: Equipment, ghost: boolean): React.JSX.Element => {
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
-    const hasCaption = objectLabel(current, viewport) !== null;
+    const hasCaption = objectLabel(current, viewport,
+      pictograms && planPictogram(object.typeId) !== null ? CAPTION_ICON_SPACE_PX : 0) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
@@ -909,12 +910,12 @@ export function EquipmentLayer({
         {plan.objects
           .filter((object) => visibleLayers.has(object.layerId))
           .map((object) => {
-            const label = objectLabel(shown(object), viewport);
-            if (label === null) return null;
             const kind = pictograms ? planPictogram(object.typeId) : null;
+            const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
+            const label = objectLabel(shown(object), viewport, iconSpace);
+            if (label === null) return null;
             // The symbol and the name share one badge. A separate floating
             // marker used to cover the caption on the busy demo plan.
-            const iconSpace = kind === null ? 0 : 24;
             const height = Math.max(label.lines * LABEL_LINE_PX + 2, iconSpace === 0 ? 0 : 22);
             return (
               <Group
@@ -940,20 +941,20 @@ export function EquipmentLayer({
                   perfectDrawEnabled={false}
                 />
                 {kind === null ? null : (
-                  <Group name={`plan-pictogram-caption-${object.id}`} x={12} y={height / 2} listening={false}>
+                  <Group name={`plan-pictogram-caption-${object.id}`} x={10} y={height / 2} listening={false}>
                     <Rect
-                      x={-10}
-                      y={-10}
-                      width={20}
-                      height={20}
+                      x={-8}
+                      y={-8}
+                      width={16}
+                      height={16}
                       fill="#E8F2F8"
                       cornerRadius={3}
                       listening={false}
                     />
                     <EquipmentPictogram
                       kind={kind}
-                      width={24}
-                      height={24}
+                      width={20}
+                      height={20}
                       opacity={1}
                       color="#17567A"
                     />

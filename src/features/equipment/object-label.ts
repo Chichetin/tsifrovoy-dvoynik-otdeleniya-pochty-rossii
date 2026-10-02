@@ -36,6 +36,8 @@ export type ObjectLabel = {
 export const LABEL_MIN_WIDTH_PX = 44;
 export const LABEL_FONT_PX = 11;
 export const LABEL_LINE_PX = 13;
+export const CAPTION_ICON_SPACE_PX = 20;
+const LABEL_MIN_TEXT_WIDTH_PX = 40;
 /** The box may hang over the footprint a little: «Окно 1 — приём» beats «Окно 1 —…». */
 const LABEL_OVERHANG = 1.3;
 
@@ -52,8 +54,9 @@ function readableAngle(degrees: number): number {
   return angle;
 }
 
-export function objectLabel(object: Equipment, viewport: Viewport): ObjectLabel | null {
+export function objectLabel(object: Equipment, viewport: Viewport, iconSpace = 0): ObjectLabel | null {
   const text = planDisplayLabel(object);
+  const overhang = iconSpace > 0 ? 1.5 : LABEL_OVERHANG;
   if (text === '') return null;
   const [x, y] = modelToScreen(object.position, viewport);
 
@@ -63,14 +66,18 @@ export function objectLabel(object: Equipment, viewport: Viewport): ObjectLabel 
   const box = boundingBox(footprint(object));
   const width = (box.maxX - box.minX) * viewport.scale;
   const height = (box.maxY - box.minY) * viewport.scale;
-  if (width >= LABEL_MIN_WIDTH_PX && height >= LABEL_FONT_PX + 2) {
-    const lines: 1 | 2 = height >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
+  if (width >= LABEL_MIN_WIDTH_PX && height >= LABEL_FONT_PX + 2
+    && Math.round(width * overhang) - iconSpace >= LABEL_MIN_TEXT_WIDTH_PX) {
+    // A badge already extends beyond a low shelf/bench: use its second line
+    // instead of hiding the number to keep the text inside the item's height.
+    const lines: 1 | 2 = iconSpace > 0 || height >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
+    const compact = iconSpace > 0 && Math.round(width * overhang) - iconSpace < 64;
     return {
-      text,
+      text: compact ? compactLabel(object, text) : text,
       x,
       y,
-      width: Math.round(width * LABEL_OVERHANG),
-      fontSize: LABEL_FONT_PX,
+      width: Math.round(width * overhang),
+      fontSize: compact ? 10 : LABEL_FONT_PX,
       lines,
       rotation: 0,
     };
@@ -84,21 +91,28 @@ export function objectLabel(object: Equipment, viewport: Viewport): ObjectLabel 
   const across = object.size_m[1] * viewport.scale;
   const long = Math.max(along, across);
   const short = Math.min(along, across);
-  if (long < LABEL_MIN_WIDTH_PX || short < LABEL_FONT_PX + 2) return null;
+  if (long < LABEL_MIN_WIDTH_PX || short < LABEL_FONT_PX + 2
+    || Math.round(long * overhang) - iconSpace < LABEL_MIN_TEXT_WIDTH_PX) return null;
 
   // Длинная сторона — либо собственный X объекта, либо его Y, повёрнутый на
   // прямой угол; сам объект нарисован под `rotation_deg` (`EquipmentLayer`).
   const rotation = readableAngle(object.rotation_deg + (along >= across ? 0 : 90));
-  const lines: 1 | 2 = short >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
+  const lines: 1 | 2 = iconSpace > 0 || short >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
+  const compact = iconSpace > 0 && Math.round(long * overhang) - iconSpace < 64;
   return {
-    text,
+    text: compact ? compactLabel(object, text) : text,
     x,
     y,
-    width: Math.round(long * LABEL_OVERHANG),
-    fontSize: LABEL_FONT_PX,
+    width: Math.round(long * overhang),
+    fontSize: compact ? 10 : LABEL_FONT_PX,
     lines,
     rotation,
   };
+}
+
+function compactLabel(object: Equipment, text: string): string {
+  return object.typeId === 'ot_parcel_rack'
+    ? text.replace(/^Стеллаж посылок (\d+)$/u, 'Посылки $1') : text;
 }
 
 /** Keep the workstation number visible on dense plans; the full name remains
