@@ -1,9 +1,9 @@
 import { formatLength } from '../../domain/number-format';
 import { boundingBox } from '../../domain/geometry';
 import type { Polygon } from '../../contracts/model';
-export function InternalRoomControls({ draft, ready, valid, message, onApply, onCancel }: {
+export function InternalRoomControls({ draft, ready, valid, message, onApply, onCancel, onRemoveLast }: {
   draft: Polygon | null; ready: boolean; valid: boolean; message: string | null;
-  onApply(): void; onCancel(): void;
+  onApply(): void; onCancel(): void; onRemoveLast(): void;
 }): React.JSX.Element {
   const box = draft === null ? null : boundingBox(draft);
   return <div className="drawing-controls" role="region" aria-label="Создание комнаты">
@@ -13,8 +13,9 @@ export function InternalRoomControls({ draft, ready, valid, message, onApply, on
     {message === null ? null : <span role="status" className="toolbar__note is-notice">{message}</span>}
     <div className="drawing-controls__actions">
       <button type="button" className="files__button" disabled={!ready || !valid} onClick={onApply}>Создать комнату</button>
+      <button type="button" className="files__button" disabled={draft === null} onClick={onRemoveLast}>Убрать последний угол</button>
       <button type="button" className="files__button" onClick={onCancel}>{ready ? 'Нарисовать заново' : 'Отменить рисование'}</button>
     </div>
-    <span className="toolbar__note">Добавятся только новые перегородки и именованная зона. Дверь добавляется инструментом «Проём». Одно действие — одна отмена.</span>
+    <span className="toolbar__note">Ошиблись углом — «Убрать последний угол» или Ctrl+Z. Esc отменяет рисунок. После создания Ctrl+Z отменяет всю комнату. Дверь добавляется инструментом «Проём».</span>
   </div>;
 }

@@ -6,6 +6,18 @@ import type { PlanDocument } from '../../contracts/model';
 import type { EditorSession } from '../../contracts/ui';
 import { useInternalRoomController } from './use-internal-room-controller';
 afterEach(cleanup);
+it('явный возврат второго угла оставляет первый, затем возврат первого очищает черновик', () => {
+ const plan=JSON.parse(readFileSync('demo/after.json','utf8')) as PlanDocument;
+ const session:EditorSession={tool:{kind:'room.draw'},viewport:{origin:[0,0],scale:50},selection:null,preview:null,focus:null};
+ const onCommand=vi.fn(()=>({ok:true as const,value:plan}));
+ const hook=renderHook(()=>useInternalRoomController({document:plan,session,onCommand},true,0));
+ const click=(point:[number,number])=>act(()=>hook.result.current.handlePointer({phase:'down',point,button:0,alt:true,shift:false}));
+ click([1,1]);click([4,4]);act(()=>hook.result.current.removeLast());
+ expect(hook.result.current.start).toEqual([1,1]);expect(hook.result.current.ready).toBe(false);
+ click([3,3]);expect(hook.result.current.draft).toEqual([[1,1],[3,1],[3,3],[1,3]]);
+ act(()=>hook.result.current.removeLast());act(()=>hook.result.current.removeLast());
+ expect(hook.result.current.draft).toBeNull();expect(onCommand).not.toHaveBeenCalled();
+});
 it('Backspace убирает угол, Delete не удаляет прежний выбор; Enter не применяет комнату', () => {
   const plan = JSON.parse(readFileSync('demo/after.json', 'utf8')) as PlanDocument;
   const session: EditorSession = { tool: { kind: 'room.draw' }, viewport: { origin: [0, 0], scale: 50 }, selection: { kind: 'wall', id: plan.walls[0]!.id }, preview: null, focus: null };

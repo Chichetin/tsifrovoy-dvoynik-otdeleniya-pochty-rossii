@@ -254,18 +254,6 @@ export function App(): React.JSX.Element {
   // живут в самом хуке (hotkeys-map.ts), здесь только кнопка и накладка.
   const hotkeysMap = useHotkeysMapDialog();
 
-  // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
-  // store, поэтому слушатель один, здесь, а не в каждом слое холста.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      const action = historyHotkey(event);
-      if (action === null) return;
-      event.preventDefault();
-      store.getState()[action]();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [store]);
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
@@ -471,6 +459,29 @@ export function App(): React.JSX.Element {
   }, [dispatchPlanCommand, selectOnPlan]);
   const internalRoom = useInternalRoomController({ document, session, onCommand: dispatchInternalRoom }, view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal', documentEpoch);
   const drawingRoom = view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal';
+  const hasDrawingDraft = view === '2d' && (drawingRoom ? internalRoom.start !== null :
+    (tool.kind === 'room.draw' || tool.kind === 'zone.draw' || tool.kind === 'shape.draw') && planTool.draft !== null);
+  const undo = () => {
+    if (hasDrawingDraft) {
+      if (drawingRoom) internalRoom.removeLast();
+      else planTool.removeLast();
+    } else store.getState().undo();
+  };
+  const redo = () => { if (!hasDrawingDraft) store.getState().redo(); };
+  // The visible undo and shortcut remove a draft corner before touching plan history.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const action = historyHotkey(event);
+      if (action === null) return;
+      event.preventDefault();
+      // Holding undo must not fall through from the last draft point to old plan edits.
+      if (event.repeat) return;
+      if (action === 'undo') undo();
+      else redo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -786,14 +797,14 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         <div className="shell__history" role="group" aria-label="История правок">
-          <button type="button" className="shell__quiet" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
+          <button type="button" className="shell__quiet" title={hasDrawingDraft ? 'Убрать последний угол рисунка (Ctrl+Z)' : 'Отменить последнюю правку (Ctrl+Z)'} onClick={undo}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M5.5 3.5 2.5 6.5l3 3" />
               <path d="M2.5 6.5h7a4 4 0 0 1 0 8h-3" />
             </svg>
             <span className="shell__label">Отменить</span>
           </button>
-          <button type="button" className="shell__quiet" title="Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)" onClick={() => store.getState().redo()}>
+          <button type="button" className="shell__quiet" disabled={hasDrawingDraft} title={hasDrawingDraft ? 'Завершите или отмените рисунок, чтобы вернуть правку плана' : 'Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)'} onClick={redo}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
               <path d="m10.5 3.5 3 3-3 3" />
               <path d="M13.5 6.5h-7a4 4 0 0 0 0 8h3" />
@@ -841,7 +852,7 @@ export function App(): React.JSX.Element {
             <label><input type="radio" name="room-mode" checked={roomMode === 'internal'} onChange={() => { planTool.cancel(); setRoomMode('internal'); }} /> Комнату внутри отделения</label>
             <label><input type="radio" name="room-mode" checked={roomMode === 'boundary'} onChange={() => { internalRoom.cancel(); setRoomMode('boundary'); }} /> Изменить внешний контур</label>
           </fieldset> : null}
-          {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} onApply={internalRoom.apply} onCancel={internalRoom.cancel} /> : null}
+          {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} onApply={internalRoom.apply} onCancel={internalRoom.cancel} onRemoveLast={internalRoom.removeLast} /> : null}
           {view === '2d' && !drawingRoom && (tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw') ? (
             <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
               shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
@@ -1030,6 +1041,7 @@ export function App(): React.JSX.Element {
               session={session}
               draft={drawingRoom ? internalRoom.draft : planTool.draft}
               draftCursor={drawingRoom ? null : planTool.cursor}
+              rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
               onCommand={dispatch}
               onSelect={selectOnPlan}
             />
