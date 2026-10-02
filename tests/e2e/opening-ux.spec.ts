@@ -126,6 +126,32 @@ test('предпросмотр и подтверждение: клик не ре
   expect((await saved(page)).plan.openings).toEqual(result.plan.openings);
 });
 
+test('отмена подготовленного проёма сохраняет ранее установленную дверь',async({page})=>{
+ await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
+ const original=(await saved(page)).plan;
+ const controls=page.getByRole('region',{name:'Создание проёма'});
+ await page.getByRole('button',{name:'Проём',exact:true}).click();
+ const first=await point(page,2,9);await page.mouse.click(first.x,first.y);
+ await controls.getByRole('button',{name:'Установить проём'}).click();
+ const installed=(await saved(page)).plan;
+ expect(installed.openings).toHaveLength(original.openings.length+1);
+ for(const action of ['button','shortcut']) {
+  await page.getByRole('button',{name:'Проём',exact:true}).click();
+  const second=await point(page,8,9);await page.mouse.click(second.x,second.y);
+  await expect(controls.getByRole('button',{name:'Установить проём'})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Вернуть',exact:true})).toBeDisabled();
+  await page.keyboard.press('Control+y');
+  expect((await saved(page)).plan.openings).toEqual(installed.openings);
+  if(action==='button')await page.getByRole('button',{name:'Отменить',exact:true}).click();
+  else await page.keyboard.press('Control+z');
+  await expect(controls.getByRole('button',{name:'Установить проём'})).toBeDisabled();
+  expect((await saved(page)).plan.openings).toEqual(installed.openings);
+  await page.getByRole('button',{name:'Выбор',exact:true}).click();
+ }
+ await page.keyboard.press('Control+z');expect((await saved(page)).plan.openings).toEqual(original.openings);
+ await page.keyboard.press('Control+y');expect((await saved(page)).plan.openings).toEqual(installed.openings);
+});
+
 test('Escape в координатах предмета сбрасывает поле, сохраняя черновик проёма',async({page})=>{
  await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
  const fixture=(await saved(page)).plan;const type=fixture.catalog.objectTypes.find(type=>type.physical)!;

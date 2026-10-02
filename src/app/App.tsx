@@ -472,11 +472,12 @@ export function App(): React.JSX.Element {
   }, [dispatchPlanCommand, setTool]);
   const openingTool = useOpeningController({document,session,onCommand:applyOpeningCommand}, placingOpening, documentEpoch);
   const drawingRoom = view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal';
-  const hasDrawingDraft = view === '2d' && (drawingRoom ? internalRoom.start !== null :
+  const hasDrawingDraft = view === '2d' && (placingOpening ? openingTool.ready : drawingRoom ? internalRoom.start !== null :
     (tool.kind === 'room.draw' || tool.kind === 'zone.draw' || tool.kind === 'shape.draw') && planTool.draft !== null);
   const undo = () => {
     if (hasDrawingDraft) {
-      if (drawingRoom) internalRoom.removeLast();
+      if (placingOpening) openingTool.cancel();
+      else if (drawingRoom) internalRoom.removeLast();
       else planTool.removeLast();
     } else store.getState().undo();
   };
@@ -810,7 +811,7 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         <div className="shell__history" role="group" aria-label="История правок">
-          <button type="button" className="shell__quiet" title={hasDrawingDraft ? 'Убрать последний угол рисунка (Ctrl+Z)' : 'Отменить последнюю правку (Ctrl+Z)'} onClick={undo}>
+          <button type="button" className="shell__quiet" title={hasDrawingDraft ? placingOpening ? 'Отменить подготовленный проём (Ctrl+Z)' : 'Убрать последний угол рисунка (Ctrl+Z)' : 'Отменить последнюю правку (Ctrl+Z)'} onClick={undo}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M5.5 3.5 2.5 6.5l3 3" />
               <path d="M2.5 6.5h7a4 4 0 0 1 0 8h-3" />
