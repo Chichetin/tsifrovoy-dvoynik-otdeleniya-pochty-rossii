@@ -22,6 +22,7 @@ import { formatValue, legendLine, legendOf } from './legend';
 import { heatRegions } from './heat-regions';
 import { BLIND_SPOT, visibleCoverage } from './coverage';
 import { zoneNameAnchor } from './zone-name-anchor';
+import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 
 const CAPTION_FILL = '#495057';
 const LABEL_BACKGROUND = '#FFFFFF';
@@ -109,6 +110,7 @@ export function InformationLayer({
   session,
 }: InformationLayerProps): React.JSX.Element {
   const { viewport } = session;
+  const captionBoxes = useMemo(() => zoneCaptionBoxes(plan, viewport), [plan, viewport]);
   const screen = (point: Point): [number, number] => modelToScreen(point, viewport);
 
   // Footprints a zone name steers around (D-216) — same input `ZoneNameLayer`
@@ -178,7 +180,7 @@ export function InformationLayer({
         const value = valueOf(zone);
         if (value === null) continue;
         const text = formatValue(value, representation.unit);
-        const nameBox = zoneNameBox(zone, screen(anchorOf(zone)));
+        const nameBox = captionBoxes.get(zone.id) ?? zoneNameBox(zone, screen(anchorOf(zone)));
         const x = nameBox.x + nameBox.width / 2;
         const width = labelWidth(text, LABEL_FONT) + SWATCH + 4;
         labels.push({
@@ -297,7 +299,7 @@ export function InformationLayer({
   // Zone names of the geometry layer and the legend are fixed; labels move around them.
   const obstacles: Box[] = [
     ...(legendRows.length === 0 ? [] : [legendBox]),
-    ...plan.zones.map((zone) => zoneNameBox(zone, screen(anchorOf(zone)))),
+    ...plan.zones.map((zone) => captionBoxes.get(zone.id) ?? zoneNameBox(zone, screen(anchorOf(zone)))),
   ];
   const placed = placeLabels(
     obstacles,
