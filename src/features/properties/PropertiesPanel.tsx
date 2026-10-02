@@ -29,6 +29,7 @@ import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
+import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
 import { ObjectPositionFields } from './ObjectPositionFields';
 
@@ -213,7 +214,7 @@ export function PropertiesPanel({
     defs: AttributeDef[],
     attributes: Attributes,
     apply: (next: Attributes) => Zone | Equipment,
-    colorChoices: Map<string, { value: string; label: string }[]> = new Map(),
+    colorChoices: Map<string, ObjectColorRepresentation> = new Map(),
   ): React.JSX.Element[] =>
     defs.map((def) => {
       const name = `attributes.${def.key}`;
@@ -258,10 +259,10 @@ export function PropertiesPanel({
           label,
           <select
             aria-label={label}
-            value={attributeValue(attributes, def)}
+            value={objectColorValue(choices,attributes).value}
             onChange={(event) => commit(name, set(event.target.value))}
           >
-            {choices.map((choice) => (
+            {choices.values.map((choice) => (
               <option key={choice.value} value={choice.value}>{choice.label}</option>
             ))}
           </select>,
@@ -615,7 +616,7 @@ export function PropertiesPanel({
               (attributes) => ({ ...object, attributes }),
               new Map(plan.catalog.layerTypes.flatMap((layerType) =>
                 layerType.representation.kind === 'object-color'
-                  ? [[layerType.representation.attribute, layerType.representation.values]] as const
+                  ? [[layerType.representation.attribute, layerType.representation]] as const
                   : [])),
             )}
         {type === null ? null : extraAttributes(type.attributes, object.attributes)}

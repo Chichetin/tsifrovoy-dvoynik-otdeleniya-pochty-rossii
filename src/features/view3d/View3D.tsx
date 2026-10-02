@@ -18,13 +18,35 @@ import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from 're
 import type { View3DProps } from '../../contracts/ui';
 import { buildScene } from './scene';
 import { hasWebgl } from './webgl';
+import { canvasRecoveryUrl } from './module-recovery';
 
-const View3DCanvas = lazy(() => import('./View3DCanvas'));
+let failedCanvasUrl: string | null = null;
+let loadedCanvas: typeof import('./View3DCanvas') | null = null;
+let recoveryAttempt = 0;
+const newCanvas = (retry = false) => lazy(async () => {
+  if (loadedCanvas !== null) return loadedCanvas;
+  try {
+    if (retry && failedCanvasUrl !== null) {
+      const url = new URL(failedCanvasUrl);
+      // Module fetch failures are cached by the browser as well as React.lazy.
+      url.searchParams.set('retry3d', String(++recoveryAttempt));
+      loadedCanvas = await import(/* @vite-ignore */ url.href) as typeof import('./View3DCanvas');
+    } else {
+      loadedCanvas = await import('./View3DCanvas');
+    }
+    return loadedCanvas;
+  } catch (error) {
+    failedCanvasUrl = canvasRecoveryUrl(error, window.location.origin);
+    throw error;
+  }
+});
 
 export function View3D({ document, selection, onSelect }: View3DProps): React.JSX.Element {
   const scene = useMemo(() => buildScene(document), [document]);
   // Probed once per session, not per mount: every probe costs a GPU context.
   const [webgl] = useState(hasWebgl);
+  const [{ Canvas, attempt }, setLoad] = useState(() => ({ Canvas: newCanvas(), attempt: 0 }));
+  const retry = () => setLoad(previous => ({ Canvas: newCanvas(true), attempt: previous.attempt + 1 }));
 
   const zonesShown = scene.prisms.filter((prism) => prism.kind === 'zone').length;
   const objectsShown = scene.prisms.filter((prism) => prism.kind === 'object').length;
@@ -43,7 +65,7 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
     >
       <div className="view3d__stage">
         {webgl ? (
-          <LoadFailure>
+          <LoadFailure key={attempt} onRetry={retry}>
             <Suspense
               fallback={
                 <p className="view3d__status" role="status">
@@ -51,7 +73,7 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
                 </p>
               }
             >
-              <View3DCanvas scene={scene} selection={selection} onSelect={onSelect} />
+              <Canvas scene={scene} selection={selection} onSelect={onSelect} />
             </Suspense>
           </LoadFailure>
         ) : (
@@ -68,7 +90,7 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
 type FailureState = { message: string | null };
 
 /** A failed chunk load or a renderer crash shows its reason instead of a blank stage. */
-class LoadFailure extends Component<{ children: ReactNode }, FailureState> {
+class LoadFailure extends Component<{ children: ReactNode; onRetry(): void }, FailureState> {
   state: FailureState = { message: null };
 
   static getDerivedStateFromError(error: unknown): FailureState {
@@ -78,9 +100,11 @@ class LoadFailure extends Component<{ children: ReactNode }, FailureState> {
   render(): ReactNode {
     if (this.state.message !== null) {
       return (
-        <p className="view3d__status" role="alert" data-testid="view3d-error">
-          Не удалось показать 3D: {this.state.message}. 2D-редактор работает как обычно.
-        </p>
+        <div className="view3d__status" role="alert" data-testid="view3d-error">
+          <p>Не удалось открыть 3D. Текущий план и правки остаются в редакторе. Можно повторить загрузку или вернуться в 2D.</p>
+          <button type="button" className="files__button" onClick={this.props.onRetry}>Повторить загрузку 3D</button>
+          <details><summary>Технические подробности</summary>{this.state.message}</details>
+        </div>
       );
     }
     return this.props.children;

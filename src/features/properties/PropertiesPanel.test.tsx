@@ -23,6 +23,22 @@ import { PropertiesPanel } from './PropertiesPanel';
 
 afterEach(cleanup);
 
+test.each([undefined,null,'not-in-palette'])('карточка состояния использует defaultValue, не первый вариант (%s)',(value)=>{
+  const document=structuredClone(demoPlan);
+  const object=document.objects[0]!;
+  const representation=document.catalog.layerTypes.find(type=>type.representation.kind==='object-color')!.representation;
+  if(representation.kind!=='object-color')throw new Error('нет цветового слоя');
+  representation.values.sort((a,b)=>Number(b.value==='working')-Number(a.value==='working'));
+  representation.defaultValue='unknown';
+  if(value===undefined)delete object.attributes[representation.attribute];
+  else object.attributes[representation.attribute]=value;
+  const before=structuredClone(document);const onCommand=vi.fn(sink().spy);
+  render(<PropertiesPanel document={document} session={session({kind:'object',id:object.id})} onCommand={onCommand}/>);
+  expect((screen.getByRole('combobox',{name:'Состояние'}) as HTMLSelectElement).value).toBe('unknown');
+  expect(document).toEqual(before);
+  expect(onCommand).not.toHaveBeenCalled();
+});
+
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 const plan: PlanDocument = parsed.value;

@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page , exportPlan } from './fixtures';
 import { showTab } from './side-tabs';
+import type { PlanDocument } from '../../src/contracts/model';
 
 const card = (page: Page) => page.getByLabel('Свойства');
 
@@ -57,6 +58,30 @@ async function selectPlacedObject(page: Page): Promise<void> {
 }
 
 test.describe('карточка свойств', () => {
+  test('пустой статус не становится рабочим из-за порядка палитры при открытии файла',async({page})=>{
+    await page.goto('/');
+    await placeFromLibrary(page,'Рабочее место оператора',300,260);
+    const fixture=JSON.parse(await savePlan(page)) as PlanDocument;
+    const representation=fixture.catalog.layerTypes.find(type=>type.representation.kind==='object-color')!.representation;
+    if(representation.kind!=='object-color')throw new Error('нет цветового слоя');
+    representation.values.sort((a,b)=>Number(b.value==='working')-Number(a.value==='working'));
+    representation.defaultValue='unknown';
+    delete fixture.objects[0]!.attributes[representation.attribute];
+    await page.getByTestId('plan-file-input').setInputFiles({name:'missing-status.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+    await selectPlacedObject(page);
+    const status=card(page).getByRole('combobox',{name:'Состояние',exact:true});
+    await expect(status).toHaveValue('unknown');
+    expect((JSON.parse(await savePlan(page)) as PlanDocument).objects[0]!.attributes).toEqual(fixture.objects[0]!.attributes);
+    if(process.env.UPDATE_SNAPSHOTS==='1'){
+      await status.scrollIntoViewIfNeeded();
+      await page.screenshot({path:'docs/verification/2026-10-02-equipment-status-default.png'});
+    }
+    await status.selectOption('repair');
+    const changed=JSON.parse(await savePlan(page)) as PlanDocument;
+    expect(changed.objects[0]!.attributes[representation.attribute]).toBe('repair');
+    await page.getByTestId('plan-file-input').setInputFiles({name:'changed-status.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(changed))});
+    await selectPlacedObject(page);await expect(status).toHaveValue('repair');
+  });
   test('состояние оборудования выбирается по понятным названиям из каталога', async ({ page }) => {
     await page.goto('/');
     await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
