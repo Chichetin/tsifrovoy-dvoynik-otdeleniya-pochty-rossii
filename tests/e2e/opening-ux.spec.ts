@@ -94,6 +94,45 @@ test('расширение в соседнюю дверь отклоняется
   expect((await saved(page)).plan.openings).toEqual(document.openings);
 });
 
+for (const orientation of ['original', 'vertical', 'diagonal'] as const) test(`ручки узкого проёма ${orientation}: сильное уменьшение без слияния и скачка при протяжке`, async ({page}) => {
+  await page.goto('/'); await expect(page.getByTestId('editor-canvas')).toBeVisible();
+  let original = (await saved(page)).plan;
+  if (orientation !== 'original') {
+    original.objects=[];
+    original.walls=[{id:'small-zoom-wall',from:[2,2],to:orientation==='vertical'?[2,8]:[8,6],thickness_m:0.1,height_m:3}];
+    original.openings=[{...original.openings[0]!,wallId:'small-zoom-wall',offset_m:2,width_m:1.2}];
+    await page.getByTestId('plan-file-input').setInputFiles({name:'small-zoom.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(original))});
+    original=(await saved(page)).plan;
+  }
+  const opening = original.openings[0]!;
+  const wall = original.walls.find(w => w.id === opening.wallId)!;
+  const length = Math.hypot(wall.to[0]-wall.from[0],wall.to[1]-wall.from[1]);
+  const along = opening.offset_m + opening.width_m/2;
+  const centre = await point(page,wall.from[0]+(wall.to[0]-wall.from[0])*along/length,wall.from[1]+(wall.to[1]-wall.from[1])*along/length);
+  await page.mouse.click(centre.x,centre.y); await page.mouse.move(centre.x,centre.y);
+  for (let i=0;i<20;i++) await page.mouse.wheel(0,250);
+  await expect.poll(async()=> {
+    const a=await point(page,...wall.from); const b=await point(page,...wall.to);
+    return Math.hypot(a.x-b.x,a.y-b.y)*opening.width_m/length;
+  }).toBeLessThan(12);
+  await expect.poll(async()=> {
+    const a=await handle(page,'opening-resize-start'); const b=await handle(page,'opening-resize-end');
+    return a&&b?Math.hypot(a.x-b.x,a.y-b.y):0;
+  }).toBeGreaterThanOrEqual(48);
+  if (process.env.UPDATE_SNAPSHOTS==='1' && orientation==='original') await page.screenshot({path:'docs/verification/2026-10-02-opening-small-zoom.png'});
+  const h=(await handle(page,'opening-resize-end'))!;
+  const box=(await page.locator('.editor-canvas canvas').first().boundingBox())!;
+  const a=await point(page,...wall.from); const b=await point(page,...wall.to);
+  const distance=Math.hypot(a.x-b.x,a.y-b.y);
+  // At minimum scale use a 1.5 m gesture (6 px), above the drag threshold.
+  await page.mouse.move(box.x+h.x,box.y+h.y); await page.mouse.down();
+  await page.mouse.move(box.x+h.x+(b.x-a.x)/length*1.5,box.y+h.y+(b.y-a.y)/length*1.5,{steps:5}); await page.mouse.up();
+  const changed=(await saved(page)).plan.openings[0]!;
+  expect(changed.offset_m).toBeCloseTo(opening.offset_m,6);
+  expect(Math.abs(changed.width_m-opening.width_m-1.5)).toBeLessThanOrEqual(length/distance+0.01);
+  await page.keyboard.press('Control+z'); expect((await saved(page)).plan.openings).toEqual(original.openings);
+});
+
 test('предпросмотр и подтверждение: клик не режет стену, Escape и смена инструмента сохраняют план', async ({page})=>{
   await page.goto('/');await expect(page.getByTestId('editor-canvas')).toBeVisible();
   const original=(await saved(page)).plan;

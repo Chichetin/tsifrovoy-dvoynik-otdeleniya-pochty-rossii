@@ -464,23 +464,30 @@ export function PlanGeometryLayer({
     return <Group name="opening-edit-handles">
       {openingHandle(opening, wall)}
       {(['start', 'end'] as const).map((edge) => {
-        const [x, y] = modelToScreen(at(edge === 'start' ? opening.offset_m : opening.offset_m + opening.width_m), viewport);
-        return <Circle key={edge} name={`opening-resize-${edge}`} x={x} y={y} radius={6} fill="#FFF3BF" stroke={SELECTED_STROKE} strokeWidth={2} hitStrokeWidth={12} draggable
+        const [actualX, actualY] = modelToScreen(at(edge === 'start' ? opening.offset_m : opening.offset_m + opening.width_m), viewport);
+        const halfSpan = Math.max(24, opening.width_m * viewport.scale / 2);
+        const direction = edge === 'start' ? -1 : 1;
+        const x = cx + direction * (wall.to[0] - wall.from[0]) / length * halfSpan;
+        const y = cy - direction * (wall.to[1] - wall.from[1]) / length * halfSpan;
+        const shiftX = x - actualX; const shiftY = y - actualY;
+        // A grip may be outside the true edge at small scale. Drag its delta,
+        // not its displayed location, so picking it up never changes the width.
+        const edgePoint = (node: Konva.Node): Point => screenToModel([node.x() - shiftX, node.y() - shiftY], viewport);
+        return <Group key={edge}>
+          {Math.hypot(shiftX, shiftY) < 0.01 ? null : <Line points={[actualX, actualY, x, y]} stroke={SELECTED_STROKE} strokeWidth={1} dash={[2, 2]} listening={false} />}
+          <Circle name={`opening-resize-${edge}`} x={x} y={y} radius={6} fill="#FFF3BF" stroke={SELECTED_STROKE} strokeWidth={2} hitStrokeWidth={12} draggable
           onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
-          onDragMove={(event) => setEditing({ kind: 'opening', opening: resizeOpening(opening, wall, edge, nodeWorld(event.target)) })}
+          onDragMove={(event) => setEditing({ kind: 'opening', opening: resizeOpening(opening, wall, edge, edgePoint(event.target)) })}
           onDragEnd={(event) => {
-            const resized = resizeOpening(opening, wall, edge, nodeWorld(event.target));
+            const resized = resizeOpening(opening, wall, edge, edgePoint(event.target));
             setEditing(null); event.target.position({ x, y }); openingDrag.current = null;
             if (canceledOpeningDrag.current) return;
             if (introducesOpeningOverlap(resized, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Сузьте его или выберите свободный участок стены.'); return; }
             const result = onCommand({ type: 'opening.put', opening: resized });
             if (result.ok) setNotice(null);
-          }} />;
+          }} />
+        </Group>;
       })}
-      <Label x={cx} y={cy - 52} offsetX={124} listening={false}>
-        <Tag fill="#FFFFFF" />
-        <Text text="Центр — двигать · края — ширина" fontSize={12} padding={4} fill={SELECTED_STROKE} />
-      </Label>
     </Group>;
   };
 
