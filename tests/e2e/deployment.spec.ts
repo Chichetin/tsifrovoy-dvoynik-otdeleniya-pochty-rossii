@@ -128,10 +128,36 @@ test.describe('развёрнутый сервис', () => {
 
     // `exact`: рядом есть плавающая кнопка «Ассистент» с тем же именем.
     const panel = page.getByLabel('Ассистент', { exact: true });
+    const startedAt = Date.now();
+    const responsePromise = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === '/api/advice'
+        && response.request().method() === 'POST',
+      { timeout: LLM_WAIT_MS },
+    );
     await panel.getByRole('button', { name: 'Спросить' }).click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
+    const body = await response.json() as { mode: unknown };
+    expect(['llm', 'fallback']).toContain(body.mode);
+    // Persist only safe evidence, never headers, credentials or the response text.
+    const evidence = JSON.stringify({
+      checkedAt: new Date().toISOString(),
+      origin: new URL(response.url()).origin,
+      route: '/api/advice',
+      status: response.status(),
+      mode: body.mode,
+      elapsedMs: Date.now() - startedAt,
+    }, null, 2);
+    const evidencePath = test.info().outputPath('assistant-response-mode.json');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(evidencePath, evidence, 'utf8');
+    await test.info().attach('assistant-response-mode', {
+      path: evidencePath,
+      contentType: 'application/json',
+    });
 
-    // Ответ пришёл с сервера: mode=llm, если на сервере задан ключ провайдера,
-    // иначе mode=fallback с пометкой. Оба — рабочие режимы, пустой экран — дефект.
+    // Even with a configured key the provider or verification may fail.
+    // Both modes must render, but their actual distinction stays in the evidence.
     await expect(panel.locator('.assistant__mode')).toContainText(
       /Без LLM|Объяснение модели проверено расчётом/,
       { timeout: LLM_WAIT_MS },
