@@ -10,6 +10,21 @@ function plan(): PlanDocument {
     walls: [wall('south', [0, 0], [12, 0]), wall('east', [12, 0], [12, 9]), wall('north', [12, 9], [0, 9]), wall('west', [0, 9], [0, 0])], openings: [] };
 }
 describe('прямоугольная внутренняя комната', () => {
+  it('назначение из справочника задаёт тип и значения атрибутов, название сохраняется после trim', () => {
+    const p=plan();
+    p.catalog.zoneTypes.push({id:'zt_test_storage',label:'Склад',color:'#445566',attributes:[{key:'capacity',label:'Вместимость',type:'number',required:true,default:42}]});
+    const draft=createInternalRoom(p,roomRectangle([1,1],[4,4]),new Set(),{name:'  Склад посылок  ',typeId:'zt_test_storage'});
+    expect(draft.ok).toBe(true); if(!draft.ok)return;
+    const result=applyCommand(p,draft.command); expect(result.ok).toBe(true); if(!result.ok)return;
+    expect(result.value.zones[0]).toMatchObject({name:'Склад посылок',typeId:'zt_test_storage',attributes:{capacity:42}});
+    expect(result.value.room).toEqual(p.room);
+  });
+  it('пустое имя и исчезнувший тип не создают комнату другого назначения', () => {
+    const p=plan(); const polygon=roomRectangle([1,1],[4,4]);
+    expect(createInternalRoom(p,polygon,new Set(),{name:' ',typeId:p.catalog.zoneTypes[0]!.id}).ok).toBe(false);
+    expect(createInternalRoom(p,polygon,new Set(),{name:'Склад',typeId:'missing'}).ok).toBe(false);
+    expect(p.walls).toHaveLength(4); expect(p.zones).toEqual([]);
+  });
   it('сохраняет внешний контур и все старые стены; добавляет перегородки и зону атомарно', () => {
     const p = plan(); const draft = createInternalRoom(p, roomRectangle([1, 1], [4, 4]));
     expect(draft.ok).toBe(true); if (!draft.ok) return;

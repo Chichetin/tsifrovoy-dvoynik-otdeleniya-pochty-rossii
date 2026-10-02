@@ -5,7 +5,7 @@ import { TOLERANCE } from '../../contracts/model';
 import { nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { boundingBox, contains, isSimplePolygon, intersects, locatePoint, objectHitsWall, pointSegmentDistance, segmentLength, wallPolygon, wallSpanPolygon } from '../../domain/geometry';
-import { findObjectType } from '../../domain/catalog';
+import { defaultAttributes, findObjectType } from '../../domain/catalog';
 import { parentForRing } from './vertex-edit';
 import { createWall, MIN_WALL_LENGTH_M } from './wall-draft';
 
@@ -79,7 +79,7 @@ function uncovered(from: Point, to: Point, walls: Wall[]): [Point, Point][] {
   return result;
 }
 
-export function createInternalRoom(plan: PlanDocument, polygon: Polygon, retired: ReadonlySet<Id> = new Set()): RoomDraftResult {
+export function createInternalRoom(plan: PlanDocument, polygon: Polygon, retired: ReadonlySet<Id> = new Set(), details?: { name: string; typeId: Id }): RoomDraftResult {
   const fail = (message: string): RoomDraftResult => ({ ok: false, message });
   const box = boundingBox(polygon);
   if (polygon.some((point) => !point.every(Number.isFinite)) || polygon.length !== 4 || !isSimplePolygon(polygon) || polygon.some((p, i) => {
@@ -91,8 +91,10 @@ export function createInternalRoom(plan: PlanDocument, polygon: Polygon, retired
   if (!contains(plan.room.boundary, polygon)) return fail('Комната выходит за внешний контур отделения. Нарисуйте её внутри существующего помещения.');
   if (plan.walls.some((wall) => cutsInterior(wall, polygon))) return fail('Комната пересекает существующую стену. Пристыкуйте её к стене, не проводите контур сквозь неё.');
   const layer = editableContentLayer(plan.layers);
-  const type = plan.catalog.zoneTypes[0];
+  const type = details === undefined ? plan.catalog.zoneTypes[0] : plan.catalog.zoneTypes.find(entry => entry.id === details.typeId);
   if (!layer || !type) return fail('Для комнаты нужен незапертый обычный слой и тип зоны в справочнике.');
+  const name = details === undefined ? `Комната ${plan.zones.length + 1}` : details.name.trim();
+  if (name.length === 0) return fail('Укажите название комнаты.');
   const taken = takenIds(plan, retired);
   const walls: Wall[] = [];
   for (let i = 0; i < polygon.length; i++) {
@@ -124,8 +126,8 @@ export function createInternalRoom(plan: PlanDocument, polygon: Polygon, retired
   ))) return fail('Новый стык существующей стены пересекает оборудование. Переместите объект или измените размер комнаты.');
   const command: Command = { type: 'batch', commands: [
     ...walls.map((wall): Command => ({ type: 'wall.put', wall })),
-    { type: 'zone.put', zone: { id: nextFreeId('z_', taken), name: `Комната ${plan.zones.length + 1}`, typeId: type.id,
-      polygon, parentId: parentForRing(polygon, plan.zones), layerId: layer.id, attributes: {} } },
+    { type: 'zone.put', zone: { id: nextFreeId('z_', taken), name, typeId: type.id,
+      polygon, parentId: parentForRing(polygon, plan.zones), layerId: layer.id, attributes: defaultAttributes(type) } },
   ] };
   return { ok: true, command, walls, polygon };
 }
