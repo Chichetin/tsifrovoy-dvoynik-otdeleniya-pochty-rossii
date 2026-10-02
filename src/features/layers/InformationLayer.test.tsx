@@ -22,10 +22,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vite
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import type { EditorSession } from '../../contracts/ui';
-import { boundingBox, footprint, modelToScreen } from '../../domain/geometry';
-import { InformationLayer, zoneNameBox } from './InformationLayer';
+import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
+import { InformationLayer } from './InformationLayer';
 import { boxesOverlap } from './label-layout';
-import { zoneNameAnchor } from './zone-name-anchor';
 
 afterEach(cleanup);
 
@@ -110,17 +109,7 @@ describe('значение информационного слоя не сади
     const plan = demoWithLayersOn();
     const stage = renderStage(plan);
 
-    const visibleLayers = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
-    const objectBoxes = plan.objects
-      .filter((object) => visibleLayers.has(object.layerId))
-      .map((object) => boundingBox(footprint(object)));
-    // Та же пара вызовов, что делает сам InformationLayer.tsx (:109-115,
-    // :226-228) — тест проверяет реальную проводку, а не свою копию правила.
-    const nameBoxes = plan.zones.map((zone) => {
-      const anchor = zoneNameAnchor(zone.polygon, objectBoxes);
-      const screenAnchor = modelToScreen(anchor, SESSION.viewport);
-      return zoneNameBox(zone, screenAnchor);
-    });
+    const nameBoxes = [...zoneCaptionBoxes(plan, SESSION.viewport).values()];
 
     const infoLabels = stage
       .find((node: Konva.Node) => node.name() === 'info-label')
