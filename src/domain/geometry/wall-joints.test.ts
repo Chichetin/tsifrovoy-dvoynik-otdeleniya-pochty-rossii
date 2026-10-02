@@ -49,3 +49,46 @@ it('короткий торцевой остаток перед дверью о�
   for (const polygon of parts) expect(isSimplePolygon(polygon)).toBe(true);
   expect(parts[0]!.every(([x]) => x <= 0.05 + 1e-6)).toBe(true);
 });
+
+it('перегородка в середине поперечной стены заканчивается на её грани без наложения', () => {
+  const through = wall('through', [-3, 0], [3, 0]);
+  const branch = wall('branch', [0, 0], [0, 3]);
+  const walls = [through, branch];
+  expect(wallPolygon(branch, walls)).toEqual([[-0.1, 0.1], [-0.1, 3], [0.1, 3], [0.1, 0.1]]);
+  expect(intersects(wallPolygon(branch, walls), wallPolygon(through, walls))).toBe(false);
+  const backwards = reverse(branch);
+  for (const point of wallPolygon(branch, walls)) expect(wallPolygon(backwards, [through, backwards])).toContainEqual(point);
+});
+
+it('Т-стык из трёх отрезков остаётся замкнутым и без взаимного наложения', () => {
+  const left = wall('left', [-3, 0], [0, 0]);
+  const right = wall('right', [0, 0], [3, 0]);
+  const branch = wall('branch', [0, 0], [0, 3]);
+  const walls = [left, right, branch];
+  expect(wallPolygon(branch, walls)[0]).toEqual([-0.1, 0.1]);
+  for (const other of [left, right]) {
+    expect(intersects(wallPolygon(branch, walls), wallPolygon(other, walls))).toBe(false);
+  }
+});
+
+it('остаток перед дверью у Т-стыка не создаёт пустую геометрию', () => {
+  const through = wall('through', [-3, 0], [3, 0]);
+  const branch = wall('branch', [0, 0], [0, 3]);
+  const parts = wallObstacles(branch, [{ id: 'door', wallId: branch.id, offset_m: 0.05,
+    width_m: 1, kind: 'door', sill_m: 0, height_m: 2.1 }], { base_m: 0, top_m: 1 }, [through, branch]);
+  expect(parts).toHaveLength(1);
+  expect(isSimplePolygon(parts[0]!)).toBe(true);
+  expect(parts[0]!.every(([, y]) => y >= 1.05 - 1e-6)).toBe(true);
+});
+
+it('проём проходящей стены не подменяет материал ветви и не открывает путь предмету', () => {
+  const through = wall('through', [-3, 0], [3, 0]);
+  const branch = wall('branch', [0, 0], [0, 3]);
+  const walls = [through, branch];
+  const openings = [{ id: 'door', wallId: through.id, offset_m: 2, width_m: 2,
+    kind: 'door' as const, sill_m: 0, height_m: 2.1 }];
+  const object: Equipment = { id: 'object', typeId: 'type', label: 'Предмет', position: [0, 0.05],
+    size_m: [0.02, 0.02], rotation_deg: 0, base_m: 0, height_m: 1, zoneId: null,
+    layerId: 'base', attributes: {} };
+  expect(objectHitsWall(object, branch, openings, walls)).toBe(true);
+});

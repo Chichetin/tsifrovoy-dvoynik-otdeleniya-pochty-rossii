@@ -86,7 +86,7 @@ export function renderPlanSvg(plan: PlanDocument): string {
   const shapes: Polygon[] = [
     plan.room.boundary,
     ...visibleZones.map((z) => z.polygon),
-    ...plan.walls.map((wall) => wallPolygon(wall, plan.walls)),
+    ...plan.walls.map((wall) => wallPolygon(wall, plan.walls, plan.openings)),
     ...visibleObjects.map(footprint),
   ];
   const box = boundingBox(shapes.flat());
@@ -110,7 +110,7 @@ export function renderPlanSvg(plan: PlanDocument): string {
     .join('\n');
 
   const walls = plan.walls
-    .map((wall) => `<polygon points="${points(wallPolygon(wall, plan.walls))}" fill="${WALL_FILL}" data-id="${esc(wall.id)}"/>`)
+    .map((wall) => `<polygon points="${points(wallPolygon(wall, plan.walls, plan.openings))}" fill="${WALL_FILL}" data-id="${esc(wall.id)}"/>`)
     .join('\n');
 
   const openings = plan.openings

@@ -113,7 +113,7 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
     plan.walls.some((wall) => pointSegmentDistance(point, wall.from, wall.to) <= TOLERANCE.coordinate_m);
   for (const vertex of plan.room.boundary) if (!onWallAxis(vertex)) add(vertex);
   for (const zone of plan.zones) for (const vertex of zone.polygon) if (!onWallAxis(vertex)) add(vertex);
-  for (const wall of plan.walls) for (const vertex of wallPolygon(wall, plan.walls)) add(vertex);
+  for (const wall of plan.walls) for (const vertex of wallPolygon(wall, plan.walls, plan.openings)) add(vertex);
   const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
   // Furniture is aligned with furniture, not with a smoke sensor or a camera:
   // only what the catalog says stands on the floor is a guide (D-211).
@@ -158,7 +158,7 @@ export function pointGuides(plan: PlanDocument): LabelledGuides {
   for (const wall of plan.walls) {
     add(wall.from, 'wall');
     add(wall.to, 'wall');
-    for (const vertex of wallPolygon(wall, plan.walls)) add(vertex, 'wall');
+    for (const vertex of wallPolygon(wall, plan.walls, plan.openings)) add(vertex, 'wall');
   }
   return { xs: [...xs.keys()], ys: [...ys.keys()], sources: { xs, ys } };
 }
@@ -230,10 +230,10 @@ export function wallLength(wall: Wall): number {
 }
 
 /** Wall footprint; neighbouring walls can join its endpoints with a shared mitre. */
-export function wallPolygon(wall: Wall, walls: readonly Wall[] = []): Polygon {
+export function wallPolygon(wall: Wall, walls: readonly Wall[] = [], openings: readonly Opening[] = []): Polygon {
   const length = wallLength(wall);
   if (length <= TOLERANCE.coordinate_m) return [];
-  return wallSpanPolygon(wall, 0, length, wall.thickness_m, walls);
+  return wallSpanPolygon(wall, 0, length, wall.thickness_m, walls, openings);
 }
 
 /**
@@ -248,6 +248,7 @@ export function wallSpanPolygon(
   end: number,
   thickness_m = wall.thickness_m,
   walls: readonly Wall[] = [],
+  openings: readonly Opening[] = [],
 ): Polygon {
   const [fx, fy] = wall.from;
   const [tx, ty] = wall.to;
@@ -261,7 +262,7 @@ export function wallSpanPolygon(
   const b: Point = [fx + ux * end + nx, fy + uy * end + ny];
   const c: Point = [fx + ux * end - nx, fy + uy * end - ny];
   const d: Point = [fx + ux * start - nx, fy + uy * start - ny];
-  return thickness_m === wall.thickness_m ? joinedWallSpan(wall, [a, b, c, d], start, end, walls) : [a, b, c, d];
+  return thickness_m === wall.thickness_m ? joinedWallSpan(wall, [a, b, c, d], start, end, walls, openings) : [a, b, c, d];
 }
 
 /**
@@ -298,14 +299,14 @@ export function wallObstacles(
   let cursor = 0;
   for (const gap of gaps) {
     if (gap.start - cursor > TOLERANCE.coordinate_m) {
-      parts.push(wallSpanPolygon(wall, cursor, gap.start, wall.thickness_m, walls));
+      parts.push(wallSpanPolygon(wall, cursor, gap.start, wall.thickness_m, walls, openings));
     }
     cursor = Math.max(cursor, gap.end);
   }
   if (length - cursor > TOLERANCE.coordinate_m) {
-    parts.push(wallSpanPolygon(wall, cursor, length, wall.thickness_m, walls));
+    parts.push(wallSpanPolygon(wall, cursor, length, wall.thickness_m, walls, openings));
   }
-  return parts;
+  return parts.filter((part) => part.length >= 3);
 }
 
 /** Does an object run into a wall, openings at its height taken into account? */
