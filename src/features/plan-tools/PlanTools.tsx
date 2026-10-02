@@ -61,7 +61,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
   {
     kind: 'wall.draw',
     label: 'Перегородка',
-    hint: 'Два клика: начало и конец; Alt — без привязки',
+    hint: 'Два клика: начало и конец. Ошиблись началом — «Отменить», Ctrl+Z или Backspace; Esc — отмена; Alt — без привязки',
   },
   {
     kind: 'opening.place',

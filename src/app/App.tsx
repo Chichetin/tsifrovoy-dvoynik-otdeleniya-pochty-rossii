@@ -460,7 +460,7 @@ export function App(): React.JSX.Element {
   const internalRoom = useInternalRoomController({ document, session, onCommand: dispatchInternalRoom }, view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal', documentEpoch);
   const drawingRoom = view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal';
   const hasDrawingDraft = view === '2d' && (drawingRoom ? internalRoom.start !== null :
-    (tool.kind === 'room.draw' || tool.kind === 'zone.draw' || tool.kind === 'shape.draw') && planTool.draft !== null);
+    (tool.kind === 'room.draw' || tool.kind === 'zone.draw' || tool.kind === 'shape.draw' || tool.kind === 'wall.draw') && planTool.draft !== null);
   const undo = () => {
     if (hasDrawingDraft) {
       if (drawingRoom) internalRoom.removeLast();
