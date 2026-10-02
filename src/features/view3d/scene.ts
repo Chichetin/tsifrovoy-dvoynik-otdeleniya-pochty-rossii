@@ -154,7 +154,7 @@ function wallPrisms(wall: Wall, openings: Opening[], walls: Wall[]): ScenePrism[
     const base_m = bands[index]!;
     const top_m = bands[index + 1]!;
     if (top_m - base_m <= TOLERANCE.coordinate_m) continue;
-    for (const part of wallObstacles(wall, own, { base_m, top_m }, walls)) {
+    for (const part of wallObstacles(wall, openings, { base_m, top_m }, walls)) {
       prisms.push({
         kind: 'wall',
         ref: { kind: 'wall', id: wall.id },

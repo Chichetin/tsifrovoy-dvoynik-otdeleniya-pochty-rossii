@@ -580,7 +580,7 @@ export function PlanGeometryLayer({
       {plan.walls.map(wallShown).map((wall, _index, shownWalls) => (
         <Line
           key={wall.id}
-          points={flatten(wallPolygon(wall, shownWalls), viewport)}
+          points={flatten(wallPolygon(wall, shownWalls, plan.openings), viewport)}
           closed
           fill={WALL_FILL}
           stroke={isSelected('wall', wall.id) ? SELECTED_STROKE : WALL_FILL}
