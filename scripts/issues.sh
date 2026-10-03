@@ -187,7 +187,7 @@ case "$cmd" in
           and (any(.assignees[]; .username == $me) | not) and fresh)
         | "#\(.iid) \([.assignees[].username] | join(",")) (движение \(moved | utc))"] | join("; ")')"
       if [ -n "$busy" ]; then
-        echo "$area занята: $busy. Та же область у двоих — конфликты в одних файлах (CLAUDE.md, «Команда»)." >&2
+        echo "$area занята: $busy. Та же область у двоих — конфликты в одних файлах (CLAUDE.md, «Как работаем»)." >&2
         echo "Договоритесь в задаче или возьмите другую область: bash scripts/issues.sh free." >&2
         echo "Без движения ${stale_h} ч область освобождается (D-313)." >&2
         exit 1
