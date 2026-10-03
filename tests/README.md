@@ -11,11 +11,9 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 
 ## Запуск
 
-- `npm test` — unit-тесты; `dev-port.test.ts` проверяет, что Vite и Playwright берут
-  один и тот же порт из `DEV_PORT`, а `e2e-channel.test.ts` — что браузер обоих
-  браузерных наборов (`npm run test:e2e`, `npm run test:perf`) и скрипта снимков
-  презентации берётся из `PW_CHANNEL` и по умолчанию остаётся бандловым
-  Chromium (D-125, D-142).
+- `npm test` — unit-тесты. Набор — минимум доменной логики (`CLAUDE.md`, «Тесты»,
+  D-354): геометрия, проверки `example_plan.json`, формат, демо-планы, проверка
+  ответа модели.
 - `npm run test:perf` — нагрузочный набор `tests/perf` на своём порту
   (`DEV_PORT`, по умолчанию 5187); системный Chrome не нужен, замер записывает
   userAgent фактического браузера в сырые данные. Время фильтра и возврата всех
@@ -24,10 +22,9 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 - Стенд компонента: `npm run dev` → `http://127.0.0.1:5173/tests/harness/?id=<ID>`;
   при своём `DEV_PORT=5174` адрес стенда — `http://127.0.0.1:5174/tests/harness/?id=<ID>`.
 
-## Файлы по плану
-
-Следующие файлы создаются при реализации соответствующих пакетов:
+## Файлы
 
 - `demo.test.ts` — E01.
+- `example-plan-checks.test.ts` — ловушки `example_plan.json`.
 
 [Карта проекта и владельцы](../docs/project-structure.md) · [Контракты](../docs/contracts-v1.md) · [План задач](../docs/plans/2026-09-16-parallel-plan.md)

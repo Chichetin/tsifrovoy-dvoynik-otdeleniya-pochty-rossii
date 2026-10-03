@@ -146,7 +146,7 @@ for x in (326, 629):
     c.line(x + 3, 337, x + 8, 342)
 card(c, 44, 95, 871, 132, "Портативный формат",
      "Файл JSON schemaVersion: 1 хранит геометрию, зоны, объекты, связи и снимок справочника. «Сохранить → открыть» сохраняет id и атрибуты; новый тип оборудования переносится вместе с планом.", PALE)
-text(c, "Доказательства: src/contracts/model.ts · tests/e2e/round-trip.spec.ts · tests/e2e/catalog-extension.spec.ts",
+text(c, "Доказательства: src/contracts/model.ts · tests/e2e/round-trip.spec.ts",
      44, 69, 870, 9, MUTED)
 c.showPage()
 
@@ -182,7 +182,7 @@ header(c, 5, "3D следует текущему 2D-плану", "Условны
 framed_image(c, SHOTS / "view3d.png", (44, 91, 606, 336), (260, 86, 1260, 930))
 card(c, 684, 288, 232, 139, "Одна модель", "3D не хранит свою копию плана. Скрытые слои не попадают в сцену; объект меняется в 2D — меняется и здесь.")
 card(c, 684, 109, 232, 156, "Честное ограничение", "Это не фотореалистичная визуализация: нет расчёта маршрутов, доступности или эргономики. При недоступном WebGL редактор 2D остаётся доступным.", PALE)
-text(c, "Источник: src/features/view3d/scene.ts · tests/e2e/view3d.spec.ts", 44, 65, 600, 9, MUTED)
+text(c, "Источник: src/features/view3d/scene.ts", 44, 65, 600, 9, MUTED)
 c.showPage()
 
 # 6 — measured result and delivery status
