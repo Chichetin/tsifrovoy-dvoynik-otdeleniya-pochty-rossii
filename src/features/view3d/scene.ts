@@ -1,8 +1,7 @@
 /**
  * D01: the 3D scene as data. `buildScene` turns the current PlanDocument into
  * a list of prisms — footprint polygon, base and height — and nothing else.
- * No Three.js here, so the projection is tested in Vitest without WebGL and the
- * renderer only extrudes what it is given.
+ * No Three.js here: the renderer only extrudes what it is given.
  *
  * Every footprint comes from src/domain/geometry: the rotated object in 3D is
  * the same polygon the 2D canvas draws (D-010), not a second rotation.

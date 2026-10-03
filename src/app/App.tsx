@@ -810,7 +810,7 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         {/* D-260: the hotkeys map lives in the header, icon only — the row has
-            little slack left at 1280 px (tests/e2e/shell.spec.ts). D-261:
+            little slack left at 1280 px. D-261:
             aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
             code "Shift+Slash". */}
         <button
@@ -1055,7 +1055,7 @@ export function App(): React.JSX.Element {
             {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                 должен уходить под объект или под имя зоны. В план она ничего не
                 кладёт (D-256). Ниже находок намеренно: слой находок остаётся
-                предпоследним в сцене, как его ищет `issues-on-plan.spec.ts`. */}
+                предпоследним в сцене. */}
             <MeasureLayer viewport={viewport} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}

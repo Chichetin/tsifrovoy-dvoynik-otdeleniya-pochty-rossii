@@ -144,7 +144,7 @@ type EquipmentSymbolProps = {
  * `perfectDrawEnabled: false` (D-187): a translucent shape with fill and stroke
  * is otherwise painted through a stage-sized buffer canvas — one clear and one
  * full-canvas copy per object on every redraw of the layer (zoom, pan, drag,
- * open). Before/after numbers: docs/verification/performance-2026-09-19-d187.md.
+ * open). Budgets: `tests/perf/editor.spec.ts`.
  */
 const EquipmentSymbol = memo(function EquipmentSymbol({
   outline,

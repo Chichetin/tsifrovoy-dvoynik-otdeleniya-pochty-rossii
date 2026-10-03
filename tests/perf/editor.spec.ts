@@ -13,9 +13,9 @@ const SERVER = process.env.PERF_SERVER === 'preview' ? 'preview' : 'dev';
 /**
  * Budgets hold on the production build only (`PERF_SERVER=preview`); the dev
  * build carries React's development overhead, its numbers are published, not
- * asserted. Both are medians in the page on 1000 objects. Before/after D-187:
- * docs/verification/performance-2026-09-19-d187.md — the budgets leave room
- * for a loaded machine and catch the buffer-canvas path coming back.
+ * asserted. Both are medians in the page on 1000 objects. The budgets leave
+ * room for a loaded machine and catch the buffer-canvas path coming back
+ * (D-187).
  */
 const SELECT_BUDGET_MS = 400;
 const ZOOM_BUDGET_MS = 300;

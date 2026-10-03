@@ -28,9 +28,7 @@ import { zoneNameStyle } from './zone-name-color';
  * Экспортированы, а не только локальные: `InformationLayer` (D-241) держит
  * свою копию этих трёх чисел для расчёта места под значение слоя рядом с
  * именем зоны и не может импортировать `plan-tools` напрямую
- * (`eslint.config.js`), поэтому `tests/zone-name-anchor-sync.test.ts`
- * сверяет копию с настоящими числами отсюда, а не с их пересказом в самом
- * тесте.
+ * (`eslint.config.js`). Тест копию не сверяет: меняй числа в обоих местах.
  */
 export const ZONE_LABEL_FONT_PX = 13;
 export const ZONE_LABEL_LETTER_SPACING = 0.4;
