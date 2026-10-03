@@ -1,7 +1,8 @@
 /** Q01: a custom catalog type and layer survive the full browser/file cycle. */
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page , exportPlan } from './fixtures';
-import { showProps, showTab } from './side-tabs';
+import { closeSettings, openSettings } from './settings';
+import { showTab } from './side-tabs';
 
 async function save(page: Page): Promise<string> {
   const download = await Promise.all([
@@ -48,10 +49,9 @@ test('новый тип в каталоге → атрибут и слой → �
   const card = page.getByLabel('Свойства');
   await card.getByLabel('Номер окна').fill('4');
   await card.getByLabel('Самообслуживание').check();
-  await showTab(page, 'Слои');
-  await page.getByLabel('Слои').getByRole('button', { name: 'Добавить слой' }).click();
-  // Вкладка «Слои» заменила карточку, выделение осталось — вернуть (D-268).
-  await showProps(page);
+  // Новый слой — в «Настройках» (D-352); карточка за окном остаётся на месте.
+  await (await openSettings(page, 'Слои')).getByRole('button', { name: 'Добавить слой' }).click();
+  await closeSettings(page);
   await card.getByLabel('Слой').selectOption({ label: 'Слой 6' });
 
   const before = JSON.parse(await save(page));

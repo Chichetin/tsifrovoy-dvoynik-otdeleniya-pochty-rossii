@@ -2,8 +2,8 @@
  * Боковые колонки в браузере — вкладки (D-249, заменило сворачиваемые
  * разделы D-217/D-226/D-236).
  *
- * Справа ряд «Ассистент / Площади / Проверка / Инвентаризация / Справочник»,
- * видна одна панель; слева «Библиотека / Слои». «Свойства» — не вкладка:
+ * Справа ряд «Ассистент / Площади / Проверка / Инвентаризация» (справочник
+ * с D-350 — в окне «Настройки»), видна одна панель; слева «Библиотека / Слои». «Свойства» — не вкладка:
  * без выбора карточки нет, при выборе она встаёт в левую колонку вместо
  * открытой вкладки (D-268), правые вкладки не трогает, «×» снимает
  * выделение. Выбранная вкладка живёт в localStorage и переживает
@@ -18,7 +18,7 @@ import { showTab, sideTab } from './side-tabs';
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 const TABS_KEY = 'ops-twin.side-tabs.v1';
 
-const RIGHT = ['Ассистент', 'Площади', 'Проверка', 'Инвентаризация', 'Справочник'] as const;
+const RIGHT = ['Ассистент', 'Площади', 'Проверка', 'Инвентаризация'] as const;
 
 const aside = (page: Page): Locator => page.locator('aside[data-tour="side-right"]');
 const leftAside = (page: Page): Locator => page.locator('aside[data-tour="side-left"]');
@@ -54,7 +54,8 @@ test('по умолчанию справа открыта «Инвентариз
   await expect(page.getByLabel('Библиотека оборудования')).toBeVisible();
   await expect(page.getByLabel('Ассистент', { exact: true })).toBeHidden();
   await expect(page.getByLabel('Проверка плана')).toBeHidden();
-  await expect(page.getByLabel('Справочник')).toBeHidden();
+  // D-350: справочник — в окне «Настройки», вкладки у него больше нет.
+  await expect(page.getByRole('tab', { name: /^Справочник/ })).toHaveCount(0);
 });
 
 test('без выбора карточки «Свойства» нет вовсе — ни заголовка, ни «×» (D-249)', async ({ page }) => {
@@ -223,23 +224,26 @@ test('вкладки с клавиатуры: стрелки по кругу, Ho
   await openDemo(page);
   await sideTab(page, 'Инвентаризация').focus();
 
+  await page.keyboard.press('ArrowLeft');
+  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Проверка')).toBeFocused();
+
   await page.keyboard.press('ArrowRight');
-  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
-  await expect(sideTab(page, 'Справочник')).toBeFocused();
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('ArrowRight');
   await expect(sideTab(page, 'Ассистент')).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('ArrowLeft');
-  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
 
   await page.keyboard.press('Home');
   await expect(sideTab(page, 'Ассистент')).toHaveAttribute('aria-selected', 'true');
   await expect(sideTab(page, 'Ассистент')).toBeFocused();
 
   await page.keyboard.press('End');
-  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
-  await expect(page.getByLabel('Справочник')).toBeVisible();
+  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Инвентаризация')).toBeVisible();
 });
 
 test('до первого щелчка по вкладке ключ в localStorage не появляется', async ({ page }) => {
@@ -250,14 +254,14 @@ test('до первого щелчка по вкладке ключ в localStor
 
 test('выбранные вкладки живут в localStorage и переживают перезагрузку', async ({ page }) => {
   await openDemo(page);
-  await showTab(page, 'Справочник');
+  await showTab(page, 'Площади');
   await showTab(page, 'Слои');
 
   const stored = await page.evaluate((key) => window.localStorage.getItem(key), TABS_KEY);
-  expect(JSON.parse(stored!)).toEqual({ left: 'layers', right: 'catalog' });
+  expect(JSON.parse(stored!)).toEqual({ left: 'layers', right: 'metrics' });
 
   await page.reload();
-  await expect(sideTab(page, 'Справочник')).toHaveAttribute('aria-selected', 'true');
+  await expect(sideTab(page, 'Площади')).toHaveAttribute('aria-selected', 'true');
   await expect(sideTab(page, 'Слои')).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByLabel('Инвентаризация')).toBeHidden();
 });

@@ -2,15 +2,18 @@
  * Справочник правится из интерфейса: специалист по инвентаризации добавляет
  * тип оборудования, атрибут и правило без правки JSON (находка operator №5).
  * Всё добавленное доходит до библиотеки, карточки, проверки и файла.
+ * С D-350 справочник — разделы окна «Настройки»; окно модальное, поэтому
+ * перед действиями на плане спека его закрывает.
  */
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page , exportPlan } from './fixtures';
-import { expandCatalogTypes, expandInventoryRows } from './inventory-collapse';
+import { expandCatalogTypes, expandCatalogZoneTypes, expandInventoryRows } from './inventory-collapse';
+import { closeSettings, openSettings, settingsDialog } from './settings';
 import { showTab } from './side-tabs';
 
-const panel = (page: Page) => page.getByLabel('Справочник');
+const panel = (page: Page) => settingsDialog(page);
 
 type SavedPlan = {
   catalog: {
@@ -34,18 +37,15 @@ test('новый тип, атрибут и правило из справочн�
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
-  await showTab(page, 'Справочник');
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
 
-  await panel(page).getByTestId('catalog-toggle').click();
+  await openSettings(page, 'Оборудование');
 
   // Тип: «Сейф ОПС» — появляется в списке типов и в библиотеке слева.
   await panel(page).getByTestId('catalog-type-label').fill('Сейф ОПС');
   await panel(page).getByTestId('catalog-add-type').click();
   await expect(panel(page).getByTestId('catalog-error')).toHaveCount(0);
   await expect(panel(page).getByTestId('catalog-types')).toContainText('Сейф ОПС');
-  const library = page.getByLabel('Библиотека оборудования');
-  await expect(library.getByRole('button', { name: /Сейф ОПС/ })).toBeVisible();
 
   // Атрибут у нового типа (он выбран после добавления).
   await panel(page).getByTestId('catalog-attr-key').fill('condition');
@@ -54,6 +54,10 @@ test('новый тип, атрибут и правило из справочн�
   await panel(page).getByTestId('catalog-add-attr').click();
   await expect(panel(page).getByTestId('catalog-error')).toHaveCount(0);
   await expect(panel(page).getByTestId('catalog-attributes')).toContainText('Состояние');
+  await closeSettings(page);
+
+  const library = page.getByLabel('Библиотека оборудования');
+  await expect(library.getByRole('button', { name: /Сейф ОПС/ })).toBeVisible();
 
   // Поставить объект нового типа на план: он в перечне, атрибут в карточке.
   await library.getByRole('button', { name: /Сейф ОПС/ }).click();
@@ -65,13 +69,15 @@ test('новый тип, атрибут и правило из справочн�
   await rows.first().locator('.table__link').first().click();
   await expect(page.getByLabel('Свойства')).toContainText('Состояние');
 
-  // Дальше снова правим справочник — возвращаемся на его вкладку (D-249).
-  await showTab(page, 'Справочник');
+  // Дальше снова правим справочник в «Настройках». Новый тип — в конце
+  // свёрнутого списка, его нужно раскрыть.
+  await expandCatalogTypes(page);
   // Теперь тип используется — удалить его из справочника нельзя.
   const typeRow = panel(page).getByTestId('catalog-types').locator('li', { hasText: 'Сейф ОПС' });
   await expect(typeRow.getByRole('button', { name: 'удалить' })).toBeDisabled();
 
   // Правило: в клиентской зоне не меньше двух сейфов — сразу в проверке.
+  await openSettings(page, 'Правила');
   await panel(page).getByTestId('catalog-rule-zone').selectOption({ index: 1 });
   await panel(page).getByTestId('catalog-rule-object').selectOption({ label: 'Сейф ОПС' });
   await panel(page).getByTestId('catalog-rule-min').fill('2');
@@ -79,6 +85,7 @@ test('новый тип, атрибут и правило из справочн�
   await expect(panel(page).getByTestId('catalog-error')).toHaveCount(0);
   await expect(panel(page).getByTestId('catalog-rules')).toContainText('Сейф ОПС');
   await expect(panel(page).getByTestId('catalog-rules')).toContainText('допущение команды');
+  await closeSettings(page);
 
   // Всё уезжает в файл.
   const saved = await savePlan(page);
@@ -94,9 +101,8 @@ test('новый тип, атрибут и правило из справочн�
 
 test('обязательный атрибут без умолчания отклоняется с объяснением, план не меняется', async ({ page }) => {
   await page.goto('/');
-  await showTab(page, 'Справочник');
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
-  await panel(page).getByTestId('catalog-toggle').click();
+  await openSettings(page, 'Оборудование');
 
   // Выбрать первый тип из списка и попробовать добавить обязательный атрибут.
   await panel(page).getByTestId('catalog-types').locator('li').first().locator('.table__link').first().click();
@@ -109,6 +115,7 @@ test('обязательный атрибут без умолчания откл
   await expect(panel(page).getByTestId('catalog-attributes')).not.toContainText('Серийный номер');
 
   // Дробная граница правила отклоняется сразу: файл такую не принял бы при сохранении.
+  await openSettings(page, 'Правила');
   const rulesBefore = await panel(page).getByTestId('catalog-rules').locator('li').count();
   await panel(page).getByTestId('catalog-rule-zone').selectOption({ index: 1 });
   await panel(page).getByTestId('catalog-rule-object').selectOption({ index: 1 });
@@ -131,9 +138,8 @@ test('новый тип зоны из справочника назначает�
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
-  await showTab(page, 'Справочник');
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
-  await panel(page).getByTestId('catalog-toggle').click();
+  await openSettings(page, 'Зоны');
 
   await panel(page).getByTestId('catalog-zone-label').fill('Комната охраны');
   await panel(page).getByTestId('catalog-add-zone-type').click();
@@ -146,6 +152,7 @@ test('новый тип зоны из справочника назначает�
   await panel(page).getByTestId('catalog-add-attr').click();
   await expect(panel(page).getByTestId('catalog-error')).toHaveCount(0);
   await expect(panel(page).getByTestId('catalog-attributes')).toContainText('Пост охраны');
+  await closeSettings(page);
 
   // Зона демо-плана получает новый тип в карточке; поле атрибута появляется там же.
   // Ссылка на зону живёт в перечне — открываем его вкладку (D-249). Перечень
@@ -158,9 +165,10 @@ test('новый тип зоны из справочника назначает�
   await expect(card).toContainText('Пост охраны');
 
   // Пока тип используется, удалить его нельзя.
-  await showTab(page, 'Справочник');
+  await expandCatalogZoneTypes(page);
   const row = panel(page).getByTestId('catalog-zone-types').locator('li', { hasText: 'Комната охраны' });
   await expect(row.getByRole('button', { name: 'удалить' })).toBeDisabled();
+  await closeSettings(page);
 
   const saved = await savePlan(page);
   const added = saved.catalog.zoneTypes.find((t) => t.label === 'Комната охраны');

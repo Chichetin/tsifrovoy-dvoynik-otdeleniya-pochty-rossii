@@ -37,8 +37,13 @@ describe('loadSideTabs', () => {
   it('checks each column on its own: a stale value falls back only in its column', () => {
     const storage = memoryStorage({ [SIDE_TABS_KEY]: '{"left":"layers","right":"properties"}' });
     expect(loadSideTabs(storage)).toEqual({ left: 'layers', right: 'inventory' });
-    const other = memoryStorage({ [SIDE_TABS_KEY]: '{"left":42,"right":"catalog"}' });
-    expect(loadSideTabs(other)).toEqual({ left: 'library', right: 'catalog' });
+    const other = memoryStorage({ [SIDE_TABS_KEY]: '{"left":42,"right":"metrics"}' });
+    expect(loadSideTabs(other)).toEqual({ left: 'library', right: 'metrics' });
+  });
+
+  it('a saved «Справочник» tab opens the default one: the catalog moved to «Настройки» (D-350)', () => {
+    const storage = memoryStorage({ [SIDE_TABS_KEY]: '{"left":"layers","right":"catalog"}' });
+    expect(loadSideTabs(storage)).toEqual({ left: 'layers', right: 'inventory' });
   });
 
   it('falls back to defaults on garbage, null and a throwing storage', () => {
@@ -60,15 +65,15 @@ describe('loadSideTabs', () => {
 describe('tabAfterKey', () => {
   it('moves with arrows and wraps at both ends', () => {
     expect(tabAfterKey(RIGHT_TABS, 'assistant', 'ArrowRight')).toBe('metrics');
-    expect(tabAfterKey(RIGHT_TABS, 'catalog', 'ArrowRight')).toBe('assistant');
+    expect(tabAfterKey(RIGHT_TABS, 'inventory', 'ArrowRight')).toBe('assistant');
     expect(tabAfterKey(RIGHT_TABS, 'metrics', 'ArrowLeft')).toBe('assistant');
-    expect(tabAfterKey(RIGHT_TABS, 'assistant', 'ArrowLeft')).toBe('catalog');
+    expect(tabAfterKey(RIGHT_TABS, 'assistant', 'ArrowLeft')).toBe('inventory');
     expect(tabAfterKey(LEFT_TABS, 'layers', 'ArrowRight')).toBe('library');
   });
 
   it('jumps with Home and End and ignores other keys', () => {
     expect(tabAfterKey(RIGHT_TABS, 'validation', 'Home')).toBe('assistant');
-    expect(tabAfterKey(RIGHT_TABS, 'validation', 'End')).toBe('catalog');
+    expect(tabAfterKey(RIGHT_TABS, 'validation', 'End')).toBe('inventory');
     expect(tabAfterKey(RIGHT_TABS, 'validation', 'Enter')).toBeNull();
     expect(tabAfterKey(RIGHT_TABS, 'validation', 'ArrowDown')).toBeNull();
   });

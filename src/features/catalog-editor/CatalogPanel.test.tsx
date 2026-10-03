@@ -11,7 +11,7 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import nested from '../../contracts/fixtures/nested.json';
 import type { Catalog, PlanDocument, Result } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { CatalogPanel } from './CatalogPanel';
+import { CatalogPanel, type CatalogSection } from './CatalogPanel';
 
 afterEach(cleanup);
 afterEach(() => vi.restoreAllMocks());
@@ -67,11 +67,10 @@ function manyPlan(): PlanDocument {
   return { ...basePlan, catalog };
 }
 
-function renderPanel(plan: PlanDocument) {
+function renderPanel(plan: PlanDocument, section: CatalogSection) {
   const onCommand = vi.fn(() => ({ ok: true, value: plan }) as Result<PlanDocument>);
-  render(<CatalogPanel document={plan} onCommand={onCommand} />);
-  fireEvent.click(screen.getByTestId('catalog-toggle'));
-  return { onCommand };
+  const view = render(<CatalogPanel document={plan} onCommand={onCommand} section={section} />);
+  return { onCommand, view };
 }
 
 /** Видимые строки списка — без скрытых атрибутом `hidden`. */
@@ -83,22 +82,23 @@ function visible(testId: string): HTMLElement[] {
 
 describe('сворачивание списков справочника', () => {
   test('по умолчанию видны первые три записи каждого списка, дальше — кнопка с числом', () => {
-    renderPanel(manyPlan());
-
+    const { view } = renderPanel(manyPlan(), 'objects');
     expect(screen.getByTestId('catalog-types').querySelectorAll('li')).toHaveLength(5);
     expect(visible('catalog-types')).toHaveLength(3);
     expect(screen.getByTestId('catalog-types-toggle').textContent).toBe('Показать все (5)');
     expect(screen.getByTestId('catalog-types-toggle').getAttribute('aria-expanded')).toBe('false');
 
+    view.rerender(<CatalogPanel document={manyPlan()} onCommand={vi.fn()} section="zones" />);
     expect(visible('catalog-zone-types')).toHaveLength(3);
     expect(screen.getByTestId('catalog-zone-types-toggle').textContent).toBe('Показать все (5)');
 
+    view.rerender(<CatalogPanel document={manyPlan()} onCommand={vi.fn()} section="rules" />);
     expect(visible('catalog-rules')).toHaveLength(3);
     expect(screen.getByTestId('catalog-rules-toggle').textContent).toBe('Показать все (5)');
   });
 
   test('«Показать все» раскрывает список типов, «Свернуть» возвращает обратно', () => {
-    renderPanel(manyPlan());
+    renderPanel(manyPlan(), 'objects');
 
     fireEvent.click(screen.getByTestId('catalog-types-toggle'));
     expect(visible('catalog-types')).toHaveLength(5);
@@ -112,16 +112,20 @@ describe('сворачивание списков справочника', () =>
   test('до трёх записей в списке — кнопки «Показать все» нет', () => {
     // nested.json без изменений: 2 типа оборудования, 3 типа зон, 1 правило —
     // ни один список не превышает предел.
-    renderPanel(basePlan);
-
-    expect(screen.queryByTestId('catalog-types-toggle')).toBeNull();
-    expect(screen.queryByTestId('catalog-zone-types-toggle')).toBeNull();
-    expect(screen.queryByTestId('catalog-rules-toggle')).toBeNull();
+    for (const [section, toggle] of [
+      ['objects', 'catalog-types-toggle'],
+      ['zones', 'catalog-zone-types-toggle'],
+      ['rules', 'catalog-rules-toggle'],
+    ] as const) {
+      renderPanel(basePlan, section);
+      expect(screen.queryByTestId(toggle)).toBeNull();
+      cleanup();
+    }
   });
 
   test('добавление нового типа раскрывает список типов, а не только счётчик в заголовке', () => {
     const plan = manyPlan();
-    renderPanel(plan);
+    renderPanel(plan, 'objects');
 
     expect(screen.getByTestId('catalog-types-toggle').getAttribute('aria-expanded')).toBe('false');
     fireEvent.change(screen.getByTestId('catalog-type-label'), { target: { value: 'Новый тип' } });
@@ -133,13 +137,25 @@ describe('сворачивание списков справочника', () =>
   });
 });
 
-describe('разделение групп', () => {
-  test('каждая группа справочника — свой блок с общим классом инвентаризации', () => {
-    renderPanel(manyPlan());
+describe('разделы окна «Настройки» (D-350)', () => {
+  test('каждый раздел показывает только свою группу справочника', () => {
+    const { view } = renderPanel(manyPlan(), 'objects');
+    expect(screen.getByRole('region', { name: 'Типы оборудования' })).toBeTruthy();
+    expect(screen.getByTestId('catalog-types')).toBeTruthy();
+    expect(screen.queryByTestId('catalog-zone-types')).toBeNull();
+    expect(screen.queryByTestId('catalog-rules')).toBeNull();
 
-    const groups = document.querySelectorAll('.panel.catalog .panel__group');
-    // Оборудование (форма + список), зоны (форма + список), атрибуты
-    // выбранного типа и правила — не меньше четырёх видимых блоков.
-    expect(groups.length).toBeGreaterThanOrEqual(3);
+    view.rerender(<CatalogPanel document={manyPlan()} onCommand={vi.fn()} section="rules" />);
+    expect(screen.getByRole('region', { name: 'Правила комплектования' })).toBeTruthy();
+    expect(screen.getByTestId('catalog-rules')).toBeTruthy();
+    expect(screen.queryByTestId('catalog-types')).toBeNull();
+  });
+
+  test('форма атрибутов в разделе зон — только для выбранного типа зоны', () => {
+    renderPanel(manyPlan(), 'zones');
+    expect(screen.queryByTestId('catalog-attributes')).toBeNull();
+    const first = basePlan.catalog.zoneTypes[0]!;
+    fireEvent.click(screen.getByRole('button', { name: first.label }));
+    expect(screen.getByTestId('catalog-attributes').textContent).toContain(`Атрибуты типа зоны «${first.label}»`);
   });
 });
