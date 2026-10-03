@@ -146,7 +146,7 @@ for x in (326, 629):
     c.line(x + 3, 337, x + 8, 342)
 card(c, 44, 95, 871, 132, "Портативный формат",
      "Файл JSON schemaVersion: 1 хранит геометрию, зоны, объекты, связи и снимок справочника. «Сохранить → открыть» сохраняет id и атрибуты; новый тип оборудования переносится вместе с планом.", PALE)
-text(c, "Доказательства: src/contracts/model.ts · tests/e2e/round-trip.spec.ts · src/domain/catalog/catalog.test.ts",
+text(c, "Доказательства: src/contracts/model.ts · tests/e2e/round-trip.spec.ts",
      44, 69, 870, 9, MUTED)
 c.showPage()
 

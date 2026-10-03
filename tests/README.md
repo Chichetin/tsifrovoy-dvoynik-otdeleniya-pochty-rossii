@@ -11,9 +11,9 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 
 ## Запуск
 
-- `npm test` — unit-тесты. Набор — только доменная логика (`CLAUDE.md`, «Тесты»,
-  D-351): геометрия, проверки `example_plan.json`, формат, демо-планы, справочник,
-  ассистент.
+- `npm test` — unit-тесты. Набор — минимум доменной логики (`CLAUDE.md`, «Тесты»,
+  D-354): геометрия, проверки `example_plan.json`, формат, демо-планы, проверка
+  ответа модели.
 - `npm run test:perf` — нагрузочный набор `tests/perf` на своём порту
   (`DEV_PORT`, по умолчанию 5187); системный Chrome не нужен, замер записывает
   userAgent фактического браузера в сырые данные. Время фильтра и возврата всех
@@ -26,6 +26,5 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 
 - `demo.test.ts` — E01.
 - `example-plan-checks.test.ts` — ловушки `example_plan.json`.
-- `public-demo-sync.test.ts` — `public/demo/*.json` совпадают с планами ZIP.
 
 [Карта проекта и владельцы](../docs/project-structure.md) · [Контракты](../docs/contracts-v1.md) · [План задач](../docs/plans/2026-09-16-parallel-plan.md)
