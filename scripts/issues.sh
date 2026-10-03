@@ -102,7 +102,8 @@ gl_all() { # gl_all <url с ?…> — все страницы по 100 одни�
   while :; do
     chunk="$(gl GET "$1&per_page=100&page=$page")" || return 1
     printf '%s' "$chunk" | jq -e 'type == "array"' >/dev/null 2>&1 || return 1
-    out="$(jq -cn --argjson a "$out" --argjson b "$chunk" '$a + $b')" || return 1
+    # stdin, not --argjson: 100+ branches exceed the Windows command-line limit (#76)
+    out="$(printf '%s\n%s' "$out" "$chunk" | jq -cs '.[0] + .[1]')" || return 1
     [ "$(printf '%s' "$chunk" | jq length)" -ge 100 ] || break
     [ "$page" -lt 20 ] || return 1
     page=$((page + 1))
@@ -138,8 +139,16 @@ moves_jq='def epoch: [capture("^(?<d>[0-9-]+T[0-9:]+)(\\.[0-9]+)?(?<z>Z|[+-][0-9
 moves() { # moves [аргументы jq] <фильтр> < json: фильтр видит moved/branch/fresh/utc/dur
   local f="${*: -1}"
   set -- "${@:1:$#-1}"
-  jq -r --argjson mrs "$mrs" --argjson brs "$brs" --argjson now "$now" --argjson stale "$stale_s" \
-    "$@" "$moves_jq $f"
+  # Lists go through files: as --argjson they exceed the Windows command-line limit (#76)
+  if [ -z "${moves_dir:-}" ]; then
+    moves_dir="$(mktemp -d)"
+    trap 'rm -rf "$moves_dir"' EXIT
+  fi
+  printf '%s' "$mrs" > "$moves_dir/mrs.json"
+  printf '%s' "$brs" > "$moves_dir/brs.json"
+  jq -r --slurpfile mrs "$moves_dir/mrs.json" --slurpfile brs "$moves_dir/brs.json" \
+    --argjson now "$now" --argjson stale "$stale_s" \
+    "$@" "\$mrs[0] as \$mrs | \$brs[0] as \$brs | $moves_jq $f"
 }
 
 row='"#\(.iid) \(.title) [\(.labels | join(", "))] — \(if (.assignees | length) > 0
