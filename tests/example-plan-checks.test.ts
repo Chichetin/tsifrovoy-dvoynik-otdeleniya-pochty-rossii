@@ -20,7 +20,7 @@ import { parseCatalog } from '../src/contracts/schema';
 import { applyCommand } from '../src/domain/commands';
 import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
 import { importOrganizerExample, withTeamCatalog } from '../src/persistence/organizer-import';
-import { layersReading } from '../src/features/catalog-editor/catalog-edit';
+import { attributeKeyFromLabel, layersReading } from '../src/features/catalog-editor/catalog-edit';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -244,5 +244,18 @@ describe('исправление снимает ровно свой код', () 
 
     expect(idsOf(validatePlan(fixed.value), VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE))
       .toEqual([]);
+  });
+});
+
+describe('ключ атрибута из подписи (#13)', () => {
+  test('транслитерация: «Дата поверки» → data_poverki', () => {
+    expect(attributeKeyFromLabel('Дата поверки', [])).toBe('data_poverki');
+    expect(attributeKeyFromLabel('3D-модель', [])).toBe('attr_3d_model');
+    expect(attributeKeyFromLabel('  ', [])).toBe('attr');
+  });
+
+  test('ключ уникален в типе: занятый получает _2, _3', () => {
+    expect(attributeKeyFromLabel('Дата поверки', ['data_poverki'])).toBe('data_poverki_2');
+    expect(attributeKeyFromLabel('Дата поверки', ['data_poverki', 'data_poverki_2'])).toBe('data_poverki_3');
   });
 });

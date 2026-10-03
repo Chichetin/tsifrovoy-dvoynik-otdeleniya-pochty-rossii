@@ -56,26 +56,48 @@ export type NewCountRule = {
 export const TEAM_ASSUMPTION_PROVENANCE =
   'Допущение команды: тип добавлен в редакторе, размеры условные, не норматив Почты России.';
 
+const TRANSLIT: Record<string, string> = {
+  а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l',
+  м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh',
+  щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
+};
+
 /**
  * Идентификатор из подписи: `Сейф ОПС` → `ot_seyf_ops`. Кириллица
  * транслитерируется, остальное — дефис/подчёркивание; занятые — с номером.
  * Идентификатор виден в файле и в ссылках, поэтому он читаемый, а не uuid.
  */
 export function slugId(prefix: string, label: string, taken: Iterable<Id>): Id {
-  const map: Record<string, string> = {
-    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l',
-    м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh',
-    щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
-  };
   const stem = label
     .toLowerCase()
     .split('')
-    .map((ch) => map[ch] ?? ch)
+    .map((ch) => TRANSLIT[ch] ?? ch)
     .join('')
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
   const base = `${prefix}${stem === '' ? 'new' : stem}`;
   const used = new Set(taken);
+  if (!used.has(base)) return base;
+  for (let index = 2; ; index += 1) {
+    const candidate = `${base}_${index}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
+/**
+ * Ключ атрибута из подписи: `Дата поверки` → `data_poverki`. Ключ начинается
+ * с латинской буквы (так требует `ATTRIBUTE_KEY` панели); занятый — с номером.
+ */
+export function attributeKeyFromLabel(label: string, takenKeys: Iterable<string>): string {
+  const stem = label
+    .toLowerCase()
+    .split('')
+    .map((ch) => TRANSLIT[ch] ?? ch)
+    .join('')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const base = stem === '' ? 'attr' : /^[a-z]/.test(stem) ? stem : `attr_${stem}`;
+  const used = new Set(takenKeys);
   if (!used.has(base)) return base;
   for (let index = 2; ; index += 1) {
     const candidate = `${base}_${index}`;
