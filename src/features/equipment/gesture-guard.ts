@@ -14,7 +14,7 @@
  */
 
 import type { Point } from '../../contracts/model';
-import type { SnapGuides } from '../../domain/geometry';
+import type { DragObstacles, SnapGuides } from '../../domain/geometry';
 
 /** The part of a Konva node a cancelled gesture needs; a test passes a stub. */
 export type GestureNode = {
@@ -32,6 +32,8 @@ export type GestureStart = {
   grab: Point;
   /** What a move may snap to (D-208); absent for gestures that do not snap. */
   guides?: SnapGuides;
+  /** What a move measures its distances to; absent for gestures that do not measure. */
+  obstacles?: DragObstacles;
   /** Alt as seen at the last move: the drop must land where the drag showed it. */
   snapOff?: boolean;
 };
