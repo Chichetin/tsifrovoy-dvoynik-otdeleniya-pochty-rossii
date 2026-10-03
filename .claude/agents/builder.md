@@ -1,6 +1,6 @@
 ---
 name: builder
-description: Делает одну задачу GitLab Issues в worktree, который выдал оркестратор: код → проверки → коммит → push ветки с Merge Request. Использовать для любой задачи, которая меняет код, данные или тесты. Контракты и зависимости не меняет — останавливается и докладывает.
+description: Делает одну задачу GitLab Issues в worktree, который выдал оркестратор: код → проверки → коммит → scripts/finish.sh (merge в main и уборка). Использовать для любой задачи, которая меняет код, данные или тесты. Контракты и зависимости не меняет — останавливается и докладывает.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: opus
 color: blue
@@ -44,16 +44,15 @@ color: blue
    задевает сохранение, загрузку, `src/state/` или демо-планы. Весь e2e не запускай.
    Проверки прошли один раз — повторно не запускай.
 5. Документы — только по `CLAUDE.md`, «Документы». Отчёты в md не пиши.
-6. Закоммить: `<префикс>: <что закончено>` (`GIT.md`). Запушь:
+6. Закоммить: `<префикс>: <что закончено>` (`GIT.md`).
+7. Влей сам: `cd <worktree> && bash scripts/finish.sh`. Скрипт делает merge
+   `origin/main`, build, push с MR, merge MR и уборку. Конфликт — разреши его,
+   закоммить и запусти скрипт снова.
 
-   ```bash
-   git push -u origin HEAD -o merge_request.create -o merge_request.target=main \
-     -o merge_request.title="<префикс>: <что закончено>" \
-     -o merge_request.description="Closes #<N>"
-   ```
-
-   Повторный push в ту же ветку обновляет открытый MR. Описание MR больше не
-   дописывай.
+   В брифе «ревью: да» — вместо шага 7 только push
+   (`git push -u origin HEAD -o merge_request.create -o merge_request.target=main
+   -o merge_request.description="Closes #<N>"`) и отчёт. `finish.sh` запускай после
+   вердикта `merge`.
 
 ## Границы
 

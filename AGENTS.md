@@ -19,9 +19,9 @@
    переписывать, D-313). **Файлы менять только в своём worktree**,
    не в основной копии на `main`:
    `git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> origin/main`.
-2. **Push в `main` закрыт на сервере.** Результат — push своей ветки с Merge Request в
-   `main` (`git push -u origin HEAD -o merge_request.create -o merge_request.target=main
-   -o merge_request.description="Closes #<N>"`), merge — в GitLab (подробно — `GIT.md`, «Финиш»).
+2. **Push в `main` закрыт на сервере.** Закоммить свои пути и влей одной командой из
+   worktree: `bash scripts/finish.sh`. Она делает push с MR, merge в GitLab и уборку
+   (`GIT.md`, «Финиш»). Конфликт — разреши, закоммить, запусти снова.
 3. Нетривиальная работа без задачи — сначала завести задачу (`bash scripts/issues.sh create`,
    шаблон `.gitlab/issue_templates/Задача.md`): что меняем, чем проверим, что намеренно не
    трогаем. Риск показа или сдачи — задача с меткой `blocker`.
