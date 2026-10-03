@@ -17,13 +17,8 @@
  * reimplementation from memory: same constants, same algorithm, same
  * comments where they still apply. It has no feature-specific dependency —
  * only `domain/geometry` and `contracts/model`, both already shared — so the
- * duplication is the algorithm's *text*, not a design fork. A change to the
- * real rule that is not mirrored here is caught by
- * `сравнение с zoneLabelAnchor (D-216)` in `tests/e2e/layers.spec.ts`, which
- * imports both `zoneLabelAnchor` and `zoneNameAnchor` and asserts they agree
- * on every zone of every demo plan; that spec file sits outside `src/features`,
- * so it is free to import both. If the two ever need to diverge on purpose,
- * that test is the place to say why.
+ * duplication is the algorithm's *text*, not a design fork. No test guards
+ * the copy: a change to `zoneLabelAnchor` must be mirrored here by hand.
  */
 
 import type { Point, Polygon } from '../../contracts/model';

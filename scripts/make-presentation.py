@@ -146,7 +146,7 @@ for x in (326, 629):
     c.line(x + 3, 337, x + 8, 342)
 card(c, 44, 95, 871, 132, "Портативный формат",
      "Файл JSON schemaVersion: 1 хранит геометрию, зоны, объекты, связи и снимок справочника. «Сохранить → открыть» сохраняет id и атрибуты; новый тип оборудования переносится вместе с планом.", PALE)
-text(c, "Доказательства: src/contracts/model.ts · tests/e2e/round-trip.spec.ts · tests/e2e/catalog-extension.spec.ts",
+text(c, "Доказательства: src/contracts/model.ts · tests/e2e/round-trip.spec.ts",
      44, 69, 870, 9, MUTED)
 c.showPage()
 
@@ -171,7 +171,7 @@ card(c, 350, 305, 565, 118, "Числа считает код",
      "Перебор кандидатов проверяет геометрию и правила. Ответ содержит id объекта и зоны, факты, источник правила и ограничения.")
 card(c, 350, 166, 565, 118, "Модель только объясняет",
      "Внешний ответ проходит проверку допустимых id и фактов. Если ключа нет или ответ неверен, сервис показывает тот же расчёт с явной пометкой «Без LLM».", PALE)
-text(c, "Живой вызов провайдера подтверждён 19.09: DeepSeek-V4-Flash через Yandex Cloud AI Studio, mode=llm (docs/verification/llm-live-2026-09-19.md).",
+text(c, "Живой вызов провайдера подтверждён 19.09: DeepSeek-V4-Flash через Yandex Cloud AI Studio, mode=llm.",
      350, 129, 565, 13, RED, True)
 text(c, "Источник: demo/recommendation.json · src/domain/advice · server/advice-route.test.ts",
      350, 91, 565, 9, MUTED)
@@ -182,7 +182,7 @@ header(c, 5, "3D следует текущему 2D-плану", "Условны
 framed_image(c, SHOTS / "view3d.png", (44, 91, 606, 336), (260, 86, 1260, 930))
 card(c, 684, 288, 232, 139, "Одна модель", "3D не хранит свою копию плана. Скрытые слои не попадают в сцену; объект меняется в 2D — меняется и здесь.")
 card(c, 684, 109, 232, 156, "Честное ограничение", "Это не фотореалистичная визуализация: нет расчёта маршрутов, доступности или эргономики. При недоступном WebGL редактор 2D остаётся доступным.", PALE)
-text(c, "Источник: src/features/view3d/scene.ts · tests/e2e/view3d.spec.ts", 44, 65, 600, 9, MUTED)
+text(c, "Источник: src/features/view3d/scene.ts", 44, 65, 600, 9, MUTED)
 c.showPage()
 
 # 6 — measured result and delivery status
@@ -202,7 +202,7 @@ for y, volume, opened, roundtrip, bar in [
     c.roundRect(327, y - 1, bar, 10, 5, fill=1, stroke=0)
     text(c, opened, 327 + bar + 10, y + 13, 90, 13, NAVY)
     text(c, roundtrip, 576, y + 14, 190, 14, NAVY, True)
-text(c, "Пять прогонов на объём, Chrome 153, Ryzen AI 9 365; кандидат 17ad4dc. Подробнее: docs/verification/performance-rc.md.",
+text(c, "Пять прогонов на объём, Chrome 153, Ryzen AI 9 365; кандидат 17ad4dc.",
      44, 238, 870, 10, MUTED)
 card(c, 44, 94, 416, 117, "Готово", "Исходный код и README в GitLab; демо-ZIP с двумя редактируемыми планами; локальные unit, Chrome e2e и Docker-сборка.", colors.HexColor("#E5F6EF"), GREEN)
 card(c, 500, 94, 416, 117, "Открыто", "Публичный адрес ещё не выбран. Живой вызов LLM проверен локально (DeepSeek-V4-Flash, mode=llm); на публичном сервере нужен тот же ключ. Для сдачи нужны внешний прогон и прикрепление PDF.", colors.HexColor("#FFF0E7"), RED)

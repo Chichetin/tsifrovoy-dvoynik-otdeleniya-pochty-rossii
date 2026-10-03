@@ -324,9 +324,6 @@ export function PropertiesPanel({
     );
 
   if (room !== undefined) {
-    // Название плана живёт здесь, а не в отдельной шапке: помещение — это и
-    // есть план для сотрудника, а имя файла берётся из названия (D-152).
-    const ceiling = parseNumber(shown('ceilingHeight_m', String(room.ceilingHeight_m)));
     // null — у контура площади нет: сам себя пересекает или схлопнут. Ворота
     // те же, что у панели площадей, поэтому две панели не спорят о числе;
     // карточка только выбирает слова (D-242).
@@ -337,40 +334,6 @@ export function PropertiesPanel({
         : `Площадь по контуру ${formatArea(area)}, вершин ${room.boundary.length}`;
     return (
       <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={room.id}>
-
-        {field(
-          'name',
-          'Название плана',
-          <input
-            type="text"
-            aria-label="Название плана"
-            value={shown('name', plan.name)}
-            onChange={(event) =>
-              commitCommand('name', { type: 'plan.rename', name: event.target.value }, event.target.value)
-            }
-          />,
-          'так будет называться файл при сохранении',
-        )}
-
-        {field(
-          'ceilingHeight_m',
-          'Высота потолка, м',
-          <input
-            type="number"
-            step={0.1}
-            aria-label="Высота потолка, м"
-            value={shown('ceilingHeight_m', String(room.ceilingHeight_m))}
-            onChange={(event) => {
-              const parsed = parseNumber(event.target.value);
-              commitCommand(
-                'ceilingHeight_m',
-                parsed === null ? null : { type: 'room.setCeiling', ceilingHeight_m: parsed },
-                event.target.value,
-              );
-            }}
-          />,
-          ceiling === null ? undefined : 'наружные стены поднимаются вместе с потолком; перегородки — по своей карточке',
-        )}
 
         {/* Контур тянется на плане: числа здесь были бы второй правдой о геометрии. */}
         <p className="props__hint" data-testid="props-room-area">

@@ -21,18 +21,14 @@
 import { useMemo } from 'react';
 import { Layer, Text } from 'react-konva';
 import type { PlanDocument, Viewport, Zone } from '../../contracts/model';
-import type { BoundingBox } from '../../domain/geometry';
-import { boundingBox, footprint, modelToScreen } from '../../domain/geometry';
+import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 import { zoneDepth } from '../../domain/relations';
-import { zoneLabelAnchor } from './zone-label';
 import { zoneNameStyle } from './zone-name-color';
 /**
  * Экспортированы, а не только локальные: `InformationLayer` (D-241) держит
  * свою копию этих трёх чисел для расчёта места под значение слоя рядом с
  * именем зоны и не может импортировать `plan-tools` напрямую
- * (`eslint.config.js`), поэтому `tests/zone-name-anchor-sync.test.ts`
- * сверяет копию с настоящими числами отсюда, а не с их пересказом в самом
- * тесте.
+ * (`eslint.config.js`). Тест копию не сверяет: меняй числа в обоих местах.
  */
 export const ZONE_LABEL_FONT_PX = 13;
 export const ZONE_LABEL_LETTER_SPACING = 0.4;
@@ -56,20 +52,7 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
     [plan.layers],
   );
 
-  // В метрах модели, а не в пикселях: панорамирование и зум перерисовывают
-  // слой каждый кадр (D-190), а от них эти числа не зависят.
-  const objectBoxes: BoundingBox[] = useMemo(
-    () =>
-      plan.objects
-        .filter((object) => visibleLayers.has(object.layerId))
-        .map((object) => boundingBox(footprint(object))),
-    [plan.objects, visibleLayers],
-  );
-
-  const anchors = useMemo(
-    () => new Map(plan.zones.map((zone) => [zone.id, zoneLabelAnchor(zone.polygon, objectBoxes)])),
-    [plan.zones, objectBoxes],
-  );
+  const captions = useMemo(() => zoneCaptionBoxes(plan, viewport), [plan, viewport]);
 
   // Стиль по уровню вложенности (D-250, D-280); глубина — по всем зонам
   // плана, а не только видимым: скрытый родитель не делает вложенную зону корнем.
@@ -83,18 +66,17 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
   return (
     <Layer listening={false} name="zone-names">
       {zones.map((zone) => {
-        const anchor = anchors.get(zone.id);
-        if (anchor === undefined) return null;
-        const [x, y] = modelToScreen(anchor, viewport);
+        const box = captions.get(zone.id);
+        if (box === undefined) return null;
         const style = styles.get(zone.id) ?? zoneNameStyle(0);
         return (
           <Text
             key={`label-${zone.id}`}
             name="zone-name"
             id={`zone-name-${zone.id}`}
-            x={x - ZONE_LABEL_BOX_WIDTH / 2}
-            y={y - ZONE_LABEL_FONT_PX / 2}
-            width={ZONE_LABEL_BOX_WIDTH}
+            x={box.x}
+            y={box.y}
+            width={box.width}
             align="center"
             text={zone.name.toLocaleUpperCase('ru')}
             fontSize={ZONE_LABEL_FONT_PX}

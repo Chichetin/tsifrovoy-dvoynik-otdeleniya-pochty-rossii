@@ -39,7 +39,6 @@ import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
-import { CatalogPanel } from '../features/catalog-editor/CatalogPanel';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
 import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
@@ -74,6 +73,8 @@ import {
   type RightTab,
 } from './side-tabs';
 import { SideTabs } from './SideTabs';
+import { PlanTitle } from './PlanTitle';
+import { SettingsDialog } from './SettingsDialog';
 import { sameRef, showsPropsCard } from './props-column';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
 import { useHotkeysMapDialog } from './hotkeys-map';
@@ -249,6 +250,8 @@ export function App(): React.JSX.Element {
   // UX-3: карта горячих клавиш по «?» — открытие, закрытие и возврат фокуса
   // живут в самом хуке (hotkeys-map.ts), здесь только кнопка и накладка.
   const hotkeysMap = useHotkeysMapDialog();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
   // store, поэтому слушатель один, здесь, а не в каждом слое холста.
@@ -753,10 +756,31 @@ export function App(): React.JSX.Element {
       style={{ '--side-left': `${panelWidths.left}px`, '--side-right': `${panelWidths.right}px` } as React.CSSProperties}
     >
       <header className="shell__bar">
-        {/* D-260: two spans so the title can take two lines below 1600 px. */}
-        <h1 className="shell__title">
-          <span className="shell__title-line">Цифровой двойник</span> <span className="shell__title-line">ОПС</span>
-        </h1>
+        {/* D-350: the product name is a small caption, the plan name under it is
+            what the person works on — always visible, renamed in place. */}
+        <div className="shell__heading">
+          <h1 className="shell__title">Цифровой двойник ОПС</h1>
+          <div className="shell__doc-row">
+            <PlanTitle
+              name={document.name}
+              dirty={dirty}
+              onRename={(name) => dispatch({ type: 'plan.rename', name }).ok}
+            />
+            <button
+              type="button"
+              className="shell__quiet shell__settings"
+              aria-label="Настройки"
+              aria-haspopup="dialog"
+              title="Настройки плана: название, потолок, типы оборудования и зон, правила"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <svg className="shell__icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </button>
+          </div>
+        </div>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
           <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
@@ -786,7 +810,7 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         {/* D-260: the hotkeys map lives in the header, icon only — the row has
-            little slack left at 1280 px (tests/e2e/shell.spec.ts). D-261:
+            little slack left at 1280 px. D-261:
             aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
             code "Shift+Slash". */}
         <button
@@ -1030,8 +1054,7 @@ export function App(): React.JSX.Element {
             <InformationLayer document={document} session={session} />
             {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                 должен уходить под объект или под имя зоны. В план она ничего не
-                кладёт (D-256). Ниже находок намеренно: слой находок остаётся
-                предпоследним в сцене, как его ищет `issues-on-plan.spec.ts`. */}
+                кладёт (D-256). */}
             <MeasureLayer viewport={viewport} />
             {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                 тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
@@ -1112,7 +1135,6 @@ export function App(): React.JSX.Element {
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
               validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} />,
               inventory: <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />,
-              catalog: <CatalogPanel document={document} onCommand={dispatch} />,
             }}
           />
         </aside>
@@ -1123,6 +1145,14 @@ export function App(): React.JSX.Element {
         setDemoRequest((previous) => ({ id: (previous?.id ?? 0) + 1, variant }));
       }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={closeSettings}
+        document={document}
+        onCommand={dispatch}
+        session={session}
+        onSelect={selectFromLeft}
+      />
     </div>
   );
 }

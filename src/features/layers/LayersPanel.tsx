@@ -98,10 +98,18 @@ export function LayersPanel({
   onSelect,
   objectMounts,
   pictograms,
+  mode = 'view',
 }: LayersPanelProps & {
   objectMounts?: ObjectMountsView;
   pictograms?: PictogramsView;
+  /**
+   * D-352: `view` — the side tab, what is used while working (visibility,
+   * lock, legends, data); `setup` — the «Настройки» section, what is set up
+   * once (add, rename, order, delete).
+   */
+  mode?: 'view' | 'setup';
 }): React.JSX.Element {
+  const setup = mode === 'setup';
   const [newTypeId, setNewTypeId] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<{ typeId: Id; value: string } | null>(null);
   // Same calculation and the same memo key as the canvas: once per revision (D-307).
@@ -464,10 +472,10 @@ export function LayersPanel({
   };
 
   return (
-    <section className="panel layers" aria-label="Слои">
-      <h2 className="panel__title">Слои</h2>
+    <section className="panel layers" aria-label={setup ? 'Настройка слоёв' : 'Слои'}>
+      {setup ? null : <h2 className="panel__title">Слои</h2>}
 
-      {pictograms === undefined ? null : (
+      {setup || pictograms === undefined ? null : (
         <div className="layers__view" role="group" aria-label="Вид плана">
           {/* Та же нажимаемая кнопка, что у видимости слоя: ничего не пишет в
               план и не попадает в отмену — только что показано на экране. */}
@@ -491,6 +499,7 @@ export function LayersPanel({
         </div>
       )}
 
+      {!setup ? null : (
       <div className="layers__add">
         <select
           aria-label="Тип нового слоя"
@@ -509,6 +518,7 @@ export function LayersPanel({
           Добавить
         </button>
       </div>
+      )}
 
       <ul className="layers__list">
         {ordered.map((layer) => {
@@ -520,16 +530,23 @@ export function LayersPanel({
           return (
             <li key={layer.id} className={selected ? 'layers__item is-selected' : 'layers__item'}>
               <div className="layers__row">
+                {setup ? (
                 <input
                   className="layers__name"
                   aria-label={`Имя слоя ${layer.name}`}
                   title={layer.name}
                   value={layer.name}
-                  onFocus={() => onSelect({ kind: 'layer', id: layer.id })}
                   onChange={(event) => put({ ...layer, name: event.target.value })}
                 />
+                ) : (
+                  <span className="layers__name layers__name--text" title={layer.name}>
+                    {layer.name}
+                  </span>
+                )}
                 {/* A pressed button, not an input: other specs and the 3D view
                     address it by this role; it looks and reads like a checkbox. */}
+                {setup ? null : (
+                <>
                 <button
                   type="button"
                   className="layers__visible"
@@ -553,6 +570,10 @@ export function LayersPanel({
                 >
                   <Icon name={layer.locked ? 'lock' : 'unlock'} />
                 </button>
+                </>
+                )}
+                {!setup ? null : (
+                <>
                 <button
                   type="button"
                   className="layers__toggle"
@@ -589,12 +610,14 @@ export function LayersPanel({
                 >
                   <Icon name="delete" />
                 </button>
+                </>
+                )}
               </div>
 
               {meta === null ? null : <p className="layers__meta">{meta}</p>}
-              {mountsView(layer)}
+              {setup ? null : mountsView(layer)}
 
-              {type === null ? null : (
+              {setup || type === null ? null : (
                 <>
                   {layer.visible ? legendView(layer, type) : null}
                   {/* No "numbers are conditional" caution here — ever (D-281, participant's explicit ban). */}
@@ -613,6 +636,9 @@ export function LayersPanel({
           );
         })}
       </ul>
+      {setup ? null : (
+        <p className="panel__note">Добавить, переименовать, упорядочить и удалить слои — в «Настройках» у названия плана.</p>
+      )}
     </section>
   );
 }

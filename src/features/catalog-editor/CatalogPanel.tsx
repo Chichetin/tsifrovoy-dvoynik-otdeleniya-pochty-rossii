@@ -26,9 +26,19 @@ import {
   type NewAttribute,
 } from './catalog-edit';
 
+/** D-350: the catalog is set up in the «Настройки» window, one section at a time. */
+export type CatalogSection = 'objects' | 'zones' | 'rules';
+
 export type CatalogPanelProps = {
   document: PlanDocument;
   onCommand: CommandSink;
+  section: CatalogSection;
+};
+
+const SECTION_TITLES: Record<CatalogSection, string> = {
+  objects: 'Типы оборудования',
+  zones: 'Типы зон',
+  rules: 'Правила комплектования',
 };
 
 const SYMBOLS: { value: ObjectSymbol; label: string }[] = [
@@ -68,9 +78,8 @@ function headCount<T>(items: readonly T[], expanded: boolean, limit: number): nu
   return expanded || items.length <= limit ? items.length : limit;
 }
 
-export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): React.JSX.Element {
+export function CatalogPanel({ document: plan, onCommand, section }: CatalogPanelProps): React.JSX.Element {
   const catalog = plan.catalog;
-  const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<Id | null>(null);
 
@@ -117,9 +126,9 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
 
   const categories = [...new Set(catalog.objectTypes.map((t) => t.category))];
   // The attribute form serves both kinds of type: `addAttribute` finds the id
-  // among object types and zone types alike.
-  const chosenObject = catalog.objectTypes.find((t) => t.id === selectedType) ?? null;
-  const chosenZone = catalog.zoneTypes.find((t) => t.id === selectedType) ?? null;
+  // among object types and zone types alike. Each section edits its own kind.
+  const chosenObject = section === 'objects' ? (catalog.objectTypes.find((t) => t.id === selectedType) ?? null) : null;
+  const chosenZone = section === 'zones' ? (catalog.zoneTypes.find((t) => t.id === selectedType) ?? null) : null;
   const chosen = chosenObject ?? chosenZone;
   const usedBy = (typeId: Id): number => plan.objects.filter((o) => o.typeId === typeId).length;
   const zonesOf = (typeId: Id): number => plan.zones.filter((z) => z.typeId === typeId).length;
@@ -246,35 +255,14 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
   };
 
   return (
-    <section className="panel catalog" aria-label="Справочник">
-      <h2 className="panel__title">
-        Справочник{' '}
-        <span className="panel__count">
-          {catalog.objectTypes.length} тип. · {catalog.zoneTypes.length} зон. · {catalog.rules.length} прав.
-        </span>
-        <button
-          type="button"
-          className="table__link"
-          aria-expanded={open}
-          data-testid="catalog-toggle"
-          onClick={() => setOpen((v) => !v)}
-        >
-          {open ? 'свернуть' : 'править'}
-        </button>
-      </h2>
-
-      {!open ? (
-        <p className="panel__note">
-          Типы, атрибуты и правила живут в файле плана; их можно менять здесь, без правки кода.
-        </p>
-      ) : (
-        <>
+    <section className="panel catalog" aria-label={SECTION_TITLES[section]}>
           {error === null ? null : (
             <p className="files__error" role="alert" data-testid="catalog-error">
               {error}
             </p>
           )}
 
+          {section !== 'objects' ? null : (
           <div className="panel__group">
           <h3 className="library__category">Новый тип оборудования</h3>
           <div className="catalog__form">
@@ -370,7 +358,9 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             </button>
           ) : null}
           </div>
+          )}
 
+          {section !== 'zones' ? null : (
           <div className="panel__group">
           <h3 className="library__category">Новый тип зоны</h3>
           <div className="catalog__form">
@@ -428,6 +418,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             </button>
           ) : null}
           </div>
+          )}
 
           {chosen === null ? null : (
             <div className="catalog__form panel__group" data-testid="catalog-attributes">
@@ -497,6 +488,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             </div>
           )}
 
+          {section !== 'rules' ? null : (
           <div className="panel__group">
           <h3 className="library__category">
             Правила комплектования <span className="panel__count">{catalog.rules.length}</span>
@@ -580,8 +572,7 @@ export function CatalogPanel({ document: plan, onCommand }: CatalogPanelProps): 
             <p className="panel__note">Правило считается вместе с вложенными зонами и помечается как допущение команды.</p>
           </div>
           </div>
-        </>
-      )}
+          )}
     </section>
   );
 }

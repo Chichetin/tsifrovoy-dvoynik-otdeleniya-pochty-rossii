@@ -11,7 +11,7 @@
  * холсте или в панели.
  */
 
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { Layer, Line, Rect, Shape, Text } from 'react-konva';
 import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
@@ -22,6 +22,7 @@ import { formatValue, legendLine, legendOf } from './legend';
 import { heatRegions } from './heat-regions';
 import { BLIND_SPOT, visibleCoverage } from './coverage';
 import { zoneNameAnchor } from './zone-name-anchor';
+import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 
 const CAPTION_FILL = '#495057';
 const LABEL_BACKGROUND = '#FFFFFF';
@@ -37,9 +38,8 @@ const LEGEND_ROW = 18;
  * `ZONE_LABEL_BOX_WIDTH` / `ZONE_LABEL_LETTER_SPACING` in
  * `src/features/plan-tools/ZoneNameLayer.tsx`): 13 px, upper-case,
  * letter-spaced, wrapped into a 118 px column. Mirrored here as plain
- * numbers — same duplication reasoning as `zone-name-anchor.ts`; kept in
- * sync by `tests/zone-name-anchor-sync.test.ts`, which imports the real
- * constants rather than a second hand-copied set of numbers (D-241 review).
+ * numbers — same duplication reasoning as `zone-name-anchor.ts`. No test
+ * guards the copy: change both places together (D-241).
  */
 const ZONE_NAME_FONT = 13;
 const ZONE_NAME_COLUMN = 118;
@@ -90,12 +90,8 @@ function layerColor(type: LayerType): string {
  * the gap between its plain-text estimate and Konva's real measurement; the
  * explicit `letterSpacing` term on top accounts for the one difference that
  * margin was not sized for.
- *
- * Exported so `InformationLayer.test.tsx` can compute the same box the
- * component itself uses, rather than a hand-rolled approximation that could
- * drift from production and stop catching a regression (D-241 review).
  */
-export function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
+function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
   const upper = zone.name.toLocaleUpperCase('ru');
   const full = labelWidth(upper, ZONE_NAME_FONT) + upper.length * ZONE_NAME_LETTER_SPACING;
   const lines = Math.ceil(full / ZONE_NAME_COLUMN);
@@ -110,6 +106,7 @@ export function InformationLayer({
   session,
 }: InformationLayerProps): React.JSX.Element {
   const { viewport } = session;
+  const captionBoxes = useMemo(() => zoneCaptionBoxes(plan, viewport), [plan, viewport]);
   const screen = (point: Point): [number, number] => modelToScreen(point, viewport);
 
   // Footprints a zone name steers around (D-216) — same input `ZoneNameLayer`
@@ -157,8 +154,12 @@ export function InformationLayer({
       if (percent === null) return [row];
       return [row, { ...row, key: `${entry.id}-blind`, blind: true, text: `Слепые пятна клиентских зон · видно ${formatValue(percent, '%')}` }];
     })
-    .map((row, index) => ({ ...row, y: 12 + index * LEGEND_ROW }));
-  const legendWidth = Math.max(0, ...legendRows.map((row) => 44 + labelWidth(row.text, LEGEND_FONT)));
+    .map((row, index) => ({
+      ...row,
+      y: 12 + index * LEGEND_ROW,
+      textX: !row.blind && row.legend.kind === 'palette' ? Math.max(50, 17 + row.legend.values.length * 9) : 50,
+    }));
+  const legendWidth = Math.max(0, ...legendRows.map((row) => row.textX - 6 + labelWidth(row.text, LEGEND_FONT)));
   const legendBox: Box = { x: 6, y: 6, width: legendWidth, height: legendRows.length * LEGEND_ROW + 6 };
 
   const ring = (polygon: Polygon): number[] => polygon.flatMap((point) => screen(point));
@@ -180,7 +181,7 @@ export function InformationLayer({
         const value = valueOf(zone);
         if (value === null) continue;
         const text = formatValue(value, representation.unit);
-        const nameBox = zoneNameBox(zone, screen(anchorOf(zone)));
+        const nameBox = captionBoxes.get(zone.id) ?? zoneNameBox(zone, screen(anchorOf(zone)));
         const x = nameBox.x + nameBox.width / 2;
         const width = labelWidth(text, LABEL_FONT) + SWATCH + 4;
         labels.push({
@@ -299,7 +300,7 @@ export function InformationLayer({
   // Zone names of the geometry layer and the legend are fixed; labels move around them.
   const obstacles: Box[] = [
     ...(legendRows.length === 0 ? [] : [legendBox]),
-    ...plan.zones.map((zone) => zoneNameBox(zone, screen(anchorOf(zone)))),
+    ...plan.zones.map((zone) => captionBoxes.get(zone.id) ?? zoneNameBox(zone, screen(anchorOf(zone)))),
   ];
   const placed = placeLabels(
     obstacles,
@@ -410,7 +411,7 @@ export function InformationLayer({
             listening={false}
           />
         ) : row.legend.kind === 'palette' ? (
-          <>{row.legend.values.map((value, index) => (
+          <Fragment key={`legend-${row.id}-palette`}>{row.legend.values.map((value, index) => (
             <Rect
               key={`legend-${row.id}-${value.value}`}
               x={12 + index * 9}
@@ -420,7 +421,7 @@ export function InformationLayer({
               fill={value.color}
               listening={false}
             />
-          ))}</>
+          ))}</Fragment>
         ) : (
           <Rect
             key={`legend-${row.id}-swatch`}
@@ -435,7 +436,7 @@ export function InformationLayer({
         <Text
           key={`caption-${row.key}`}
           name="info-caption"
-          x={50}
+          x={row.textX}
           y={row.y + 1}
           text={row.text}
           fontSize={LEGEND_FONT}

@@ -20,6 +20,7 @@ import { parseCatalog } from '../src/contracts/schema';
 import { applyCommand } from '../src/domain/commands';
 import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
 import { importOrganizerExample, withTeamCatalog } from '../src/persistence/organizer-import';
+import { layersReading } from '../src/features/catalog-editor/catalog-edit';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -36,6 +37,12 @@ function teamCatalog(): Catalog {
   if (!parsed.ok) throw new Error('справочник команды не разобрался');
   return parsed.value;
 }
+
+test('catalog attribute removal detects the equipment colour layer dependency', () => {
+  const catalog = teamCatalog();
+  expect(layersReading(catalog, 'equipmentStatus').map((type) => type.id)).toEqual(['lt_equipment_status']);
+  expect(layersReading(catalog, 'unrelated')).toEqual([]);
+});
 
 /**
  * The import brings the example's own types but no stocking rules (D-025):
