@@ -23,7 +23,9 @@
       "Bash(git worktree prune)",
       "Bash(git branch -d:*)",
       "Bash(git branch -D:*)",
-      "Bash(git push origin --delete worktree-*)"
+      "Bash(git push origin --delete worktree-*)",
+      "Bash(bash scripts/gitlab-mr.sh:*)",
+      "Bash(bash scripts/finish.sh)"
     ],
     "deny": [
       "Bash(git push --force:*)",
