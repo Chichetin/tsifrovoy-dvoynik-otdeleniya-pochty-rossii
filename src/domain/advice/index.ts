@@ -50,6 +50,7 @@ export type { ZoneFit } from './placement';
 export {
   EXPLANATION_ISSUE_CODES,
   defaultExplanation,
+  fallbackAdviceResponse,
   verifyExplanation,
 } from './explanation';
 export { fallbackExplanation, renderExplanation } from './templates';
@@ -276,8 +277,8 @@ export const calculateAdvice: CalculateAdvice = (plan, request) => {
 };
 export { AGENT_TOOL_SPECS, createAgentToolState, isAgentTool, runAgentTool } from './agent-tools';
 export type { AgentToolOutcome, AgentToolState } from './agent-tools';
-export { agentEvidence, checkAgentText, describeProblems } from './agent-text';
-export type { AgentEvidence, AgentTextProblem } from './agent-text';
+export { acceptFactChoice, acceptToolResult, createAgentSession, MAX_TOOL_OUTPUT_CHARS, sessionFallback } from './agent-turn';
+export type { AgentSession, FactChoiceOutcome, ToolResultMessage } from './agent-turn';
 export { composeFallbackText, hideNamedIds, QUOTED_ID_PATTERN, routeAgentQuery } from './agent-fallback';
 export { answerWithoutModel, finishAgentAnswer } from './agent';
 export { collectAgentFacts, renderAgentFact, renderAgentFactSelection } from './agent-facts';

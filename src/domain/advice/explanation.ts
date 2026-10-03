@@ -15,6 +15,7 @@
 
 import { z } from 'zod';
 import type {
+  AdviceResponse,
   Explanation,
   Fact,
   Recommendation,
@@ -341,3 +342,15 @@ export const verifyExplanation: VerifyExplanation = (input, recommendations) => 
   if (issues.length > 0) return { ok: false, issues };
   return { ok: true, value: verified };
 };
+
+/**
+ * #69: the advice answer without a model — the calculation explains itself
+ * with the same codes, facts and check. One function for the server (provider
+ * down or rejected text) and the client (server unreachable).
+ */
+export function fallbackAdviceResponse(revision: number, recommendations: Recommendation[], reason: string): AdviceResponse {
+  const explanations = recommendations
+    .map((recommendation) => defaultExplanation(recommendation))
+    .filter((explanation) => explanation !== null);
+  return { revision, recommendations, explanations, mode: 'fallback', fallbackReason: reason };
+}
