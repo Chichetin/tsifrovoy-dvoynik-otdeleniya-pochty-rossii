@@ -767,7 +767,7 @@ body {
   border-radius: 0 var(--radius-m) var(--radius-m) 0;
 }
 
-/* File group: secondary buttons, «Экспорт» filled and last (D-255). */
+/* File group: secondary buttons, «Сохранить план» filled and last (#6). */
 .files {
   grid-row: 1;
   grid-column: 7;
@@ -776,9 +776,8 @@ body {
   gap: 6px;
 }
 
-/* D-255: «Экспорт» — одна кнопка вместо «Картинка» и «Сохранить»: шапка
-   обязана держаться в одну строку на 1280 px, а
-   выгрузка нужна реже, чем открытие плана. Меню всплывает под кнопкой. */
+/* D-255: «Экспорт» — одна кнопка на обе картинки (PNG, SVG); план файлом
+   сохраняет отдельная «Сохранить план» (#6). Меню всплывает под кнопкой. */
 .files__export {
   position: relative;
   display: inline-flex;
@@ -1130,6 +1129,9 @@ body {
 
 @media (max-width: 1339px) {
   .shell__bar { column-gap: var(--space-1); padding-inline: var(--space-1); }
+  /* #6: «Сохранить» added a fifth file button; 3 px less padding per side
+     returns the slack the delete icon and Linux fonts need (D-316). */
+  .files .files__button { padding-inline: 7px; }
 }
 
 @media (max-width: 1500px) {

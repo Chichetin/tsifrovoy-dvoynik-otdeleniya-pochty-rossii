@@ -29,9 +29,8 @@ export const test = base.extend({
 });
 
 /**
- * Выгрузка через меню «Экспорт» (D-255): кнопки «Сохранить» и «Картинка» в
- * шапке больше нет, их пункты живут в одном меню. Помощник нужен многим
- * спекам, поэтому он здесь, а не копией в каждой.
+ * Выгрузка: JSON — кнопка «Сохранить план» (#6), картинки — меню «Экспорт»
+ * (D-255). Помощник нужен многим спекам, поэтому он здесь, а не копией в каждой.
  */
 /**
  * D-286: план с нарушением физики уходит файлом только после подтверждения.
@@ -50,6 +49,10 @@ export async function passPhysicsBlock(page: Page): Promise<void> {
 }
 
 export async function exportPlan(page: Page, item: 'JSON' | 'PNG' | 'SVG'): Promise<void> {
+  if (item === 'JSON') {
+    await page.getByRole('button', { name: 'Сохранить план' }).click();
+    return;
+  }
   await page.getByRole('button', { name: 'Экспорт' }).click();
   await page.getByRole('menuitem', { name: new RegExp(item) }).click();
 }
