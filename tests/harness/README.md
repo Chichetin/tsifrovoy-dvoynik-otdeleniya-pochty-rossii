@@ -9,4 +9,4 @@
 
 Загрузчик/config пишет поток 5. <ID>.tsx пишет владелец пакета. Fixtures импортировать из contracts/fixtures; стенд не входит в production build.
 
-[Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md) · [План задач](../../docs/plans/2026-09-16-parallel-plan.md)
+[Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md)

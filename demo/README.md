@@ -106,5 +106,4 @@ DEV_PORT=5176 CI=1 npx playwright test tests/e2e/demo.spec.ts   # открыти
 ## Для разработчиков
 
 Владелец каталога `demo/` — поток 5, пакет E01.
-[Карта проекта](../docs/project-structure.md) · [Контракты](../docs/contracts-v1.md) ·
-[План задач](../docs/plans/2026-09-16-parallel-plan.md)
+[Карта проекта](../docs/project-structure.md) · [Контракты](../docs/contracts-v1.md)
