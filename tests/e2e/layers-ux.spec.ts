@@ -9,7 +9,8 @@
  */
 
 import { join } from 'node:path';
-import { expect, test, type Page } from './fixtures';
+import { expect, test, type Locator, type Page } from './fixtures';
+import { openSettings } from './settings';
 import { showTab, sideTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
@@ -17,8 +18,9 @@ const DEMO = join(process.cwd(), 'demo', 'before.json');
 type Rect = { x: number; y: number; width: number; height: number };
 
 const panel = (page: Page) => page.getByLabel('Слои', { exact: true });
+/** A layer row in the tab: the name is text there, the field is in «Настройки» (D-352). */
 const layerItem = (page: Page, name: string) =>
-  panel(page).locator('.layers__item').filter({ has: page.getByLabel(`Имя слоя ${name}`) });
+  panel(page).locator('.layers__item').filter({ has: page.locator('.layers__name', { hasText: new RegExp(`^${name}$`) }) });
 
 /** Screen rectangles of the Konva nodes with this name, in stage pixels. */
 async function konvaRects(page: Page, name: string): Promise<Rect[]> {
@@ -48,7 +50,7 @@ test('демо 1440×900: слои видны без прокрутки, у дв
 
   await showTab(page, 'Слои');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-  await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
+  await expect(layerItem(page, 'Тепловая нагрузка зон')).toBeVisible();
 
   // Панель слоёв открыта вкладкой левой колонки (D-249; заголовок панели
   // спрятан от глаз — её называет сама вкладка) и целиком помещается в окне
@@ -66,7 +68,7 @@ test('демо 1440×900: слои видны без прокрутки, у дв
 
   // Подпись видна словами, а не значком; имя слоя не обрезано молча.
   await expect(heatToggle).toContainText('Показывать');
-  await expect(heat.getByLabel('Имя слоя Тепловая нагрузка зон')).toHaveAttribute(
+  await expect(heat.locator('.layers__name')).toHaveAttribute(
     'title',
     'Тепловая нагрузка зон',
   );
@@ -158,7 +160,7 @@ test('демо 1440×900: карточки слоёв компактны — б�
   await page.goto('/');
   await showTab(page, 'Слои');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-  await expect(page.getByLabel('Имя слоя Тепловая нагрузка зон')).toBeVisible();
+  await expect(layerItem(page, 'Тепловая нагрузка зон')).toBeVisible();
 
   // Пять слоёв демо со свёрнутыми пояснениями умещаются в панели без прокрутки
   // (D-197), а библиотека — соседняя вкладка той же колонки (D-249): её первая
@@ -173,17 +175,22 @@ test('демо 1440×900: карточки слоёв компактны — б�
   expect(await page.locator('#side-left-panel-library').evaluate((node) => node.scrollTop)).toBe(0);
   await showTab(page, 'Слои');
 
-  // Цель нажатия у значков замка, порядка и удаления — не меньше 24×24 (WCAG 2.5.8).
-  const icons = panel(page).locator('.layers__toggle');
-  expect(await icons.count()).toBe(5 * 4);
-  for (const box of await icons.evaluateAll((nodes) =>
-    nodes.map((node) => node.getBoundingClientRect()).map(({ width, height }) => ({ width, height })),
-  )) {
-    expect(box.width).toBeGreaterThanOrEqual(24);
-    expect(box.height).toBeGreaterThanOrEqual(24);
-  }
+  // Цель нажатия у значков замка (вкладка), порядка и удаления («Настройки», D-352) —
+  // не меньше 24×24 (WCAG 2.5.8).
+  const targets = async (icons: Locator, count: number): Promise<void> => {
+    expect(await icons.count()).toBe(count);
+    for (const box of await icons.evaluateAll((nodes) =>
+      nodes.map((node) => node.getBoundingClientRect()).map(({ width, height }) => ({ width, height })),
+    )) {
+      expect(box.width).toBeGreaterThanOrEqual(24);
+      expect(box.height).toBeGreaterThanOrEqual(24);
+    }
+  };
+  await targets(panel(page).locator('.layers__toggle'), 5);
+  const settings = await openSettings(page, 'Слои');
+  await targets(settings.locator('.layers__toggle'), 5 * 3);
 
   // Селект типа нового слоя не обрезает «Обычный слой».
-  const select = panel(page).getByLabel('Тип нового слоя');
+  const select = settings.getByLabel('Тип нового слоя');
   expect(await select.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
 });

@@ -36,7 +36,6 @@ function Harness({
         metrics: <p>панель площадей</p>,
         validation: <p>панель проверки</p>,
         inventory: <p>панель инвентаризации</p>,
-        catalog: <p>панель справочника</p>,
       }}
     />
   );
@@ -67,7 +66,7 @@ test('arrow keys move selection and focus together', () => {
   const first = screen.getByRole('tab', { name: 'Ассистент' });
   first.focus();
   fireEvent.keyDown(first, { key: 'ArrowLeft' });
-  const last = screen.getByRole('tab', { name: 'Справочник' });
+  const last = screen.getByRole('tab', { name: 'Инвентаризация' });
   expect(last.getAttribute('aria-selected')).toBe('true');
   expect(document.activeElement).toBe(last);
   fireEvent.keyDown(last, { key: 'ArrowRight' });
@@ -86,7 +85,7 @@ test('collapsed hides every panel but keeps the tab row, and a click on a tab re
   const selected: RightTab[] = [];
   render(<Harness collapsed onSelect={(id) => selected.push(id)} />);
   expect(screen.getByRole('tablist', { name: 'Панели справа' })).toBeTruthy();
-  for (const name of ['панель ассистента', 'панель площадей', 'панель проверки', 'панель инвентаризации', 'панель справочника']) {
+  for (const name of ['панель ассистента', 'панель площадей', 'панель проверки', 'панель инвентаризации']) {
     expect(screen.getByText(name).closest('[hidden]')).not.toBeNull();
   }
   // A collapsed panel is not "the active one" for assistive tech either.

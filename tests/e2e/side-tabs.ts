@@ -12,8 +12,7 @@ export type SideTabTitle =
   | 'Ассистент'
   | 'Площади'
   | 'Проверка'
-  | 'Инвентаризация'
-  | 'Справочник';
+  | 'Инвентаризация';
 
 /** Вкладка по названию; у «Проверки» за названием идёт счётчик находок. */
 export function sideTab(page: Page, title: SideTabTitle): Locator {
