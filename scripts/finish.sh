@@ -23,6 +23,7 @@ for try in 1 2 3; do
   git merge -q --no-edit origin/main \
     || die "конфликт с main: разреши, закоммить и запусти снова"
   if [ "$(git rev-parse HEAD)" != "$before" ]; then
+    [ -e node_modules ] || npm ci --silent || die "npm ci не прошёл"
     npm run build >/dev/null || die "build красный после merge origin/main"
   fi
   git push -q -u origin HEAD -o merge_request.create -o merge_request.target=main \
