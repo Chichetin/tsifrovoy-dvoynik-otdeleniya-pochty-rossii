@@ -91,6 +91,10 @@ const SURFACE: Record<ScenePrism['kind'], { roughness: number; metalness: number
   opening: { roughness: 0.15, metalness: 0.1, cast: false, receive: false },
   object: { roughness: 0.5, metalness: 0.15, cast: true, receive: true },
 };
+/** Above the slabs of nested zones (2 cm per level), so the floor ring of a selection shows. */
+const OUTLINE_LIFT_M = 0.05;
+/** Facets meeting at a smaller angle are one surface: no edge line between them. */
+const EDGE_ANGLE_DEG = 30;
 /** A wall in front of the camera is a hint of glass, not a screen. */
 const FADED_WALL_OPACITY = 0.12;
 /** Share of the room environment in the light: reflections without washing out. */
@@ -511,10 +515,12 @@ function prismMeshes(prism: ScenePrism, selected: boolean, proxy = false): (Mesh
   if ((proxy || !OUTLINED.has(prism.kind)) && !selected) return [mesh];
 
   const edges = new LineSegments(
-    new EdgesGeometry(geometry),
+    // Only real corners: a round object's 24 facets would draw 24 vertical stripes.
+    new EdgesGeometry(geometry, EDGE_ANGLE_DEG),
     new LineBasicMaterial({ color: selected ? '#E67700' : EDGE_COLOR }),
   );
-  edges.position.z = prism.base_m;
+  // An object's bottom edges would hide under the zone slabs on the floor.
+  edges.position.z = prism.base_m + (prism.kind === 'object' ? OUTLINE_LIFT_M : 0);
   if (prism.kind === 'wall') edges.userData['wallLine'] = mesh.userData['wallLine'];
   return [mesh, edges];
 }
