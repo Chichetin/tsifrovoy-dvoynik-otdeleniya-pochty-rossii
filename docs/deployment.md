@@ -133,7 +133,7 @@ docker compose down              # остановить и удалить кон
    умолчанию и достаточно для рекомендованных 60 000 мс. Правило: `stop_grace_period` ≥
    `LLM_TIMEOUT_MS` + 5 с; подняли таймаут модели выше 60 000 мс — поднимите и срок,
    иначе ответ в полёте оборвёт SIGKILL.
-   Обработчик покрыт `server/main.test.ts`; прогон `docker stop` на Linux-хосте —
+   Обработчик — `server/main.ts`; прогон `docker stop` на Linux-хосте —
    `TBD` при деплое (ожидание: `time docker compose down` меньше секунды без
    запросов в полёте).
 
