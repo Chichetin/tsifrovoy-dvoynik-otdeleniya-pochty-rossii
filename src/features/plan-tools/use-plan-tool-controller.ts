@@ -20,8 +20,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Id, Point, Polygon } from '../../contracts/model';
 import type { ToolController, ToolKind, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
-import { newObject, nextFreeId, takenIds } from '../../domain/commands';
-import { editableContentLayer } from '../../domain/content-layer';
+import { newContentLayer, newObject, nextFreeId, takenIds } from '../../domain/commands';
 import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
 import { getMeasurement, setMeasurement } from './measure';
 import {
@@ -210,12 +209,8 @@ export const usePlanToolController = ({
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
         // One id space for the whole plan plus what a delete retired this session (D-198).
         const taken = takenIds(plan, session.retired);
-        // Содержимое живёт только на обычных слоях: информационный слой рисует
-        // поверх всего плана и ничего не содержит (D-063).
-        // Every content layer locked: address the first one anyway, so the
-        // store refuses with «слой заперт» instead of the click doing nothing.
-        const layer =
-          editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
+        // Content layer only, the same rule as for a new object (D-063, D-174).
+        const layer = newContentLayer(plan);
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
         const id = nextFreeId('z_', taken);

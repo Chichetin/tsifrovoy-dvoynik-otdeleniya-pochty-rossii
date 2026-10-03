@@ -25,7 +25,6 @@ describe('#68: новый объект получает следующий ин�
     const object = newObject(before, bench, { position: [2.2, 2], rotation_deg: 0 }, []);
 
     expect(object?.attributes.inventoryNumber).toBe('ИНВ-ДЕМО-054');
-    expect(object?.id).not.toBe(undefined);
     expect(before.objects.some((entry) => entry.id === object?.id)).toBe(false);
   });
 

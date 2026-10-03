@@ -46,19 +46,19 @@ export function objectOfType(type: ObjectType, spot: ObjectSpot & { id: Id; laye
 }
 
 /**
- * The layer a new object goes to: the first unlocked content layer (D-063).
+ * The layer a new object or zone goes to: the first unlocked content layer (D-063).
  * With every content layer locked, the first content layer anyway, so the store
  * refuses with «слой заперт» and the person learns why nothing was placed — a
  * silent no-op is not an outcome (D-174). `undefined` only for a plan without
  * a single content layer.
  */
-export function newObjectLayer(plan: PlanDocument): Layer | undefined {
+export function newContentLayer(plan: PlanDocument): Layer | undefined {
   return editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
 }
 
 /**
  * A new object as it enters the plan: a free `eq_` id (not on the plan, not
- * retired this session — D-019, D-198), the layer from `newObjectLayer`, the
+ * retired this session — D-019, D-198), the layer from `newContentLayer`, the
  * type's defaults and the next inventory number when the type carries one.
  * `null` when the plan has no content layer to hold it.
  */
@@ -68,7 +68,7 @@ export function newObject(
   spot: ObjectSpot,
   retired: Iterable<Id> = [],
 ): Equipment | null {
-  const layer = newObjectLayer(plan);
+  const layer = newContentLayer(plan);
   if (layer === undefined) return null;
   const id = freshId('eq_', plan, retired);
   return withInventoryNumber(plan, objectOfType(type, { ...spot, id, layerId: layer.id }));
