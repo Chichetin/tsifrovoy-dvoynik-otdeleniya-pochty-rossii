@@ -188,7 +188,7 @@ export function removeRule(catalog: Catalog, id: Id): Catalog {
 export function layersReading(catalog: Catalog, key: string): LayerType[] {
   return catalog.layerTypes.filter((layer) => {
     const r = layer.representation;
-    if (r.kind === 'zone-heat' || r.kind === 'zone-count') return r.attribute === key;
+    if (r.kind === 'zone-heat' || r.kind === 'zone-count' || r.kind === 'object-color') return r.attribute === key;
     if (r.kind === 'object-field') return r.angleAttribute === key || r.rangeAttribute === key;
     return false;
   });

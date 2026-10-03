@@ -247,6 +247,14 @@
       "locked": false,
       "order": 4,
       "typeId": "lt_queue"
+    },
+    {
+      "id": "l_lt_equipment_status",
+      "name": "Состояние оборудования",
+      "visible": false,
+      "locked": false,
+      "order": 5,
+      "typeId": "lt_equipment_status"
     }
   ],
   "zones": [
@@ -507,6 +515,7 @@
       "zoneId": "z_entrance",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-001"
       }
     },
@@ -528,6 +537,7 @@
       "zoneId": "z_entrance",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-002"
       }
     },
@@ -549,6 +559,7 @@
       "zoneId": "z_entrance",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-003"
       }
     },
@@ -570,6 +581,7 @@
       "zoneId": "z_entrance",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-004"
       }
     },
@@ -592,6 +604,7 @@
       "layerId": "l_base",
       "attributes": {
         "diagonalInch": 43,
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-005"
       }
     },
@@ -613,6 +626,7 @@
       "zoneId": "z_waiting",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-006",
         "seats": 3
       }
@@ -636,6 +650,7 @@
       "layerId": "l_base",
       "attributes": {
         "diagonalInch": 55,
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-007"
       }
     },
@@ -657,6 +672,7 @@
       "zoneId": "z_queue",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-009",
         "seats": 3
       }
@@ -679,6 +695,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-010",
         "windowNumber": 1
       }
@@ -701,6 +718,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-011",
         "windowNumber": 2
       }
@@ -723,6 +741,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-012",
         "windowNumber": 3
       }
@@ -745,6 +764,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "hasLegRecess": true,
         "inventoryNumber": "ИНВ-ДЕМО-013",
         "seatNumber": 1
@@ -768,6 +788,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "hasLegRecess": true,
         "inventoryNumber": "ИНВ-ДЕМО-014",
         "seatNumber": 2
@@ -791,6 +812,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "hasLegRecess": false,
         "inventoryNumber": "ИНВ-ДЕМО-015",
         "seatNumber": 3
@@ -814,6 +836,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "repair",
         "inventoryNumber": "ИНВ-ДЕМО-016"
       }
     },
@@ -835,6 +858,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-017"
       }
     },
@@ -856,6 +880,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-018"
       }
     },
@@ -877,6 +902,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-019"
       }
     },
@@ -898,6 +924,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-020"
       }
     },
@@ -919,6 +946,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-021"
       }
     },
@@ -940,6 +968,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-022",
         "maxWeightKg": 30
       }
@@ -962,6 +991,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "repair",
         "inventoryNumber": "ИНВ-ДЕМО-023"
       }
     },
@@ -983,6 +1013,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-024",
         "kind": "RJ-45"
       }
@@ -1005,6 +1036,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-025",
         "viewAngleDeg": 90,
         "viewRangeM": 8
@@ -1042,6 +1074,7 @@
       "zoneId": "z_waiting",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-026",
         "viewAngleDeg": 100,
         "viewRangeM": 6
@@ -1079,6 +1112,7 @@
       "zoneId": "z_client",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-027"
       },
       "outline": [
@@ -1198,6 +1232,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "hasLegRecess": false,
         "inventoryNumber": "ИНВ-ДЕМО-028",
         "seatNumber": 4
@@ -1221,6 +1256,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "hasLegRecess": true,
         "inventoryNumber": "ИНВ-ДЕМО-029",
         "seatNumber": 5
@@ -1244,6 +1280,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-030"
       },
       "outline": [
@@ -1363,6 +1400,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-031"
       },
       "outline": [
@@ -1482,6 +1520,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-032"
       }
     },
@@ -1503,6 +1542,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-033",
         "isColor": false
       }
@@ -1525,6 +1565,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-034",
         "maxWeightKg": 50
       }
@@ -1547,6 +1588,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-035",
         "shelves": 5
       }
@@ -1569,6 +1611,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-036",
         "shelves": 4
       }
@@ -1591,6 +1634,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-037"
       }
     },
@@ -1612,6 +1656,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-038"
       }
     },
@@ -1633,6 +1678,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-039",
         "viewAngleDeg": 90,
         "viewRangeM": 7
@@ -1670,6 +1716,7 @@
       "zoneId": "z_back",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-040"
       },
       "outline": [
@@ -1789,6 +1836,7 @@
       "zoneId": "z_storage",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-041",
         "shelves": 5
       }
@@ -1811,6 +1859,7 @@
       "zoneId": "z_storage",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-042",
         "shelves": 5
       }
@@ -1833,6 +1882,7 @@
       "zoneId": "z_storage",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-043",
         "shelves": 5
       }
@@ -1855,6 +1905,7 @@
       "zoneId": "z_storage",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-044",
         "shelves": 4
       }
@@ -1877,6 +1928,7 @@
       "zoneId": "z_storage",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-045",
         "viewAngleDeg": 90,
         "viewRangeM": 6
@@ -1914,6 +1966,7 @@
       "zoneId": "z_storage",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-046"
       },
       "outline": [
@@ -2033,6 +2086,7 @@
       "zoneId": "z_utility",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-047"
       }
     },
@@ -2054,6 +2108,7 @@
       "zoneId": "z_utility",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-048"
       },
       "outline": [
@@ -2173,6 +2228,7 @@
       "zoneId": "z_utility",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-049"
       }
     },
@@ -2194,6 +2250,7 @@
       "zoneId": "z_staff",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-050",
         "seats": 3
       }
@@ -2216,6 +2273,7 @@
       "zoneId": "z_staff",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-051"
       },
       "outline": [
@@ -2335,6 +2393,7 @@
       "zoneId": "z_staff",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-052"
       },
       "outline": [
@@ -2454,6 +2513,7 @@
       "zoneId": "z_staff",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "working",
         "inventoryNumber": "ИНВ-ДЕМО-053"
       },
       "outline": [
@@ -2573,6 +2633,7 @@
       "zoneId": "z_waiting",
       "layerId": "l_base",
       "attributes": {
+        "equipmentStatus": "unknown",
         "inventoryNumber": "ИНВ-ДЕМО-054",
         "seats": 3
       }
@@ -2596,6 +2657,13 @@
         "symbol": "rect",
         "color": "#4C6EF5",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2634,6 +2702,13 @@
         "color": "#748FFC",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2657,6 +2732,13 @@
         "symbol": "rect",
         "color": "#5C7CFA",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2682,6 +2764,13 @@
         "color": "#3B5BDB",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2705,6 +2794,13 @@
         "symbol": "rect",
         "color": "#1971C2",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2737,6 +2833,13 @@
         "color": "#1864AB",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2760,6 +2863,13 @@
         "symbol": "rect",
         "color": "#0CA678",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2792,6 +2902,13 @@
         "color": "#12B886",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2815,6 +2932,13 @@
         "symbol": "rect",
         "color": "#087F5B",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2840,6 +2964,13 @@
         "color": "#099268",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2863,6 +2994,13 @@
         "symbol": "rect",
         "color": "#F76707",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2895,6 +3033,13 @@
         "color": "#E8590C",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2926,6 +3071,13 @@
         "color": "#F59F00",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -2956,6 +3108,13 @@
         "symbol": "triangle",
         "color": "#7048E8",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -2995,6 +3154,13 @@
         "color": "#5F3DC4",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3019,6 +3185,13 @@
         "color": "#9775FA",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3042,6 +3215,13 @@
         "symbol": "rect",
         "color": "#B197FC",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -3074,6 +3254,13 @@
         "color": "#E03131",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3104,6 +3291,13 @@
         "symbol": "rect",
         "color": "#C92A2A",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -3136,6 +3330,13 @@
         "color": "#A61E4D",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3167,6 +3368,13 @@
         "color": "#D6336C",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3190,6 +3398,13 @@
         "symbol": "rect",
         "color": "#868E96",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -3222,6 +3437,13 @@
         "color": "#495057",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3246,6 +3468,13 @@
         "color": "#343A40",
         "attributes": [
           {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
+          {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
             "type": "string",
@@ -3269,6 +3498,13 @@
         "symbol": "circle",
         "color": "#212529",
         "attributes": [
+          {
+            "key": "equipmentStatus",
+            "label": "Состояние",
+            "type": "string",
+            "required": false,
+            "default": "unknown"
+          },
           {
             "key": "inventoryNumber",
             "label": "Инвентарный номер",
@@ -3522,6 +3758,38 @@
           ]
         },
         "note": "Длина очереди проставляется руками в атрибуте зоны. Слой добавлен правкой справочника, без изменения кода."
+      },
+      {
+        "id": "lt_equipment_status",
+        "label": "Состояние оборудования",
+        "representation": {
+          "kind": "object-color",
+          "attribute": "equipmentStatus",
+          "defaultValue": "unknown",
+          "values": [
+            {
+              "value": "unknown",
+              "label": "Не указано",
+              "color": "#868E96"
+            },
+            {
+              "value": "working",
+              "label": "Работает",
+              "color": "#087F5B"
+            },
+            {
+              "value": "repair",
+              "label": "В ремонте",
+              "color": "#A15C00"
+            },
+            {
+              "value": "retired",
+              "label": "Списано",
+              "color": "#C92A2A"
+            }
+          ]
+        },
+        "note": "Состояние оборудования задаёт сотрудник вручную; автоматической диагностики устройств нет."
       }
     ],
     "rules": [

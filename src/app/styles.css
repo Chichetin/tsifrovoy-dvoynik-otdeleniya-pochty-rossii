@@ -2204,7 +2204,8 @@ span.inventory__num {
   padding: 2px 0;
 }
 
-.layers__data input {
+.layers__data input,
+.layers__data select {
   width: 100%;
   padding: 2px 4px;
   border: 1px solid var(--line);
@@ -2212,6 +2213,11 @@ span.inventory__num {
   font: inherit;
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+.layers__data select {
+  min-width: 7.5rem;
+  text-align: left;
 }
 
 .layers__unit {
@@ -2253,6 +2259,30 @@ span.inventory__num {
   margin-right: 5px;
   border-radius: 2px;
   vertical-align: -1px;
+}
+
+.layers__palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.layers__palette button {
+  padding: 2px 3px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.layers__palette button[aria-pressed='true'] {
+  border-color: var(--line);
+  background: var(--surface);
+  font-weight: 600;
 }
 
 /* U06: карточка свойств */

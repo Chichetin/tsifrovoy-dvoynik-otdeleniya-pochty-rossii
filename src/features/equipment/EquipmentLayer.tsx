@@ -19,6 +19,7 @@ import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import type { EquipmentLayerProps } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
+import { activeObjectColor, objectColorValue } from '../../domain/object-color';
 import {
   SNAP,
   footprint,
@@ -255,6 +256,7 @@ export function EquipmentLayer({
   const visibleLayers = new Set(
     plan.layers.filter((layer) => layer.visible).map((layer) => layer.id),
   );
+  const colorLayer = useMemo(() => activeObjectColor(plan), [plan]);
   const lockedLayers = new Set(
     plan.layers.filter((layer) => layer.locked).map((layer) => layer.id),
   );
@@ -760,7 +762,7 @@ export function EquipmentLayer({
           outline={objectOutline(current)}
           width={current.size_m[0] * viewport.scale}
           height={current.size_m[1] * viewport.scale}
-          fill={type?.color ?? FALLBACK_COLOR}
+          fill={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
           opacity={ghost ? 0.45 : 0.9}
           // Selection is drawn on its own layer below: a shape that depends on
           // `selection` would make every click repaint all thousand of them.
@@ -773,7 +775,7 @@ export function EquipmentLayer({
             width={current.size_m[0] * viewport.scale}
             height={current.size_m[1] * viewport.scale}
             opacity={ghost ? 0.45 : 0.9}
-            backdrop={type?.color ?? FALLBACK_COLOR}
+            backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
           />
         )}
       </Group>
