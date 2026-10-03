@@ -74,6 +74,7 @@ import {
   type RightTab,
 } from './side-tabs';
 import { SideTabs } from './SideTabs';
+import { PlanTitle } from './PlanTitle';
 import { sameRef, showsPropsCard } from './props-column';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
 import { useHotkeysMapDialog } from './hotkeys-map';
@@ -753,10 +754,16 @@ export function App(): React.JSX.Element {
       style={{ '--side-left': `${panelWidths.left}px`, '--side-right': `${panelWidths.right}px` } as React.CSSProperties}
     >
       <header className="shell__bar">
-        {/* D-260: two spans so the title can take two lines below 1600 px. */}
-        <h1 className="shell__title">
-          <span className="shell__title-line">Цифровой двойник</span> <span className="shell__title-line">ОПС</span>
-        </h1>
+        {/* D-350: the product name is a small caption, the plan name under it is
+            what the person works on — always visible, renamed in place. */}
+        <div className="shell__heading">
+          <h1 className="shell__title">Цифровой двойник ОПС</h1>
+          <PlanTitle
+            name={document.name}
+            dirty={dirty}
+            onRename={(name) => dispatch({ type: 'plan.rename', name }).ok}
+          />
+        </div>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
           <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
