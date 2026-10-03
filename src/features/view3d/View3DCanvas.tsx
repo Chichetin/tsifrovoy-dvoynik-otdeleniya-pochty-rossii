@@ -50,7 +50,7 @@ import {
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import type { Ref } from '../../contracts/model';
+import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
 import { isSelected, type Scene, type SceneModel, type ScenePrism } from './scene';
 
@@ -178,6 +178,8 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
       current.group.add(...prismMeshes(prism, isSelected(prism, selection), drawn !== undefined));
     }
     placeModels(current, placed);
+    // Machine-readable, like the section's counts: objects that stand as models.
+    current.renderer.domElement.dataset['modelsCount'] = String(placed.length);
     // Re-frame only when the room changes: moving an object must not yank the
     // camera the user has just placed.
     const key = JSON.stringify([scene.bounds, scene.ceilingHeight_m]);
@@ -514,14 +516,21 @@ function prismMeshes(prism: ScenePrism, selected: boolean, proxy = false): (Mesh
   if (prism.kind === 'wall') mesh.userData['wallLine'] = wallLine(prism.polygon);
   if ((proxy || !OUTLINED.has(prism.kind)) && !selected) return [mesh];
 
-  const edges = new LineSegments(
-    // Only real corners: a round object's 24 facets would draw 24 vertical stripes.
-    new EdgesGeometry(geometry, EDGE_ANGLE_DEG),
-    new LineBasicMaterial({ color: selected ? '#E67700' : EDGE_COLOR }),
-  );
-  // An object's bottom edges would hide under the zone slabs on the floor.
-  edges.position.z = prism.base_m + (prism.kind === 'object' ? OUTLINE_LIFT_M : 0);
-  if (prism.kind === 'wall') edges.userData['wallLine'] = mesh.userData['wallLine'];
+  // Only real corners: a round object's 24 facets would draw 24 vertical stripes.
+  const outline = new EdgesGeometry(geometry, EDGE_ANGLE_DEG);
+  if (prism.kind === 'object' && prism.base_m < OUTLINE_LIFT_M) {
+    // The bottom ring of a floor object would hide under the zone slabs: lift
+    // that ring only, the top stays on the object.
+    const position = outline.getAttribute('position');
+    const lift = Math.min(OUTLINE_LIFT_M - prism.base_m, prism.height_m / 2);
+    for (let index = 0; index < position.count; index += 1) {
+      if (position.getZ(index) < TOLERANCE.coordinate_m) position.setZ(index, lift);
+    }
+  }
+  const edges = new LineSegments(outline, new LineBasicMaterial({ color: selected ? '#E67700' : EDGE_COLOR }));
+  edges.position.z = prism.base_m;
+  // A selected wall keeps its outline even when it turns to glass.
+  if (prism.kind === 'wall' && !selected) edges.userData['wallLine'] = mesh.userData['wallLine'];
   return [mesh, edges];
 }
 

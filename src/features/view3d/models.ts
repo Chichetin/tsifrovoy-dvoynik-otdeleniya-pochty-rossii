@@ -28,7 +28,11 @@ export function modelSource(name: string): ModelSource | null | undefined {
   return loaded.get(name);
 }
 
-/** Starts loading the models not asked for yet; resolves when they settle. */
+/**
+ * Starts loading the models not asked for yet; resolves when every named model
+ * has settled, including loads started earlier. Resolving before that would let
+ * the caller rebuild, ask again and spin without giving the network a turn.
+ */
 export function loadModels(names: Iterable<string>): Promise<void> {
   const pending: Promise<void>[] = [];
   for (const name of names) {
@@ -43,8 +47,8 @@ export function loadModels(names: Iterable<string>): Promise<void> {
           loaded.set(name, null);
         });
       loading.set(name, load);
-      pending.push(load);
     }
+    pending.push(load);
   }
   return Promise.all(pending).then(() => undefined);
 }

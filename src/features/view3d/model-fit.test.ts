@@ -24,8 +24,9 @@ describe('подгонка модели под размер', () => {
 
   test('вписывание: прибор сохраняет пропорции и стоит на основании', () => {
     const printer: Fit = { fit: 'contain', size: [0.5, 0.45, 0.4] };
-    const [fitted] = fitPositions([0.25, 0.225, 0.4], printer, [1, 0.45, 0.4]);
-    expect(Array.from(fitted!)).toEqual([0.25, 0.225, 0.4].map(Math.fround));
+    // Half the width: one scale 0.5 on all three axes, not a narrow printer.
+    const [fitted] = fitPositions([0.25, 0.225, 0.4], printer, [0.25, 0.45, 0.4]);
+    expect(Array.from(fitted!)).toEqual([0.125, 0.1125, 0.2].map(Math.fround));
   });
 
   test('повтор: у стеллажа ниже полок меньше с тем же шагом, на верхней полке посылок нет', () => {

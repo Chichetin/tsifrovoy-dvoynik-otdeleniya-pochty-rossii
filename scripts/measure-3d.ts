@@ -1,6 +1,8 @@
 /**
- * #59: 3D timing on a running app — from the "3D" click to the scene with its
- * models, then the frame rate while the camera orbits. Median of the runs.
+ * #59: 3D timing on a running app — from the "3D" click to the frame where
+ * every object stands as its model, then the frame rate while the camera
+ * orbits. Median of the runs. Only plans whose types all have models finish
+ * by the count; the demo plans and the benchmark plans do.
  *
  * Run: DEV_PORT=5174 npm run dev, then
  *      npx tsx scripts/measure-3d.ts <plan.json | 100 | 500 | 1000> [runs]
@@ -29,7 +31,14 @@ for (let run = 0; run < Number(runs); run += 1) {
   const page = await context.newPage();
   await page.goto(process.env['APP_URL'] ?? 'http://127.0.0.1:5174/');
   await page.getByTestId('plan-file-input').setInputFiles({ name: 'plan.json', mimeType: 'application/json', buffer: plan });
-  await page.waitForTimeout(1500);
+  // Opening 1000 objects keeps the page busy for seconds: the clock starts when
+  // two frames in a row come within 50 ms, not while the plan still loads.
+  await page.waitForFunction(`new Promise((done) => {
+    let last = performance.now();
+    let calm = 0;
+    const tick = (now) => { calm = now - last < 50 ? calm + 1 : 0; last = now; calm >= 2 ? done(true) : requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  })`, undefined, { timeout: 180_000 });
 
   const models = new Set<string>();
   page.on('requestfinished', (request) => {
@@ -37,14 +46,17 @@ for (let run = 0; run < Number(runs); run += 1) {
   });
   const started = Date.now();
   await page.getByRole('group', { name: 'Вид плана' }).getByRole('button', { name: '3D' }).click();
-  await page.getByTestId('view3d-canvas').waitFor();
-  // The scene is complete when no model file arrived for 500 ms.
-  let seen = -1;
-  while (seen !== models.size) {
-    seen = models.size;
-    await page.waitForTimeout(500);
-  }
-  const sceneMs = Date.now() - started - 500;
+  // Done when every shown object stands as a model (a build without models has
+  // no such count: its first frame is the end), then two frames are drawn.
+  await page.waitForFunction(`(() => {
+    const canvas = document.querySelector('[data-testid="view3d-canvas"]');
+    const section = document.querySelector('[data-testid="view3d"]');
+    if (!canvas || !section) return false;
+    const drawn = canvas.dataset.modelsCount;
+    return drawn === undefined || drawn === section.dataset.objectsCount;
+  })()`, undefined, { polling: 'raf', timeout: 60_000 });
+  await page.evaluate('new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))');
+  const sceneMs = Date.now() - started;
 
   const box = await page.getByTestId('view3d-canvas').boundingBox();
   if (box === null) throw new Error('холст 3D не найден');
