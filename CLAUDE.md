@@ -104,7 +104,7 @@
 npm ci                                  # установка; один раз: npx playwright install chromium
 npm run dev                             # свой порт — DEV_PORT=5174
 npm run lint && npm run build          # build включает tsc, typecheck отдельно не нужен
-npx vitest related --run <файлы>        # тесты правки; правишь data/ или demo/ — npm test
+npm test                                # unit, около 2 с
 DEV_PORT=5174 npx playwright test tests/e2e/round-trip.spec.ts tests/e2e/demo.spec.ts  # smoke
 DEV_PORT=5174 npm run test:e2e          # весь e2e — только qa перед вехой
 ```
@@ -122,11 +122,11 @@ DEV_PORT=5174 npm run test:e2e          # весь e2e — только qa пе�
 ## Проверка
 
 - Перед push: `git fetch --prune && git merge origin/main`, затем lint, build,
-  `vitest related`. Smoke e2e — только если правка задевает сохранение, загрузку,
-  `src/state/` или демо-планы.
+  `npm test`. e2e необязателен: запускай, если что-то сломалось или правка задевает
+  сохранение, загрузку, `src/state/` или демо-планы.
 - Один прогон на MR. Пришёл новый merge в `main` после прогона — только
-  `npm run build`, тесты заново не гоняем. Весь `npm test` и весь e2e — у `qa`
-  перед вехой.
+  `npm run build`, тесты заново не гоняем. Весь e2e — у `qa` перед
+  вехой.
 - UI-правка: пройди сценарий в браузере, сделай один снимок «после» (не в git),
   проверь `Tab` и фокус.
 - Готово — проверки зелёные и сценарий пройден: открыть → загрузить демо → изменить

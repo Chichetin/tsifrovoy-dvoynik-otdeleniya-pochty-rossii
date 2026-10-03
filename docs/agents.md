@@ -39,11 +39,11 @@ flowchart LR
 
 ## Проверки по ролям
 
-- `builder`: lint, build, `vitest related`. Smoke e2e — только для сохранения,
+- `builder`: lint, build, `npm test`. e2e — если что-то сломалось или для сохранения,
   загрузки, `src/state/`, демо-планов. UI-правка — проход в браузере, один снимок в
   scratchpad, клавиатура.
 - `integrator`: только `npm run build` после merge `origin/main`.
-- `qa`: весь `npm test` и весь e2e — перед вехой.
+- `qa`: весь e2e — перед вехой.
 - Отчёты ролей идут в чат. md-файлы с отчётами в git не попадают (`CLAUDE.md`,
   «Документы»).
 
