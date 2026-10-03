@@ -1,9 +1,13 @@
-/** The server's demo files are the only source; never embed a second plan in UI. */
-export type DemoPlan = 'before' | 'after';
+import showroomUrl from '../../../demo/showroom.json?url';
+
+/** Demo plans are files the server serves; the UI keeps only their URLs. */
+export type DemoPlan = 'before' | 'after' | 'showroom';
 
 export const DEMO_PLANS: ReadonlyArray<{ id: DemoPlan; label: string; url: string }> = [
   { id: 'before', label: 'Исходный демо-план', url: '/demo/before.json' },
   { id: 'after', label: 'Изменённый демо-план', url: '/demo/after.json' },
+  // The start plan (#73); the build serves it as an asset, see default-plan.ts.
+  { id: 'showroom', label: 'Шоурум 3D-моделей', url: showroomUrl },
 ];
 
 /** Returns text for the same readPlanFile codec used by a local file. */

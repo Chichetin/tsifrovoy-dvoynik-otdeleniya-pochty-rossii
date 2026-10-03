@@ -28,11 +28,13 @@ import {
   packageDemo,
   readZip,
 } from '../scripts/package-demo';
+import { openStartPlan } from '../src/app/default-plan';
 import type { Recommendation } from '../src/contracts/advice';
 import type { PlanDocument } from '../src/contracts/model';
 import { calculateAdvice, verifyExplanation } from '../src/domain/advice';
 import { countInZoneScope } from '../src/domain/inventory';
 import { measurePlan } from '../src/domain/metrics';
+import { reconcileZones } from '../src/domain/relations';
 import { validatePlan } from '../src/domain/validation';
 import { encodePlan } from '../src/persistence/codec';
 import { readPlanFile } from '../src/persistence/format';
@@ -46,6 +48,15 @@ test('дверь служебной зоны демо не захватывае�
     const partition = plan.walls.find((wall) => wall.id === 'w_storage')!;
     expect(door.offset_m + door.width_m).toBeLessThan(partition.from[1] - partition.thickness_m / 2);
   }
+});
+
+test('стартовый план-шоурум открывается без замечаний, зоны объектов — из геометрии (#73)', () => {
+  const plan = openStartPlan();
+  expect(validatePlan(plan)).toEqual([]);
+  const reconciled = reconcileZones(plan);
+  expect(reconciled.ok && reconciled.value.objects.map((object) => object.zoneId)).toEqual(
+    plan.objects.map((object) => object.zoneId),
+  );
 });
 
 function demoFile(name: string): string {
