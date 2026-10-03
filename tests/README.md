@@ -22,9 +22,7 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 - Стенд компонента: `npm run dev` → `http://127.0.0.1:5173/tests/harness/?id=<ID>`;
   при своём `DEV_PORT=5174` адрес стенда — `http://127.0.0.1:5174/tests/harness/?id=<ID>`.
 
-## Файлы по плану
-
-Следующие файлы создаются при реализации соответствующих пакетов:
+## Файлы
 
 - `demo.test.ts` — E01.
 - `example-plan-checks.test.ts` — ловушки `example_plan.json`.

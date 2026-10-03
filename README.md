@@ -52,7 +52,7 @@
 - [Условия](task.md), [матрица соответствия](docs/tz-compliance.md), [решения](docs/decisions.md).
 - [Задание для независимого Deep Research](docs/research/deep-research-brief.md).
 - [Проверка архитектурного плана](docs/verification/architecture.md) и [структуры каталогов](docs/verification/layout.md).
-- [Сквозная проверка](docs/verification/e2e.md), [замер масштаба](docs/verification/performance.md)
+- [Сквозная проверка](docs/verification/e2e.md) (запись до 03.10; набор e2e сокращён по D-351), [замер масштаба](docs/verification/performance.md)
   и [статус сдачи](docs/submission.md).
 - [PDF-презентация](output/pdf/posttech-digital-twin-2026-09-18.pdf) на основе собственного демо
   и проверенных фактов; перед отправкой жюри её должен просмотреть участник команды.
