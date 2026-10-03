@@ -258,9 +258,9 @@ export const OBJECTS: ObjectSource[] = [
   // Служебная зона.
   { id: 'eq_28', typeId: 'ot_workplace', label: 'Рабочее место сортировки', position: [10.2, 1.2], rotation_deg: 90, attributes: { inventoryNumber: 'ИНВ-ДЕМО-028', seatNumber: 4, hasLegRecess: false } },
   { id: 'eq_29', typeId: 'ot_workplace', label: 'Рабочее место начальника смены', position: [10.2, 3], rotation_deg: 90, attributes: { inventoryNumber: 'ИНВ-ДЕМО-029', seatNumber: 5, hasLegRecess: true } },
-  { id: 'eq_30', typeId: 'ot_chair', label: 'Кресло сортировки', position: [11.2, 1.2], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-030' } },
-  { id: 'eq_31', typeId: 'ot_chair', label: 'Кресло начальника смены', position: [11.2, 3], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-031' } },
-  { id: 'eq_32', typeId: 'ot_computer', label: 'Компьютер сортировки', position: [10.2, 1.2], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-032' } },
+  { id: 'eq_30', typeId: 'ot_chair', label: 'Кресло сортировки', position: [11.2, 1.2], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-030' } },
+  { id: 'eq_31', typeId: 'ot_chair', label: 'Кресло начальника смены', position: [11.2, 3], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-031' } },
+  { id: 'eq_32', typeId: 'ot_computer', label: 'Компьютер сортировки', position: [10.2, 1.2], rotation_deg: 90, attributes: { inventoryNumber: 'ИНВ-ДЕМО-032' } },
   { id: 'eq_33', typeId: 'ot_printer', label: 'МФУ служебной зоны', position: [10.2, 3], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-033', isColor: false } },
   { id: 'eq_34', typeId: 'ot_scales', label: 'Весы приёма посылок', position: [10.2, 0.75], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-034', maxWeightKg: 50 } },
   { id: 'eq_35', typeId: 'ot_parcel_rack', label: 'Стеллаж приёма посылок', position: [13, 0.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-035', shelves: 5 } },

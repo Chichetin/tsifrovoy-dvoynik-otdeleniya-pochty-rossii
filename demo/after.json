@@ -1274,7 +1274,7 @@
         0.6,
         0.6
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 270,
       "base_m": 0,
       "height_m": 1.1,
       "zoneId": "z_back",
@@ -1394,7 +1394,7 @@
         0.6,
         0.6
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 270,
       "base_m": 0,
       "height_m": 1.1,
       "zoneId": "z_back",
@@ -1514,7 +1514,7 @@
         0.4,
         0.45
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 90,
       "base_m": 0.75,
       "height_m": 0.45,
       "zoneId": "z_back",
