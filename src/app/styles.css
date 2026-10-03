@@ -253,6 +253,34 @@ body {
   border: 0;
 }
 
+/* D-350: the «Настройки» button sits right after the plan name — settings of
+   this plan, as in editors that keep document actions beside its name. */
+.shell__doc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* Icon only, like the hotkeys button: the name is in aria-label and the
+   tooltip — the header has no width for a visible «Настройки». */
+.shell__quiet.shell__settings {
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--color-muted);
+}
+
+
+.shell__quiet.shell__settings:hover {
+  color: var(--color-ink);
+}
+
+.shell__settings .shell__icon {
+  stroke-width: 2;
+}
+
 .shell__bar > .shell__view {
   grid-row: 1;
   grid-column: 4;
@@ -1026,12 +1054,12 @@ body {
 
   .shell__doc-name,
   .shell__doc-input {
-    max-width: 120px;
+    max-width: 112px;
     font-size: var(--text-s);
   }
 
   .shell__doc-input {
-    width: 120px;
+    width: 112px;
   }
 
   .files > .files__status {
@@ -1071,11 +1099,11 @@ body {
   /* D-260: the header hotkeys button costs one more grid column. */
   .shell__doc-name,
   .shell__doc-input {
-    max-width: 104px;
+    max-width: 88px;
   }
 
   .shell__doc-input {
-    width: 104px;
+    width: 88px;
   }
 }
 
@@ -1106,8 +1134,11 @@ body {
 /* D-261: the history goes icon-only below 1460 px (was 1400): at 1400–1459 px
    the named buttons left the free column at 0–12 px in the worst state. The
    icon buttons are square like the hotkeys button, the names stay in the
-   visually hidden label (accessible name) and in the tooltip. */
-@media (max-width: 1459px) {
+   visually hidden label (accessible name) and in the tooltip. D-350: below
+   1700 px (was 1460) — from 1600 px the product caption and the full-width
+   plan name come back and need ~85 px; the «Настройки» button beside the
+   name takes more. At 1600 px the named history left the free column 0 px. */
+@media (max-width: 1699px) {
   .shell__history .shell__quiet {
     justify-content: center;
     width: var(--control-h);
@@ -2736,4 +2767,132 @@ span.inventory__num {
   .comparison__table th, .comparison__table td { padding: 6px 2px; }
   .comparison__table th:first-child { min-width: 0; }
   .comparison__table td { font-variant-numeric: tabular-nums; }
+}
+
+/* D-350: «Настройки» — a modal window over the editor: sections on the left,
+   the chosen one on the right, scrolling inside the content only. */
+.settings {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(33, 37, 41, 0.45);
+}
+
+.settings__dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: min(960px, calc(100vw - 24px));
+  height: min(640px, calc(100vh - 48px));
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+.settings__dialog:focus {
+  /* Фокус нужен читалке экрана, а не глазу — как у карты горячих клавиш. */
+  outline: none;
+}
+
+.settings__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.settings__title {
+  margin: 0;
+  font-size: var(--text-l);
+}
+
+.settings__close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.settings__close:hover {
+  background: var(--color-hover);
+  color: var(--color-ink);
+}
+
+.settings__body {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  min-height: 0;
+  flex: 1;
+}
+
+.settings__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3) var(--space-2);
+  border-right: 1px solid var(--line);
+  background: var(--color-ground);
+}
+
+.settings__section {
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--color-ink);
+  font: inherit;
+  font-size: var(--text-s);
+  text-align: left;
+  cursor: pointer;
+}
+
+.settings__section:hover {
+  background: var(--color-hover);
+}
+
+.settings__section[aria-current='true'] {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  font-weight: 600;
+}
+
+.settings__content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+.settings__heading {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-l);
+}
+
+.settings__fields {
+  max-width: 420px;
+  margin-top: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .settings__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settings__nav {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
 }

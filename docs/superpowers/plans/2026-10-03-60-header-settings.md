@@ -66,7 +66,8 @@
   (`section: 'objects' | 'zones' | 'rules'`); вкладка «Справочник» справа исчезает.
 - Правки применяются сразу командами, как сейчас; отмена работает; план за окном обновляется.
 
-Файлы: создать `src/app/SettingsDialog.tsx`, `src/app/settings-sections.ts` (+ тесты); изменить
+Файлы: создать `src/app/SettingsDialog.tsx` (+ тест; список разделов — константа в нём, отдельный
+`settings-sections.ts` не понадобился); изменить
 `src/app/App.tsx`, `src/app/side-tabs.ts` (без `catalog`; сохранённое `catalog` в `localStorage`
 → вкладка по умолчанию), `src/features/catalog-editor/CatalogPanel.tsx` (проп `section`),
 `src/features/properties/PropertiesPanel.tsx`; e2e, ходившие во вкладку «Справочник», —

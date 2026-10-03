@@ -145,22 +145,22 @@ describe('карточка помещения', () => {
     expect(text).not.toContain('0,00');
   });
 
-  test('название плана набирается посимвольно, пробел между словами не пропадает', () => {
+  test('название плана и потолок — в окне «Настройки», не в карточке (D-350)', () => {
     render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
-    const input = screen.getByLabelText('Название плана') as HTMLInputElement;
-    for (const typed of ['О', 'ОП', 'ОПС', 'ОПС ', 'ОПС 7']) {
-      fireEvent.change(input, { target: { value: typed } });
-      expect(input.value).toBe(typed);
-    }
+    expect(screen.queryByLabelText('Название плана')).toBeNull();
+    expect(screen.queryByLabelText('Высота потолка, м')).toBeNull();
   });
+});
 
-  test('отказ на пустом названии остаётся у поля помещения и не переезжает в карточку зоны', () => {
-    const { rerender } = render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
-    fireEvent.change(screen.getByLabelText('Название плана'), { target: { value: '   ' } });
-    expect(screen.getByRole('alert').textContent).toContain('название');
-
+describe('черновики карточки', () => {
+  test('отказ остаётся у поля своего выделения и не переезжает в карточку зоны', () => {
+    const object = plan.objects[0];
     const zone = plan.zones[0];
-    if (zone === undefined) throw new Error('в minimal.json нет зон');
+    if (object === undefined || zone === undefined) throw new Error('в minimal.json нет объекта или зоны');
+    const { rerender } = render(<Live selection={{ kind: 'object', id: object.id }} />);
+    fireEvent.change(screen.getByLabelText('Ширина, м'), { target: { value: '' } });
+    expect(screen.getByRole('alert').textContent).toContain('Нужно число.');
+
     rerender(<Live selection={{ kind: 'zone', id: zone.id }} />);
     expect(screen.queryByRole('alert')).toBeNull();
     expect((screen.getByLabelText('Название') as HTMLInputElement).value).toBe(zone.name);

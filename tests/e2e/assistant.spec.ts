@@ -159,7 +159,7 @@ test.describe('ассистент в браузере', () => {
   test('вкладка открывает ассистента в правой колонке (D-249)', async ({ page }) => {
     await page.goto('/');
     const assistant = panel(page);
-    await showTab(page, 'Справочник');
+    await showTab(page, 'Площади');
     await expect(assistant).toBeHidden();
     await expect(page.getByRole('button', { name: 'Открыть ассистента' })).toHaveCount(0);
 
