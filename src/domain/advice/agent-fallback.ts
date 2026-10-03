@@ -23,7 +23,7 @@ import { fallbackExplanation } from './templates';
 export type AgentToolCall = { name: string; args: Record<string, unknown>; note?: string; guessedZone?: Id; lead?: boolean };
 export type AgentToolRecord = { name: string; output: unknown };
 
-const STOP_WORDS = new Set(['для', 'при', 'под', 'над', 'или', 'без', 'как', 'где', 'что', 'это']);
+const STOP_WORDS = new Set(['для', 'при', 'под', 'над', 'или', 'без', 'как', 'где', 'что', 'это', 'весь']);
 
 function words(text: string): string[] {
   return text.toLowerCase().replaceAll('ё', 'е').split(/[^a-zа-я0-9]+/).filter((word) => word.length >= 3 && !STOP_WORDS.has(word));
@@ -44,8 +44,12 @@ function labelScore(label: string, queryWords: readonly string[]): { score: numb
 function matchType(plan: PlanDocument, queryWords: readonly string[]): Id | null {
   let best: { id: Id; score: number } | null = null;
   for (const type of plan.catalog.objectTypes) {
-    const { score } = labelScore(type.label, queryWords);
-    if (score >= 4 && (best === null || score > best.score)) best = { id: type.id, score };
+    const { score, all } = labelScore(type.label, queryWords);
+    // #34: a label whose stems are shorter than the threshold («Весы» → «вес»)
+    // counts only for a near form of each word, not for any word starting so.
+    const near = all && words(type.label).every((word) =>
+      queryWords.some((query) => query.startsWith(stem(word)) && query.length <= word.length + 1));
+    if ((score >= 4 || near) && (best === null || score > best.score)) best = { id: type.id, score };
   }
   return best?.id ?? null;
 }
@@ -273,6 +277,11 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   }
   if (/не хват|нехват|лишн|комплект|недостат|избыт|чего нет|отсутств|сколько нужно/.test(text)) {
     return [{ name: 'check_equipment', args: { zoneId } }];
+  }
+  // #34: «что в зоне» asks about the zone itself. A zone name that shares a
+  // word with a type («Зона ожидания» — bench) must not turn it into a search.
+  if (zoneId !== null && /что (находится|стоит|есть)|состав/.test(text)) {
+    return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
   }
   // #32: a question about blind spots or camera coverage is answered by
   // placing a camera to close the largest blind spot. Only whole phrases count

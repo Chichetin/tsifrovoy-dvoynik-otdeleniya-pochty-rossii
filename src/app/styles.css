@@ -1807,6 +1807,15 @@ span.inventory__num {
   background: var(--surface); color: var(--accent); font: inherit; font-size: var(--text-s); text-align: left; cursor: pointer;
 }
 .agent__example:hover { border-style: solid; background: var(--color-accent-soft); }
+/* #34: questions about the selected zone or object, above the question field. */
+.agent__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
+.agent__chips-title { width: 100%; font-size: var(--text-xs); color: var(--muted); overflow-wrap: anywhere; }
+.agent__chip {
+  padding: 4px 8px; border: 1px solid var(--color-line-strong); border-radius: var(--radius-m);
+  background: var(--surface); color: var(--accent); font: inherit; font-size: var(--text-s); text-align: left; cursor: pointer;
+}
+.agent__chip:hover:not(:disabled) { background: var(--color-accent-soft); }
+.agent__chip:disabled { cursor: default; opacity: 0.55; }
 .agent__history { display: grid; gap: var(--space-3); max-height: 56vh; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; }
 .agent__exchange { display: grid; gap: var(--space-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
 .agent__exchange:last-child { border-bottom: none; padding-bottom: 0; }
