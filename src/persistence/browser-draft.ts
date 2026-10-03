@@ -14,7 +14,7 @@
  * decision the user makes.
  *
  * This is not a save to disk and never claims to be — the browser can only
- * offer a download, which is what the «Экспорт → JSON» menu item does.
+ * offer a download, which is what the «Сохранить план» button does.
  */
 
 import type { Issue, Result } from '../contracts/model';

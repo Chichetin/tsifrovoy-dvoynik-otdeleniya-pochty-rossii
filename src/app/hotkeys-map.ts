@@ -61,6 +61,7 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
     entries: [
       { keys: 'Enter', description: 'Замкнуть контур помещения, зоны или своей фигуры (от трёх точек); для выделенного проёма — снять выделение, как «готово»' },
       { keys: 'Esc', description: 'Отменить текущий жест или рамку выделения' },
+      { keys: 'Ctrl+S', description: 'Сохранить план файлом .json' },
       { keys: '?', description: 'Показать или скрыть эту карту клавиш' },
     ],
   },

@@ -84,7 +84,7 @@ const RESTORE_WARNING =
 
 const ORGANIZER_NOTE =
   'План импортирован из формата организаторов (example_plan.json) с допущениями команды. ' +
-  'Пункт «Экспорт → JSON» запишет его уже в формате редактора.';
+  'Кнопка «Сохранить план» запишет его уже в формате редактора.';
 
 function technicalDetails(issues: Issue[]): string[] {
   return issues
@@ -437,6 +437,20 @@ export function FileControls({
     setState({ status: 'done' });
   };
 
+  // Ctrl+S saves the plan file instead of the browser's «save page» (#6).
+  const saveRef = useRef(save);
+  saveRef.current = save;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (event.code !== 'KeyS' && event.key.toLowerCase() !== 's') return;
+      event.preventDefault();
+      saveRef.current();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   /**
    * Картинка плана для согласования — SVG из того же документа (D-061). Это
    * не сохранение: план после выгрузки остаётся таким же «несохранённым»,
@@ -485,9 +499,9 @@ export function FileControls({
   };
 
   /**
-   * Пункты «Экспорта» в одном списке: план файлом и две картинки. Меню вместо
-   * трёх кнопок — шапка обязана оставаться одной строкой на 1280 px, а
-   * выгрузки редки по сравнению с «Открыть».
+   * Пункты «Экспорта» в одном списке: план файлом и две картинки. JSON здесь
+   * дублирует кнопку «Сохранить план» (#6): по этому пункту ведёт инструкция
+   * в ZIP сдачи (demo/README.md).
    */
   const exportItems: { key: 'json' | 'png' | 'svg'; label: string; hint: string }[] = [
     {
@@ -656,7 +670,7 @@ export function FileControls({
         <button
           ref={exportTrigger}
           type="button"
-          className="files__button is-primary"
+          className="files__button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           title="Скачать план: файл JSON или картинку"
@@ -704,6 +718,22 @@ export function FileControls({
           </div>
         )}
       </div>
+
+      <button
+        type="button"
+        className="files__button is-primary"
+        data-testid="save-plan"
+        aria-label="Сохранить план"
+        aria-keyshortcuts="Control+S"
+        title="Скачать план файлом .json: зоны, оборудование, идентификаторы и атрибуты (Ctrl+S)"
+        onClick={() => {
+          setMenuOpen(false);
+          setDemoMenuOpen(false);
+          save();
+        }}
+      >
+        Сохранить
+      </button>
 
       <input
         ref={input}
