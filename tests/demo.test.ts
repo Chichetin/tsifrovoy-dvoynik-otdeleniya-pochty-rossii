@@ -31,7 +31,7 @@ import {
 import { openStartPlan } from '../src/app/default-plan';
 import type { Recommendation } from '../src/contracts/advice';
 import type { PlanDocument } from '../src/contracts/model';
-import { calculateAdvice, verifyExplanation } from '../src/domain/advice';
+import { calculateAdvice, routeAgentQuery, verifyExplanation } from '../src/domain/advice';
 import { countInZoneScope } from '../src/domain/inventory';
 import { measurePlan } from '../src/domain/metrics';
 import { reconcileZones } from '../src/domain/relations';
@@ -48,6 +48,18 @@ test('дверь служебной зоны демо не захватывае�
     const partition = plan.walls.find((wall) => wall.id === 'w_storage')!;
     expect(door.offset_m + door.width_m).toBeLessThan(partition.from[1] - partition.thickness_m / 2);
   }
+});
+
+test('вопрос о составе зоны ведёт к зоне, даже если её имя похоже на тип объекта (#34)', () => {
+  const plan = JSON.parse(readFileSync(join(DEMO_DIR, 'before.json'), 'utf8')) as PlanDocument;
+  // «Зона ожидания» shares a word with the bench type: it used to route to find_place.
+  expect(routeAgentQuery(plan, 'Что находится в зоне «Зона ожидания» (z_waiting)?', false)[0]).toEqual({
+    name: 'zone_details',
+    args: { zoneId: 'z_waiting' },
+  });
+  // «Весы» stem to three letters, below the type threshold: the question used to fall to plan_overview.
+  expect(routeAgentQuery(plan, 'Где поставить ещё весы?', false)[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_scales' } });
+  expect(routeAgentQuery(plan, 'Покажи весь план', false)[0]?.name).toBe('plan_overview');
 });
 
 test('стартовый план-шоурум открывается без замечаний, зоны объектов — из геометрии (#73)', () => {
