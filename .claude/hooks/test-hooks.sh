@@ -79,6 +79,18 @@ cat > "$TMP/bin/curl" <<'CURL'
 [ -n "${CURL_FAIL:-}" ] && exit 7
 [ -n "${CURL_LOG:-}" ] && printf '%s\n' "$*" >> "$CURL_LOG"
 case "$*" in
+  *"-X GET "*/issues/21*)
+    if [ -n "${CURL_ISSUE_MODE:-}" ]; then
+      case "$CURL_ISSUE_MODE" in
+        empty) ;;
+        null) echo 'null' ;;
+        array) echo '[]' ;;
+        object) echo '{"message": "proxy"}' ;;
+        wrong) echo '{"iid": 99, "state": "opened", "labels": [], "assignees": []}' ;;
+        multiple) printf '%s\n' '{"iid": 21, "state": "opened", "labels": [], "assignees": []}' '{"iid": 21, "state": "opened", "labels": [], "assignees": []}' ;;
+      esac
+      exit 0
+    fi ;;
   *merge_requests*) [ -n "${CURL_MR_EXIT:-}" ] && exit "$CURL_MR_EXIT"
     [ -n "${CURL_MR_EMPTY:-}" ] && exit 0
     [ -n "${CURL_MR_PARTIAL:-}" ] && { echo '[]'; exit 18; } ;;
@@ -198,6 +210,9 @@ take_case() { # take_case <refuse|take> <описание> <N> [шаблон в�
     echo "ok:   $2"
   fi
 }
+for mode in empty null array object wrong multiple; do
+  CURL_ISSUE_MODE="$mode" take_case refuse "take: нечитаемая задача ($mode) — без назначения и комментария" 21 "задача не прочитана"
+done
 take_case refuse "take: чужая, свежий MR (1 ч 5 мин) — отказ"      17 "Перехватить можно после 2026-09-29 21:00 UTC"
 take_case refuse "take: чужая, свежий коммит в ветке — отказ"      18 "2026-09-29 19:50 UTC"
 take_case take   "take: чужая без движения 2 ч 55 мин — перехват" 13 "git worktree add .claude/worktrees/13-x -b worktree-13-x origin/worktree-13-x"
