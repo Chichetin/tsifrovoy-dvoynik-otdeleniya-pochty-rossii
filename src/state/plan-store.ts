@@ -11,7 +11,7 @@ import { createStore, type StoreApi } from 'zustand';
 import type { Command, DocumentOrigin, PlanStore } from '../contracts/commands';
 import type { Id, PlanDocument, Ref, Result } from '../contracts/model';
 import { applyCommand, idOwners, COMMAND_ISSUE_CODES } from '../domain/commands';
-import { physicsRejection } from '../domain/physics';
+import { editRejection } from '../domain/physics';
 
 export type PlanStoreState = PlanStore;
 export type PlanStoreApi = StoreApi<PlanStoreState>;
@@ -77,22 +77,6 @@ function putTargets(command: Command): Id[] {
       return [command.opening.id];
     case 'batch':
       return command.commands.flatMap(putTargets);
-    default:
-      return [];
-  }
-}
-
-/**
- * Ids of objects a command puts on the plan — the only targets the physics
- * gate looks at (D-286). Zones, walls and openings are not gated: a partition
- * drawn across a rack is a finding of the check panel, not a refused gesture.
- */
-function putObjectTargets(command: Command): Id[] {
-  switch (command.type) {
-    case 'object.put':
-      return [command.object.id];
-    case 'batch':
-      return command.commands.flatMap(putObjectTargets);
     default:
       return [];
   }
@@ -209,13 +193,13 @@ export function createPlanStore(
         const result = applyCommand(current, command, retired);
         if (!result.ok) return result;
 
-        // D-286: физика — граница правки, а не только находка панели
-        // проверки. Команда, которая ставит объект в чужой объём, за стену,
-        // наружу помещения или выше потолка, не применяется: документ
-        // остаётся прежним, а жест получает отказ и «Правка отклонена» с
-        // причиной. Нарушение, которое у объекта уже было, правку не
-        // запирает — иначе план из `example_plan.json` нельзя было бы чинить.
-        const refused = physicsRejection(current, result.value, putObjectTargets(command));
+        // D-286, #66: физика — граница правки, а не только находка панели
+        // проверки. Допуск любой команды, включая batch, решает одна функция:
+        // объект в чужом объёме или выше потолка, проём на соседнем проёме,
+        // за стеной или поверх оборудования. Документ остаётся прежним, жест
+        // получает «Правка отклонена» с причиной. Нарушение, которое уже
+        // было, правку не запирает — иначе `example_plan.json` не починить.
+        const refused = editRejection(current, result.value, command, retired);
         if (refused !== null) return { ok: false, issues: [refused] };
 
         for (const id of retiredBy(command, current)) retired.add(id);

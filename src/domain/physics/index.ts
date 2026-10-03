@@ -21,8 +21,10 @@
  * Это правила команды, а не норматив Почты.
  */
 
+import type { Command } from '../../contracts/commands';
 import type { Catalog, Equipment, Id, Issue, PlanDocument, Polygon } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
+import { applyCommand } from '../commands';
 import { outerWallIds } from '../commands/room-walls';
 import {
   boundingBox,
@@ -36,6 +38,9 @@ import {
 } from '../geometry';
 import { formatLength } from '../number-format';
 import { VALIDATION_ISSUE_CODES, isPhysical, validatePlan } from '../validation';
+import { openingDeleteRejection, openingRejection } from './opening';
+
+export { introducesOpeningOverlap, openingDeleteRejection, openingRejection, openingsOverlap } from './opening';
 
 export type PhysicsRule = {
   id: Id;
@@ -248,4 +253,52 @@ export function physicsRejection(
     if (created !== undefined) return created;
   }
   return null;
+}
+
+/** Ids of objects a command puts on the plan; a batch puts what its steps put. */
+function putObjectTargets(command: Command): Id[] {
+  if (command.type === 'object.put') return [command.object.id];
+  if (command.type === 'batch') return command.commands.flatMap(putObjectTargets);
+  return [];
+}
+
+function hasOpeningStep(command: Command): boolean {
+  if (command.type === 'opening.put' || command.type === 'opening.delete') return true;
+  return command.type === 'batch' && command.commands.some(hasOpeningStep);
+}
+
+/**
+ * Отказ проёму в команде. Шаг `batch` проверяется против плана, каким его
+ * оставили предыдущие шаги, — как его применяет `applyCommand`.
+ */
+function openingStepRejection(plan: PlanDocument, command: Command, retired: Iterable<Id>): Issue | null {
+  if (command.type === 'opening.put') return openingRejection(plan, command.opening);
+  if (command.type === 'opening.delete') return openingDeleteRejection(plan, command.id);
+  if (command.type !== 'batch') return null;
+  let current = plan;
+  for (const step of command.commands) {
+    const refused = openingStepRejection(current, step, retired);
+    if (refused !== null) return refused;
+    const next = applyCommand(current, step, retired);
+    if (!next.ok) return null; // The command itself already reported it.
+    current = next.value;
+  }
+  return null;
+}
+
+/**
+ * Единый допуск правки (D-286, #66): можно ли применить команду, уже
+ * применённую `applyCommand`. Объекты — `physicsRejection`, проёмы —
+ * `openingRejection` и `openingDeleteRejection`, в том числе внутри `batch`.
+ * Стены и зоны не отказываются: перегородка через стеллаж — находка
+ * проверки, а не отказ жеста.
+ */
+export function editRejection(
+  before: PlanDocument,
+  after: PlanDocument,
+  command: Command,
+  retired: Iterable<Id> = [],
+): Issue | null {
+  const opening = hasOpeningStep(command) ? openingStepRejection(before, command, retired) : null;
+  return opening ?? physicsRejection(before, after, putObjectTargets(command));
 }
