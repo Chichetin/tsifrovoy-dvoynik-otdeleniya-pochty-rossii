@@ -7,4 +7,11 @@ if [ ! -f "$script" ]; then
   echo "[issues] в этой ветке нет scripts/issues.sh — влейте origin/main; работа без задачи запрещена (D-299)" >&2
   exit 1
 fi
+# Новый md-файл — только README.md или файл в .claude/. Отчёты, планы и спецификации
+# идут в чат и в описание MR (CLAUDE.md, «Документы»).
+new_md="$(git diff --cached --name-only --diff-filter=A -- '*.md' | grep -vE '(^|/)README\.md$|^\.claude/')"
+if [ -n "$new_md" ]; then
+  printf '[docs] новые md-файлы запрещены — отчёт в чат, итог в описание MR:\n%s\n' "$new_md" >&2
+  exit 1
+fi
 exec bash "$script" check .
