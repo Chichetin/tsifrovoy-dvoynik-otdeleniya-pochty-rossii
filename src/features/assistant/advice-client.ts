@@ -12,10 +12,9 @@ import type {
   AdviceHttpRequest,
   AdviceRequest,
   AdviceResponse,
-  Recommendation,
 } from '../../contracts/advice';
 import type { Issue, PlanDocument, Result } from '../../contracts/model';
-import { calculateAdvice, defaultExplanation } from '../../domain/advice';
+import { calculateAdvice, fallbackAdviceResponse } from '../../domain/advice';
 
 export const ADVICE_CLIENT_ISSUE_CODES = {
   /** The server answered, but not with an advice response. */
@@ -32,19 +31,7 @@ function localAdvice(
   const calculated = calculateAdvice(plan, request);
   if (!calculated.ok) return calculated;
 
-  const recommendations: Recommendation[] = calculated.value;
-  return {
-    ok: true,
-    value: {
-      revision,
-      recommendations,
-      explanations: recommendations
-        .map((recommendation) => defaultExplanation(recommendation))
-        .filter((explanation) => explanation !== null),
-      mode: 'fallback',
-      fallbackReason: reason,
-    },
-  };
+  return { ok: true, value: fallbackAdviceResponse(revision, calculated.value, reason) };
 }
 
 function issuesOf(body: unknown): Issue[] {

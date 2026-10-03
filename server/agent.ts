@@ -5,7 +5,9 @@
  *
  * A failed provider, a loop that does not converge, or a text that fails the
  * check twice ends in the same place: the calculation's own answer, marked
- * «без LLM». The loop never throws and never edits the plan.
+ * «без LLM». The loop never throws and never edits the plan. What the person
+ * sees is decided by the session in `domain/advice/agent-turn.ts` (#69);
+ * here — the messages, the provider call and the deadline.
  */
 
 import type { AgentAnswer, AgentStep, AgentTurn } from '../src/contracts/advice-chat';
@@ -13,14 +15,10 @@ import { AGENT_LIMITS } from '../src/contracts/advice-chat';
 import type { PlanDocument } from '../src/contracts/model';
 import {
   AGENT_TOOL_SPECS,
-  answerWithoutModel,
-  collectAgentFacts,
-  composeFallbackText,
-  createAgentToolState,
-  finishAgentAnswer,
-  runAgentTool,
-  renderAgentFact,
-  renderAgentFactSelection,
+  acceptFactChoice,
+  acceptToolResult,
+  createAgentSession,
+  sessionFallback,
 } from '../src/domain/advice';
 import type { LlmChat, LlmMessage } from './llm-client';
 
@@ -36,36 +34,6 @@ export type AgentRun = {
   deadlineMs: number;
   now?: () => number;
 };
-
-/** A tool output larger than this is cut: the model needs the gist, not megabytes. */
-const MAX_TOOL_OUTPUT_CHARS = 8_000;
-
-/** Preserve actionable handles when detailed attributes/assumptions are large. */
-function compactToolResult(output: unknown): unknown {
-  if (JSON.stringify(output).length <= MAX_TOOL_OUTPUT_CHARS / 2) return output;
-  const source = output as Record<string, unknown>;
-  const compact: Record<string, unknown> = { truncated: true, note: 'Часть подробностей опущена. Для чисел используйте answerFacts; детали зоны запросите отдельно.' };
-  const entry = (raw: unknown): Record<string, unknown> => {
-    const row = raw as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
-    for (const key of ['id', 'typeId', 'zoneId', 'layerId', 'recommendationId', 'candidateId', 'name', 'label', 'zoneName', 'parentId', 'position_m', 'size_m', 'rotation_deg']) {
-      if (row[key] !== undefined) out[key] = typeof row[key] === 'string' && ['name', 'label', 'zoneName'].includes(key) ? (row[key] as string).slice(0, 80) : row[key];
-    }
-    if (Array.isArray(row.candidates)) out.candidates = row.candidates.map(entry);
-    return out;
-  };
-  // Catalog first: there is no other discovery tool for equipment/layer types.
-  for (const key of ['catalogTypes', 'layers', 'zones', 'recommendations', 'objects', 'children']) {
-    if (!Array.isArray(source[key])) continue;
-    const rows: unknown[] = [];
-    compact[key] = rows;
-    for (const raw of source[key]) {
-      rows.push(entry(raw));
-      if (JSON.stringify(compact).length > MAX_TOOL_OUTPUT_CHARS / 2) { rows.pop(); break; }
-    }
-  }
-  return compact;
-}
 
 export function agentSystemPrompt(plan: PlanDocument, hasBefore: boolean): string {
   return [
@@ -96,21 +64,13 @@ function historyMessages(history: readonly AgentTurn[]): LlmMessage[] {
 export async function runAgent(run: AgentRun): Promise<AgentAnswer> {
   const now = run.now ?? Date.now;
   const deadline = now() + run.deadlineMs;
-  const state = createAgentToolState(run.plan, run.before);
-  const steps: AgentStep[] = [];
-  const records: { name: string; output: unknown }[] = [];
+  const session = createAgentSession(run.plan, run.before, run.query, run.revision);
   const messages: LlmMessage[] = [
     { role: 'system', content: agentSystemPrompt(run.plan, run.before !== null) },
     ...historyMessages(run.history),
     { role: 'user', content: changedSince(run.history, run.revision) ? `${run.query}\n\n(${PLAN_CHANGED_NOTE})` : run.query },
   ];
-  let repaired = false;
-  const offeredFactIds = new Set<string>();
-
-  const fallback = (reason: string): AgentAnswer =>
-    records.length === 0
-      ? answerWithoutModel(run.plan, run.before, run.query, run.revision, reason, run.onStep)
-      : finishAgentAnswer(state, run.revision, 'fallback', composeFallbackText(state, records), steps, reason);
+  const fallback = (reason: string): AgentAnswer => sessionFallback(session, reason, run.onStep);
 
   for (let turn = 0; turn < AGENT_LIMITS.maxSteps; turn += 1) {
     if (now() > deadline) return fallback('Модель не уложилась во время ответа — показан расчёт без LLM.');
@@ -127,49 +87,16 @@ export async function runAgent(run: AgentRun): Promise<AgentAnswer> {
         ...(answer.value.reasoning === undefined ? {} : { reasoning: answer.value.reasoning }),
       });
       for (const call of answer.value.toolCalls) {
-        let args: unknown;
-        try {
-          args = JSON.parse(call.arguments || '{}');
-        } catch {
-          args = undefined;
-        }
-        const outcome =
-          args === undefined
-            ? { output: { error: 'Аргументы не в формате JSON.' }, step: { tool: 'plan_overview' as const, label: 'Неверные параметры инструмента', ok: false } }
-            : runAgentTool(state, call.name, args);
-        steps.push(outcome.step);
-        records.push({ name: call.name, output: outcome.output });
-        run.onStep(outcome.step);
-        const facts = collectAgentFacts(state, records).filter((fact) => !offeredFactIds.has(fact.id));
-        // Keep a complete JSON envelope; cutting JSON mid-string obscures
-        // identifiers and can turn a large result into an invalid response.
-        const result = compactToolResult(outcome.output);
-        const envelope = { result, answerFacts: [] as { id: string; text: string; recommendationId?: string; candidateId?: string }[], factsOmitted: facts.length };
-        for (const fact of facts) {
-          const item = { id: fact.id, text: renderAgentFact(fact), ...(fact.recommendationId === undefined ? {} : { recommendationId: fact.recommendationId }), ...(fact.candidateId === undefined ? {} : { candidateId: fact.candidateId }) };
-          envelope.answerFacts.push(item);
-          if (JSON.stringify(envelope).length > MAX_TOOL_OUTPUT_CHARS) { envelope.answerFacts.pop(); continue; }
-          offeredFactIds.add(fact.id);
-          envelope.factsOmitted -= 1;
-        }
-        messages.push({ role: 'tool', toolCallId: call.id, content: JSON.stringify(envelope) });
+        const result = acceptToolResult(session, call.name, call.arguments);
+        run.onStep(result.step);
+        messages.push({ role: 'tool', toolCallId: call.id, content: result.content });
       }
       continue;
     }
 
-    const facts = collectAgentFacts(state, records).filter((fact) => offeredFactIds.has(fact.id));
-    const selection = renderAgentFactSelection(answer.value.content, facts, state);
-    if (selection.ok) {
-      for (const ref of selection.refs) {
-        if (!state.refs.some((known) => known.kind === ref.kind && known.id === ref.id)) state.refs.push(ref);
-      }
-      return finishAgentAnswer(state, run.revision, 'llm', selection.text, steps);
-    }
-    if (repaired) {
-      return fallback(`Выбор модели не прошёл проверку связанных фактов: ${selection.reason} Показан расчёт без LLM.`);
-    }
-    repaired = true;
-    messages.push({ role: 'assistant', content: answer.value.content }, { role: 'user', content: `${selection.reason} Перепиши ответ целиком: только JSON {"factIds":[...]} с ключами из answerFacts инструментов. Прозу и значения не добавляй.` });
+    const choice = acceptFactChoice(session, answer.value.content, run.onStep);
+    if (choice.kind === 'answer') return choice.answer;
+    messages.push({ role: 'assistant', content: answer.value.content }, { role: 'user', content: choice.message });
   }
   return fallback('Модель не закончила ответ за отведённое число шагов — показан расчёт без LLM.');
 }

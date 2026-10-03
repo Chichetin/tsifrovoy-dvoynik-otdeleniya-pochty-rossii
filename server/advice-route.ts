@@ -21,7 +21,7 @@ import type { Issue, PlanDocument } from '../src/contracts/model';
 import { LIMITS } from '../src/contracts/model';
 import { parsePlanDocument } from '../src/contracts/schema';
 import { REASON_CODE_SPECS } from '../src/contracts/advice-semantics';
-import { calculateAdvice, defaultExplanation, verifyExplanation } from '../src/domain/advice';
+import { calculateAdvice, fallbackAdviceResponse, verifyExplanation } from '../src/domain/advice';
 import { LLM_ISSUE_CODES, type LlmClient } from './llm-client';
 
 export type AdviceRouteOptions = {
@@ -132,18 +132,6 @@ export function createLimiter(rateLimit: { max: number; windowMs: number }): () 
   };
 }
 
-function fallbackResponse(
-  revision: number,
-  recommendations: Recommendation[],
-  reason: string,
-): AdviceResponse {
-  // Расчёт объясняет сам себя: те же коды, те же факты, та же проверка.
-  const explanations = recommendations
-    .map((recommendation) => defaultExplanation(recommendation))
-    .filter((explanation) => explanation !== null);
-  return { revision, recommendations, explanations, mode: 'fallback', fallbackReason: reason };
-}
-
 export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteOptions): void {
   const allow = createLimiter(options.rateLimit);
 
@@ -193,14 +181,14 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
     const revision = body.data.revision;
 
     if (options.llm === null) {
-      return fallbackResponse(
+      return fallbackAdviceResponse(
         revision,
         recommendations,
         'Провайдер модели не настроен: показан расчёт без объяснения модели.',
       );
     }
     if (recommendations.length === 0) {
-      return fallbackResponse(
+      return fallbackAdviceResponse(
         revision,
         recommendations,
         'Расчёту нечего объяснять: рекомендаций нет.',
@@ -227,7 +215,7 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
       request.log.warn({ issues: answer.issues.map((entry) => entry.code) }, 'llm call failed');
       // «Недоступна» — про сеть и статус; пустой ответ модели — другая история.
       const empty = answer.issues[0]?.code === LLM_ISSUE_CODES.LLM_EMPTY_CONTENT;
-      return fallbackResponse(
+      return fallbackAdviceResponse(
         revision,
         recommendations,
         `${empty ? 'Модель ответила без текста' : 'Модель недоступна'} (${options.llmLabel ?? 'провайдер'}): ${answer.issues[0]?.message ?? 'нет ответа'}`,
@@ -240,7 +228,7 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
         { issues: verified.issues.map((entry) => entry.code) },
         'llm answer rejected',
       );
-      return fallbackResponse(
+      return fallbackAdviceResponse(
         revision,
         recommendations,
         `Ответ модели не прошёл проверку (${verified.issues.map((entry) => entry.code).join(', ')}): показан расчёт.`,

@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { Explanation, Recommendation } from '../../contracts/advice';
 import { REASON_CODE_SPECS } from '../../contracts/advice-semantics';
-import { calculateAdvice } from './index';
+import { acceptFactChoice, acceptToolResult, calculateAdvice, createAgentSession } from './index';
 import {
   EXPLANATION_ISSUE_CODES,
   defaultExplanation,
@@ -404,5 +404,38 @@ describe('A04: тексты объяснений', () => {
         expect(renderExplanation(advice, explanation as Explanation)).not.toBeNull();
       }
     }
+  });
+});
+
+describe('#69: ход агента без сети — модель выбирает только предложенные факты', () => {
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+  const offeredIds = (content: string): string[] =>
+    (JSON.parse(content) as { answerFacts: { id: string }[] }).answerFacts.map((fact) => fact.id);
+
+  test('непредложенный факт — одна просьба переписать, затем расчёт без LLM', () => {
+    const session = createAgentSession(demo, null, 'Что в плане?', 1);
+    expect(offeredIds(acceptToolResult(session, 'plan_overview', '{}').content).length).toBeGreaterThan(0);
+    const invented = JSON.stringify({ factIds: ['выдуманный-факт'] });
+    expect(acceptFactChoice(session, invented).kind).toBe('repair');
+    const second = acceptFactChoice(session, invented);
+    expect(second.kind === 'answer' && second.answer.mode).toBe('fallback');
+  });
+
+  test('настоящий, но не показанный модели факт не принимается', () => {
+    const session = createAgentSession(demo, null, 'Что в плане?', 1);
+    const [hidden] = offeredIds(acceptToolResult(session, 'plan_overview', '{}').content);
+    // As if the size budget had cut it from the envelope.
+    session.offered.delete(hidden!);
+    expect(acceptFactChoice(session, JSON.stringify({ factIds: [hidden] })).kind).toBe('repair');
+  });
+
+  test('предложенный факт — ответ LLM с текстом, написанным кодом', () => {
+    const session = createAgentSession(demo, null, 'Что в плане?', 1);
+    const offered = JSON.parse(acceptToolResult(session, 'plan_overview', '{}').content) as { answerFacts: { id: string; text: string }[] };
+    const first = offered.answerFacts[0]!;
+    const choice = acceptFactChoice(session, JSON.stringify({ factIds: [first.id] }));
+    expect(choice.kind === 'answer' && choice.answer.mode).toBe('llm');
+    // The visible text is the fact as code rendered it, not the model's JSON.
+    expect(choice.kind === 'answer' && choice.answer.text).toContain(first.text);
   });
 });
