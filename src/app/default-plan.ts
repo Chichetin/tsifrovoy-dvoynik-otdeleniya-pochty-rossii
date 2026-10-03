@@ -1,5 +1,6 @@
 /**
- * The catalog the application starts with, and the plan a user gets on "new".
+ * The catalog the application starts with, the plan it opens with, and the
+ * plan a user gets on "new".
  *
  * The library is read from data/catalog/*.json at build time — the same files
  * the tests read — so adding an equipment type stays a JSON edit and never
@@ -10,9 +11,11 @@ import layerTypes from '../../data/catalog/layer-types.json';
 import objectTypes from '../../data/catalog/object-types.json';
 import rules from '../../data/catalog/rules.json';
 import zoneTypes from '../../data/catalog/zone-types.json';
+import showroomText from '../../demo/showroom.json?raw';
 import type { Catalog, Layer, PlanDocument } from '../contracts/model';
 import { SCHEMA_VERSION } from '../contracts/model';
 import { parseCatalog } from '../contracts/schema';
+import { decodePlan } from '../persistence/codec';
 
 /** Conventional size of a new branch, in metres. The user redraws it. */
 const NEW_ROOM = { width: 12, height: 9, ceiling: 3 } as const;
@@ -63,6 +66,21 @@ function startingLayers(): Layer[] {
     typeId: type.id,
   }));
   return [base, ...overlays];
+}
+
+/**
+ * The plan the application opens with (#73): a synthetic showroom with every
+ * type that has a 3D model, so the first look shows the equipment in 2D and
+ * 3D. The demo menu opens the same file; "new" gives the empty room below.
+ */
+export function openStartPlan(): PlanDocument {
+  const decoded = decodePlan(showroomText);
+  if (!decoded.ok) {
+    // Same as a broken catalog: a data error of the build, fail loudly.
+    const where = decoded.issues.map((issue) => issue.path ?? issue.code).join(', ');
+    throw new Error(`Стартовый план demo/showroom.json не открылся: ${where}`);
+  }
+  return decoded.value;
 }
 
 /** An empty branch: four walls, one entrance, layers, nothing placed yet. */

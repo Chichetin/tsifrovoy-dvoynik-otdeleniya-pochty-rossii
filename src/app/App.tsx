@@ -67,7 +67,7 @@ import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
 import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
-import { catalog, createEmptyPlan } from './default-plan';
+import { catalog, createEmptyPlan, openStartPlan } from './default-plan';
 import { documentNotice, isEditErrorCurrent, refusalOf, type EditError } from './edit-error';
 import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
@@ -121,7 +121,7 @@ function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id)
 }
 
 export function App(): React.JSX.Element {
-  const [store, setStore] = useState(() => createPlanStore(createEmptyPlan(), 'new'));
+  const [store, setStore] = useState(() => createPlanStore(openStartPlan(), 'file'));
   const [gesturePreview] = useState(createObjectGesturePreviewChannel);
   const document = useStore(store, (state) => state.document);
   const baseline = useStore(store, (state) => state.baseline);
