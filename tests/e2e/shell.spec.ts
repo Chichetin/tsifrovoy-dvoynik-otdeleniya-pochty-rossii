@@ -6,13 +6,15 @@
  * «Удалить перегородку» не переносят кнопки на вторую строку и не сдвигают
  * холст (находка operator №16). Проверяется на ширинах
  * от 1280 до 1536 (D-261: на 1400 шапка раньше вылезала за окно, на 1280 и
- * 1440 запас был меньше 20 px; 1460 — первая ширина с подписями истории)
+ * 1440 запас был меньше 20 px; 1460 — первая ширина с подписями истории,
+ * с D-350 — 1700; с 1600 возвращаются название продукта и полное имя плана)
  * и в худшем её состоянии; в худшем состоянии свободная колонка шапки
  * не уже 20 px.
  */
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { closeSettings, openSettings } from './settings';
 import { showTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
@@ -160,7 +162,7 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
 
 // Different system fonts made the 1280/1460 header 13 px too wide on Linux.
 // A small letter-spacing increase reproduces that width pressure on Windows.
-for (const width of [1280, 1339, 1340, 1460, 1500]) {
+for (const width of [1280, 1339, 1340, 1460, 1500, 1599, 1600, 1699, 1700]) {
   test(`шапка сохраняет запас при более широких надписях — ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
@@ -260,9 +262,9 @@ test('плашка «Правка отклонена» — вне шапки и 
   await page.goto('/');
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
 
-  // Помещение выбирается кликом по полу; пустое название план не принимает (D-146).
-  await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 200 } });
-  await page.getByLabel('Название плана').fill('   ');
+  // Пустое название план не принимает (D-146); поле — в «Настройках» (D-350).
+  await (await openSettings(page, 'План')).getByLabel('Название плана').fill('   ');
+  await closeSettings(page);
   const plaque = page.locator('.shell__error');
   await expect(plaque).toHaveAttribute('role', 'alert');
   await expect(plaque).toContainText('Правка отклонена');

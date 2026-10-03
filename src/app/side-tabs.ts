@@ -9,7 +9,7 @@
  */
 
 export type LeftTab = 'layers' | 'library';
-export type RightTab = 'assistant' | 'metrics' | 'validation' | 'inventory' | 'catalog';
+export type RightTab = 'assistant' | 'metrics' | 'validation' | 'inventory';
 
 export type TabDef<T extends string> = { id: T; title: string };
 
@@ -23,7 +23,6 @@ export const RIGHT_TABS: readonly TabDef<RightTab>[] = [
   { id: 'metrics', title: 'Площади' },
   { id: 'validation', title: 'Проверка' },
   { id: 'inventory', title: 'Инвентаризация' },
-  { id: 'catalog', title: 'Справочник' },
 ];
 
 export type SideTabs = { left: LeftTab; right: RightTab };

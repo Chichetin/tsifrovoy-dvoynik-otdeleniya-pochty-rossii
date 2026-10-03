@@ -8,6 +8,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page , exportPlan } from './fixtures';
+import { closeSettings, openSettings } from './settings';
 import { showTab } from './side-tabs';
 
 const card = (page: Page) => page.getByLabel('Свойства');
@@ -75,7 +76,7 @@ test.describe('карточка свойств', () => {
     await expect(card(page)).toHaveCount(0);
   });
 
-  test('карточка помещения: название плана становится именем файла, потолок поднимает наружные стены', async ({
+  test('помещение: площадь в карточке; название плана и потолок — в «Настройках» (D-350)', async ({
     page,
   }) => {
     await page.goto('/');
@@ -83,9 +84,12 @@ test.describe('карточка свойств', () => {
     await clickCanvas(page, 300, 200);
     await expect(card(page)).toHaveAttribute('data-entity-id', 'room_main');
     await expect(card(page).getByTestId('props-room-area')).toContainText('108,00 м²');
+    await expect(card(page).getByLabel('Название плана')).toHaveCount(0);
 
-    await card(page).getByLabel('Название плана').fill('ОПС 115534 Тестовое');
-    await card(page).getByLabel('Высота потолка, м').fill('3.4');
+    const settings = await openSettings(page, 'План');
+    await settings.getByLabel('Название плана').fill('ОПС 115534 Тестовое');
+    await settings.getByLabel('Высота потолка, м').fill('3.4');
+    await closeSettings(page);
 
     const download = await Promise.all([
       page.waitForEvent('download'),
@@ -99,8 +103,10 @@ test.describe('карточка свойств', () => {
     expect(saved.walls.map((w: { height_m: number }) => w.height_m)).toEqual([3.4, 3.4, 3.4, 3.4]);
 
     // Пустое название отклоняется у поля, план остаётся с прежним именем.
-    await card(page).getByLabel('Название плана').fill('   ');
-    await expect(card(page).getByRole('alert')).toContainText('название');
+    await openSettings(page, 'План');
+    await settings.getByLabel('Название плана').fill('   ');
+    await expect(settings.getByRole('alert')).toContainText('название');
+    await closeSettings(page);
     expect(JSON.parse(await savePlan(page)).name).toBe('ОПС 115534 Тестовое');
   });
 

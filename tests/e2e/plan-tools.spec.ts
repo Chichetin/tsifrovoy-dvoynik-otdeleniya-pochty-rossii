@@ -1096,8 +1096,8 @@ test.describe('инструменты плана', () => {
     await expect(card).toHaveAttribute('data-entity-id', 'room_main');
     await expect(hint).toBeVisible();
 
-    // Ушёл в поле карточки — выделение то же, подсказки нет.
-    await card.getByLabel('Название плана').click();
+    // Ушёл в карточку — выделение то же, подсказки нет.
+    await card.getByTestId('props-room-area').click();
     await expect(card).toHaveAttribute('data-entity-id', 'room_main');
     await expect(hint).toHaveCount(0);
 
