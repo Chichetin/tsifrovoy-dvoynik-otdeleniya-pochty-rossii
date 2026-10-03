@@ -42,6 +42,14 @@ const outlineSchema = polygonSchema
   })
   .transform(normalizeOutline);
 
+/**
+ * 3D model name (D-356): a file name without path or extension. A plan file
+ * therefore cannot make the app fetch another address.
+ */
+const model3dSchema = z.string().regex(/^[a-z0-9][a-z0-9_-]*$/, {
+  message: 'Имя 3D-модели — строчные латинские буквы, цифры, «-» и «_», без пути и расширения.',
+});
+
 const attributesSchema = z.record(
   z.string(),
   z.union([z.string(), finiteNumber, z.boolean(), z.null()]),
@@ -125,6 +133,7 @@ const objectTypeSchema = z.object({
   occupiesFloor: z.boolean(),
   symbol: z.enum(['rect', 'circle', 'triangle']),
   outline: outlineSchema.optional(),
+  model3d: model3dSchema.optional(),
   color: z.string(),
   attributes: z.array(attributeDefSchema),
   provenance: z.string(),

@@ -129,6 +129,11 @@ export type ObjectType = {
    * over `symbol`. A new object of the type starts with it.
    */
   outline?: Polygon;
+  /**
+   * 3D model of the type (D-356): the file `models/<model3d>.glb` next to the
+   * app. Absent or not found — the 3D view draws the box from size and height.
+   */
+  model3d?: string;
   color: string;
   attributes: AttributeDef[];
   /** Where the defaults come from; synthetic assumptions say so here. */
