@@ -17,6 +17,14 @@
 - `generate-benchmark.ts` — Q02.
 - `measure-advice.ts` — время расчёта ассистента (`measurePlan`, `validatePlan`, три сценария) на нагрузочных планах, медиана трёх прогонов (D-205).
 - `package-demo.ts` — E01.
+- `measure-3d.ts` — время от нажатия «3D» до сцены с моделями и кадры в секунду при
+  вращении камеры (#59): `npx tsx scripts/measure-3d.ts <план|100|500|1000> [прогонов]`
+  на запущенном приложении (`APP_URL`, по умолчанию `http://127.0.0.1:5174/`).
+- `models/build.py` — 3D-модели типов в `public/models/<имя>.glb` (#59, D-357).
+  Запуск: `~/.local/opt/blender-5.2.2-linux-x64/blender -b -P scripts/models/build.py --
+  [имя …] [--preview <папка>]`. Размеры берёт из `data/catalog/object-types.json`,
+  модели Poly Haven (CC0) скачивает во временную папку. `--preview` рисует миниатюры
+  для проверки глазами.
 - `capture-presentation.ts` — четыре снимка синтетического плана из работающего
   редактора в `build/presentation/`. Браузер — бандловый Chromium из
   `npx playwright install chromium`, системный ставить не нужно; другой канал —
