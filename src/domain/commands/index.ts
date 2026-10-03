@@ -42,6 +42,7 @@ export {
   nextInventoryNumber,
   withInventoryNumber,
 } from './inventory-number';
+export { newObject, newContentLayer, objectOfType, type ObjectSpot } from './new-object';
 
 /**
  * Thickness for outer walls of a plan that had none (team assumption, D-134).
