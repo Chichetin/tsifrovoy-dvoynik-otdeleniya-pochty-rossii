@@ -45,7 +45,9 @@ type ObjectType = {
   id: Id; label: string; category: string; defaultSize_m: Point;
   defaultHeight_m: number; defaultBase_m: number;
   physical: boolean; occupiesFloor: boolean;
-  symbol: 'rect' | 'circle' | 'triangle'; outline?: Polygon; color: string;
+  symbol: 'rect' | 'circle' | 'triangle'; outline?: Polygon;
+  model3d?: string; // D-356: имя файла models/<model3d>.glb, [a-z0-9_-], без пути
+  color: string;
   attributes: AttributeDef[]; provenance: string;
 };
 type ZoneType = { id: Id; label: string; color: string; attributes: AttributeDef[] };

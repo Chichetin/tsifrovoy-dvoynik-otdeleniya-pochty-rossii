@@ -108,6 +108,24 @@ describe('round-trip', () => {
     expect(encodeOrThrow(decodeFixture('minimal.json'))).not.toContain('"outline"');
   });
 
+  test('3D-модель типа (D-356) переживает сохранение и открытие и стоит после формы', () => {
+    const plan = decodeFixture('minimal.json');
+    const [type, ...others] = plan.catalog.objectTypes;
+    if (type === undefined) throw new Error('нет типа объекта');
+    const withModel: PlanDocument = {
+      ...plan,
+      catalog: { ...plan.catalog, objectTypes: [{ ...type, model3d: 'desk' }, ...others] },
+    };
+    const text = encodeOrThrow(withModel);
+    const reopened = decodePlan(text);
+    if (!reopened.ok) throw new Error('не открылся');
+    expect(reopened.value).toEqual(withModel);
+    const written = JSON.parse(text) as { catalog: { objectTypes: Record<string, unknown>[] } };
+    const keys = Object.keys(first(written.catalog.objectTypes, 'тип'));
+    expect(keys.slice(keys.indexOf('symbol'), keys.indexOf('symbol') + 3)).toEqual(['symbol', 'model3d', 'color']);
+    expect(encodeOrThrow(plan)).not.toContain('"model3d"');
+  });
+
   test('порядок ключей в файле не зависит от порядка ключей в памяти', () => {
     const plan = decodeFixture('minimal.json');
     const withOrder = (order: 'forward' | 'reverse'): PlanDocument => ({
@@ -324,6 +342,12 @@ describe('нечитаемый файл не подменяет документ
     expect(codesOf(expectRefused(oversized))).toEqual([
       CONTRACT_ISSUE_CODES.LIMIT_EXCEEDED,
     ]);
+  });
+
+  test('имя 3D-модели с путём отклоняется: файл плана не задаёт адрес загрузки', () => {
+    const file = JSON.parse(fixtureText('minimal.json')) as { catalog: { objectTypes: Record<string, unknown>[] } };
+    first(file.catalog.objectTypes, 'тип').model3d = '../../evil';
+    expect(codesOf(expectRefused(JSON.stringify(file)))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
   });
 
   test('битые ссылки остаются отказом загрузки', () => {
