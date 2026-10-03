@@ -12,15 +12,18 @@ import type {
   Equipment,
   Opening,
   PlanDocument,
+  Point,
   Polygon,
   Ref,
   Wall,
   Zone,
 } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
+import { sameOutline, symbolOutline } from '../../contracts/outline';
 import {
   boundingBox,
   footprint,
+  rotateOffset,
   wallLength,
   wallObstacles,
   wallSpanPolygon,
@@ -42,6 +45,20 @@ export type ScenePrism = {
   color: string;
   /** 1 is opaque; openings are translucent panes. */
   opacity: number;
+  /** #59: the type's 3D model that stands in for the prism of an object. */
+  model?: SceneModel;
+};
+
+/**
+ * Where a model stands: the footprint centre and the object's local axes in
+ * world metres, from the same rotation as the footprint (D-010).
+ */
+export type SceneModel = {
+  name: string;
+  center: Point;
+  xAxis: Point;
+  yAxis: Point;
+  size_m: [number, number, number];
 };
 
 export type Scene = {
@@ -57,7 +74,7 @@ export type Scene = {
  */
 export const SCENE_COLORS = {
   floor: '#D0D4D9',
-  wall: '#9AA0A6',
+  wall: '#C3C8CE',
   zone: '#E9ECEF',
   object: '#868E96',
   entrance: '#2F9E44',
@@ -202,6 +219,17 @@ function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
 
 function objectPrism(object: Equipment, catalog: Catalog): ScenePrism {
   const type = catalog.objectTypes.find((candidate) => candidate.id === object.typeId);
+  // A model knows only its type's shape: a drawn outline (D-277) stays a prism.
+  const model =
+    type?.model3d !== undefined && type.outline === undefined && sameOutline(object.outline, symbolOutline(type.symbol))
+      ? {
+          name: type.model3d,
+          center: object.position,
+          xAxis: rotateOffset([1, 0], object.rotation_deg),
+          yAxis: rotateOffset([0, 1], object.rotation_deg),
+          size_m: [object.size_m[0], object.size_m[1], object.height_m] as [number, number, number],
+        }
+      : undefined;
   return {
     kind: 'object',
     ref: { kind: 'object', id: object.id },
@@ -211,5 +239,6 @@ function objectPrism(object: Equipment, catalog: Catalog): ScenePrism {
     height_m: object.height_m,
     color: type?.color ?? SCENE_COLORS.object,
     opacity: 1,
+    ...(model === undefined ? {} : { model }),
   };
 }

@@ -6,6 +6,11 @@
  * from the footprint polygon geometry already computed, so a 37° object is
  * the same shape it is on the canvas (D-010, D-081).
  *
+ * #59: an object whose type has a 3D model is drawn as that model, fitted to
+ * its size (models.ts); the prism stays as an invisible proxy that catches the
+ * click, so picking works the same for models and boxes. Objects of one model
+ * and one size share a fitted geometry and are drawn as one InstancedMesh.
+ *
  * Rendering is on demand: a frame is drawn after the scene changes and while
  * the camera moves, not in a loop. Every geometry, material and the renderer
  * itself are disposed on unmount.
@@ -25,21 +30,29 @@ import {
   ExtrudeGeometry,
   Group,
   HemisphereLight,
+  InstancedMesh,
   LineBasicMaterial,
   LineSegments,
+  type Material,
+  Matrix4,
   Mesh,
   MeshStandardMaterial,
   PCFSoftShadowMap,
   PerspectiveCamera,
+  PMREMGenerator,
   Raycaster,
   Scene as ThreeScene,
   Shape,
+  type Texture,
   Vector2,
+  Vector3,
   WebGLRenderer,
 } from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import type { Ref } from '../../contracts/model';
-import { isSelected, type Scene, type ScenePrism } from './scene';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { TOLERANCE, type Ref } from '../../contracts/model';
+import { fitModel, loadModels, modelSource, type FittedPart } from './models';
+import { isSelected, type Scene, type SceneModel, type ScenePrism } from './scene';
 
 type Props = { scene: Scene; selection: Ref | null; onSelect: (ref: Ref) => void };
 
@@ -50,6 +63,12 @@ type Stage = {
   world: ThreeScene;
   sun: DirectionalLight;
   group: Group;
+  /** Instanced models; their geometry belongs to `fitted`, not to the meshes. */
+  models: Group;
+  /** Fitted geometry by model and size, kept while the scene still uses it. */
+  fitted: Map<string, FittedPart[]>;
+  /** Room reflections for model materials. */
+  environment: Texture;
   render: () => void;
   dispose: () => void;
 };
@@ -72,6 +91,14 @@ const SURFACE: Record<ScenePrism['kind'], { roughness: number; metalness: number
   opening: { roughness: 0.15, metalness: 0.1, cast: false, receive: false },
   object: { roughness: 0.5, metalness: 0.15, cast: true, receive: true },
 };
+/** Above the slabs of nested zones (2 cm per level), so the floor ring of a selection shows. */
+const OUTLINE_LIFT_M = 0.05;
+/** Facets meeting at a smaller angle are one surface: no edge line between them. */
+const EDGE_ANGLE_DEG = 30;
+/** A wall in front of the camera is a hint of glass, not a screen. */
+const FADED_WALL_OPACITY = 0.12;
+/** Share of the room environment in the light: reflections without washing out. */
+const ENVIRONMENT_INTENSITY = 0.5;
 /** Shadow map side: 2048 keeps the edges soft but not blurry on a 15 m room. */
 const SHADOW_MAP = 2048;
 
@@ -87,6 +114,8 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
   const [lost, setLost] = useState(false);
   // Счётчик пересборки: контекст вернули — сцена собирается заново с нуля.
   const [generation, setGeneration] = useState(0);
+  // Счётчик загрузок моделей: файл пришёл — коробки меняются на модели.
+  const [modelsLoaded, setModelsLoaded] = useState(0);
 
   useEffect(() => {
     const container = host.current;
@@ -138,9 +167,19 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
     // Пока контекста нет, наполнять нечего: сцена соберётся при восстановлении.
     if (!current || lost) return;
     clearGroup(current.group);
+    const names = new Set(scene.prisms.flatMap((prism) => (prism.model === undefined ? [] : [prism.model.name])));
+    const missing = [...names].filter((name) => modelSource(name) === undefined);
+    if (missing.length > 0) void loadModels(missing).then(() => setModelsLoaded((value) => value + 1));
+    const placed: { model: SceneModel; base_m: number }[] = [];
     for (const prism of scene.prisms) {
-      current.group.add(...prismMeshes(prism, isSelected(prism, selection)));
+      // Пока модель не пришла или её файла нет, объект остаётся коробкой.
+      const drawn = prism.model !== undefined && modelSource(prism.model.name) ? prism.model : undefined;
+      if (drawn !== undefined) placed.push({ model: drawn, base_m: prism.base_m });
+      current.group.add(...prismMeshes(prism, isSelected(prism, selection), drawn !== undefined));
     }
+    placeModels(current, placed);
+    // Machine-readable, like the section's counts: objects that stand as models.
+    current.renderer.domElement.dataset['modelsCount'] = String(placed.length);
     // Re-frame only when the room changes: moving an object must not yank the
     // camera the user has just placed.
     const key = JSON.stringify([scene.bounds, scene.ceilingHeight_m]);
@@ -150,7 +189,7 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
     }
     current.render();
     // `generation` — новая сцена на новом контексте: её надо наполнить заново.
-  }, [scene, selection, generation, lost]);
+  }, [scene, selection, generation, lost, modelsLoaded]);
 
   return (
     <>
@@ -183,6 +222,13 @@ function createStage(container: HTMLDivElement): Stage {
 
   const world = new ThreeScene();
   world.background = new Color(BACKGROUND);
+  // Soft room light for reflections on models: metal, glass and screens read as
+  // such. Not the scene's environment — that would wash out the zone colours.
+  const pmrem = new PMREMGenerator(renderer);
+  const room = new RoomEnvironment();
+  const environment = pmrem.fromScene(room, 0.04).texture;
+  room.dispose();
+  pmrem.dispose();
   const camera = new PerspectiveCamera(50, 1, 0.1, 500);
   camera.up.set(0, 0, 1);
 
@@ -197,11 +243,15 @@ function createStage(container: HTMLDivElement): Stage {
   world.add(sky, sun, sun.target);
 
   const group = new Group();
-  world.add(group);
+  const models = new Group();
+  world.add(group, models);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = false;
-  const render = () => renderer.render(world, camera);
+  const render = () => {
+    fadeWalls(group, camera.position, controls.target);
+    renderer.render(world, camera);
+  };
   controls.addEventListener('change', render);
 
   const stage: Stage = {
@@ -211,11 +261,16 @@ function createStage(container: HTMLDivElement): Stage {
     world,
     sun,
     group,
+    models,
+    fitted: new Map(),
+    environment,
     render,
     dispose: () => {
       controls.removeEventListener('change', render);
       controls.dispose();
       clearGroup(group);
+      placeModels(stage, []);
+      environment.dispose();
       renderer.dispose();
       renderer.forceContextLoss();
       renderer.domElement.remove();
@@ -223,6 +278,41 @@ function createStage(container: HTMLDivElement): Stage {
   };
   resize(stage, container);
   return stage;
+}
+
+/** A wall band's line: the centre of its footprint and the unit normal of its long side. */
+type WallLine = { cx: number; cy: number; nx: number; ny: number };
+
+function wallLine(polygon: ScenePrism['polygon']): WallLine {
+  let best = { dx: 1, dy: 0, length: 0 };
+  polygon.forEach(([x, y], index) => {
+    const [nx, ny] = polygon[(index + 1) % polygon.length]!;
+    const length = Math.hypot(nx - x, ny - y);
+    if (length > best.length) best = { dx: nx - x, dy: ny - y, length };
+  });
+  const cx = polygon.reduce((sum, [x]) => sum + x, 0) / polygon.length;
+  const cy = polygon.reduce((sum, [, y]) => sum + y, 0) / polygon.length;
+  return { cx, cy, nx: -best.dy / best.length, ny: best.dx / best.length };
+}
+
+/**
+ * #59: dollhouse view. A wall that stands between the camera and the point it
+ * orbits around turns to glass, so the room is seen through it; its edges stay.
+ */
+function fadeWalls(group: Group, camera: Vector3, target: Vector3): void {
+  for (const child of group.children) {
+    const line = child.userData['wallLine'] as WallLine | undefined;
+    if (line === undefined || !(child instanceof Mesh || child instanceof LineSegments)) continue;
+    const side = (x: number, y: number) => (x - line.cx) * line.nx + (y - line.cy) * line.ny;
+    const across = side(camera.x, camera.y) * side(target.x, target.y) < 0;
+    const material = child.material as MeshStandardMaterial | LineBasicMaterial;
+    if (material.transparent === across) continue;
+    material.transparent = across;
+    // Band edges of a faded wall would cross the room with lines: they fade further.
+    material.opacity = across ? (child instanceof Mesh ? FADED_WALL_OPACITY : FADED_WALL_OPACITY / 2) : 1;
+    material.depthWrite = !across;
+    material.needsUpdate = true;
+  }
 }
 
 /** Click without a camera drag selects the frontmost prism under the pointer. */
@@ -249,6 +339,8 @@ function attachPicking(
       if (!(hit.object instanceof Mesh)) continue;
       const ref = hit.object.userData['ref'] as Ref | undefined;
       if (ref === undefined) continue;
+      // A wall faded to glass is looked through, so it is clicked through too.
+      if (hit.object.userData['wallLine'] !== undefined && (hit.object.material as Material).transparent) continue;
       // The room floor lies behind almost every useful hit. Prefer a concrete
       // object/zone/wall/opening; keep the room only as the background choice.
       if (ref.kind !== 'room') return ref;
@@ -346,7 +438,57 @@ function frame(stage: Stage, scene: Scene): void {
   box.updateProjectionMatrix();
 }
 
-function prismMeshes(prism: ScenePrism, selected: boolean): (Mesh | LineSegments)[] {
+/**
+ * One InstancedMesh per fitted part for all objects of one model and size.
+ * Fitted geometry the scene no longer uses is released here.
+ */
+function placeModels(stage: Stage, placed: { model: SceneModel; base_m: number }[]): void {
+  for (const child of [...stage.models.children]) {
+    if (child instanceof InstancedMesh) child.dispose();
+    stage.models.remove(child);
+  }
+  const batches = new Map<string, { model: SceneModel; matrices: Matrix4[] }>();
+  for (const { model, base_m } of placed) {
+    const key = `${model.name}|${model.size_m.join('|')}`;
+    const batch = batches.get(key) ?? { model, matrices: [] };
+    // Columns are the object's local axes, so the model turns with the footprint.
+    batch.matrices.push(new Matrix4().set(
+      model.xAxis[0], model.yAxis[0], 0, model.center[0],
+      model.xAxis[1], model.yAxis[1], 0, model.center[1],
+      0, 0, 1, base_m,
+      0, 0, 0, 1,
+    ));
+    batches.set(key, batch);
+  }
+  const fitted = new Map<string, FittedPart[]>();
+  for (const [key, { model, matrices }] of batches) {
+    const source = modelSource(model.name);
+    if (!source) continue;
+    const parts = stage.fitted.get(key) ?? fitModel(source, model.size_m);
+    fitted.set(key, parts);
+    for (const part of parts) {
+      if (part.material instanceof MeshStandardMaterial) {
+        part.material.envMap = stage.environment;
+        part.material.envMapIntensity = ENVIRONMENT_INTENSITY;
+      }
+      const mesh = new InstancedMesh(part.geometry, part.material, matrices.length);
+      matrices.forEach((matrix, index) => mesh.setMatrixAt(index, matrix));
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      stage.models.add(mesh);
+    }
+  }
+  for (const [key, parts] of stage.fitted) {
+    if (!fitted.has(key)) parts.forEach((part) => part.geometry.dispose());
+  }
+  stage.fitted = fitted;
+}
+
+/**
+ * A prism as meshes. `proxy`: a model stands in its place, so the prism is
+ * invisible and only catches the click; a selected one still shows its edges.
+ */
+function prismMeshes(prism: ScenePrism, selected: boolean, proxy = false): (Mesh | LineSegments)[] {
   if (prism.polygon.length < 3) return [];
   const shape = new Shape(prism.polygon.map(([x, y]) => new Vector2(x, y)));
   const geometry = new ExtrudeGeometry(shape, {
@@ -360,9 +502,10 @@ function prismMeshes(prism: ScenePrism, selected: boolean): (Mesh | LineSegments
     metalness: surface.metalness,
     transparent: prism.opacity < 1,
     opacity: prism.opacity,
+    visible: !proxy,
   });
   const mesh = new Mesh(geometry, material);
-  mesh.castShadow = surface.cast;
+  mesh.castShadow = surface.cast && !proxy;
   mesh.receiveShadow = surface.receive;
   mesh.position.z = prism.base_m;
   mesh.name = `${prism.ref.kind}:${prism.ref.id}`;
@@ -370,13 +513,24 @@ function prismMeshes(prism: ScenePrism, selected: boolean): (Mesh | LineSegments
   // Keep their link on the mesh itself; outlines deliberately stay decorative
   // and never catch a pick.
   mesh.userData['ref'] = prism.ref;
-  if (!OUTLINED.has(prism.kind) && !selected) return [mesh];
+  if (prism.kind === 'wall') mesh.userData['wallLine'] = wallLine(prism.polygon);
+  if ((proxy || !OUTLINED.has(prism.kind)) && !selected) return [mesh];
 
-  const edges = new LineSegments(
-    new EdgesGeometry(geometry),
-    new LineBasicMaterial({ color: selected ? '#E67700' : EDGE_COLOR }),
-  );
+  // Only real corners: a round object's 24 facets would draw 24 vertical stripes.
+  const outline = new EdgesGeometry(geometry, EDGE_ANGLE_DEG);
+  if (prism.kind === 'object' && prism.base_m < OUTLINE_LIFT_M) {
+    // The bottom ring of a floor object would hide under the zone slabs: lift
+    // that ring only, the top stays on the object.
+    const position = outline.getAttribute('position');
+    const lift = Math.min(OUTLINE_LIFT_M - prism.base_m, prism.height_m / 2);
+    for (let index = 0; index < position.count; index += 1) {
+      if (position.getZ(index) < TOLERANCE.coordinate_m) position.setZ(index, lift);
+    }
+  }
+  const edges = new LineSegments(outline, new LineBasicMaterial({ color: selected ? '#E67700' : EDGE_COLOR }));
   edges.position.z = prism.base_m;
+  // A selected wall keeps its outline even when it turns to glass.
+  if (prism.kind === 'wall' && !selected) edges.userData['wallLine'] = mesh.userData['wallLine'];
   return [mesh, edges];
 }
 
