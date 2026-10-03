@@ -68,9 +68,7 @@ export async function runAgent(run: AgentRun): Promise<AgentAnswer> {
   const messages: LlmMessage[] = [
     { role: 'system', content: agentSystemPrompt(run.plan, run.before !== null) },
     ...historyMessages(run.history),
-    { role: 'user', content: changedSince(run.history, run.revision) ? `${run.query}
-
-(${PLAN_CHANGED_NOTE})` : run.query },
+    { role: 'user', content: changedSince(run.history, run.revision) ? `${run.query}\n\n(${PLAN_CHANGED_NOTE})` : run.query },
   ];
   const fallback = (reason: string): AgentAnswer => sessionFallback(session, reason, run.onStep);
 
@@ -96,7 +94,7 @@ export async function runAgent(run: AgentRun): Promise<AgentAnswer> {
       continue;
     }
 
-    const choice = acceptFactChoice(session, answer.value.content);
+    const choice = acceptFactChoice(session, answer.value.content, run.onStep);
     if (choice.kind === 'answer') return choice.answer;
     messages.push({ role: 'assistant', content: answer.value.content }, { role: 'user', content: choice.message });
   }

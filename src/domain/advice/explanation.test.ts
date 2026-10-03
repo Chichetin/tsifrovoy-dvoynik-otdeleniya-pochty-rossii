@@ -431,9 +431,11 @@ describe('#69: ход агента без сети — модель выбира
 
   test('предложенный факт — ответ LLM с текстом, написанным кодом', () => {
     const session = createAgentSession(demo, null, 'Что в плане?', 1);
-    const [first] = offeredIds(acceptToolResult(session, 'plan_overview', '{}').content);
-    const choice = acceptFactChoice(session, JSON.stringify({ factIds: [first] }));
+    const offered = JSON.parse(acceptToolResult(session, 'plan_overview', '{}').content) as { answerFacts: { id: string; text: string }[] };
+    const first = offered.answerFacts[0]!;
+    const choice = acceptFactChoice(session, JSON.stringify({ factIds: [first.id] }));
     expect(choice.kind === 'answer' && choice.answer.mode).toBe('llm');
-    expect(choice.kind === 'answer' && choice.answer.text.length).toBeGreaterThan(0);
+    // The visible text is the fact as code rendered it, not the model's JSON.
+    expect(choice.kind === 'answer' && choice.answer.text).toContain(first.text);
   });
 });

@@ -136,7 +136,11 @@ export type FactChoiceOutcome = { kind: 'answer'; answer: AgentAnswer } | { kind
  * written from those facts. Rejected once — one repair request; rejected
  * again — the calculation without LLM.
  */
-export function acceptFactChoice(session: AgentSession, content: string): FactChoiceOutcome {
+export function acceptFactChoice(
+  session: AgentSession,
+  content: string,
+  onStep: (step: AgentStep) => void = () => undefined,
+): FactChoiceOutcome {
   const facts = collectAgentFacts(session.state, session.records).filter((fact) => session.offered.has(fact.id));
   const selection = renderAgentFactSelection(content, facts, session.state);
   if (selection.ok) {
@@ -146,7 +150,7 @@ export function acceptFactChoice(session: AgentSession, content: string): FactCh
     return { kind: 'answer', answer: finishAgentAnswer(session.state, session.revision, 'llm', selection.text, session.steps) };
   }
   if (session.repaired) {
-    return { kind: 'answer', answer: sessionFallback(session, `Выбор модели не прошёл проверку связанных фактов: ${selection.reason} Показан расчёт без LLM.`) };
+    return { kind: 'answer', answer: sessionFallback(session, `Выбор модели не прошёл проверку связанных фактов: ${selection.reason} Показан расчёт без LLM.`, onStep) };
   }
   session.repaired = true;
   return {
