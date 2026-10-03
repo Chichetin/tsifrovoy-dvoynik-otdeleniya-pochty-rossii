@@ -82,7 +82,7 @@ git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> ori
 ```bash
 # 1. проверки зелёные, коммит только своих путей
 git fetch --prune
-git merge origin/main              # если main ушёл вперёд; после merge — тесты заново
+git merge origin/main              # если main ушёл вперёд; после merge — только npm run build
 # 2. push ветки и создание MR в main одной командой (push options GitLab)
 git push -u origin HEAD \
   -o merge_request.create \
@@ -91,10 +91,8 @@ git push -u origin HEAD \
   -o merge_request.description="Closes #<N>"
 ```
 
-Описание MR — по `.gitlab/merge_request_templates/Default.md`: `Closes #<N>`, что сделано,
-команды проверок с результатами, проход UI в браузере, затронутый контракт. Push option
-ставит только первую строку; остальное агент дописывает в описание MR в GitLab или
-комментарием в задаче (`bash scripts/issues.sh comment <N> <файл>`). `Closes #<N>`
+Описание MR — `Closes #<N>` из push option. Больше агент ничего не дописывает: ни в MR,
+ни комментарием в задаче. Затронут контракт — одна строка с потребителями. `Closes #<N>`
 закрывает задачу при merge в `main`. Ссылку на MR из вывода push агент пишет человеку.
 Push options на сервере хакатона работают (проверено 2026-09-16, MR !1). Повторный push
 в ту же ветку обновляет открытый MR, новый не создаёт.

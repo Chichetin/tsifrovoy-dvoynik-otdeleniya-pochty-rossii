@@ -35,13 +35,14 @@ color: blue
 
    ```bash
    git fetch --prune && git merge origin/main
-   npm run typecheck && npm run lint && npm run build
+   npm run lint && npm run build
    npx vitest related --run <изменённые файлы>
-   DEV_PORT=5174 npx playwright test tests/e2e/round-trip.spec.ts tests/e2e/demo.spec.ts
    bash .claude/hooks/check-secrets.sh           # пусто — чисто
    ```
 
-   Весь e2e не запускай. Его запускает integrator.
+   Smoke e2e (`CLAUDE.md`, «Код») — только если правка задевает сохранение,
+   загрузку, `src/state/` или демо-планы. Весь `npm test` и весь e2e не запускай.
+   Проверки прошли один раз — повторно не запускай.
 5. Документы — только по `CLAUDE.md`, «Документы». Отчёты в md не пиши.
 6. Закоммить: `<префикс>: <что закончено>` (`GIT.md`). Запушь:
 
@@ -51,7 +52,8 @@ color: blue
      -o merge_request.description="Closes #<N>"
    ```
 
-   Повторный push в ту же ветку обновляет открытый MR.
+   Повторный push в ту же ветку обновляет открытый MR. Описание MR больше не
+   дописывай.
 
 ## Границы
 
@@ -70,13 +72,10 @@ color: blue
 
 ## Отчёт оркестратору
 
-До 8 строк, на ~80% STE:
+До 3 строк. Не пересказывай diff.
 
 ```
-Задача: #<N>; ветка / MR / commit: worktree-… / !<iid> / <hash>
-Сделано: 2–4 строки — что изменилось для пользователя
-Проверки: команда → результат (typecheck/lint/build ок, vitest related 12/12, smoke e2e 5/5)
-Решение: D-… | нет
-Не сделано: … | нет
+#<N> !<iid> <hash>: что изменилось для пользователя — одна строка
+Проверки: lint/build ок, vitest related 12/12
 Нужно: контракт / зависимость / конфликт / вопрос | нет
 ```

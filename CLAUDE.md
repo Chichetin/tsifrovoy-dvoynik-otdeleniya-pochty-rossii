@@ -103,10 +103,10 @@
 ```bash
 npm ci                                  # установка; один раз: npx playwright install chromium
 npm run dev                             # свой порт — DEV_PORT=5174
-npm run typecheck && npm run lint && npm run build
+npm run lint && npm run build          # build включает tsc, typecheck отдельно не нужен
 npx vitest related --run <файлы>        # тесты правки; правишь data/ или demo/ — npm test
-DEV_PORT=5174 npx playwright test tests/e2e/round-trip.spec.ts tests/e2e/demo.spec.ts
-DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один раз на MR
+DEV_PORT=5174 npx playwright test tests/e2e/round-trip.spec.ts tests/e2e/demo.spec.ts  # smoke
+DEV_PORT=5174 npm run test:e2e          # весь e2e — только qa перед вехой
 ```
 
 ## Тесты
@@ -121,8 +121,12 @@ DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один 
 
 ## Проверка
 
-- Перед push: `git fetch --prune && git merge origin/main`, затем typecheck, lint,
-  build, `vitest related`, smoke e2e (команды выше).
+- Перед push: `git fetch --prune && git merge origin/main`, затем lint, build,
+  `vitest related`. Smoke e2e — только если правка задевает сохранение, загрузку,
+  `src/state/` или демо-планы.
+- Один прогон на MR. Пришёл новый merge в `main` после прогона — только
+  `npm run build`, тесты заново не гоняем. Весь `npm test` и весь e2e — у `qa`
+  перед вехой.
 - UI-правка: пройди сценарий в браузере, сделай один снимок «после» (не в git),
   проверь `Tab` и фокус.
 - Готово — проверки зелёные и сценарий пройден: открыть → загрузить демо → изменить
@@ -130,8 +134,10 @@ DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один 
 
 ## Документы
 
-- md-отчёты, планы и спецификации не пишем. Отчёт — в чат, итог — в описание MR (до
-  15 строк).
+- md-отчёты, планы и спецификации не пишем. Отчёт — в чат, до 3 строк. Описание
+  MR — `Closes #<N>` и до 3 строк.
+- `HANDOFF.md`, `docs/decisions.md`, `docs/tz-compliance.md` агент не дописывает
+  после каждой задачи. Только по задаче, которая это требует.
 - `README.md` держим точным (10% оценки). Строка в `docs/decisions.md` — только если
   решение меняет модель, формат, контракт или правила.
 - Объясняем человеку самым простым форматом: текст STE → схема mermaid → одноразовый
