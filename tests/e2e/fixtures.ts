@@ -2,8 +2,7 @@
  * Общая фикстура набора e2e: обучение при первом входе (UX №2, D-195) уже
  * «пройдено» до загрузки страницы. Без неё каждая спека открывала бы
  * приложение под окном обучения, а оно модальное и забирает мышь и клавиатуру.
- * Спеки импортируют `test` и `expect` отсюда вместо `@playwright/test`; само
- * обучение проверяет `onboarding.spec.ts` — он берёт голый `@playwright/test`.
+ * Спеки импортируют `test` и `expect` отсюда вместо `@playwright/test`.
  */
 
 import { expect, test as base, type BrowserContext, type Page } from '@playwright/test';

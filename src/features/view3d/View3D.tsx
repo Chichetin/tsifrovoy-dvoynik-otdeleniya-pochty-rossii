@@ -11,7 +11,7 @@
  * composition as data attributes (`data-zones-count`, `data-objects-count`,
  * `data-walls-count`) — a machine-readable proof that 3D matches the plan,
  * without a visible list; the mapping from document to prisms is a pure
- * function tested on its own in `scene.test.ts`.
+ * function in `scene.ts`.
  */
 
 import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';

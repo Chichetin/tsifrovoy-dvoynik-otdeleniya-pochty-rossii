@@ -763,7 +763,7 @@ body {
 }
 
 /* D-255: «Экспорт» — одна кнопка вместо «Картинка» и «Сохранить»: шапка
-   обязана держаться в одну строку на 1280 px (tests/e2e/shell.spec.ts), а
+   обязана держаться в одну строку на 1280 px, а
    выгрузка нужна реже, чем открытие плана. Меню всплывает под кнопкой. */
 .files__export {
   position: relative;
@@ -871,7 +871,7 @@ body {
    надпись «черновик в браузере: …»). Теперь её нет, пока сказать нечего, а
    когда есть — она ложится плашкой поверх холста, как отказ правки
    (`.shell__error`, D-274): высота шапки постоянна и ни одно сообщение не
-   двигает план (tests/e2e/shell.spec.ts).
+   двигает план.
 
    Single-line messages shrink with an ellipsis instead of wrapping; only a
    file error may take a second line — it has to be read in full. */
