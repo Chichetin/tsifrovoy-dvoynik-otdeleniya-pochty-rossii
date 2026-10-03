@@ -462,7 +462,6 @@ export function LayersPanel({
                   aria-label={`Имя слоя ${layer.name}`}
                   title={layer.name}
                   value={layer.name}
-                  onFocus={() => onSelect({ kind: 'layer', id: layer.id })}
                   onChange={(event) => put({ ...layer, name: event.target.value })}
                 />
                 ) : (

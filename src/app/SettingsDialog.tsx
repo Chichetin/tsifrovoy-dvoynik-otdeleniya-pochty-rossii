@@ -4,8 +4,9 @@
  * kit rules. They used to be spread over the room card and the «Справочник»
  * tab; the side columns now keep only what is used while working.
  *
- * Every edit is a command applied at once, as in the card: undo works, the
- * plan behind updates, nothing waits for an «OK».
+ * Every edit is a command applied at once, as in the card: the plan behind
+ * updates, nothing waits for an «OK». Ctrl+Z does not reach the history while
+ * the window is open (the keys stay inside); each edit undoes after closing.
  *
  * Modal to the keyboard the same way as `HotkeysMapDialog`: a capture-phase
  * listener on `window` runs before the editor's bubble-phase listeners and
