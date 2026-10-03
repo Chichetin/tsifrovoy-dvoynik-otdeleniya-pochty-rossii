@@ -33,6 +33,8 @@ export const CATALOG_ISSUE_CODES = {
   INVERTED_RULE_BOUNDS: 'INVERTED_RULE_BOUNDS',
   /** The file schema takes only whole non-negative counts; catch it before save. */
   NON_INTEGER_RULE_BOUNDS: 'NON_INTEGER_RULE_BOUNDS',
+  DUPLICATE_LAYER_VALUE: 'DUPLICATE_LAYER_VALUE',
+  UNKNOWN_LAYER_DEFAULT: 'UNKNOWN_LAYER_DEFAULT',
 } as const;
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -138,6 +140,27 @@ function layerTypeIssues(type: LayerType, objectTypeIds: Set<Id>): Issue[] {
   }
   if (representation.kind === 'zone-count' || representation.kind === 'object-field') {
     colour(representation.color, 'representation.color');
+  }
+  if (representation.kind === 'object-color') {
+    const values = new Set<string>();
+    for (const [index, option] of representation.values.entries()) {
+      colour(option.color, `representation.values.${index}.color`);
+      if (values.has(option.value)) {
+        issues.push(problem(
+          CATALOG_ISSUE_CODES.DUPLICATE_LAYER_VALUE,
+          `Тип слоя «${type.id}»: значение «${option.value}» объявлено дважды.`,
+          `${path}.representation.values.${index}.value`,
+        ));
+      }
+      values.add(option.value);
+    }
+    if (!values.has(representation.defaultValue)) {
+      issues.push(problem(
+        CATALOG_ISSUE_CODES.UNKNOWN_LAYER_DEFAULT,
+        `Тип слоя «${type.id}»: значение по умолчанию отсутствует в шкале.`,
+        `${path}.representation.defaultValue`,
+      ));
+    }
   }
   if (representation.kind === 'object-field') {
     if (representation.objectTypeIds.length === 0) {
@@ -329,6 +352,7 @@ export function informationAttributeKeys(catalog: Catalog): Set<string> {
       keys.add(representation.angleAttribute);
       keys.add(representation.rangeAttribute);
     }
+    if (representation.kind === 'object-color') keys.add(representation.attribute);
   }
   return keys;
 }

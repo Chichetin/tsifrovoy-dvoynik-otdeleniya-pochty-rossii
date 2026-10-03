@@ -29,6 +29,7 @@ import type { PropertiesPanelProps } from '../../contracts/ui';
 import { findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
+import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
 import { ObjectPositionFields } from './ObjectPositionFields';
 
@@ -213,6 +214,7 @@ export function PropertiesPanel({
     defs: AttributeDef[],
     attributes: Attributes,
     apply: (next: Attributes) => Zone | Equipment,
+    colorChoices: Map<string, ObjectColorRepresentation> = new Map(),
   ): React.JSX.Element[] =>
     defs.map((def) => {
       const name = `attributes.${def.key}`;
@@ -248,6 +250,22 @@ export function PropertiesPanel({
               commit(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
             }}
           />,
+        );
+      }
+      const choices = colorChoices.get(def.key);
+      if (def.type === 'string' && choices !== undefined) {
+        return field(
+          name,
+          label,
+          <select
+            aria-label={label}
+            value={objectColorValue(choices,attributes).value}
+            onChange={(event) => commit(name, set(event.target.value))}
+          >
+            {choices.values.map((choice) => (
+              <option key={choice.value} value={choice.value}>{choice.label}</option>
+            ))}
+          </select>,
         );
       }
       return field(
@@ -555,10 +573,15 @@ export function PropertiesPanel({
 
         {type === null
           ? null
-          : attributeFields(type.attributes, object.attributes, (attributes) => ({
-              ...object,
-              attributes,
-            }))}
+          : attributeFields(
+              type.attributes,
+              object.attributes,
+              (attributes) => ({ ...object, attributes }),
+              new Map(plan.catalog.layerTypes.flatMap((layerType) =>
+                layerType.representation.kind === 'object-color'
+                  ? [[layerType.representation.attribute, layerType.representation]] as const
+                  : [])),
+            )}
         {type === null ? null : extraAttributes(type.attributes, object.attributes)}
       </section>
     );

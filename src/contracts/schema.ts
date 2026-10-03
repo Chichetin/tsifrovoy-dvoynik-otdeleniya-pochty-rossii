@@ -178,6 +178,16 @@ const layerRepresentationSchema = z.discriminatedUnion('kind', [
     color: z.string(),
   }),
   z.object({
+    kind: z.literal('object-color'),
+    attribute: z.string().min(1),
+    defaultValue: z.string().min(1),
+    values: z.array(z.object({
+      value: z.string().min(1),
+      label: z.string().min(1),
+      color: z.string(),
+    })).min(1),
+  }),
+  z.object({
     kind: z.literal('object-field'),
     objectTypeIds: z.array(idSchema),
     angleAttribute: z.string().min(1),

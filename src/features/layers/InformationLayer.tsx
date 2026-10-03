@@ -11,7 +11,7 @@
  * холсте или в панели.
  */
 
-import { useMemo } from 'react';
+import { Fragment, useMemo } from 'react';
 import { Layer, Line, Rect, Shape, Text } from 'react-konva';
 import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
@@ -79,6 +79,7 @@ function layerColor(type: LayerType): string {
   const representation = type.representation;
   if (representation.kind === 'zone-heat') return representation.colors[1];
   if (representation.kind === 'objects') return CAPTION_FILL;
+  if (representation.kind === 'object-color') return representation.values[0]?.color ?? CAPTION_FILL;
   return representation.color;
 }
 
@@ -153,8 +154,12 @@ export function InformationLayer({
       if (percent === null) return [row];
       return [row, { ...row, key: `${entry.id}-blind`, blind: true, text: `Слепые пятна клиентских зон · видно ${formatValue(percent, '%')}` }];
     })
-    .map((row, index) => ({ ...row, y: 12 + index * LEGEND_ROW }));
-  const legendWidth = Math.max(0, ...legendRows.map((row) => 44 + labelWidth(row.text, LEGEND_FONT)));
+    .map((row, index) => ({
+      ...row,
+      y: 12 + index * LEGEND_ROW,
+      textX: !row.blind && row.legend.kind === 'palette' ? Math.max(50, 17 + row.legend.values.length * 9) : 50,
+    }));
+  const legendWidth = Math.max(0, ...legendRows.map((row) => row.textX - 6 + labelWidth(row.text, LEGEND_FONT)));
   const legendBox: Box = { x: 6, y: 6, width: legendWidth, height: legendRows.length * LEGEND_ROW + 6 };
 
   const ring = (polygon: Polygon): number[] => polygon.flatMap((point) => screen(point));
@@ -166,6 +171,7 @@ export function InformationLayer({
     const representation = type.representation;
     // Ordinary layers are drawn by the geometry and equipment layers.
     if (representation.kind === 'objects') continue;
+    if (representation.kind === 'object-color') continue;
 
     if (representation.kind === 'zone-heat' || representation.kind === 'zone-count') {
       const valueOf = (zone: Zone): number | null =>
@@ -404,6 +410,18 @@ export function InformationLayer({
             fillLinearGradientColorStops={[0, row.legend.from, 1, row.legend.to]}
             listening={false}
           />
+        ) : row.legend.kind === 'palette' ? (
+          <Fragment key={`legend-${row.id}-palette`}>{row.legend.values.map((value, index) => (
+            <Rect
+              key={`legend-${row.id}-${value.value}`}
+              x={12 + index * 9}
+              y={row.y + 2}
+              width={8}
+              height={SWATCH + 2}
+              fill={value.color}
+              listening={false}
+            />
+          ))}</Fragment>
         ) : (
           <Rect
             key={`legend-${row.id}-swatch`}
@@ -418,7 +436,7 @@ export function InformationLayer({
         <Text
           key={`caption-${row.key}`}
           name="info-caption"
-          x={50}
+          x={row.textX}
           y={row.y + 1}
           text={row.text}
           fontSize={LEGEND_FONT}

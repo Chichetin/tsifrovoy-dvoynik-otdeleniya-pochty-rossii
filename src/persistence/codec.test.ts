@@ -258,6 +258,29 @@ describe('тип слоя в файле', () => {
     expect(reopened.value).toEqual(withLayer);
   });
 
+  test('цветовой слой сохраняет всю палитру и значение по умолчанию', () => {
+    const plan = decodeFixture('minimal.json');
+    const withLayer: PlanDocument = {
+      ...plan,
+      catalog: { ...plan.catalog, layerTypes: [{
+        id: 'lt_status', label: 'Состояние', note: 'Сотрудник задаёт вручную.',
+        representation: {
+          kind: 'object-color', attribute: 'equipmentStatus', defaultValue: 'unknown',
+          values: [
+            { value: 'unknown', label: 'Не указано', color: '#868E96' },
+            { value: 'repair', label: 'В ремонте', color: '#A15C00' },
+          ],
+        },
+      }] },
+      layers: [...plan.layers, {
+        id: 'l_status', name: 'Состояние', visible: true, locked: false, order: 1, typeId: 'lt_status',
+      }],
+    };
+    const reopened = decodePlan(encodeOrThrow(withLayer));
+    expect(reopened.ok).toBe(true);
+    if (reopened.ok) expect(reopened.value).toEqual(withLayer);
+  });
+
   test('слой ссылается на несуществующий тип — это отказ загрузки, а не тихий null', () => {
     const raw = JSON.parse(fixtureText('minimal.json')) as {
       layers: Record<string, unknown>[];

@@ -15,6 +15,7 @@ import type { Equipment, PlanDocument, Point, Polygon } from '../contracts/model
 import { findObjectType, findZoneType } from '../domain/catalog';
 import { boundingBox, footprint, wallLength, wallPolygon } from '../domain/geometry';
 import { planPictogram, PLAN_PICTOGRAM_PATHS } from '../domain/plan-pictogram';
+import { activeObjectColor, objectColorValue, type ObjectColorRepresentation } from '../domain/object-color';
 
 /** Пикселей на метр в файле. Выбрано так, чтобы 15-метровый зал был ~1500 px. */
 const PX_PER_M = 100;
@@ -55,9 +56,9 @@ function label(at: Point, text: string, size_m: number, fill = LABEL_FILL, opaci
   );
 }
 
-function objectSymbol(object: Equipment, plan: PlanDocument): string {
+function objectSymbol(object: Equipment, plan: PlanDocument, colorLayer: ObjectColorRepresentation | null): string {
   const type = findObjectType(plan.catalog, object.typeId);
-  const fill = esc(type?.color ?? OBJECT_FALLBACK);
+  const fill = esc(colorLayer === null ? (type?.color ?? OBJECT_FALLBACK) : objectColorValue(colorLayer, object.attributes).color);
   const paint = `fill="${fill}" fill-opacity="0.9" stroke="#343A40" stroke-width="0.02"`;
   const pictogram = planPictogram(object.typeId);
   // Export uses a fixed 100 px/m scale. Keep a tiny camera distinguishable,
@@ -127,7 +128,8 @@ export function renderPlanSvg(plan: PlanDocument): string {
     })
     .join('\n');
 
-  const objects = visibleObjects.map((object) => objectSymbol(object, plan)).join('\n');
+  const colorLayer = activeObjectColor(plan);
+  const objects = visibleObjects.map((object) => objectSymbol(object, plan, colorLayer)).join('\n');
   const objectLabels = visibleObjects
     .filter((object) => object.size_m[0] * object.size_m[1] >= MIN_LABELLED_AREA_M2)
     .map((object) => label([object.position[0], object.position[1] - object.size_m[1] / 2 - 0.15], object.label, 0.16))
