@@ -6,6 +6,9 @@ import tseslint from 'typescript-eslint';
 
 // Module boundaries from docs/project-structure.md, enforced on relative imports.
 const dirs = (...names) => ({ regex: `^\\.{1,2}/(.*/)?(${names.join('|')})(/|$)` });
+// A sibling feature is `../<name>` (any depth) or `…/features/<name>`; a segment with
+// the same name elsewhere — `../../domain/validation` — is not a feature (#71).
+const siblings = (...names) => ({ regex: `^(\\.\\./)+(features/)?(${names.join('|')})(/|$)` });
 const packages = (...names) => ({ regex: `^(${names.join('|')})(/|$)` });
 const ui = packages('react', 'react-dom', 'react-konva', 'konva', 'three', 'zustand');
 const features = readdirSync('src/features', { withFileTypes: true })
@@ -33,7 +36,8 @@ export default tseslint.config(
   ...features.map((name) =>
     restrict(
       [`src/features/${name}/**`],
-      dirs('state', 'app', 'server', 'tests', 'scripts', ...features.filter((other) => other !== name)),
+      dirs('state', 'app', 'server', 'tests', 'scripts'),
+      siblings(...features.filter((other) => other !== name)),
     ),
   ),
   restrict(['src/app/**'], dirs('server', 'tests', 'scripts')),
