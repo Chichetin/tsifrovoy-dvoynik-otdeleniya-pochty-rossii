@@ -20,7 +20,8 @@
  * What is on screen can be taken away as a file: «Скачать CSV» writes exactly
  * the rows that are shown, in the order they are shown, and says so before the
  * click — an inventory check happens on paper and in Excel, not in a browser
- * tab (D-160).
+ * tab (D-160). Catalog attributes are columns too: the person picks which,
+ * and the file carries exactly the columns on screen.
  */
 
 import { useDeferredValue, useMemo, useState } from 'react';
@@ -28,10 +29,19 @@ import type { Id, PlanDocument } from '../../contracts/model';
 import type { InventoryPanelProps, RequestState } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import {
+  attributeColumns,
+  attributeText,
+  type ColumnChoice,
+  inventoryCsv,
+  inventoryCsvFileName,
+  loadColumnChoice,
+  saveColumnChoice,
+  visibleAttributeColumns,
+} from '../../persistence/inventory-csv';
+import {
   absentTypes,
   display,
   filterObjectRows,
-  inventoryCsv,
   type InventorySort,
   NO_INVENTORY_NUMBER,
   objectRows,
@@ -92,7 +102,7 @@ const TABLE_STYLE = { tableLayout: 'fixed' } as const;
  * unusable. The height follows the font and the window — about six rows on a
  * 900 px screen — and the header stays put while the body scrolls.
  */
-const SCROLL_STYLE = { maxHeight: 'min(60vh, 34em)', overflowY: 'auto' } as const;
+const SCROLL_STYLE = { maxHeight: 'min(60vh, 34em)', overflowY: 'auto', overflowX: 'auto' } as const;
 
 /**
  * `border-collapse` drops the border of a sticky cell, so the line under the
@@ -155,14 +165,39 @@ function ariaSort(sort: InventorySort | null, column: SortColumn): 'ascending' |
   return sort.direction === 'asc' ? 'ascending' : 'descending';
 }
 
-/** `Демо-ОПС «Синтетическое»` → `Демо-ОПС-Синтетическое-инвентаризация.csv`. */
-function csvFileName(plan: PlanDocument | undefined): string {
-  const stem = (plan?.name ?? '')
-    .trim()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-|-$/g, '');
-  return `${stem === '' ? 'plan' : stem}-инвентаризация.csv`;
+/** Base widths of the four fixed columns, in percent of the table (D-213). */
+const BASE_WIDTHS = [23, 26, 29, 22];
+
+/**
+ * An attribute column needs about this much room. With attribute columns the
+ * table grows past the panel and the list scrolls sideways.
+ */
+const ATTRIBUTE_COLUMN_EM = 5.5;
+
+/**
+ * Default widths for the fixed columns plus `extra` attribute columns: every
+ * attribute column gets an equal share, the fixed ones keep their proportions.
+ */
+function columnWidths(extra: number): number[] {
+  if (extra === 0) return BASE_WIDTHS;
+  const share = 100 / (BASE_WIDTHS.length + extra);
+  const widths = [
+    ...BASE_WIDTHS.map((width) => (width * BASE_WIDTHS.length * share) / 100),
+    ...Array.from({ length: extra }, () => share),
+  ].map((width) => Math.round(width * 100) / 100);
+  const drift = 100 - widths.reduce((sum, width) => sum + width, 0);
+  widths[widths.length - 1] = Math.round(((widths.at(-1) ?? 0) + drift) * 100) / 100;
+  return widths;
 }
+
+const COLUMN_PICKER_STYLE = { margin: '4px 0' } as const;
+const FIELDSET_STYLE = { border: 'none', margin: 0, padding: 0 } as const;
+const COLUMN_LIST_STYLE = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(10em, 1fr))',
+  gap: '2px 8px',
+  margin: '4px 0',
+} as const;
 
 /**
  * The browser is handed the file; what happens in the download folder a page
@@ -206,7 +241,9 @@ export function InventoryPanel({
   // findings проверки на объект за пределами первых трёх работает так же
   // через холст — see README «известные ограничения»).
   const [pinnedRowId, setPinnedRowId] = useState<Id | null>(null);
-  const objectColumns = useResizableColumns('inventory-objects', [23, 26, 29, 22]);
+  // Выбор столбцов атрибутов — вид этого человека, а не документа: живёт в
+  // браузере и переживает открытие другого плана. Его же читает «Экспорт → CSV».
+  const [choice, setChoice] = useState<ColumnChoice>(loadColumnChoice);
   const zoneColumns = useResizableColumns('inventory-zones', [50, 25, 25]);
   // Typing and clearing stay responsive on a thousand rows: the table redraws
   // one render behind the input instead of blocking every keystroke. Measured
@@ -243,6 +280,46 @@ export function InventoryPanel({
   );
   const shown = useMemo(() => sortObjectRows(found, sort), [found, sort]);
 
+  const allAttributes = useMemo(
+    () => (plan === undefined ? [] : attributeColumns(plan.catalog)),
+    [plan],
+  );
+  const attributes = useMemo(
+    () =>
+      plan === undefined
+        ? []
+        : visibleAttributeColumns(
+            plan.catalog,
+            typeId !== null ? [typeId] : types.map((type) => type.typeId),
+            choice,
+          ),
+    [plan, typeId, types, choice],
+  );
+  const columns: { column: SortColumn; title: string }[] = [
+    ...COLUMNS,
+    ...attributes.map((attribute) => ({ column: `attr:${attribute.key}` as const, title: attribute.label })),
+  ];
+  const objectColumns = useResizableColumns(
+    attributes.length === 0
+      ? 'inventory-objects'
+      : `inventory-objects:${attributes.map((attribute) => attribute.key).join(',')}`,
+    columnWidths(attributes.length),
+    Math.min(10, 40 / columns.length),
+  );
+  // Сортировка по скрытому столбцу не видна в шапке — такая снимается сама.
+  if (sort !== null && !columns.some(({ column }) => column === sort.column)) setSort(null);
+
+  const toggleAttribute = (key: string, shownNow: boolean): void => {
+    const next = { ...choice, [key]: shownNow };
+    setChoice(next);
+    saveColumnChoice(next);
+  };
+
+  const defaultAttributes = (): void => {
+    setChoice({});
+    saveColumnChoice({});
+  };
+
   const total = rows.length;
   const filtered = search.trim() !== '' || typeId !== null;
   const absent = absentTypes(inventory);
@@ -264,9 +341,9 @@ export function InventoryPanel({
     // Кадр браузеру: на тысяче строк сборка файла заметна, и «готовим файл…»
     // должно успеть появиться до того, как страница замрёт.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const name = csvFileName(plan);
+    const name = inventoryCsvFileName(plan);
     try {
-      downloadCsv(inventoryCsv(shown), name);
+      downloadCsv(inventoryCsv(shown, attributes), name);
     } catch (error) {
       setExported({
         status: 'error',
@@ -352,14 +429,54 @@ export function InventoryPanel({
             onChange={(event) => setQuery(event.target.value)}
           />
 
+          {allAttributes.length === 0 ? null : (
+            <details style={COLUMN_PICKER_STYLE} data-testid="inventory-columns">
+              <summary className="panel__note">
+                Столбцы атрибутов: {attributes.length} из {allAttributes.length}
+              </summary>
+              <fieldset style={FIELDSET_STYLE}>
+                <legend className="panel__note">
+                  Без выбора видны атрибуты, общие для всех типов в перечне. Фильтр по типу
+                  показывает все атрибуты типа. Те же столбцы уходят в CSV.
+                </legend>
+                <div style={COLUMN_LIST_STYLE}>
+                  {allAttributes.map((attribute) => (
+                    <label key={attribute.key} title={attribute.key}>
+                      <input
+                        type="checkbox"
+                        data-testid="inventory-column-toggle"
+                        data-key={attribute.key}
+                        checked={attributes.some((shownColumn) => shownColumn.key === attribute.key)}
+                        onChange={(event) => toggleAttribute(attribute.key, event.target.checked)}
+                      />{' '}
+                      {attribute.label}
+                    </label>
+                  ))}
+                </div>
+                {Object.keys(choice).length === 0 ? null : (
+                  <button type="button" className="table__link" onClick={defaultAttributes}>
+                    Вернуть столбцы по умолчанию
+                  </button>
+                )}
+              </fieldset>
+            </details>
+          )}
+
           <div style={SCROLL_STYLE} data-testid="inventory-scroll" id="inventory-object-rows">
-            <table className="table inventory__table" style={TABLE_STYLE}>
+            <table
+              className="table inventory__table"
+              style={
+                attributes.length === 0
+                  ? TABLE_STYLE
+                  : { ...TABLE_STYLE, width: `max(100%, ${columns.length * ATTRIBUTE_COLUMN_EM}em)` }
+              }
+            >
               <colgroup>
                 {objectColumns.widths.map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}
               </colgroup>
               <thead>
                 <tr>
-                  {COLUMNS.map(({ column, title }, index) => (
+                  {columns.map(({ column, title }, index) => (
                     <th
                       key={column}
                       scope="col"
@@ -380,9 +497,9 @@ export function InventoryPanel({
                           {sort?.column === column ? ARROW[sort.direction] : ''}
                         </span>
                       </button>
-                      {index === COLUMNS.length - 1 ? null : objectColumns.separator(
+                      {index === columns.length - 1 ? null : objectColumns.separator(
                         index,
-                        `Изменить ширину между «${title}» и «${COLUMNS[index + 1]?.title ?? ''}»`,
+                        `Изменить ширину между «${title}» и «${columns[index + 1]?.title ?? ''}»`,
                       )}
                     </th>
                   ))}
@@ -442,6 +559,14 @@ export function InventoryPanel({
                         </button>
                       )}
                     </td>
+                    {attributes.map((attribute) => {
+                      const text = attributeText(row.attributes[attribute.key]);
+                      return (
+                        <td key={attribute.key} data-testid="inventory-attr-cell" data-key={attribute.key}>
+                          {text ?? <span className="table__muted">—</span>}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -475,6 +600,7 @@ export function InventoryPanel({
               {filtered
                 ? `выгрузится отфильтрованное: строк ${shown.length} из ${total}`
                 : `выгрузится весь перечень: строк ${total}`}
+              {attributes.length === 0 ? '' : `, столбцов атрибутов ${attributes.length}`}
             </span>
           </div>
 

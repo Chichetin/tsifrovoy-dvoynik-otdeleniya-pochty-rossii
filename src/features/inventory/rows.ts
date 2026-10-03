@@ -12,8 +12,9 @@
  * these functions only group, name and filter what it returned.
  */
 
-import type { Equipment, Id, Inventory } from '../../contracts/model';
+import type { Attributes, Equipment, Id, Inventory } from '../../contracts/model';
 import type { PlanIndex } from '../../domain/plan-index';
+import { attributeText } from '../../persistence/inventory-csv';
 
 /** Human names for ids taken from the plan; `null` means "no such id there". */
 /** Names for the rows: the document's own index (D-202); `EMPTY_INDEX` keeps every id raw. */
@@ -37,6 +38,8 @@ export type ObjectRow = {
   typeLabel: string | null;
   zoneId: Id | null;
   zoneName: string | null;
+  /** The object's own attributes: the catalog columns read them by key. */
+  attributes: Attributes;
   /** Lowercased haystack for the filter: ids, names and attribute values. */
   haystack: string;
 };
@@ -54,7 +57,8 @@ export const INVENTORY_NUMBER_KEY = 'inventoryNumber';
 /** What the column shows for an object without an inventory number. */
 export const NO_INVENTORY_NUMBER = '—';
 
-export type SortColumn = 'inventoryNumber' | 'label' | 'type' | 'zone';
+/** A fixed column, or a catalog attribute column as `attr:<key>`. */
+export type SortColumn = 'inventoryNumber' | 'label' | 'type' | 'zone' | `attr:${string}`;
 
 export type InventorySort = { column: SortColumn; direction: 'asc' | 'desc' };
 
@@ -123,6 +127,7 @@ export function objectRows(inventory: Inventory, naming: Naming): ObjectRow[] {
       typeLabel,
       zoneId: object.zoneId,
       zoneName,
+      attributes: object.attributes,
       haystack: haystackOf(object, typeLabel, zoneName),
     };
   });
@@ -191,6 +196,8 @@ function sortKey(row: ObjectRow, column: SortColumn): string | null {
       return display(row.typeLabel, row.typeId);
     case 'zone':
       return row.zoneId === null ? null : display(row.zoneName, row.zoneId);
+    default:
+      return attributeText(row.attributes[column.slice('attr:'.length)]);
   }
 }
 
@@ -200,73 +207,6 @@ function sortKey(row: ObjectRow, column: SortColumn): string | null {
  */
 function compareText(left: string, right: string): number {
   return left.localeCompare(right, 'ru', { numeric: true, sensitivity: 'base' });
-}
-
-/** Columns of the exported file, in the order the table shows them. */
-export const CSV_COLUMNS = [
-  'Инв. №',
-  'Объект',
-  'id объекта',
-  'Тип',
-  'id типа',
-  'Зона',
-  'id зоны',
-] as const;
-
-/**
- * Excel on a Russian Windows splits a `.csv` by the list separator of the
- * locale, which is `;` — a comma-separated file lands in one column. The BOM
- * is what makes the same Excel read the bytes as UTF-8 instead of cp1251, so
- * «Инв. №» does not arrive as «Ð˜Ð½Ð²». Both are file-format decisions, not
- * preferences: without them the export opens as garbage (D-160).
- */
-export const CSV_SEPARATOR = ';';
-export const CSV_BOM = '﻿';
-
-/**
- * Rows of text → CSV, RFC 4180: a cell that holds the separator, a quote or a
- * line break is wrapped in quotes and its own quotes are doubled. Leading and
- * trailing spaces are quoted too, because a spreadsheet eats them otherwise.
- * Lines end with CRLF — that is what the standard says and what Excel expects.
- */
-export function toCsv(rows: readonly (readonly string[])[]): string {
-  return rows.map((cells) => cells.map(csvCell).join(CSV_SEPARATOR)).join('\r\n');
-}
-
-/** A cell starting with one of these is read by Excel as a formula, not text. */
-const FORMULA_STARTERS = /^[=+\-@\t\r]/;
-
-function csvCell(value: string): string {
-  // Formula injection: a name like «=HYPERLINK(...)» or an inventory number
-  // «-12» in someone else's plan must open as text. A leading apostrophe is
-  // what spreadsheets themselves use to say «this is text» (OWASP guidance).
-  const text = FORMULA_STARTERS.test(value) ? `'${value}` : value;
-  const risky =
-    text !== value ||
-    text.includes(CSV_SEPARATOR) ||
-    text.includes('"') ||
-    text.includes('\n') ||
-    text.includes('\r') ||
-    text.trim() !== text;
-  return risky ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-/**
- * The inventory as a file: the header, then one line per row in the order the
- * table shows them. Names and ids both travel, because the file is read by a
- * person and matched back to the plan by id.
- */
-export function inventoryCsv(rows: readonly ObjectRow[]): string {
-  const body = rows.map((row) => [
-    row.inventoryNumber ?? '',
-    row.label,
-    row.id,
-    display(row.typeLabel, row.typeId),
-    row.typeId,
-    row.zoneId === null ? 'вне зон' : display(row.zoneName, row.zoneId),
-    row.zoneId ?? '',
-  ]);
-  return CSV_BOM + toCsv([[...CSV_COLUMNS], ...body]);
 }
 
 function haystackOf(object: Equipment, typeLabel: string | null, zoneName: string | null): string {
