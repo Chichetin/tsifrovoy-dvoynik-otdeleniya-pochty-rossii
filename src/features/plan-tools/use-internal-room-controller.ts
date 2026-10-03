@@ -23,6 +23,7 @@ export function useInternalRoomController({ document: plan, session, onCommand }
   useEffect(() => {
     if (!active) return;
     const onKey = (event: KeyboardEvent) => {
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isTextTarget(event.target)) {
         if (event.key === 'Escape' && event.target instanceof HTMLElement && event.target.closest('[data-room-controls]') !== null) {

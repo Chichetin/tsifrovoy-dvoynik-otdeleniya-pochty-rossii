@@ -18,6 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
+  ACESFilmicToneMapping,
   Color,
   DirectionalLight,
   EdgesGeometry,
@@ -27,7 +28,8 @@ import {
   LineBasicMaterial,
   LineSegments,
   Mesh,
-  MeshLambertMaterial,
+  MeshStandardMaterial,
+  PCFSoftShadowMap,
   PerspectiveCamera,
   Raycaster,
   Scene as ThreeScene,
@@ -46,6 +48,7 @@ type Stage = {
   camera: PerspectiveCamera;
   controls: OrbitControls;
   world: ThreeScene;
+  sun: DirectionalLight;
   group: Group;
   render: () => void;
   dispose: () => void;
@@ -56,6 +59,21 @@ const SELECTED_COLOR = '#FFD43B';
 const EDGE_COLOR = '#343A40';
 /** Prisms with outlines: solid things whose edges help read the volumes. */
 const OUTLINED: ReadonlySet<ScenePrism['kind']> = new Set(['wall', 'object']);
+
+/**
+ * #59: how each kind of prism takes the light. Matte floor and walls, a slight
+ * sheen on equipment, glass in openings; equipment and walls cast the soft
+ * shadow that grounds them, floor and zones receive it.
+ */
+const SURFACE: Record<ScenePrism['kind'], { roughness: number; metalness: number; cast: boolean; receive: boolean }> = {
+  floor: { roughness: 0.95, metalness: 0, cast: false, receive: true },
+  zone: { roughness: 0.9, metalness: 0, cast: false, receive: true },
+  wall: { roughness: 0.85, metalness: 0, cast: true, receive: true },
+  opening: { roughness: 0.15, metalness: 0.1, cast: false, receive: false },
+  object: { roughness: 0.5, metalness: 0.15, cast: true, receive: true },
+};
+/** Shadow map side: 2048 keeps the edges soft but not blurry on a 15 m room. */
+const SHADOW_MAP = 2048;
 
 export default function View3DCanvas({ scene, selection, onSelect }: Props): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null);
@@ -156,6 +174,9 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
 function createStage(container: HTMLDivElement): Stage {
   const renderer = new WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.toneMapping = ACESFilmicToneMapping;
   renderer.domElement.dataset['testid'] = 'view3d-canvas';
   renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание вращает, колесо приближает');
   container.appendChild(renderer.domElement);
@@ -165,10 +186,15 @@ function createStage(container: HTMLDivElement): Stage {
   const camera = new PerspectiveCamera(50, 1, 0.1, 500);
   camera.up.set(0, 0, 1);
 
-  const sky = new HemisphereLight('#FFFFFF', '#B0B8C0', 1.1);
-  const sun = new DirectionalLight('#FFFFFF', 1.2);
+  const sky = new HemisphereLight('#FFFFFF', '#B0B8C0', 1.3);
+  const sun = new DirectionalLight('#FFF6E8', 1.8);
   sun.position.set(-6, -10, 14);
-  world.add(sky, sun);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+  sun.shadow.bias = -0.0005;
+  sun.shadow.normalBias = 0.02;
+  sun.shadow.radius = 4;
+  world.add(sky, sun, sun.target);
 
   const group = new Group();
   world.add(group);
@@ -183,6 +209,7 @@ function createStage(container: HTMLDivElement): Stage {
     camera,
     controls,
     world,
+    sun,
     group,
     render,
     dispose: () => {
@@ -302,6 +329,21 @@ function frame(stage: Stage, scene: Scene): void {
   stage.camera.position.set(cx, cy - distance * 0.8, distance * 0.6);
   stage.controls.target.set(cx, cy, 0);
   stage.controls.update();
+
+  // The sun keeps its angle and follows the room; its shadow box covers the
+  // whole room and nothing more, so the shadow map is spent on the plan.
+  const { sun } = stage;
+  sun.position.set(cx - 6, cy - 10, 14);
+  sun.target.position.set(cx, cy, 0);
+  sun.target.updateMatrixWorld();
+  const box = sun.shadow.camera;
+  box.left = -radius;
+  box.right = radius;
+  box.top = radius;
+  box.bottom = -radius;
+  box.near = 0.5;
+  box.far = Math.hypot(6, 10, 14) + radius * 2;
+  box.updateProjectionMatrix();
 }
 
 function prismMeshes(prism: ScenePrism, selected: boolean): (Mesh | LineSegments)[] {
@@ -311,12 +353,17 @@ function prismMeshes(prism: ScenePrism, selected: boolean): (Mesh | LineSegments
     depth: Math.max(prism.height_m, 0.001),
     bevelEnabled: false,
   });
-  const material = new MeshLambertMaterial({
+  const surface = SURFACE[prism.kind];
+  const material = new MeshStandardMaterial({
     color: selected ? SELECTED_COLOR : prism.color,
+    roughness: surface.roughness,
+    metalness: surface.metalness,
     transparent: prism.opacity < 1,
     opacity: prism.opacity,
   });
   const mesh = new Mesh(geometry, material);
+  mesh.castShadow = surface.cast;
+  mesh.receiveShadow = surface.receive;
   mesh.position.z = prism.base_m;
   mesh.name = `${prism.ref.kind}:${prism.ref.id}`;
   // Raycasting gets the concrete mesh, while selection lives in the document.

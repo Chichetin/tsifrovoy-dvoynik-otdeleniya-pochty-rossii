@@ -38,9 +38,8 @@ const LEGEND_ROW = 18;
  * `ZONE_LABEL_BOX_WIDTH` / `ZONE_LABEL_LETTER_SPACING` in
  * `src/features/plan-tools/ZoneNameLayer.tsx`): 13 px, upper-case,
  * letter-spaced, wrapped into a 118 px column. Mirrored here as plain
- * numbers — same duplication reasoning as `zone-name-anchor.ts`; kept in
- * sync by `tests/zone-name-anchor-sync.test.ts`, which imports the real
- * constants rather than a second hand-copied set of numbers (D-241 review).
+ * numbers — same duplication reasoning as `zone-name-anchor.ts`. No test
+ * guards the copy: change both places together (D-241).
  */
 const ZONE_NAME_FONT = 13;
 const ZONE_NAME_COLUMN = 118;
@@ -90,12 +89,8 @@ function layerColor(type: LayerType): string {
  * the gap between its plain-text estimate and Konva's real measurement; the
  * explicit `letterSpacing` term on top accounts for the one difference that
  * margin was not sized for.
- *
- * Exported so `InformationLayer.test.tsx` can compute the same box the
- * component itself uses, rather than a hand-rolled approximation that could
- * drift from production and stop catching a regression (D-241 review).
  */
-export function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
+function zoneNameBox(zone: Zone, [x, y]: [number, number]): Box {
   const upper = zone.name.toLocaleUpperCase('ru');
   const full = labelWidth(upper, ZONE_NAME_FONT) + upper.length * ZONE_NAME_LETTER_SPACING;
   const lines = Math.ceil(full / ZONE_NAME_COLUMN);

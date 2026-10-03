@@ -40,7 +40,7 @@ script="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)/scripts/issues.sh
 [ -f "$script" ] || script="$(cd "$(dirname "$0")/../.." && pwd)/scripts/issues.sh"
 [ -f "$script" ] || exit 0
 if ! reason="$(bash "$script" check "$target" 2>&1)"; then
-  echo "Без взятой задачи работать нельзя (CLAUDE.md, «Команда и интеграция»; D-299). $reason" >&2
+  echo "Без взятой задачи работать нельзя (CLAUDE.md, «Как работаем»; D-299). $reason" >&2
   exit 2
 fi
 [ -n "$reason" ] && echo "$reason" >&2

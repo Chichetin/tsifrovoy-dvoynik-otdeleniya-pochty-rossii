@@ -72,3 +72,31 @@ it('удаление не блокируется прежней ошибкой �
  p.catalog.objectTypes.find(type=>type.id===p.objects[0]!.typeId)!.physical=false;
  expect(openingDeleteRejection(p,'door')).toBeNull();
 });
+
+it('прежнее частичное пересечение предмета нельзя увеличивать сужением или удалением двери',()=>{
+ const p=fixture();const door=p.openings[0]!;
+ p.objects[0]!.position=[4.1,0];p.objects[0]!.size_m=[0.6,0.3];
+ expect(openingEditRejection(p,{...door,width_m:1.8})?.message).toContain('оборудование');
+ expect(openingDeleteRejection(p,door.id)?.message).toContain('переместите предмет');
+ expect(openingEditRejection(p,{...door,width_m:2.2})).toBeNull();
+ expect(openingEditRejection(p,{...door,kind:'window'})).toBeNull();
+});
+
+it('частичное пересечение по высоте допускает ремонт, но не уменьшение свободного объёма',()=>{
+ const p=fixture();const door=p.openings[0]!;
+ p.objects[0]!.position=[3,0];p.objects[0]!.base_m=1;p.objects[0]!.height_m=1;
+ door.height_m=1.5;
+ expect(openingEditRejection(p,{...door,height_m:1.2})?.message).toContain('оборудование');
+ expect(openingEditRejection(p,{...door,height_m:1.8})).toBeNull();
+ expect(openingDeleteRejection(p,door.id)?.message).toContain('переместите предмет');
+});
+it('другой проём сохраняет прежний свободный объём при удалении, повёрнутый предмет учитывается',()=>{
+ const p=fixture();const door=p.openings[0]!;
+ p.objects[0]!.position=[4.1,0];p.objects[0]!.size_m=[0.6,0.3];p.objects[0]!.rotation_deg=35;
+ expect(openingEditRejection(p,{...door,width_m:1.8})?.message).toContain('оборудование');
+ p.openings.push({...door,id:'duplicate'});
+ const snapshot=JSON.stringify(p);
+ expect(openingDeleteRejection(p,door.id)).toBeNull();
+ expect(openingEditRejection(p,{...door,width_m:1.8})).toBeNull();
+ expect(JSON.stringify(p)).toBe(snapshot);
+});

@@ -317,6 +317,7 @@ export const usePlanToolController = ({
   useEffect(() => {
     if (kind !== 'wall.draw') { wallEraseKey.current = null; return; }
     const onKey = (event: KeyboardEvent): void => {
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
       if (event.key !== 'Backspace' && event.key !== 'Delete') return;
       if (event.ctrlKey || event.metaKey || event.altKey || isTextTarget(event.target)) return;
       if (draft === null && !(event.repeat && wallEraseKey.current === event.key)) return;
@@ -337,6 +338,7 @@ export const usePlanToolController = ({
   useEffect(() => {
     if (!RING_TOOLS.has(kind)) return undefined;
     const onKey = (event: KeyboardEvent): void => {
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
       if (event.key !== 'Enter' && event.key !== 'Backspace') return;
       // Без черновика нет угла, который можно вернуть: Backspace принадлежит
       // выделению (например, удалению зоны), а не вооружённому инструменту.

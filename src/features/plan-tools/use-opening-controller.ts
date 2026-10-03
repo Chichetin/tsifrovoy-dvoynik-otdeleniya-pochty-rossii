@@ -19,6 +19,7 @@ export function useOpeningController({document: plan, session, onCommand}: Param
   useEffect(()=>{
     if (!active) return;
     const onKey=(event:KeyboardEvent)=>{
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
       if (event.ctrlKey||event.metaKey||event.altKey) return;
       if (isTextTarget(event.target)) {
         const ownField=event.target instanceof HTMLElement && event.target.closest('[data-opening-controls]')!==null;
