@@ -1168,6 +1168,7 @@ export function App(): React.JSX.Element {
                   onAskAgent={askAgent}
                   onAgentAction={runAgentAction}
                   onClearChat={clearChat}
+                  selection={selection}
                   comparisonBusy={comparison.loading}
                   comparisonUnrelated={comparison.source !== null && comparison.source.plan.id !== document.id}
                   comparison={<ComparisonPanel current={document} baseline={baseline} source={comparison.source}

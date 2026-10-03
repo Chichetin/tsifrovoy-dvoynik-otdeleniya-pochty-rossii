@@ -47,7 +47,34 @@ type Props = {
   onAsk: (question: string) => void;
   onAction: (action: AssistantAction, answer: AgentAnswer) => void;
   onClear: () => void;
+  /** #34: the zone or object selected on the plan — the chat offers questions about it. */
+  selection?: Ref | null;
 };
+
+/**
+ * #34: questions about the selection, with its id in the text. Only what the
+ * calculation answers: a place for one more of the same type, the zone's
+ * equipment, the zone's contents. The object's own name is left out — its
+ * words would steer the zone match («Табло над зоной ожидания»).
+ */
+export function selectionQuestions(plan: PlanDocument, selection: Ref | null | undefined): string[] {
+  const zoneQuestions = (zoneId: string | null, details: boolean): string[] => {
+    const zone = plan.zones.find((entry) => entry.id === zoneId);
+    if (zone === undefined) return [];
+    const title = `«${zone.name}» (${zone.id})`;
+    const equipment = `Чего не хватает по оборудованию в зоне ${title}?`;
+    return details ? [`Что находится в зоне ${title}?`, equipment] : [equipment];
+  };
+  if (selection?.kind === 'zone') return zoneQuestions(selection.id, true);
+  if (selection?.kind !== 'object') return [];
+  const object = plan.objects.find((entry) => entry.id === selection.id);
+  if (object === undefined) return [];
+  const type = plan.catalog.objectTypes.find((entry) => entry.id === object.typeId);
+  return [
+    ...(type === undefined ? [] : [`Где разместить ещё такой же объект «${type.label}», как ${object.id}?`]),
+    ...zoneQuestions(object.zoneId, false),
+  ];
+}
 
 function refFor(plan: PlanDocument, id: string): Ref | null {
   if (plan.zones.some((zone) => zone.id === id)) return { kind: 'zone', id };
@@ -146,7 +173,7 @@ function StepLog({ exchange, working }: { exchange: AgentExchange; working: bool
   );
 }
 
-export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAsk, onAction, onClear }: Props): React.JSX.Element {
+export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAsk, onAction, onClear, selection }: Props): React.JSX.Element {
   const [question, setQuestion] = useState('');
   const history = useRef<HTMLOListElement>(null);
   // New steps and answers arrive at the bottom of the log: keep them in view.
@@ -169,6 +196,9 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
     onAsk(trimmed);
     setQuestion('');
   }
+
+  const chips = selectionQuestions(plan, selection);
+  const selectedName = selection == null ? null : names.nameOf(selection);
 
   return (
     <div className="agent" aria-busy={working}>
@@ -247,6 +277,17 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
       )}
 
       <p className={latestStale && actionStatus === null ? 'assistant__stale' : 'agent__status'} role="status" aria-atomic="true">{status}</p>
+
+      {chips.length === 0 ? null : (
+        <div className="agent__chips" role="group" aria-label={`Вопросы о выделенном: ${selectedName ?? selection?.id ?? ''}`}>
+          <span className="agent__chips-title">О выделенном{selectedName === null ? '' : ` «${selectedName}»`}:</span>
+          {chips.map((chip) => (
+            <button key={chip} type="button" className="agent__chip" disabled={working} onClick={() => submit(chip)}>
+              {chip}
+            </button>
+          ))}
+        </div>
+      )}
 
       <form
         className="agent__form"

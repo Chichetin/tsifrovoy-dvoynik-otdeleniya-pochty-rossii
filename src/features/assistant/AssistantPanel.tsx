@@ -127,7 +127,8 @@ export function AssistantPanel({
   comparison,
   comparisonBusy = false,
   comparisonUnrelated = false,
-}: AssistantPanelProps & { comparison?: React.ReactNode; comparisonBusy?: boolean; comparisonUnrelated?: boolean }): React.JSX.Element {
+  selection = null,
+}: AssistantPanelProps & { comparison?: React.ReactNode; comparisonBusy?: boolean; comparisonUnrelated?: boolean; selection?: Ref | null }): React.JSX.Element {
   const [scenario, setScenario] = useState<Scenario>('place');
   const [typeId, setTypeId] = useState<string>(plan.catalog.objectTypes[0]?.id ?? '');
   const [zoneId, setZoneId] = useState<string>('');
@@ -201,6 +202,7 @@ export function AssistantPanel({
             onAsk={onAskAgent}
             onAction={onAgentAction}
             onClear={onClearChat ?? (() => undefined)}
+            selection={selection}
           />
           <h3 className="agent__section">Расчёт по сценарию</h3>
         </>
