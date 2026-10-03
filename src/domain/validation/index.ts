@@ -381,7 +381,7 @@ function wallIssues(plan: PlanDocument): Issue[] {
   for (const object of plan.objects) {
     if (!isPhysical(plan.catalog, object)) continue;
     for (const wall of plan.walls) {
-      if (!objectHitsWall(object, wall, plan.openings)) continue;
+      if (!objectHitsWall(object, wall, plan.openings, plan.walls)) continue;
       issues.push(
         issue(
           VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,

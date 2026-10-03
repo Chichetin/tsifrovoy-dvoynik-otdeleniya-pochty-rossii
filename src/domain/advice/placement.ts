@@ -142,7 +142,7 @@ function wallEdgesFor(plan: PlanDocument, type: ObjectType): [Point, Point][] {
   };
 
   for (const wall of plan.walls) {
-    for (const solid of wallObstacles(wall, plan.openings, interval)) collect(solid);
+    for (const solid of wallObstacles(wall, plan.openings, interval, plan.walls)) collect(solid);
   }
   if (edges.length === 0) collect(plan.room.boundary);
   return edges;
@@ -284,7 +284,7 @@ function blockersFor(plan: PlanDocument, type: ObjectType): Blocker[] {
     polygons.push(footprint(object));
   }
   for (const wall of plan.walls) {
-    polygons.push(...wallObstacles(wall, plan.openings, interval));
+    polygons.push(...wallObstacles(wall, plan.openings, interval, plan.walls));
   }
 
   return polygons

@@ -51,7 +51,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
   {
     kind: 'room.draw',
     label: 'Помещение',
-    hint: 'Граница помещения. Клик — точка; замкнуть — клик по первой точке, Enter или двойной клик; Esc — отмена; Alt — без привязки',
+    hint: 'Построить комнату двумя противоположными углами. Слева можно выбрать изменение внешнего контура. Alt — без привязки',
   },
   {
     kind: 'zone.draw',
@@ -61,12 +61,12 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
   {
     kind: 'wall.draw',
     label: 'Перегородка',
-    hint: 'Два клика: начало и конец; Alt — без привязки',
+    hint: 'Два клика: начало и конец. Ошиблись началом — «Отменить», Ctrl+Z или Backspace; Esc — отмена; Alt — без привязки',
   },
   {
     kind: 'opening.place',
     label: 'Проём',
-    hint: 'Клик по стене ставит дверь; вид и размер правятся в карточке свойств; Enter — готово',
+    hint: 'Наведите на стену, клик — черновик; выберите вид и ширину слева, затем «Установить проём»; Esc — отмена',
   },
 ];
 
@@ -121,7 +121,7 @@ function editingHint(selection: Ref | null): string | null {
     return 'Контур: тяните вершину; клик по ребру добавит вершину; Ctrl — протяжкой ребра вытянуть выступ, кликом по вершине удалить её; Alt — без привязки';
   }
   if (selection.kind === 'wall') return 'Перегородка: тяните концы; Alt — без привязки';
-  if (selection.kind === 'opening') return 'Проём: тяните вдоль стены; Enter — готово';
+  if (selection.kind === 'opening') return 'Проём: центр — двигать, края — ширина; Enter — готово';
   return null;
 }
 
@@ -142,7 +142,8 @@ export function PlanTools({
   session,
   onTool,
   onCommand,
-}: PlanToolsProps): React.JSX.Element {
+  drawingActive = false,
+}: PlanToolsProps & { drawingActive?: boolean }): React.JSX.Element {
   const notice = useNotice();
   const intent = deleteIntent(session.selection, plan);
   const tool = session.tool;
@@ -208,7 +209,7 @@ export function PlanTools({
 
       {/* Hints live in a plaque over the canvas, not in the header row: a long
           line there wrapped the header and moved the plan (operator №16). */}
-      {session.tool.kind !== 'object.place' && shapeType === null && hint === null && notice === null ? null : (
+      {drawingActive || (session.tool.kind !== 'object.place' && shapeType === null && hint === null && notice === null) ? null : (
         <div className="toolbar__hints">
           {session.tool.kind === 'object.place' ? (
             <span className="toolbar__note">Клик по плану ставит объект</span>

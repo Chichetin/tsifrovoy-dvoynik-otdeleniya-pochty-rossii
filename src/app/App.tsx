@@ -1,3 +1,7 @@
+import { openingDeleteRejection, openingEditRejection } from '../features/plan-tools/opening-edit-rejection';
+import { useOpeningController } from '../features/plan-tools/use-opening-controller';
+import { OpeningControls } from '../features/plan-tools/OpeningControls';
+import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer';
 /**
  * U01: the one place where the editor is assembled.
  *
@@ -51,6 +55,9 @@ import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { InternalRoomControls } from '../features/plan-tools/InternalRoomControls';
+import { useInternalRoomController } from '../features/plan-tools/use-internal-room-controller';
+import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
@@ -126,6 +133,7 @@ export function App(): React.JSX.Element {
   const dirty = useStore(store, (state) => state.dirty);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
+  const [roomMode, setRoomMode] = useState<'internal' | 'boundary'>('internal');
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(START_VIEWPORT);
@@ -253,18 +261,6 @@ export function App(): React.JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
-  // Ctrl+Z / Ctrl+Y — те же undo/redo, что и кнопки в шапке: история живёт в
-  // store, поэтому слушатель один, здесь, а не в каждом слое холста.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      const action = historyHotkey(event);
-      if (action === null) return;
-      event.preventDefault();
-      store.getState()[action]();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [store]);
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
@@ -366,7 +362,9 @@ export function App(): React.JSX.Element {
 
   const dispatch = useCallback(
     (command: Command): Result<PlanDocument> => {
-      const result = store.getState().dispatch(command);
+      const openingError = command.type === 'opening.put' ? openingEditRejection(store.getState().document,command.opening)
+        : command.type === 'opening.delete' ? openingDeleteRejection(store.getState().document,command.id) : null;
+      const result: Result<PlanDocument> = openingError === null ? store.getState().dispatch(command) : {ok:false,issues:[openingError]};
       // A refused command is not a silent no-op: the user has to learn why the
       // thing they just dragged snapped back.
       setLastError(result.ok ? null : refusalOf(result.issues, store.getState().revision));
@@ -459,7 +457,48 @@ export function App(): React.JSX.Element {
     },
     [dispatchAndSelect, store, tool],
   );
-  const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand });
+  const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand }, documentEpoch);
+  const dispatchInternalRoom = useCallback((command: Command): Result<PlanDocument> => {
+    const result = dispatchPlanCommand(command);
+    if (result.ok && command.type === 'batch') {
+      const zone = command.commands.find((step) => step.type === 'zone.put');
+      if (zone?.type === 'zone.put') selectOnPlan({ kind: 'zone', id: zone.zone.id });
+    }
+    return result;
+  }, [dispatchPlanCommand, selectOnPlan]);
+  const internalRoom = useInternalRoomController({ document, session, onCommand: dispatchInternalRoom }, view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal', documentEpoch);
+  const placingOpening = view === '2d' && tool.kind === 'opening.place';
+  const applyOpeningCommand = useCallback((command: Command): Result<PlanDocument> => {
+    const result = dispatchPlanCommand(command);
+    if (result.ok) setTool({kind:'select'});
+    return result;
+  }, [dispatchPlanCommand, setTool]);
+  const openingTool = useOpeningController({document,session,onCommand:applyOpeningCommand}, placingOpening, documentEpoch);
+  const drawingRoom = view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal';
+  const hasDrawingDraft = view === '2d' && (placingOpening ? openingTool.ready : drawingRoom ? internalRoom.start !== null :
+    (tool.kind === 'room.draw' || tool.kind === 'zone.draw' || tool.kind === 'shape.draw' || tool.kind === 'wall.draw') && planTool.draft !== null);
+  const undo = () => {
+    if (hasDrawingDraft) {
+      if (placingOpening) openingTool.cancel();
+      else if (drawingRoom) internalRoom.removeLast();
+      else planTool.removeLast();
+    } else store.getState().undo();
+  };
+  const redo = () => { if (!hasDrawingDraft) store.getState().redo(); };
+  // The visible undo and shortcut remove a draft corner before touching plan history.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const action = historyHotkey(event);
+      if (action === null) return;
+      event.preventDefault();
+      // Holding undo must not fall through from the last draft point to old plan edits.
+      if (event.repeat) return;
+      if (action === 'undo') undo();
+      else redo();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   const dispatchEquipmentCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
@@ -783,7 +822,9 @@ export function App(): React.JSX.Element {
         </div>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
-          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch} />
+          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch}
+            drawingActive={tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw'}
+          />
         </div>
         <div className="shell__view" role="group" aria-label="Вид плана">
           <button type="button" className="files__button" aria-pressed={view === '2d'} onClick={() => setView('2d')}>
@@ -794,14 +835,14 @@ export function App(): React.JSX.Element {
           </button>
         </div>
         <div className="shell__history" role="group" aria-label="История правок">
-          <button type="button" className="shell__quiet" title="Отменить последнюю правку (Ctrl+Z)" onClick={() => store.getState().undo()}>
+          <button type="button" className="shell__quiet" title={hasDrawingDraft ? placingOpening ? 'Отменить подготовленный проём (Ctrl+Z)' : 'Убрать последний угол рисунка (Ctrl+Z)' : 'Отменить последнюю правку (Ctrl+Z)'} onClick={undo}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M5.5 3.5 2.5 6.5l3 3" />
               <path d="M2.5 6.5h7a4 4 0 0 1 0 8h-3" />
             </svg>
             <span className="shell__label">Отменить</span>
           </button>
-          <button type="button" className="shell__quiet" title="Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)" onClick={() => store.getState().redo()}>
+          <button type="button" className="shell__quiet" disabled={hasDrawingDraft} title={hasDrawingDraft ? 'Завершите или отмените рисунок, чтобы вернуть правку плана' : 'Вернуть отменённую правку (Ctrl+Y или Ctrl+Shift+Z)'} onClick={redo}>
             <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
               <path d="m10.5 3.5 3 3-3 3" />
               <path d="M13.5 6.5h-7a4 4 0 0 0 0 8h3" />
@@ -845,6 +886,19 @@ export function App(): React.JSX.Element {
 
       <div className={`shell__body${planOnly ? ' shell__body--plan-only' : ''}`}>
         <aside id="side-panel-left" className="shell__side" data-tour="side-left">
+          {view === '2d' && tool.kind === 'room.draw' ? <fieldset className="drawing-controls"><legend>Что построить</legend>
+            <label><input type="radio" name="room-mode" checked={roomMode === 'internal'} onChange={() => { planTool.cancel(); setRoomMode('internal'); }} /> Комнату внутри отделения</label>
+            <label><input type="radio" name="room-mode" checked={roomMode === 'boundary'} onChange={() => { internalRoom.cancel(); setRoomMode('boundary'); }} /> Изменить внешний контур</label>
+          </fieldset> : null}
+          {placingOpening ? <OpeningControls ready={openingTool.ready} valid={openingTool.valid} message={openingTool.message} kind={openingTool.kind} width={openingTool.width} onKind={openingTool.changeKind} onWidth={openingTool.setWidth} onApply={openingTool.apply} onCancel={openingTool.cancel} /> : null}
+          {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} name={internalRoom.name} typeId={internalRoom.typeId} types={document.catalog.zoneTypes} onName={internalRoom.setName} onType={internalRoom.setTypeId} onApply={internalRoom.apply} onCancel={internalRoom.cancel} onRemoveLast={internalRoom.removeLast} /> : null}
+          {view === '2d' && !drawingRoom && (tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw') ? (
+            <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
+              shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
+              roomBoundary={tool.kind === 'room.draw'} pendingRoom={planTool.pendingRoom} onConfirmRoom={planTool.confirmRoom}
+              draft={planTool.draft} onFinish={planTool.finish} onRemoveLast={planTool.removeLast}
+              onCancel={() => { planTool.cancel(); setTool({ kind: 'select' }); }} />
+          ) : null}
           <SideTabs
             label="Панели слева"
             idPrefix="side-left"
@@ -989,7 +1043,9 @@ export function App(): React.JSX.Element {
             document={document}
             session={session}
             onPointer={(event) => {
-              planTool.handlePointer(event);
+              if (placingOpening) openingTool.handlePointer(event);
+              else if (drawingRoom) internalRoom.handlePointer(event);
+              else planTool.handlePointer(event);
               if (event.phase === 'down' && tool.kind === 'object.place') {
                 const existing = findPlacementPick(
                   shownDocument,
@@ -1023,10 +1079,13 @@ export function App(): React.JSX.Element {
             <PlanGeometryLayer
               document={document}
               session={session}
-              draft={planTool.draft}
+              draft={drawingRoom ? internalRoom.draft : planTool.draft}
+              draftCursor={drawingRoom ? null : planTool.cursor}
+              rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
               onCommand={dispatch}
               onSelect={selectOnPlan}
             />
+            <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             <EquipmentLayer
               document={shownDocument}
               session={session}

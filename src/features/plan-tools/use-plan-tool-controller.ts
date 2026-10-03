@@ -11,7 +11,7 @@
  * worse outcome than a refusal with the draft still on screen.
  *
  * Перегородка — это тот же черновик, только из двух точек: первый клик ставит
- * начало, второй заканчивает стену. Проём — один клик по стене. Оба отказа
+ * начало, второй заканчивает стену. Проём создаётся контроллером предпросмотра с подтверждением. Отказы
  * (промах мимо стены, слишком короткий отрезок) объясняются строкой, а не
  * молчанием: клик, после которого ничего не произошло, читается как поломка.
  */
@@ -26,8 +26,6 @@ import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
 import { getMeasurement, setMeasurement } from './measure';
 import {
   DRAFT_SELF_INTERSECTION_NOTICE,
-  NO_WALL_UNDER_POINTER_NOTICE,
-  OPENING_WIDER_THAN_WALL_NOTICE,
   RING_TOO_FEW_POINTS_NOTICE,
   SHAPE_NO_TYPE_NOTICE,
   SHAPE_TOO_SMALL_NOTICE,
@@ -39,7 +37,7 @@ import { objectFromRing } from './object-shape';
 import { setSnapHint } from './snap-marker';
 import { isTextTarget } from './text-target';
 import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
-import { createOpening, createWall, nearestWall } from './wall-draft';
+import { createWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
 const CLOSE_RADIUS_M = 0.4;
@@ -91,15 +89,36 @@ const DRAWING_TOOLS: ReadonlySet<ToolKind> = new Set<ToolKind>([
   'measure',
 ]);
 
-export const usePlanToolController: UsePlanToolController = ({
+export type DrawingController = ToolController & {
+  finish(): void;
+  confirmRoom(): void;
+  pendingRoom: boolean;
+  removeLast(): void;
+  cursor: Point | null;
+};
+
+export const usePlanToolController = ({
   document: plan,
   session,
   onCommand,
-}): ToolController => {
+}: Parameters<UsePlanToolController>[0], documentEpoch = 0): DrawingController => {
   const [draft, setDraft] = useState<Point[] | null>(null);
+  const [pendingRoom, setPendingRoom] = useState(false);
+  const [cursor, setCursor] = useState<Point | null>(null);
   const tool = session.tool;
   const kind = tool.kind;
+  // `plan.name` сюда не входит: переименование плана во время рисования не
+  // должно стирать поставленные углы, документ при этом не меняется.
+  const contextKey = `${kind}\u0000${tool.kind === 'shape.draw' ? tool.typeId : ''}\u0000${plan.id}\u0000${documentEpoch}`;
+  const [draftContext, setDraftContext] = useState(contextKey);
+  if (draftContext !== contextKey) {
+    setDraftContext(contextKey);
+    setPendingRoom(false);
+    setDraft(null);
+    setCursor(null);
+  }
   const committing = useRef(false);
+  const wallEraseKey = useRef<string | null>(null);
   const scale = session.viewport.scale;
 
   // Направляющие зависят только от плана, а спрашивают их на каждом движении
@@ -128,10 +147,14 @@ export const usePlanToolController: UsePlanToolController = ({
   }, [plan.id, plan.name]);
 
   const cancel = useCallback(() => {
+    setPendingRoom(false);
     setDraft(null);
+    setCursor(null);
+    setNotice(null);
     setSnapHint(null);
     setMeasurement(null);
   }, []);
+
 
   /**
    * «Своя фигура» (D-279): the drawn ring is a new object of the armed type,
@@ -194,7 +217,7 @@ export const usePlanToolController: UsePlanToolController = ({
               ? droppedOpeningNotice(plan.openings.length, result.value.openings.length)
               : null,
           );
-          return true;
+          return result.ok;
         }
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
         // One id space for the whole plan plus what a delete retired this session (D-198).
@@ -209,7 +232,7 @@ export const usePlanToolController: UsePlanToolController = ({
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
         const id = nextFreeId('z_', taken);
-        onCommand({
+        const result = onCommand({
           type: 'zone.put',
           zone: {
             id,
@@ -223,8 +246,8 @@ export const usePlanToolController: UsePlanToolController = ({
             attributes: {},
           },
         });
-        setNotice(null);
-        return true;
+        if (result.ok) setNotice(null);
+        return result.ok;
       } finally {
         committing.current = false;
       }
@@ -245,41 +268,104 @@ export const usePlanToolController: UsePlanToolController = ({
         setNotice(RING_TOO_FEW_POINTS_NOTICE);
         return;
       }
+      if (kind === 'room.draw' && plan.walls.length > 0 && canCommitRing(ring)) {
+        setDraft(ring);
+        setCursor(null);
+        setPendingRoom(true);
+        setSnapHint(null);
+        return;
+      }
       if (commit(ring)) {
         setDraft(null);
+        setCursor(null);
         setSnapHint(null);
         return;
       }
       setDraft(ring);
     },
-    [commit, tolerance],
+    [commit, tolerance, kind, plan.walls.length],
   );
 
   // Enter и двойной клик слушаются только пока контур рисуется: без черновика
   // Enter остаётся кнопке в фокусе, а двойной клик — холсту.
   const ringDraft = RING_TOOLS.has(kind) ? draft : null;
+  const finish = useCallback(() => {
+    if (ringDraft !== null) closeRing(ringDraft);
+  }, [closeRing, ringDraft]);
+  const confirmRoom = useCallback(() => {
+    if (!pendingRoom || kind !== 'room.draw' || draft === null) return;
+    if (commit(draft)) {
+      setPendingRoom(false);
+      setDraft(null);
+      setCursor(null);
+      setSnapHint(null);
+    }
+  }, [pendingRoom, kind, draft, commit]);
+  const removeLast = useCallback(() => {
+    setPendingRoom(false);
+    if ((!RING_TOOLS.has(kind) && kind !== 'wall.draw') || draft === null) return;
+    if (draft.length <= 1) {
+      // Опустевший черновик снимает и курсор рисования: обещанной следующей
+      // точки без первого угла больше нет (иначе он завис бы над пустым местом).
+      setDraft(null);
+      setCursor(null);
+    } else {
+      setDraft(draft.slice(0, -1));
+    }
+    setNotice(null);
+  }, [draft, kind]);
   useEffect(() => {
-    if (ringDraft === null) return undefined;
+    if (kind !== 'wall.draw') { wallEraseKey.current = null; return; }
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Enter' || event.repeat) return;
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
+      if (event.key !== 'Backspace' && event.key !== 'Delete') return;
+      if (event.ctrlKey || event.metaKey || event.altKey || isTextTarget(event.target)) return;
+      if (draft === null && !(event.repeat && wallEraseKey.current === event.key)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (!event.repeat) { wallEraseKey.current = event.key; removeLast(); }
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (wallEraseKey.current === event.key) wallEraseKey.current = null;
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+    };
+  }, [draft, kind, removeLast]);
+  useEffect(() => {
+    if (!RING_TOOLS.has(kind)) return undefined;
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
+      if (event.key !== 'Enter' && event.key !== 'Backspace') return;
+      // Без черновика нет угла, который можно вернуть: Backspace принадлежит
+      // выделению (например, удалению зоны), а не вооружённому инструменту.
+      if (ringDraft === null) return;
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (isTextTarget(event.target)) return;
+      if (event.key === 'Enter' && event.target instanceof Element && event.target.closest('.drawing-controls__actions') !== null) return;
       // Иначе тот же Enter нажал бы кнопку инструмента, оставшуюся в фокусе.
       event.preventDefault();
-      closeRing(ringDraft);
+      event.stopImmediatePropagation();
+      if (event.repeat) return;
+      if (event.key === 'Backspace') removeLast();
+      else closeRing(ringDraft);
     };
     const onDoubleClick = (event: MouseEvent): void => {
+      if (ringDraft === null) return;
       if (!(event.target instanceof Element) || event.target.closest(CANVAS_SELECTOR) === null) return;
       // Последнюю точку уже поставили два клика двойного клика; дубль снимет closeRing.
       closeRing(ringDraft);
     };
-    window.addEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
     window.addEventListener('dblclick', onDoubleClick);
     return () => {
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('dblclick', onDoubleClick);
     };
-  }, [closeRing, ringDraft]);
+  }, [closeRing, kind, removeLast, ringDraft]);
 
   /** Перегородка по двум точкам. false — отказ, начало остаётся на экране. */
   const drawWall = useCallback(
@@ -293,27 +379,6 @@ export const usePlanToolController: UsePlanToolController = ({
       onCommand({ type: 'wall.put', wall });
       setNotice(null);
       return true;
-    },
-    [onCommand, plan, session.retired],
-  );
-
-  /** Проём на стене под курсором; мимо стены — объяснение, а не тишина. */
-  const placeOpening = useCallback(
-    (point: Point): void => {
-      const hit = nearestWall(plan.walls, point);
-      if (hit === null) {
-        setNotice(NO_WALL_UNDER_POINTER_NOTICE);
-        return;
-      }
-      const taken = takenIds(plan, session.retired);
-      // Вид проёма правится карточкой свойств; ставим обычную дверь.
-      const opening = createOpening(hit.wall, point, 'door', taken);
-      if (opening === null) {
-        setNotice(OPENING_WIDER_THAN_WALL_NOTICE);
-        return;
-      }
-      onCommand({ type: 'opening.put', opening });
-      setNotice(null);
     },
     [onCommand, plan, session.retired],
   );
@@ -374,13 +439,12 @@ export const usePlanToolController: UsePlanToolController = ({
   const handlePointer = useCallback(
     (event: WorldPointer): void => {
       if (event.phase === 'cancel') {
-        setDraft(null);
-        setSnapHint(null);
-        setMeasurement(null);
+        cancel();
         return;
       }
       if (event.phase === 'move') {
         showTarget(event);
+        if (RING_TOOLS.has(kind) && draft !== null) setCursor(settle(event));
         if (kind === 'measure') measure(event);
         return;
       }
@@ -391,10 +455,8 @@ export const usePlanToolController: UsePlanToolController = ({
         return;
       }
 
-      if (kind === 'opening.place') {
-        placeOpening(event.point);
-        return;
-      }
+      // Opening placement belongs to useOpeningController: no immediate mutation here.
+      if (kind === 'opening.place') return;
 
       // A drawn vertex snaps to the plan's vertices and the grid (D-209);
       // Alt keeps the click where it was made. A guide-derived coordinate is
@@ -423,6 +485,7 @@ export const usePlanToolController: UsePlanToolController = ({
 
       if (!RING_TOOLS.has(kind)) return;
 
+      setPendingRoom(false);
       const current = draft ?? [];
       const first = current[0];
       // Closing is judged by where the click landed, not by where it snapped:
@@ -440,8 +503,8 @@ export const usePlanToolController: UsePlanToolController = ({
       }
       setDraft([...current, point]);
     },
-    [closeRing, draft, drawWall, kind, measure, placeOpening, settle, showTarget],
+    [cancel, closeRing, draft, drawWall, kind, measure, settle, showTarget],
   );
 
-  return { handlePointer, cancel, draft };
+  return { handlePointer, cancel, draft, cursor, finish, removeLast, pendingRoom, confirmRoom };
 };

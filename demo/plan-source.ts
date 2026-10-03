@@ -67,7 +67,8 @@ export const OPENINGS: OpeningSource[] = [
   { id: 'op_entrance', wallId: 'w_south', offset_m: 6.3, width_m: 1.6, kind: 'entrance', sill_m: 0, height_m: 2.1 },
   { id: 'op_window_south', wallId: 'w_south', offset_m: 1.5, width_m: 2, kind: 'window', sill_m: 0.9, height_m: 1.5 },
   { id: 'op_window_east', wallId: 'w_east', offset_m: 2, width_m: 1.4, kind: 'window', sill_m: 0.9, height_m: 1.5 },
-  { id: 'op_door_back', wallId: 'w_hall_back', offset_m: 5.4, width_m: 0.9, kind: 'door', sill_m: 0, height_m: 2.1 },
+  // Keep the door below the storage partition's footprint (junction at y=6.2).
+  { id: 'op_door_back', wallId: 'w_hall_back', offset_m: 5.15, width_m: 0.9, kind: 'door', sill_m: 0, height_m: 2.1 },
   { id: 'op_door_staff', wallId: 'w_staff', offset_m: 1.2, width_m: 0.9, kind: 'door', sill_m: 0, height_m: 2.1 },
   { id: 'op_door_storage', wallId: 'w_storage', offset_m: 3, width_m: 0.9, kind: 'door', sill_m: 0, height_m: 2.1 },
 ];

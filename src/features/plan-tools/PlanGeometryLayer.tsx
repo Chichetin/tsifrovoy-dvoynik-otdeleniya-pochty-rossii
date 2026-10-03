@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Layer, Line, Text } from 'react-konva';
+import { Circle, Group, Label, Layer, Line, Tag, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
@@ -37,6 +37,7 @@ import {
 } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
+import { resizeOpening, introducesOpeningOverlap } from './opening-edit';
 import { WALL_LABEL_FONT_PX, wallLengthLabel } from './wall-length-label';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import { shouldFinishOpeningSelection } from './opening-focus';
@@ -88,9 +89,11 @@ export function PlanGeometryLayer({
   document: plan,
   session,
   draft,
+  draftCursor = null,
+  rectangleCorners,
   onCommand,
   onSelect,
-}: PlanGeometryLayerProps): React.JSX.Element {
+}: PlanGeometryLayerProps & { draftCursor?: Point | null; rectangleCorners?: Point[] }): React.JSX.Element {
   const { viewport, selection } = session;
   // While a drawing tool is active the click belongs to the tool: the shape
   // under the pointer must not steal the selection from what was just drawn,
@@ -98,9 +101,24 @@ export function PlanGeometryLayer({
   // a T-junction on a neighbour's edge would insert a vertex instead.
   const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
   const pick = (ref: Ref): (() => void) | undefined => (picking ? () => onSelect(ref) : undefined);
+  const openingDrag = useRef<Konva.Node | null>(null);
+  const canceledOpeningDrag = useRef(false);
   const [editing, setEditing] = useState<Editing | null>(null);
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || openingDrag.current === null || isTextTarget(event.target)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      canceledOpeningDrag.current = true;
+      openingDrag.current.stopDrag();
+      openingDrag.current = null;
+      setEditing(null);
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   // One source for "which layers are on": zones, objects and labels must
   // follow the same visibility rule, so it is not rebuilt per consumer. Memoised
@@ -125,6 +143,7 @@ export function PlanGeometryLayer({
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (!isDeleteKey(event.key) || isTextTarget(event.target)) return;
+      if (openingDrag.current !== null) { event.preventDefault(); return; }
       const intent = deleteIntent(selection, plan);
       if (intent === null) return;
       event.preventDefault();
@@ -165,9 +184,12 @@ export function PlanGeometryLayer({
   // касается — оно живёт, пока пользователь его не снимет сам.
   const previousToolKind = useRef(session.tool.kind);
   useEffect(() => {
-    const changed = previousToolKind.current !== session.tool.kind;
+    const previous = previousToolKind.current;
+    const changed = previous !== session.tool.kind;
     previousToolKind.current = session.tool.kind;
-    if (changed && shouldFinishOpeningSelection(selection)) onSelect(null);
+    // Confirmed placement enters selection with its new opening already picked.
+    const placed = previous === 'opening.place' && session.tool.kind === 'select';
+    if (changed && !placed && shouldFinishOpeningSelection(selection)) onSelect(null);
   }, [session.tool.kind, selection, onSelect]);
 
   const pointerWorld = (event: Konva.KonvaEventObject<unknown>): Point | null => {
@@ -249,7 +271,7 @@ export function PlanGeometryLayer({
    * of an edge inserts and pulls it out in a single gesture (D-232).
    */
   const ringHandles = (ref: Ref, polygon: Polygon, editable: boolean): React.JSX.Element[] => {
-    if (!editable) return [];
+    if (!editable || !picking) return [];
     // Handles sit on the document's vertices: the dragged one is moved by
     // Konva itself, and the preview ring is drawn separately.
     const edges = polygon.map((from, index) => {
@@ -413,7 +435,7 @@ export function PlanGeometryLayer({
         stroke={SELECTED_STROKE}
         strokeWidth={1.5}
         draggable
-        onDragStart={() => setNotice(null)}
+        onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
         onDragMove={(event) =>
           setEditing({
             kind: 'opening',
@@ -424,11 +446,49 @@ export function PlanGeometryLayer({
           const moved = moveOpeningTo(opening, wall, nodeWorld(event.target));
           setEditing(null);
           event.target.position({ x, y });
+          openingDrag.current = null;
+          if (canceledOpeningDrag.current) return;
+          if (introducesOpeningOverlap(moved, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Переместите его на свободный участок стены.'); return; }
           const result = onCommand({ type: 'opening.put', opening: moved });
           if (result.ok) setNotice(null);
         }}
       />
     );
+  };
+
+  const openingHandles = (opening: Opening, wall: Wall): React.JSX.Element => {
+    const length = segmentLength(wall.from, wall.to);
+    if (length <= TOLERANCE.coordinate_m) return <Group />;
+    const at = (offset: number): Point => [wall.from[0] + (wall.to[0] - wall.from[0]) * offset / length, wall.from[1] + (wall.to[1] - wall.from[1]) * offset / length];
+    const [cx, cy] = modelToScreen(openingCentre(opening, wall), viewport);
+    return <Group name="opening-edit-handles">
+      {openingHandle(opening, wall)}
+      {(['start', 'end'] as const).map((edge) => {
+        const [actualX, actualY] = modelToScreen(at(edge === 'start' ? opening.offset_m : opening.offset_m + opening.width_m), viewport);
+        const halfSpan = Math.max(24, opening.width_m * viewport.scale / 2);
+        const direction = edge === 'start' ? -1 : 1;
+        const x = cx + direction * (wall.to[0] - wall.from[0]) / length * halfSpan;
+        const y = cy - direction * (wall.to[1] - wall.from[1]) / length * halfSpan;
+        const shiftX = x - actualX; const shiftY = y - actualY;
+        // A grip may be outside the true edge at small scale. Drag its delta,
+        // not its displayed location, so picking it up never changes the width.
+        const edgePoint = (node: Konva.Node): Point => screenToModel([node.x() - shiftX, node.y() - shiftY], viewport);
+        return <Group key={edge}>
+          {Math.hypot(shiftX, shiftY) < 0.01 ? null : <Line points={[actualX, actualY, x, y]} stroke={SELECTED_STROKE} strokeWidth={1} dash={[2, 2]} listening={false} />}
+          <Circle name={`opening-resize-${edge}`} x={x} y={y} radius={6} fill="#FFF3BF" stroke={SELECTED_STROKE} strokeWidth={2} hitStrokeWidth={12} draggable
+          onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
+          onDragMove={(event) => setEditing({ kind: 'opening', opening: resizeOpening(opening, wall, edge, edgePoint(event.target)) })}
+          onDragEnd={(event) => {
+            const resized = resizeOpening(opening, wall, edge, edgePoint(event.target));
+            setEditing(null); event.target.position({ x, y }); openingDrag.current = null;
+            if (canceledOpeningDrag.current) return;
+            if (introducesOpeningOverlap(resized, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Сузьте его или выберите свободный участок стены.'); return; }
+            const result = onCommand({ type: 'opening.put', opening: resized });
+            if (result.ok) setNotice(null);
+          }} />
+        </Group>;
+      })}
+    </Group>;
   };
 
   const ringShown = (ref: Ref, polygon: Polygon): { polygon: Polygon; invalid: boolean } => {
@@ -521,11 +581,11 @@ export function PlanGeometryLayer({
   const draftInvalid = draft !== null && draft.length >= 3 && !canCommitRing(draft);
 
   const selectedZone =
-    selection?.kind === 'zone' ? zones.find((zone) => zone.id === selection.id) : undefined;
+    picking && selection?.kind === 'zone' ? zones.find((zone) => zone.id === selection.id) : undefined;
   const selectedWall =
-    selection?.kind === 'wall' ? plan.walls.find((wall) => wall.id === selection.id) : undefined;
+    picking && selection?.kind === 'wall' ? plan.walls.find((wall) => wall.id === selection.id) : undefined;
   const selectedOpening =
-    selection?.kind === 'opening'
+    picking && selection?.kind === 'opening'
       ? plan.openings.find((opening) => opening.id === selection.id)
       : undefined;
   const selectedOpeningWall =
@@ -575,10 +635,10 @@ export function PlanGeometryLayer({
           оборудования, иначе объект, вставший на подпись, закрывает её
           целиком. Здесь их больше нет намеренно. */}
 
-      {plan.walls.map((wall) => (
+      {plan.walls.map(wallShown).map((wall, _index, shownWalls) => (
         <Line
           key={wall.id}
-          points={flatten(wallPolygon(wallShown(wall)), viewport)}
+          points={flatten(wallPolygon(wall, shownWalls, plan.openings), viewport)}
           closed
           fill={WALL_FILL}
           stroke={isSelected('wall', wall.id) ? SELECTED_STROKE : WALL_FILL}
@@ -642,6 +702,7 @@ export function PlanGeometryLayer({
       })}
 
       {draft === null || draft.length === 0 ? null : (
+        <Group name="drawing-draft" listening={false}>
         <Line
           points={flatten(draft, viewport)}
           stroke={draftInvalid ? INVALID_STROKE : DRAFT_STROKE}
@@ -650,6 +711,31 @@ export function PlanGeometryLayer({
           closed={draft.length > 2}
           listening={false}
         />
+        {draftCursor === null ? null : <Line points={flatten([draft[draft.length - 1]!, draftCursor], viewport)} stroke={DRAFT_STROKE} strokeWidth={2} dash={[3, 5]} />}
+        {session.tool.kind === 'wall.draw' ? null : (rectangleCorners ?? draft).map((point, index) => {
+          const [x, y] = modelToScreen(point, viewport);
+          return <Group key={index} x={x} y={y}>
+            <Circle radius={index === 0 ? 10 : 8} fill="#FFFFFF" stroke={draftInvalid ? INVALID_STROKE : DRAFT_STROKE} strokeWidth={index === 0 ? 3 : 2} />
+            <Text x={-8} y={-6} width={16} align="center" text={String(index + 1)} fontSize={12} fill="#212529" />
+            {index === 0 || rectangleCorners !== undefined ? (
+              // Над углом, а не справа: справа лежит первое ребро контура
+              // (1→2), и подпись без сдвига перечёркивалась им. Непрозрачная
+              // плашка — на случай, если контур всё же пройдёт под подписью
+              // на другом масштабе (та же техника, что у подсказки привязки,
+              // D-224). Цвет — как у самого контура: красный при самопересечении.
+              <Label name="draft-start-caption" x={-4} y={-30} listening={false}>
+                <Tag fill="#FFFFFF" opacity={0.9} cornerRadius={2} />
+                <Text
+                  text={rectangleCorners !== undefined ? (index === 0 ? 'Первый угол' : 'Второй угол') : draft.length >= 3 ? '1 — замкнуть' : 'Начало'}
+                  fontSize={12}
+                  fill={draftInvalid ? INVALID_STROKE : DRAFT_STROKE}
+                  padding={3}
+                />
+              </Label>
+            ) : null}
+          </Group>;
+        })}
+        </Group>
       )}
 
       {picking && isSelected('room', plan.room.id) ? ringHandles(roomRef, plan.room.boundary, true) : null}
@@ -663,7 +749,7 @@ export function PlanGeometryLayer({
       {!picking || selectedWall === undefined ? null : wallHandles(selectedWall)}
       {!picking || selectedOpening === undefined || selectedOpeningWall === undefined
         ? null
-        : openingHandle(selectedOpening, selectedOpeningWall)}
+        : openingHandles(selectedOpening, selectedOpeningWall)}
     </Layer>
     {/* Маркер цели привязки — на своём слое: кадр жеста не должен
         перерисовывать зоны, стены и подписи (D-177, D-224). */}

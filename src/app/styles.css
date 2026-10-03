@@ -713,6 +713,20 @@ body {
   line-height: 1.4;
 }
 
+.drawing-controls {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  font-size: var(--text-xs);
+}
+.drawing-controls__actions { display: flex; flex-direction: column; gap: 6px; }
+.drawing-controls__actions .files__button { padding: 5px 8px; white-space: normal; }
+.drawing-controls__actions .files__button:first-child:not(:disabled) { background: var(--color-accent); color: white; border-color: var(--color-accent); }
+
 .toolbar__note.is-notice {
   color: var(--color-danger);
 }
