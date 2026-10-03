@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import type { Equipment, Opening, Point, Polygon, Viewport, Wall } from '../../contracts/model';
+import type { Equipment, Opening, PlanDocument, Point, Polygon, Viewport, Wall } from '../../contracts/model';
 import {
   contains,
   footprint,
@@ -36,6 +36,12 @@ import {
   boundingBox,
   boxesOverlap,
   symbolOutline,
+  dragObstacles,
+  nearestGap,
+  objectGaps,
+  objectGuides,
+  polygonGap,
+  snapObjectCentre,
 } from './index';
 
 const CLOSE = 9;
@@ -522,5 +528,72 @@ describe('точка в секторе обзора', () => {
     const middle = sector[1 + Math.floor((sector.length - 1) / 2)]!;
     const inner: Point = [2 + (middle[0] - 2) * 0.9, 3 + (middle[1] - 3) * 0.9];
     expect(pointInViewSector([2, 3], 45, 90, 5, inner)).toBe(true);
+  });
+});
+
+describe('умные направляющие и расстояния при перетаскивании (#20)', () => {
+  const wall: Wall = { id: 'w_east', from: [10, 0], to: [10, 10], thickness_m: 0.2, height_m: 3 };
+  // Повёрнутый на 90° сосед 2 × 0,5 м: его рамка — 0,5 по X и 2 по Y.
+  const turned = equipment({ id: 'eq_turned', position: [5, 5], size_m: [2, 0.5], rotation_deg: 90 });
+  const plan = (objects: Equipment[], hiddenLayer = false): PlanDocument => ({
+    schemaVersion: 1,
+    id: 'plan_test',
+    name: 'Тест',
+    room: { id: 'room', boundary: [[0, 0], [10, 0], [10, 10], [0, 10]], ceilingHeight_m: 3 },
+    walls: [wall],
+    openings: [],
+    layers: [{ id: 'l_base', name: 'Основной', visible: !hiddenLayer, locked: false, order: 0, typeId: null }],
+    zones: [],
+    objects,
+    catalog: { version: '1', objectTypes: [], zoneTypes: [], layerTypes: [], rules: [] },
+    extensions: {},
+  });
+
+  test('направляющие соседа — края и центр его повёрнутой рамки, без самого перемещаемого', () => {
+    const moving = equipment({ id: 'eq_moving', position: [2, 2] });
+    const guides = objectGuides(plan([turned, moving]), new Set(['eq_moving']));
+    for (const x of [4.75, 5, 5.25]) expect(guides.xs.some((guide) => Math.abs(guide - x) < 1e-9)).toBe(true);
+    for (const y of [4, 5, 6]) expect(guides.ys.some((guide) => Math.abs(guide - y) < 1e-9)).toBe(true);
+    expect(guides.xs.some((guide) => Math.abs(guide - 2) < 1e-9)).toBe(false);
+  });
+
+  test('центр прилипает к центру соседа', () => {
+    const moving = equipment({ id: 'eq_moving', position: [5.03, 8] });
+    const guides = objectGuides(plan([turned, moving]), new Set(['eq_moving']));
+    const { centre, snap } = snapObjectCentre(moving, [5.03, 8], guides, null, 0.1);
+    expect(centre[0]).toBeCloseTo(5, CLOSE);
+    expect(snap.x?.kind).toBe('guide');
+  });
+
+  test('зазор повёрнутого на 45° объекта до грани стены — от вершины ромба по перпендикуляру', () => {
+    const diamond = footprint(equipment({ position: [8, 5], rotation_deg: 45 }));
+    const gap = polygonGap(diamond, [[9.9, 0], [10.1, 0], [10.1, 10], [9.9, 10]]);
+    expect(gap?.distance).toBeCloseTo(1.9 - Math.SQRT1_2, CLOSE);
+    expect(gap?.from[0]).toBeCloseTo(8 + Math.SQRT1_2, CLOSE);
+    expect(gap?.from[1]).toBeCloseTo(5, CLOSE);
+    expect(gap?.to).toEqual([9.9, 5]);
+  });
+
+  test('ближайший сосед выбран по контуру, пересечение — ноль', () => {
+    const near = equipment({ id: 'eq_near', position: [3, 5] });
+    const obstacles = dragObstacles(plan([turned, near]), new Set());
+    // Объект 1 × 1 в (5, 2): до повёрнутого соседа (x 4,75…5,25; y 4…6) — 1,5 по Y,
+    // до eq_near (x 2,5…3,5; y 4,5…5,5) — √(1² + 2²).
+    const gap = nearestGap(footprint(equipment({ position: [5, 2] })), obstacles.objects);
+    expect(gap?.id).toBe('eq_turned');
+    expect(gap?.distance).toBeCloseTo(1.5, CLOSE);
+    const overlap = nearestGap(footprint(equipment({ position: [5, 5.2] })), obstacles.objects);
+    expect(overlap).toMatchObject({ id: 'eq_turned', distance: 0 });
+  });
+
+  test('расстояния до стены и соседа без скрытых и перемещаемых объектов', () => {
+    const moving = equipment({ id: 'eq_moving', position: [8, 5], size_m: [1, 0.5], rotation_deg: 90 });
+    const gaps = objectGaps(moving, dragObstacles(plan([turned, moving]), new Set(['eq_moving'])));
+    // Повёрнутый 1 × 0,5: правый край на 8,25, грань стены на 9,9.
+    expect(gaps.wall).toMatchObject({ id: 'w_east' });
+    expect(gaps.wall?.distance).toBeCloseTo(1.65, CLOSE);
+    expect(gaps.object?.id).toBe('eq_turned');
+    expect(gaps.object?.distance).toBeCloseTo(7.75 - 5.25, CLOSE);
+    expect(dragObstacles(plan([turned], true), new Set()).objects).toHaveLength(0);
   });
 });

@@ -22,14 +22,17 @@ import { takenIds } from '../../domain/commands';
 import { activeObjectColor, objectColorValue } from '../../domain/object-color';
 import {
   SNAP,
+  dragObstacles,
   footprint,
   modelToScreen,
+  objectGaps,
   objectGuides,
   objectOutline,
   screenToModel,
   snapObjectCentre,
 } from '../../domain/geometry';
-import type { AxisSnap } from '../../domain/geometry';
+import type { AxisSnap, Gap } from '../../domain/geometry';
+import { formatLength } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
 import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
@@ -67,6 +70,10 @@ const SELECTED_STROKE = '#1971C2';
 /** Snap lines (operator 20.09 №3): a guide is the plan's own edge, the grid is a hint. */
 const SNAP_GUIDE_STROKE = '#E64980';
 const SNAP_GRID_STROKE = '#868E96';
+/** Distance from the moved object to the nearest wall and neighbour (#20). */
+const GAP_STROKE = '#495057';
+const GAP_LABEL_WIDTH_PX = 128;
+const GAP_LABEL_HEIGHT_PX = 18;
 const HANDLE_FILL = '#FFFFFF';
 const ROTATE_FILL = '#E7F5FF';
 
@@ -86,13 +93,17 @@ const HOVER_RULE_GAP_PX = 9;
  */
 type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
 
+/** Shortest lines from the moved object to the nearest wall and neighbour, in world metres. */
+type Gaps = { wall: Gap | null; object: Gap | null };
+
 /**
  * The object as the pointer is currently shaping it; null outside a gesture.
  * `delta` is set while a member of a group is dragged: the other members
  * follow by the same offset in model metres, from their own positions.
- * `lines` — what the move snapped to, drawn on the selection layer.
+ * `lines` — what the move snapped to, `gaps` — how far the object is from the
+ * nearest wall and neighbour; both are drawn on the selection layer.
  */
-type Gesture = { id: string; object: Equipment; delta?: Point; lines?: SnapLines };
+type Gesture = { id: string; object: Equipment; delta?: Point; lines?: SnapLines; gaps?: Gaps };
 
 /**
  * A marquee in progress, in stage pixels. `width`/`height` are the stage's:
@@ -115,6 +126,10 @@ const NO_GROUP: ReadonlySet<Id> = new Set<Id>();
  * это не содержимое документа.
  */
 type Clipboard = { objects: Equipment[]; pastes: number };
+
+function midpoint(from: Point, to: Point): Point {
+  return [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
+}
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -611,7 +626,13 @@ export function EquipmentLayer({
     const node = event.target;
     // Locked members of a group stay put, so they remain something to snap to.
     const moving = isGroup && group.has(id) ? new Set<Id>(movable.map((member) => member.id)) : new Set<Id>([id]);
-    guard.begin({ node, origin: { x: node.x(), y: node.y() }, grab, guides: objectGuides(plan, moving) });
+    guard.begin({
+      node,
+      origin: { x: node.x(), y: node.y() },
+      grab,
+      guides: objectGuides(plan, moving),
+      obstacles: dragObstacles(plan, moving),
+    });
     // Grabbing a member keeps the group and makes that member the primary —
     // the card follows the hand; anything else is a single pick.
     if (isGroup && group.has(id) && onSelectMany !== undefined) {
@@ -682,14 +703,21 @@ export function EquipmentLayer({
       node: Konva.Node,
       evt: unknown,
       phase: 'move' | 'drop',
-    ): { position: Point; lines?: SnapLines } => {
+    ): { position: Point; lines?: SnapLines; gaps?: Gaps } => {
       const centre = screenToModel([node.x(), node.y()], viewport);
       const started = guard.started;
       if (phase === 'move' && started !== null) {
         started.snapOff = typeof evt === 'object' && evt !== null && 'altKey' in evt && evt.altKey === true;
       }
+      // The drop needs only the position: the distances leave with the gesture.
+      const obstacles = phase === 'move' ? started?.obstacles : undefined;
+      const measured = (position: Point): Gaps | undefined =>
+        obstacles === undefined ? undefined : objectGaps({ ...object, position }, obstacles);
       const guides = started?.guides;
-      if (started?.snapOff === true || guides === undefined) return { position: snapPosition(centre) };
+      if (started?.snapOff === true || guides === undefined) {
+        const position = snapPosition(centre);
+        return { position, gaps: measured(position) };
+      }
       // Already settled by the domain: a guide axis keeps the guide's own
       // millimetres, rounding it to the centimetre would push it into the wall.
       const snapped = snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale);
@@ -698,7 +726,7 @@ export function EquipmentLayer({
         stage === null || (snapped.snap.x === null && snapped.snap.y === null)
           ? undefined
           : { x: snapped.snap.x, y: snapped.snap.y, width: stage.width(), height: stage.height() };
-      return { position: snapped.centre, lines };
+      return { position: snapped.centre, lines, gaps: measured(snapped.centre) };
     };
 
     return (
@@ -746,7 +774,13 @@ export function EquipmentLayer({
           const moved = movedTo(event.target, event.evt, 'move');
           const next = { ...object, position: moved.position };
           onGesturePreview?.({ objectId: object.id, position: next.position });
-          setGesture({ id: object.id, object: next, delta: groupDelta(object, next), lines: moved.lines });
+          setGesture({
+            id: object.id,
+            object: next,
+            delta: groupDelta(object, next),
+            lines: moved.lines,
+            gaps: moved.gaps,
+          });
         }}
         onDragEnd={(event) => {
           const next = { ...object, position: movedTo(event.target, event.evt, 'drop').position };
@@ -1040,9 +1074,68 @@ export function EquipmentLayer({
                   points={axis === 'x' ? [sx, 0, sx, height] : [0, sy, width, sy]}
                   stroke={snap.kind === 'guide' ? SNAP_GUIDE_STROKE : SNAP_GRID_STROKE}
                   strokeWidth={1}
-                  dash={snap.kind === 'guide' ? undefined : [4, 4]}
+                  dash={snap.kind === 'guide' ? [6, 4] : [2, 4]}
                   listening={false}
                 />
+              );
+            })}
+
+        {/* How far the moved object is from the nearest wall and neighbour: a
+            dashed line along the shortest gap and its length in metres. */}
+        {gesture?.gaps === undefined
+          ? null
+          : (['wall', 'object'] as const).map((kind) => {
+              const gap = gesture.gaps?.[kind];
+              if (gap === null || gap === undefined) return null;
+              const [x1, y1] = modelToScreen(gap.from, viewport);
+              const [x2, y2] = modelToScreen(gap.to, viewport);
+              // Two short gaps put both labels on the same spot: the second one
+              // steps down by its own height so both numbers stay readable.
+              const wall = gesture.gaps?.wall ?? null;
+              const [wx, wy] = wall === null ? [Infinity, Infinity] : modelToScreen(midpoint(wall.from, wall.to), viewport);
+              const crowded =
+                kind === 'object' &&
+                Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
+                Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
+              return (
+                <Fragment key={`gap-${kind}`}>
+                  <Line
+                    name={`gap-line-${kind}`}
+                    points={[x1, y1, x2, y2]}
+                    stroke={GAP_STROKE}
+                    strokeWidth={1}
+                    dash={[3, 3]}
+                    listening={false}
+                  />
+                  <Group
+                    name={`gap-label-${kind}`}
+                    x={(x1 + x2) / 2}
+                    y={(y1 + y2) / 2 + (crowded ? GAP_LABEL_HEIGHT_PX + 2 : 0)}
+                    offsetX={GAP_LABEL_WIDTH_PX / 2}
+                    offsetY={GAP_LABEL_HEIGHT_PX / 2}
+                    listening={false}
+                  >
+                    <Rect
+                      width={GAP_LABEL_WIDTH_PX}
+                      height={GAP_LABEL_HEIGHT_PX}
+                      fill="#FFFFFF"
+                      opacity={0.94}
+                      stroke={GAP_STROKE}
+                      strokeWidth={1}
+                      cornerRadius={3}
+                    />
+                    <Text
+                      width={GAP_LABEL_WIDTH_PX}
+                      height={GAP_LABEL_HEIGHT_PX}
+                      text={`${kind === 'wall' ? 'до стены' : 'до объекта'} ${formatLength(gap.distance)}`}
+                      fontSize={12}
+                      fontFamily="system-ui, sans-serif"
+                      fill="#212529"
+                      align="center"
+                      verticalAlign="middle"
+                    />
+                  </Group>
+                </Fragment>
               );
             })}
 

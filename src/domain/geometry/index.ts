@@ -5,8 +5,8 @@
  * This module knows nothing about the catalog: whether an object is `physical`
  * or `occupiesFloor` is a catalog question, so the caller applies those flags.
  * Geometry only answers where things are and whether they overlap. The one
- * exception is `objectGuides` (D-211): what to snap furniture to is decided
- * here, and a sensor on the ceiling is not it.
+ * exception is `guideObjects` (D-211): what to snap furniture to and measure
+ * it against is decided here, and a sensor on the ceiling is not it.
  */
 
 import type { Equipment, Id, Opening, PlanDocument, Point, Polygon, Wall } from '../../contracts/model';
@@ -25,12 +25,16 @@ import {
 } from './snap';
 import {
   boundingBox,
+  boxGap,
   boxesOverlap,
+  polygonGap,
   pointSegmentDistance,
   polygonArea,
   polygonContains,
   polygonsOverlap,
   segmentLength,
+  type BoundingBox,
+  type PolygonGap,
 } from './polygons';
 
 export {
@@ -52,11 +56,13 @@ export {
 } from './coordinates';
 export {
   boundingBox,
+  boxGap,
   boxesOverlap,
   locatePoint,
   isSimplePolygon,
   pointSegmentDistance,
   polygonArea,
+  polygonGap,
   polygonSegmentDistance,
   projectOnSegment,
   ringArea,
@@ -65,6 +71,7 @@ export {
   signedArea,
   type BoundingBox,
   type PointPosition,
+  type PolygonGap,
 } from './polygons';
 
 export {
@@ -94,11 +101,26 @@ export type {
 } from './snap';
 
 /**
+ * The neighbours a moved object is aligned with and measured against: every
+ * other object on a visible layer that stands on the floor. Furniture is
+ * aligned with furniture, not with a smoke sensor or a camera (D-211).
+ * `exclude` — the objects being moved: a thing must not snap to itself.
+ */
+function guideObjects(plan: PlanDocument, exclude: ReadonlySet<Id>): Equipment[] {
+  const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
+  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
+  return plan.objects.filter((object) => {
+    if (exclude.has(object.id) || hidden.has(object.layerId)) return false;
+    const type = types.get(object.typeId);
+    return type === undefined || (type.physical && type.occupiesFloor);
+  });
+}
+
+/**
  * Guides of a plan for moving an object (D-208): the room outline's vertices,
  * the zones' vertices, the walls' faces (the rectangle of their thickness, not
- * the centreline — «flush to the wall» must not put the object inside it) and
- * the boxes of every other floor-standing object on a visible layer. `exclude` — the objects
- * being moved: a thing must not snap to itself.
+ * the centreline — «flush to the wall» must not put the object inside it), and
+ * the edges and the centre lines of every `guideObjects` neighbour's box.
  */
 export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): SnapGuides {
   const xs = new Set<number>();
@@ -114,21 +136,62 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
   for (const vertex of plan.room.boundary) if (!onWallAxis(vertex)) add(vertex);
   for (const zone of plan.zones) for (const vertex of zone.polygon) if (!onWallAxis(vertex)) add(vertex);
   for (const wall of plan.walls) for (const vertex of wallPolygon(wall, plan.walls, plan.openings)) add(vertex);
-  const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
-  // Furniture is aligned with furniture, not with a smoke sensor or a camera:
-  // only what the catalog says stands on the floor is a guide (D-211).
-  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
-  for (const object of plan.objects) {
-    if (exclude.has(object.id) || hidden.has(object.layerId)) continue;
-    const type = types.get(object.typeId);
-    if (type !== undefined && !(type.physical && type.occupiesFloor)) continue;
+  for (const object of guideObjects(plan, exclude)) {
     const box = boundingBox(footprint(object));
     xs.add(box.minX);
     xs.add(box.maxX);
+    xs.add((box.minX + box.maxX) / 2);
     ys.add(box.minY);
     ys.add(box.maxY);
+    ys.add((box.minY + box.maxY) / 2);
   }
   return { xs: [...xs], ys: [...ys] };
+}
+
+/** Something a moved object is measured against: its id, its ring and the ring's box. */
+export type Obstacle = { id: Id; ring: Polygon; box: BoundingBox };
+
+/** The nearest obstacle and the shortest line to it; `from` lies on the moved shape. */
+export type Gap = PolygonGap & { id: Id };
+
+/** What a move measures against, prepared once per gesture: wall footprints and neighbours. */
+export type DragObstacles = { walls: Obstacle[]; objects: Obstacle[] };
+
+/**
+ * Obstacles of a plan for moving an object: each wall's footprint (its faces,
+ * as for the guides) and each `guideObjects` neighbour's footprint. Built at
+ * the start of a gesture, so a move only measures and never rebuilds rings.
+ */
+export function dragObstacles(plan: PlanDocument, exclude: ReadonlySet<Id>): DragObstacles {
+  const obstacle = (id: Id, ring: Polygon): Obstacle => ({ id, ring, box: boundingBox(ring) });
+  return {
+    walls: plan.walls
+      .map((wall) => obstacle(wall.id, wallPolygon(wall, plan.walls, plan.openings)))
+      .filter((wall) => wall.ring.length >= 3),
+    objects: guideObjects(plan, exclude).map((object) => obstacle(object.id, footprint(object))),
+  };
+}
+
+/**
+ * The obstacle nearest to `shape`, or null when there is none. A box that is
+ * already farther than the best gap so far cannot hold a nearer ring, so a
+ * plan of a thousand objects measures only the few around the moved one.
+ */
+export function nearestGap(shape: Polygon, obstacles: readonly Obstacle[]): Gap | null {
+  const box = boundingBox(shape);
+  let best: Gap | null = null;
+  for (const obstacle of obstacles) {
+    if (best !== null && boxGap(box, obstacle.box) >= best.distance) continue;
+    const gap = polygonGap(shape, obstacle.ring);
+    if (gap !== null && (best === null || gap.distance < best.distance)) best = { ...gap, id: obstacle.id };
+  }
+  return best;
+}
+
+/** Distances of a moved object to the nearest wall and the nearest neighbour. */
+export function objectGaps(object: Equipment, obstacles: DragObstacles): { wall: Gap | null; object: Gap | null } {
+  const shape = footprint(object);
+  return { wall: nearestGap(shape, obstacles.walls), object: nearestGap(shape, obstacles.objects) };
 }
 
 /**

@@ -332,3 +332,36 @@ export function polygonSegmentDistance(polygon: Polygon, from: Point, to: Point)
   }
   return nearest;
 }
+
+/** Closest approach of two rings: the distance and the points it runs between. */
+export type PolygonGap = { distance: number; from: Point; to: Point };
+
+/**
+ * How far apart two rings are and where: `from` lies on `a`, `to` on `b`.
+ * The nearest pair of two convex or concave rings is always a vertex of one
+ * against an edge of the other, so every vertex is projected on every edge of
+ * the other ring. Overlapping rings are zero apart. An empty ring has no gap.
+ */
+export function polygonGap(a: Polygon, b: Polygon): PolygonGap | null {
+  if (a.length < 3 || b.length < 3) return null;
+  let best: PolygonGap = { distance: Number.POSITIVE_INFINITY, from: a[0]!, to: b[0]! };
+  const scan = (points: Polygon, ring: Polygon, onA: boolean): void => {
+    for (const point of points) {
+      for (let i = 0; i < ring.length; i += 1) {
+        const { foot, distance } = projectOnSegment(point, ring[i]!, ring[(i + 1) % ring.length]!);
+        if (distance < best.distance) best = onA ? { distance, from: point, to: foot } : { distance, from: foot, to: point };
+      }
+    }
+  };
+  scan(a, b, true);
+  scan(b, a, false);
+  if (best.distance > EPS && polygonsOverlap(a, b)) return { ...best, distance: 0 };
+  return best;
+}
+
+/** Lower bound of the gap between the shapes inside two boxes: zero when the boxes meet. */
+export function boxGap(a: BoundingBox, b: BoundingBox): number {
+  const dx = Math.max(0, a.minX - b.maxX, b.minX - a.maxX);
+  const dy = Math.max(0, a.minY - b.maxY, b.minY - a.maxY);
+  return Math.hypot(dx, dy);
+}
