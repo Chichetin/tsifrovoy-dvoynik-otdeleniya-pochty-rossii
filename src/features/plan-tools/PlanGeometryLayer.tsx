@@ -37,7 +37,7 @@ import {
 } from '../../domain/geometry';
 import { zoneDepth } from '../../domain/relations';
 import { SnapMarkerLayer } from './SnapMarkerLayer';
-import { resizeOpening, introducesOpeningOverlap } from './opening-edit';
+import { resizeOpening } from './opening-edit';
 import { WALL_LABEL_FONT_PX, wallLengthLabel } from './wall-length-label';
 import { deleteIntent, isDeleteKey } from './delete-key';
 import { shouldFinishOpeningSelection } from './opening-focus';
@@ -448,7 +448,6 @@ export function PlanGeometryLayer({
           event.target.position({ x, y });
           openingDrag.current = null;
           if (canceledOpeningDrag.current) return;
-          if (introducesOpeningOverlap(moved, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Переместите его на свободный участок стены.'); return; }
           const result = onCommand({ type: 'opening.put', opening: moved });
           if (result.ok) setNotice(null);
         }}
@@ -482,7 +481,6 @@ export function PlanGeometryLayer({
             const resized = resizeOpening(opening, wall, edge, edgePoint(event.target));
             setEditing(null); event.target.position({ x, y }); openingDrag.current = null;
             if (canceledOpeningDrag.current) return;
-            if (introducesOpeningOverlap(resized, opening, plan.openings)) { setNotice('Проём наложился на другой проём. Сузьте его или выберите свободный участок стены.'); return; }
             const result = onCommand({ type: 'opening.put', opening: resized });
             if (result.ok) setNotice(null);
           }} />
