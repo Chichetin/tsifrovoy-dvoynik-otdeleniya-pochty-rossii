@@ -92,7 +92,7 @@ git push -u origin HEAD \
 ```
 
 Описание MR — по `.gitlab/merge_request_templates/Default.md`: `Closes #<N>`, что сделано,
-команды проверок с результатами, UI gate для UI-фичи, затронутый контракт. Push option
+команды проверок с результатами, проход UI в браузере, затронутый контракт. Push option
 ставит только первую строку; остальное агент дописывает в описание MR в GitLab или
 комментарием в задаче (`bash scripts/issues.sh comment <N> <файл>`). `Closes #<N>`
 закрывает задачу при merge в `main`. Ссылку на MR из вывода push агент пишет человеку.
@@ -172,8 +172,8 @@ bash scripts/issues.sh comment <N> <файл>   # расхождение, воп
 
 Метки: `area:model|editor|panels|assistant|release` — поток и каталоги из
 `docs/project-structure.md`; `P0`/`P1`/`P2`; `blocker` — риск показа или сдачи;
-`contract` — меняет `src/contracts`, отдельный MR через поток 1; `ui` — обязателен
-UI/UX skill gate. Недостающие метки создаёт `bash scripts/issues.sh labels`. Описание
+`contract` — меняет `src/contracts`, отдельный MR через поток 1; `ui` — проверка в
+браузере по `CLAUDE.md`, «Проверка». Недостающие метки создаёт `bash scripts/issues.sh labels`. Описание
 задачи — по `.gitlab/issue_templates/Задача.md`: оценка модели, area, приоритет,
 «Зависит от #…», критерий приёмки, файлы.
 
