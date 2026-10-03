@@ -83,6 +83,8 @@ import { PlanTitle } from './PlanTitle';
 import { SettingsDialog } from './SettingsDialog';
 import { sameRef, showsPropsCard } from './props-column';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
+import { QuickSearchDialog } from './QuickSearchDialog';
+import type { SearchItem } from './quick-search';
 import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
@@ -411,6 +413,27 @@ export function App(): React.JSX.Element {
     },
     [select, showPropsAgain],
   );
+  // #25: quick search by Ctrl+K — focus returns where it was when it closes.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchReturnFocus = useRef<HTMLElement | null>(null);
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    searchReturnFocus.current?.focus();
+    searchReturnFocus.current = null;
+  }, []);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (event.code !== 'KeyK' && event.key.toLowerCase() !== 'k') return;
+      event.preventDefault();
+      if (searchOpen) return;
+      searchReturnFocus.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null;
+      setSearchOpen(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [searchOpen]);
+
   // «×» drops the selection; the card goes and the column shows its tab
   // again, so focus lands on that tab rather than on the removed button.
   const closeProps = useCallback(() => {
@@ -1202,6 +1225,21 @@ export function App(): React.JSX.Element {
         setDemoRequest((previous) => ({ id: (previous?.id ?? 0) + 1, variant }));
       }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
+      {/* Mounted only while open: every opening starts with an empty query. */}
+      {!searchOpen ? null : <QuickSearchDialog
+        plan={document}
+        onClose={closeSearch}
+        onPick={(item: SearchItem) => {
+          setSearchOpen(false);
+          searchReturnFocus.current = null;
+          if (item.kind === 'ref') focusOn(item.ref);
+          else if (item.kind === 'place') setTool({ kind: 'object.place', typeId: item.typeId });
+          else {
+            const layer = document.layers.find((entry) => entry.id === item.layerId);
+            if (layer !== undefined) dispatch({ type: 'layer.put', layer: { ...layer, visible: !layer.visible } });
+          }
+        }}
+      />}
       <SettingsDialog
         open={settingsOpen}
         onClose={closeSettings}
