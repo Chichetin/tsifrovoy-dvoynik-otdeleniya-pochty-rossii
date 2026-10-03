@@ -84,6 +84,8 @@ type TypeSpec = {
   physical: boolean;
   occupiesFloor: boolean;
   symbol: ObjectType['symbol'];
+  /** 3D model (D-356): our catalog's model for a known type, own model for ATM, safe, counter. */
+  model3d?: string;
   color: string;
   attributes?: AttributeDef[];
 };
@@ -111,6 +113,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'cashier-window',
     color: '#0CA678',
   },
   pvz_counter: {
@@ -122,6 +125,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'pvz-counter',
     color: '#0B7285',
   },
   self_service_kiosk: {
@@ -133,6 +137,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'queue-terminal',
     color: '#087F5B',
   },
   atm: {
@@ -144,6 +149,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'atm',
     color: '#2B8A3E',
   },
   info_stand: {
@@ -155,6 +161,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'info-stand',
     color: '#D6336C',
   },
   waiting_seat: {
@@ -166,6 +173,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'bench',
     color: '#F59F00',
     attributes: [CAPACITY_ATTRIBUTE],
   },
@@ -178,6 +186,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'parcel-rack',
     color: '#E03131',
   },
   safe: {
@@ -189,6 +198,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'safe',
     color: '#5F3DC4',
   },
   back_office_workplace: {
@@ -200,6 +210,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: true,
     symbol: 'rect',
+    model3d: 'workplace',
     color: '#4C6EF5',
   },
   fitting_room: {
@@ -222,6 +233,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     physical: true,
     occupiesFloor: false,
     symbol: 'rect',
+    model3d: 'scales',
     color: '#A61E4D',
   },
   package_drop_box: {
@@ -473,6 +485,7 @@ function specToObjectType(spec: TypeSpec, fromExample: boolean): ObjectType {
     physical: spec.physical,
     occupiesFloor: spec.occupiesFloor,
     symbol: spec.symbol,
+    ...(spec.model3d === undefined ? {} : { model3d: spec.model3d }),
     color: spec.color,
     attributes: spec.attributes ?? [],
     provenance: fromExample
