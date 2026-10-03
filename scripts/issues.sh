@@ -167,6 +167,13 @@ case "$cmd" in
     me_id="$(printf '%s' "$me" | jq -r .id)"
     me_name="$(printf '%s' "$me" | jq -r .username)"
     issue="$(gl GET "$api/issues/$n")"
+    if ! printf '%s' "$issue" | jq -se --argjson n "$n" '
+      length == 1 and (.[0] | type == "object" and .iid == $n
+        and .state == "opened" and (.labels | type == "array")
+        and (.assignees | type == "array"))' >/dev/null 2>&1; then
+      echo "#$n: задача не прочитана или не открыта — ничего не меняю. Повторите позже." >&2
+      exit 1
+    fi
     if ! activity mrs brs; then
       echo "#$n: GitLab не отдал MR или ветки (ошибка, пустой ответ или больше 2000) — движение неизвестно, ничего не меняю. Повторите позже." >&2
       exit 1
