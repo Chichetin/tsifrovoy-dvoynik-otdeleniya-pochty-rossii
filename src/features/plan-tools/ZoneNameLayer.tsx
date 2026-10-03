@@ -21,19 +21,9 @@
 import { useMemo } from 'react';
 import { Layer, Text } from 'react-konva';
 import type { PlanDocument, Viewport, Zone } from '../../contracts/model';
-import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
+import { ZONE_CAPTION_FONT, ZONE_CAPTION_SPACING, zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 import { zoneDepth } from '../../domain/relations';
 import { zoneNameStyle } from './zone-name-color';
-/**
- * Экспортированы, а не только локальные: `InformationLayer` (D-241) держит
- * свою копию этих трёх чисел для расчёта места под значение слоя рядом с
- * именем зоны и не может импортировать `plan-tools` напрямую
- * (`eslint.config.js`). Тест копию не сверяет: меняй числа в обоих местах.
- */
-export const ZONE_LABEL_FONT_PX = 13;
-export const ZONE_LABEL_LETTER_SPACING = 0.4;
-export const ZONE_LABEL_BOX_WIDTH = 118;
-
 /**
  * Непрозрачность подписи. 0,55 подобрано под самый трудный случай — тёмную
  * заливку оборудования под названием: выше подпись начинает спорить с
@@ -79,9 +69,9 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
             width={box.width}
             align="center"
             text={zone.name.toLocaleUpperCase('ru')}
-            fontSize={ZONE_LABEL_FONT_PX}
+            fontSize={ZONE_CAPTION_FONT}
             fontStyle={style.fontStyle}
-            letterSpacing={ZONE_LABEL_LETTER_SPACING}
+            letterSpacing={ZONE_CAPTION_SPACING}
             fill={style.fill}
             opacity={ZONE_LABEL_OPACITY}
             listening={false}
