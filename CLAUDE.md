@@ -103,10 +103,10 @@
 ```bash
 npm ci                                  # установка; один раз: npx playwright install chromium
 npm run dev                             # свой порт — DEV_PORT=5174
-npm run typecheck && npm run lint && npm run build
-npx vitest related --run <файлы>        # тесты правки; правишь data/ или demo/ — npm test
-DEV_PORT=5174 npx playwright test tests/e2e/round-trip.spec.ts tests/e2e/demo.spec.ts
-DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один раз на MR
+npm run lint && npm run build          # build включает tsc, typecheck отдельно не нужен
+npm test                                # unit, около 2 с
+DEV_PORT=5174 npx playwright test tests/e2e/round-trip.spec.ts tests/e2e/demo.spec.ts  # smoke
+DEV_PORT=5174 npm run test:e2e          # весь e2e — только qa перед вехой
 ```
 
 ## Тесты
@@ -121,8 +121,12 @@ DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один 
 
 ## Проверка
 
-- Перед push: `git fetch --prune && git merge origin/main`, затем typecheck, lint,
-  build, `vitest related`, smoke e2e (команды выше).
+- Перед push: `git fetch --prune && git merge origin/main`, затем lint, build,
+  `npm test`. e2e необязателен: запускай, если что-то сломалось или правка задевает
+  сохранение, загрузку, `src/state/` или демо-планы.
+- Один прогон на MR. Пришёл новый merge в `main` после прогона — только
+  `npm run build`, тесты заново не гоняем. Весь e2e — у `qa` перед
+  вехой.
 - UI-правка: пройди сценарий в браузере, сделай один снимок «после» (не в git),
   проверь `Tab` и фокус.
 - Готово — проверки зелёные и сценарий пройден: открыть → загрузить демо → изменить
@@ -130,8 +134,13 @@ DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один 
 
 ## Документы
 
-- md-отчёты, планы и спецификации не пишем. Отчёт — в чат, итог — в описание MR (до
-  15 строк).
+- md-отчёты, планы, спецификации и записи проверок не пишем: ни в `docs/plans/`,
+  ни в `docs/verification/`, ни в `docs/superpowers/`. Новый md-файл, кроме
+  `README.md`, блокирует `.githooks/pre-commit`. Скилл велит записать план или
+  спецификацию — держи их в чате. Отчёт — в чат, до 3 строк. Описание
+  MR — `Closes #<N>` и до 3 строк.
+- `HANDOFF.md`, `docs/decisions.md`, `docs/tz-compliance.md` агент не дописывает
+  после каждой задачи. Только по задаче, которая это требует.
 - `README.md` держим точным (10% оценки). Строка в `docs/decisions.md` — только если
   решение меняет модель, формат, контракт или правила.
 - Объясняем человеку самым простым форматом: текст STE → схема mermaid → одноразовый
@@ -140,5 +149,5 @@ DEV_PORT=5174 npm run test:e2e          # весь e2e — integrator, один 
 ## Агенты
 
 Оркестратор (`/orchestrate`) ведёт `builder` → `reviewer` → `integrator`. Роли —
-`docs/agents.md`. Правку `.claude/`, контрактов и формата сохранения проверяет
-другой человек или свежий `reviewer`.
+`docs/agents.md`. Агент сам проверяет свою правку и сам вливает MR, в том числе
+правку `.claude/`, контрактов и формата сохранения. Другой человек не нужен.

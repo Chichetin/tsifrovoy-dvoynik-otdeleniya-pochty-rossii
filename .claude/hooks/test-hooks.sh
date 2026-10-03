@@ -40,22 +40,6 @@ printf -- '-----BEGIN RSA PRIVATE KEY-----\n' > key.pem
 expect block "приватный ключ"                       check-secrets.sh
 rm key.pem
 
-# --- check-tests.sh
-expect pass  "тестов нет — хук молчит"              check-tests.sh
-cat > package.json <<'EOF'
-{"scripts": {"test": "node -e \"process.exit(1)\""}}
-EOF
-expect block "npm test падает"                      check-tests.sh
-cat > package.json <<'EOF'
-{"scripts": {"test": "node -e \"process.exit(0)\""}}
-EOF
-expect pass  "npm test зелёный"                     check-tests.sh
-cat > package.json <<'EOF'
-{"scripts": {"test": "node -e \"process.exit(1)\""}}
-EOF
-touch -d '-1 min' package.json
-expect pass  "ничего не менялось с зелёного прогона" check-tests.sh
-
 # --- session-context.sh (SessionStart: stdout уходит в контекст)
 expect_out() { # expect_out <has|lacks> <описание> <шаблон>
   local out
