@@ -10,11 +10,18 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page , exportPlan, expectUnsavedEdits } from './fixtures';
+import { closeSettings, openSettings, settingsDialog } from './settings';
 import { showTab, sideTab } from './side-tabs';
 
 const panel = (page: Page) => page.getByLabel('Слои');
+const exactly = (name: string): RegExp => new RegExp(`^${name}$`);
+/** A layer row in the tab: the name is text there (D-352). */
 const layerItem = (page: Page, name: string) =>
-  panel(page).locator('.layers__item').filter({ has: page.getByLabel(`Имя слоя ${name}`) });
+  panel(page).locator('.layers__item').filter({ has: page.locator('.layers__name', { hasText: exactly(name) }) });
+/** «Настройки» → «Слои»: add, rename, order, delete (D-352). */
+const setup = (page: Page) => settingsDialog(page).getByRole('region', { name: 'Настройка слоёв' });
+const setupItem = (page: Page, name: string) =>
+  setup(page).locator('.layers__item').filter({ has: page.getByLabel(`Имя слоя ${name}`, { exact: true }) });
 
 const card = (page: Page) => page.getByLabel('Свойства');
 
@@ -140,14 +147,17 @@ test.describe('слои в браузере', () => {
       .getByRole('button', { name: 'Запереть слой Основной' })
       .click();
 
-    // Новый обычный слой.
-    await panel(page).getByRole('button', { name: 'Добавить слой' }).click();
-    const created = panel(page).locator('.layers__item').filter({ hasText: 'обычный слой' });
+    // Новый обычный слой — в «Настройках» (D-352).
+    await openSettings(page, 'Слои');
+    await setup(page).getByRole('button', { name: 'Добавить слой' }).click();
+    const created = setup(page).locator('.layers__item').filter({ hasText: 'обычный слой' });
     await expect(created).toHaveCount(2);
 
-    // Имя слоя правится на месте.
-    await panel(page).getByLabel('Имя слоя Слой 6').fill('Перепланировка');
-    await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toBeVisible();
+    // Имя слоя правится там же.
+    await setup(page).getByLabel('Имя слоя Слой 6').fill('Перепланировка');
+    await expect(setup(page).getByLabel('Имя слоя Перепланировка')).toBeVisible();
+    await closeSettings(page);
+    await expect(layerItem(page, 'Перепланировка')).toHaveCount(1);
 
     // Скрытие: объект пропадает с холста, но не из инвентаризации и проверок.
     await layerItem(page, 'Основной')
@@ -162,10 +172,13 @@ test.describe('слои в браузере', () => {
       .click();
 
     // Удаление слоя переносит содержимое в другой слой, а не стирает его.
-    await layerItem(page, 'Основной')
+    await openSettings(page, 'Слои');
+    await setupItem(page, 'Основной')
       .getByRole('button', { name: 'Удалить слой Основной' })
       .click();
-    await expect(panel(page).getByLabel('Имя слоя Основной')).toHaveCount(0);
+    await expect(setup(page).getByLabel('Имя слоя Основной', { exact: true })).toHaveCount(0);
+    await closeSettings(page);
+    await expect(layerItem(page, 'Основной')).toHaveCount(0);
     await expect(inventoryRows).toHaveCount(1);
     await expect(layerItem(page, 'Перепланировка').locator('.layers__meta')).toContainText(
       'зон 1, объектов 1',
@@ -175,7 +188,7 @@ test.describe('слои в браузере', () => {
     const names = (): Promise<string[]> =>
       panel(page)
         .locator('.layers__name')
-        .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
+        .evaluateAll((labels) => labels.map((label) => label.textContent ?? ''));
     expect(await names()).toEqual([
       'Камеры и зоны обзора',
       'Тепловая нагрузка зон',
@@ -183,9 +196,11 @@ test.describe('слои в браузере', () => {
       'Очередь по зонам',
       'Перепланировка',
     ]);
-    await layerItem(page, 'Перепланировка')
+    await openSettings(page, 'Слои');
+    await setupItem(page, 'Перепланировка')
       .getByRole('button', { name: 'Поднять слой Перепланировка' })
       .click();
+    await closeSettings(page);
     expect(await names()).toEqual([
       'Камеры и зоны обзора',
       'Тепловая нагрузка зон',
@@ -198,7 +213,7 @@ test.describe('слои в браузере', () => {
     const saved = await savePlan(page);
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Создать новый' }).click();
-    await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toHaveCount(0);
+    await expect(layerItem(page, 'Перепланировка')).toHaveCount(0);
 
     await page.getByTestId('plan-file-input').setInputFiles({
       name: 'layers.json',
@@ -219,27 +234,28 @@ test.describe('слои в браузере', () => {
 
   test('последний слой удалить нельзя', async ({ page }) => {
     await page.goto('/');
-    await showTab(page, 'Слои');
+    await openSettings(page, 'Слои');
 
     // Информационные слои — тоже слои: удаляем все, кроме одного.
     for (const name of ['Камеры и зоны обзора', 'Тепловая нагрузка зон', 'Сотрудники по зонам']) {
-      await layerItem(page, name).getByRole('button', { name: `Удалить слой ${name}` }).click();
+      await setupItem(page, name).getByRole('button', { name: `Удалить слой ${name}` }).click();
     }
-    await layerItem(page, 'Очередь по зонам')
+    await setupItem(page, 'Очередь по зонам')
       .getByRole('button', { name: 'Удалить слой Очередь по зонам' })
       .click();
 
-    const remaining = panel(page).locator('.layers__item');
+    const remaining = setup(page).locator('.layers__item');
     await expect(remaining).toHaveCount(1);
     await expect(
-      layerItem(page, 'Основной').getByRole('button', { name: 'Удалить слой Основной' }),
+      setupItem(page, 'Основной').getByRole('button', { name: 'Удалить слой Основной' }),
     ).toBeDisabled();
 
     // Удалённый слой камер добавляется снова: его прежний id ушёл в отставку,
     // новый получает следующий номер, а не отказ.
-    await panel(page).getByLabel('Тип нового слоя').selectOption({ label: 'Камеры и зоны обзора' });
-    await panel(page).getByRole('button', { name: 'Добавить слой' }).click();
-    await expect(layerItem(page, 'Камеры и зоны обзора')).toHaveCount(1);
+    await setup(page).getByLabel('Тип нового слоя').selectOption({ label: 'Камеры и зоны обзора' });
+    await setup(page).getByRole('button', { name: 'Добавить слой' }).click();
+    await expect(setupItem(page, 'Камеры и зоны обзора')).toHaveCount(1);
+    await closeSettings(page);
     await expect(page.locator('.shell__error')).toHaveCount(0);
   });
 

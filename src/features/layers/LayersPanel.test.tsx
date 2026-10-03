@@ -38,19 +38,22 @@ const session: EditorSession = {
   focus: null,
 };
 
-function renderPanel(plan: PlanDocument) {
+function renderPanel(plan: PlanDocument, mode: 'view' | 'setup' = 'view') {
   const commands: Command[] = [];
   const onCommand = vi.fn((command: Command): Result<PlanDocument> => {
     commands.push(command);
     return { ok: true, value: plan };
   });
-  render(<LayersPanel document={plan} session={session} onCommand={onCommand} onSelect={vi.fn()} />);
+  render(<LayersPanel document={plan} session={session} onCommand={onCommand} onSelect={vi.fn()} mode={mode} />);
   return commands;
 }
 
+/** The row of a layer: its name is a field in «Настройки», text in the tab (D-352). */
 const item = (name: string): HTMLElement => {
-  const input = screen.getByLabelText(`Имя слоя ${name}`);
-  const li = input.closest('li');
+  const label = [...document.querySelectorAll<HTMLElement>('.layers__name')].find(
+    (node) => (node instanceof HTMLInputElement ? node.value : node.textContent) === name,
+  );
+  const li = label?.closest('li') ?? null;
   if (li === null) throw new Error(name);
   return li;
 };
@@ -116,13 +119,15 @@ describe('LayersPanel', () => {
 
   test('полное имя слоя доступно в подсказке, даже если строка узкая', () => {
     renderPanel(demo());
-    expect(screen.getByLabelText('Имя слоя Тепловая нагрузка зон').getAttribute('title')).toBe('Тепловая нагрузка зон');
+    expect(item('Тепловая нагрузка зон').querySelector('.layers__name')?.getAttribute('title')).toBe('Тепловая нагрузка зон');
   });
 
   test('кнопки замка, порядка и удаления подписаны не только значком', () => {
     renderPanel(demo());
+    expect(within(item('Тепловая нагрузка зон')).getByRole('button', { name: 'Запереть слой Тепловая нагрузка зон' }).getAttribute('title')).toBeTruthy();
+    cleanup();
+    renderPanel(demo(), 'setup');
     const heat = within(item('Тепловая нагрузка зон'));
-    expect(heat.getByRole('button', { name: 'Запереть слой Тепловая нагрузка зон' }).getAttribute('title')).toBeTruthy();
     expect(heat.getByRole('button', { name: 'Поднять слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Поднять слой');
     expect(heat.getByRole('button', { name: 'Опустить слой Тепловая нагрузка зон' }).getAttribute('title')).toBe('Опустить слой');
   });
@@ -132,7 +137,7 @@ describe('LayersPanel', () => {
     document.layers = document.layers.map((layer) =>
       layer.typeId === null ? { ...layer, locked: true } : layer,
     );
-    renderPanel(document);
+    renderPanel(document, 'setup');
 
     const remove = within(item('Тепловая нагрузка зон')).getByRole('button', {
       name: 'Удалить слой Тепловая нагрузка зон',
@@ -246,17 +251,23 @@ describe('LayersPanel', () => {
     document.layers = document.layers.map((layer) =>
       layer.typeId === 'lt_heat' ? { ...layer, locked: true } : layer,
     );
-    renderPanel(document);
-    for (const name of ['Тепловая нагрузка зон', 'Основной']) {
-      const layer = within(item(name));
-      for (const label of ['Запереть слой', 'Поднять слой', 'Опустить слой', 'Удалить слой']) {
-        const button = layer.getByRole('button', { name: `${label} ${name}` });
-        expect(button.textContent).toBe('');
-        const icon = button.querySelector('svg');
-        expect(icon?.getAttribute('aria-hidden')).toBe('true');
-        expect(icon?.getAttribute('focusable')).toBe('false');
+    const iconsOnly = (labels: string[]): void => {
+      for (const name of ['Тепловая нагрузка зон', 'Основной']) {
+        const layer = within(item(name));
+        for (const label of labels) {
+          const button = layer.getByRole('button', { name: `${label} ${name}` });
+          expect(button.textContent).toBe('');
+          const icon = button.querySelector('svg');
+          expect(icon?.getAttribute('aria-hidden')).toBe('true');
+          expect(icon?.getAttribute('focusable')).toBe('false');
+        }
       }
-    }
+    };
+    renderPanel(document, 'setup');
+    iconsOnly(['Поднять слой', 'Опустить слой', 'Удалить слой']);
+    cleanup();
+    renderPanel(document);
+    iconsOnly(['Запереть слой']);
     const lockOf = (name: string) =>
       within(item(name)).getByRole('button', { name: `Запереть слой ${name}` });
     expect(lockOf('Тепловая нагрузка зон').getAttribute('aria-pressed')).toBe('true');
@@ -265,9 +276,27 @@ describe('LayersPanel', () => {
   });
 
   test('кнопка добавления называется полностью, хотя на ней короткая подпись', () => {
-    renderPanel(demo());
+    renderPanel(demo(), 'setup');
     const add = screen.getByRole('button', { name: 'Добавить слой' });
     expect(add.textContent).toBe('Добавить');
+  });
+
+  test('D-352: во вкладке — работа со слоями, без добавления, переименования, порядка и удаления', () => {
+    renderPanel(demo());
+    expect(screen.queryByRole('button', { name: 'Добавить слой' })).toBeNull();
+    expect(screen.queryByLabelText('Имя слоя Основной')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Поднять слой Основной' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Удалить слой Основной' })).toBeNull();
+    expect(within(item('Основной')).getByRole('button', { name: 'Показывать слой Основной' })).toBeTruthy();
+    expect(screen.getByText(/в «Настройках»/)).toBeTruthy();
+  });
+
+  test('D-352: в «Настройках» — состав слоёв без видимости, легенд и данных', () => {
+    renderPanel(demo(['l_lt_heat']), 'setup');
+    expect(screen.getByRole('region', { name: 'Настройка слоёв' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Показывать слой Основной' })).toBeNull();
+    expect(screen.queryByRole('group', { name: /^Легенда слоя/ })).toBeNull();
+    expect((screen.getByLabelText('Имя слоя Основной') as HTMLInputElement).value).toBe('Основной');
   });
 
   test('D-275: под основным слоем — напольные и потолочные со счётом; щелчок не шлёт команду', () => {

@@ -2096,6 +2096,14 @@ span.inventory__num {
   outline: none;
 }
 
+/* D-352: in the side tab the name is read, not edited — renaming is in «Настройки». */
+.layers__name--text,
+.layers__name--text:hover {
+  overflow: hidden;
+  border-color: transparent;
+  white-space: nowrap;
+}
+
 /* Icon buttons: 26 px square, above the 24 px minimum target (WCAG 2.5.8). */
 .layers__toggle {
   display: inline-flex;

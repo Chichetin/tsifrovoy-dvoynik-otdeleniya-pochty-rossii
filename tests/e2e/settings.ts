@@ -7,7 +7,7 @@
 
 import { expect, type Locator, type Page } from '@playwright/test';
 
-export type SettingsSection = 'План' | 'Оборудование' | 'Зоны' | 'Правила';
+export type SettingsSection = 'План' | 'Оборудование' | 'Зоны' | 'Правила' | 'Слои';
 
 export function settingsDialog(page: Page): Locator {
   return page.getByRole('dialog', { name: 'Настройки' });

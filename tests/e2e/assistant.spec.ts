@@ -79,7 +79,7 @@ test('#32 без сервера: «где слепые пятна» → посм
   await assistant.getByRole('button', { name: /^Применить: Камера видеонаблюдения/ }).click();
   await expect(assistant.getByRole('status')).toContainText('Применено');
   await showTab(page, 'Слои');
-  const cameras = page.getByLabel('Слои').locator('.layers__item').filter({ has: page.getByLabel('Имя слоя Камеры и зоны обзора') });
+  const cameras = page.getByLabel('Слои').locator('.layers__item').filter({ hasText: 'Камеры и зоны обзора' });
   await cameras.getByRole('button', { name: 'Показывать слой Камеры и зоны обзора' }).click();
   const table = cameras.getByRole('table', { name: 'Покрытие клиентских зон камерами' });
   // The layer counts the applied camera exactly as the assistant promised.

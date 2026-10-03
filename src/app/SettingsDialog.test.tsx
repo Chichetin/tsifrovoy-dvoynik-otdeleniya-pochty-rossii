@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, expect, test, vi } from 'vitest';
 import minimal from '../contracts/fixtures/minimal.json';
 import type { PlanDocument } from '../contracts/model';
+import type { EditorSession } from '../contracts/ui';
 import { parsePlanDocument } from '../contracts/schema';
 import { applyCommand } from '../domain/commands';
 import { SettingsDialog } from './SettingsDialog';
@@ -13,6 +14,7 @@ afterEach(cleanup);
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 const plan: PlanDocument = parsed.value;
+const session: EditorSession = { tool: { kind: 'select' }, viewport: { origin: [0, 0], scale: 48 }, selection: null, preview: null, focus: null };
 
 /** The dialog over a live plan: every accepted command changes what it shows. */
 function Live({ onClose = () => {} }: { onClose?: () => void }): React.JSX.Element {
@@ -22,6 +24,8 @@ function Live({ onClose = () => {} }: { onClose?: () => void }): React.JSX.Eleme
       open
       onClose={onClose}
       document={document}
+      session={session}
+      onSelect={() => {}}
       onCommand={(command) => {
         const result = applyCommand(document, command);
         if (result.ok) setDocument(result.value);
@@ -71,6 +75,19 @@ test('the catalog sections replace the «Справочник» tab', () => {
   expect(screen.getByRole('region', { name: 'Правила комплектования' })).toBeTruthy();
 });
 
+test('«Слои» — состав и порядок слоёв; видимость остаётся во вкладке (D-352)', () => {
+  render(<Live />);
+  fireEvent.click(screen.getByRole('button', { name: 'Слои' }));
+  const layers = screen.getByRole('region', { name: 'Настройка слоёв' });
+  expect(layers.querySelector('[aria-label="Добавить слой"]')).not.toBeNull();
+  const first = plan.layers[0]!;
+  expect((screen.getByLabelText(`Имя слоя ${first.name}`) as HTMLInputElement).value).toBe(first.name);
+  expect(screen.queryByRole('button', { name: `Показывать слой ${first.name}` })).toBeNull();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить слой' }));
+  expect(layers.querySelectorAll('.layers__item')).toHaveLength(plan.layers.length + 1);
+});
+
 test('Escape, the close button and a press outside close it; a press inside does not', () => {
   const onClose = vi.fn();
   render(<Live onClose={onClose} />);
@@ -102,9 +119,9 @@ test('closing returns focus to what opened it', () => {
   const opener = document.createElement('button');
   document.body.append(opener);
   opener.focus();
-  const { rerender } = render(<SettingsDialog open onClose={() => {}} document={plan} onCommand={vi.fn()} />);
+  const { rerender } = render(<SettingsDialog open onClose={() => {}} document={plan} onCommand={vi.fn()} session={session} onSelect={vi.fn()} />);
   expect(document.activeElement).not.toBe(opener);
-  rerender(<SettingsDialog open={false} onClose={() => {}} document={plan} onCommand={vi.fn()} />);
+  rerender(<SettingsDialog open={false} onClose={() => {}} document={plan} onCommand={vi.fn()} session={session} onSelect={vi.fn()} />);
   expect(document.activeElement).toBe(opener);
   opener.remove();
 });

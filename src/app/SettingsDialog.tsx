@@ -17,16 +17,18 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { Command } from '../contracts/commands';
 import type { PlanDocument } from '../contracts/model';
-import type { CommandSink } from '../contracts/ui';
+import type { CommandSink, EditorSession, SelectSink } from '../contracts/ui';
 import { CatalogPanel, type CatalogSection } from '../features/catalog-editor/CatalogPanel';
+import { LayersPanel } from '../features/layers/LayersPanel';
 
-type SettingsSection = 'plan' | CatalogSection;
+type SettingsSection = 'plan' | CatalogSection | 'layers';
 
 const SECTIONS: readonly { id: SettingsSection; title: string; note: string }[] = [
   { id: 'plan', title: 'План', note: 'Название и высота потолка помещения.' },
   { id: 'objects', title: 'Оборудование', note: 'Типы оборудования и их атрибуты — справочник в файле плана, меняется без правки кода.' },
   { id: 'zones', title: 'Зоны', note: 'Типы зон и их атрибуты — справочник в файле плана, меняется без правки кода.' },
   { id: 'rules', title: 'Правила', note: 'Сколько оборудования должно быть в зоне. Правила — допущения команды, не нормативы Почты.' },
+  { id: 'layers', title: 'Слои', note: 'Какие слои есть в плане и в каком порядке. Показать, скрыть и запереть слой — во вкладке «Слои».' },
 ];
 
 export type SettingsDialogProps = {
@@ -34,6 +36,8 @@ export type SettingsDialogProps = {
   onClose: () => void;
   document: PlanDocument;
   onCommand: CommandSink;
+  session: EditorSession;
+  onSelect: SelectSink;
 };
 
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
@@ -122,7 +126,7 @@ function PlanSection({ document: plan, onCommand }: { document: PlanDocument; on
   );
 }
 
-export function SettingsDialog({ open, onClose, document: plan, onCommand }: SettingsDialogProps): React.JSX.Element | null {
+export function SettingsDialog({ open, onClose, document: plan, onCommand, session, onSelect }: SettingsDialogProps): React.JSX.Element | null {
   const [section, setSection] = useState<SettingsSection>('plan');
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -202,6 +206,8 @@ export function SettingsDialog({ open, onClose, document: plan, onCommand }: Set
             <p className="panel__note">{current.note}</p>
             {section === 'plan' ? (
               <PlanSection document={plan} onCommand={onCommand} />
+            ) : section === 'layers' ? (
+              <LayersPanel document={plan} session={session} onCommand={onCommand} onSelect={onSelect} mode="setup" />
             ) : (
               <CatalogPanel key={section} document={plan} onCommand={onCommand} section={section} />
             )}

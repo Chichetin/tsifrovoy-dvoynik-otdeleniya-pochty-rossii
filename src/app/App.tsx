@@ -1146,7 +1146,14 @@ export function App(): React.JSX.Element {
         setDemoRequest((previous) => ({ id: (previous?.id ?? 0) + 1, variant }));
       }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
-      <SettingsDialog open={settingsOpen} onClose={closeSettings} document={document} onCommand={dispatch} />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={closeSettings}
+        document={document}
+        onCommand={dispatch}
+        session={session}
+        onSelect={selectFromLeft}
+      />
     </div>
   );
 }
