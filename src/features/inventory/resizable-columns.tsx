@@ -75,6 +75,12 @@ export function useResizableColumns(
   const [widths, setWidths] = useState(() =>
     loadColumnWidths(browserStorage(), key, defaults, minPercent),
   );
+  // A table whose set of columns changes gets a new key: its own layout loads.
+  const [loadedKey, setLoadedKey] = useState(key);
+  if (loadedKey !== key) {
+    setLoadedKey(key);
+    setWidths(loadColumnWidths(browserStorage(), key, defaults, minPercent));
+  }
   const stopDrag = useRef<(() => void) | null>(null);
 
   useEffect(() => saveColumnWidths(key, widths), [key, widths]);

@@ -17,6 +17,7 @@ import {
   type PlanDocument,
 } from '../contracts/model';
 import { decodePlan, encodePlan } from './codec';
+import { inventoryCsv, inventoryCsvRows, visibleAttributeColumns } from './inventory-csv';
 
 function fixtureText(name: string): string {
   return readFileSync(join(process.cwd(), 'src', 'contracts', 'fixtures', name), 'utf8');
@@ -440,5 +441,42 @@ describe('вид файла', () => {
     expect(text.endsWith('\n')).toBe(true);
     expect(text.split('\n')[0]).toBe('{');
     expect(text).toContain('\n  "schemaVersion": 1,');
+  });
+});
+
+describe('CSV инвентаризации', () => {
+  /** A type that exists only in this plan's catalog, as if just added to object-types.json. */
+  function planWithNewAttribute(): PlanDocument {
+    const plan = decodeFixture('minimal.json');
+    const workplace = first(plan.catalog.objectTypes, 'тип рабочего места');
+    const object = first(plan.objects, 'объект');
+    return {
+      ...plan,
+      catalog: {
+        ...plan.catalog,
+        objectTypes: [
+          { ...workplace, attributes: [...workplace.attributes, { key: 'hasUps', label: 'ИБП', type: 'boolean', required: false }] },
+          { ...workplace, id: 'ot_safe', label: 'Сейф', attributes: [{ key: 'lockCode', label: 'Код замка', type: 'string', required: false }] },
+        ],
+      },
+      objects: [{ ...object, attributes: { ...object.attributes, hasUps: true } }],
+    };
+  }
+
+  test('атрибут нового типа из справочника — столбец файла без правки кода', () => {
+    const plan = planWithNewAttribute();
+    const columns = visibleAttributeColumns(plan.catalog, ['ot_workplace'], {});
+    expect(columns.map((column) => column.key)).toEqual(['hasUps']);
+
+    const [header, line] = inventoryCsv(inventoryCsvRows(plan), columns).split('\r\n');
+    expect(header?.split(';').at(-1)).toBe('ИБП');
+    expect(line?.split(';').at(-1)).toBe('да');
+  });
+
+  test('выбор человека сильнее правила «общие для всех типов»', () => {
+    const plan = planWithNewAttribute();
+    const keys = (choice: Record<string, boolean>) =>
+      visibleAttributeColumns(plan.catalog, ['ot_workplace'], choice).map((column) => column.key);
+    expect(keys({ hasUps: false, lockCode: true })).toEqual(['lockCode']);
   });
 });

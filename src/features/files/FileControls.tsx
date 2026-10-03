@@ -45,6 +45,13 @@ import { NBSP } from '../../domain/number-format';
 import type { OpenedPlan } from '../../persistence/format';
 import { pngFileName, renderPlanPng } from '../../persistence/plan-png';
 import { planFileName, renderPlanSvg, svgFileName } from '../../persistence/plan-svg';
+import {
+  inventoryCsv,
+  inventoryCsvFileName,
+  inventoryCsvRows,
+  loadColumnChoice,
+  visibleAttributeColumns,
+} from '../../persistence/inventory-csv';
 import { FileDialog } from './FileDialog';
 import { DEMO_PLANS, readDemoText, type DemoPlan } from './demo-plan';
 
@@ -137,7 +144,7 @@ function fingerprint(encode: FileControlsProps['encode'], document: PlanDocument
   return shown.ok ? shown.value : null;
 }
 
-/** Отдаёт готовый файл браузеру: одна ссылка на все три пункта «Экспорта». */
+/** Отдаёт готовый файл браузеру: одна ссылка на все пункты «Экспорта». */
 function handToBrowser(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const link = window.document.createElement('a');
@@ -470,6 +477,24 @@ export function FileControls({
   };
 
   /**
+   * CSV — весь перечень инвентаризации со столбцами атрибутов, которые выбраны
+   * в «Инвентаризации». Фильтр панели сюда не входит: пункт меню выгружает план.
+   */
+  const exportCsv = (): void => {
+    exportSequence.current += 1;
+    const name = inventoryCsvFileName(plan);
+    const placed = [...new Set(plan.objects.map((object) => object.typeId))];
+    const columns = visibleAttributeColumns(plan.catalog, placed, loadColumnChoice());
+    handToBrowser(
+      new Blob([inventoryCsv(inventoryCsvRows(plan), columns)], { type: 'text/csv;charset=utf-8' }),
+      name,
+    );
+    setErrorDetails([]);
+    setNotice(`Перечень ${name} передан браузеру на скачивание: строк ${plan.objects.length}.`);
+    setState({ status: 'done' });
+  };
+
+  /**
    * PNG — тот же SVG, растеризованный браузером (D-255). Растеризация
    * асинхронная, поэтому у пункта есть все три состояния: «готовим», файл
    * передан браузеру, и отказ с причиной вместо пустого файла.
@@ -502,11 +527,11 @@ export function FileControls({
   };
 
   /**
-   * Пункты «Экспорта» в одном списке: план файлом и две картинки. JSON здесь
+   * Пункты «Экспорта» в одном списке: план файлом, две картинки и перечень. JSON здесь
    * дублирует кнопку «Сохранить план» (#6): по этому пункту ведёт инструкция
    * в ZIP сдачи (demo/README.md).
    */
-  const exportItems: { key: 'json' | 'png' | 'svg'; label: string; hint: string }[] = [
+  const exportItems: { key: 'json' | 'png' | 'svg' | 'csv'; label: string; hint: string }[] = [
     {
       key: 'json',
       label: 'JSON — файл плана',
@@ -521,6 +546,11 @@ export function FileControls({
       key: 'svg',
       label: 'SVG — векторная картинка',
       hint: 'Векторная картинка плана для согласования и печати',
+    },
+    {
+      key: 'csv',
+      label: 'CSV — перечень инвентаризации',
+      hint: 'Таблица для Excel: все объекты плана и выбранные в «Инвентаризации» столбцы атрибутов',
     },
   ];
 
@@ -676,7 +706,7 @@ export function FileControls({
           className="files__button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          title="Скачать план: файл JSON или картинку"
+          title="Скачать план: файл JSON, картинку или перечень CSV"
           onClick={() => {
             setDemoMenuOpen(false);
             menuStart.current = 'first';
@@ -712,6 +742,7 @@ export function FileControls({
                   closeMenu(true);
                   if (item.key === 'json') save();
                   else if (item.key === 'png') exportPng();
+                  else if (item.key === 'csv') exportCsv();
                   else exportSvg();
                 }}
               >

@@ -112,6 +112,15 @@ test('инвентарный номер новой скамьи выдан пр�
   await openBench();
   await expect(card.getByLabel('Инвентарный номер')).toHaveValue('ИНВ-ДЕМО-054');
 
+  // «Экспорт → CSV» несёт столбец атрибута из справочника и новую скамью (#12).
+  const csvStarted = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Экспорт' }).click();
+  await page.getByRole('menuitem', { name: /CSV/ }).click();
+  const csvFile = await (await csvStarted).path();
+  const [header, ...lines] = readFileSync(csvFile as string, 'utf8').replace(/^\uFEFF/, '').split('\r\n');
+  expect(header?.split(';')).toContain('Состояние');
+  expect(lines.some((line) => line.startsWith('ИНВ-ДЕМО-054;'))).toBe(true);
+
   const again = page.waitForEvent('download');
   await exportPlan(page, 'JSON');
   const second = await (await again).path();
