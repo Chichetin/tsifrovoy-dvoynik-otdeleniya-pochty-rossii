@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, test , exportPlan, confirmPhysicsBlock } from './fixtures';
 import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
+import { closeSettings, openSettings } from './settings';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -127,4 +128,24 @@ test('инвентарный номер новой скамьи выдан пр�
   expect(second).not.toBeNull();
   expect(numbers(JSON.parse(readFileSync(second as string, 'utf8')))).toEqual(numbers(saved));
   expect(errors).toEqual([]);
+});
+
+test('атрибут типа добавлен без ввода ключа и попал в сохранённый справочник (#13)', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo', 'before.json'));
+  const dialog = await openSettings(page, 'Оборудование');
+  await dialog.getByTestId('catalog-type-label').fill('Весы почтовые Q13');
+  await dialog.getByTestId('catalog-add-type').click();
+  await dialog.getByTestId('catalog-attr-label').fill('Дата поверки');
+  await expect(dialog.getByTestId('catalog-attr-key-preview')).toHaveText('Ключ: data_poverki');
+  await dialog.getByTestId('catalog-add-attr').click();
+  await expect(dialog.getByTestId('catalog-attributes')).toContainText('data_poverki');
+  await closeSettings(page);
+
+  const started = page.waitForEvent('download');
+  await exportPlan(page, 'JSON');
+  const download = await started;
+  const saved = JSON.parse(readFileSync((await download.path()) as string, 'utf8'));
+  const type = saved.catalog.objectTypes.find((t: { label: string }) => t.label === 'Весы почтовые Q13');
+  expect(type.attributes.map((a: { key: string }) => a.key)).toEqual(['data_poverki']);
 });

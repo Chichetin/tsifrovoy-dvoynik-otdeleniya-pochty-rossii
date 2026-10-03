@@ -17,6 +17,7 @@ import {
   addAttribute,
   addCountRule,
   addObjectType,
+  attributeKeyFromLabel,
   addZoneType,
   removeAttribute,
   removeObjectType,
@@ -103,6 +104,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
   const [zoneColor, setZoneColor] = useState('#D0EBFF');
 
   const [attrKey, setAttrKey] = useState('');
+  const [attrKeyOpen, setAttrKeyOpen] = useState(false);
   const [attrLabel, setAttrLabel] = useState('');
   const [attrType, setAttrType] = useState<NewAttribute['type']>('string');
   const [attrRequired, setAttrRequired] = useState(false);
@@ -187,13 +189,15 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
   };
 
+  const generatedKey = attributeKeyFromLabel(attrLabel, chosen?.attributes.map((a) => a.key) ?? []);
+
   const submitAttribute = (): void => {
     if (chosen === null) return;
-    const key = attrKey.trim();
-    if (key === '' || attrLabel.trim() === '') {
-      setError('У атрибута нужны ключ и подпись.');
+    if (attrLabel.trim() === '') {
+      setError('У атрибута нужна подпись.');
       return;
     }
+    const key = attrKey.trim() === '' ? generatedKey : attrKey.trim();
     if (!ATTRIBUTE_KEY.test(key)) {
       setError('Ключ атрибута — латиница, цифры и «_», начинается с буквы: например, serialNumber.');
       return;
@@ -456,14 +460,34 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
               </ul>
               <div className="catalog__row">
                 <label className="assistant__field">
-                  Ключ
-                  <input value={attrKey} onChange={(e) => setAttrKey(e.target.value)} placeholder="condition" data-testid="catalog-attr-key" />
-                </label>
-                <label className="assistant__field">
                   Подпись
                   <input value={attrLabel} onChange={(e) => setAttrLabel(e.target.value)} placeholder="Состояние" data-testid="catalog-attr-label" />
                 </label>
               </div>
+              <p className="panel__note" data-testid="catalog-attr-key-preview">
+                Ключ: {attrKey.trim() === '' ? generatedKey : attrKey.trim()}
+              </p>
+              {/* A button, not <details>: the Settings Tab trap skips <summary> and cannot focus a field in a closed <details>. */}
+              <button
+                type="button"
+                className="table__link"
+                aria-expanded={attrKeyOpen}
+                onClick={() => setAttrKeyOpen(!attrKeyOpen)}
+                data-testid="catalog-attr-more"
+              >
+                {attrKeyOpen ? '▾' : '▸'} дополнительно
+              </button>
+              {attrKeyOpen ? (
+                <label className="assistant__field">
+                  Ключ
+                  <input
+                    value={attrKey}
+                    onChange={(e) => setAttrKey(e.target.value)}
+                    placeholder={generatedKey}
+                    data-testid="catalog-attr-key"
+                  />
+                </label>
+              ) : null}
               <div className="catalog__row">
                 <label className="assistant__field">
                   Тип
