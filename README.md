@@ -50,7 +50,6 @@
 
 - [Архитектура](docs/architecture.md) и [контракты v1](docs/contracts-v1.md).
 - [Условия](task.md), [матрица соответствия](docs/tz-compliance.md), [решения](docs/decisions.md).
-- [Задание для независимого Deep Research](docs/research/deep-research-brief.md).
 - [Статус сдачи](docs/submission.md).
 - [PDF-презентация](output/pdf/posttech-digital-twin-2026-09-18.pdf) на основе собственного демо
   и проверенных фактов; перед отправкой жюри её должен просмотреть участник команды.
