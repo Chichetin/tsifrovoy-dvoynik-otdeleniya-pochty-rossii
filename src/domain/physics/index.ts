@@ -37,7 +37,7 @@ import {
   objectInterval,
 } from '../geometry';
 import { formatLength } from '../number-format';
-import { VALIDATION_ISSUE_CODES, isPhysical, validatePlan } from '../validation';
+import { VALIDATION_ISSUE_CODES, isPhysical } from '../validation';
 import { openingDeleteRejection, openingRejection } from './opening';
 
 export { introducesOpeningOverlap, openingDeleteRejection, openingRejection, openingsOverlap } from './opening';
@@ -90,17 +90,6 @@ export const PHYSICS_ISSUE_CODES: ReadonlySet<string> = new Set(
 /** Нарушения физики среди любых находок проверки плана. */
 export function physicsIssues(issues: readonly Issue[]): Issue[] {
   return issues.filter((entry) => PHYSICS_ISSUE_CODES.has(entry.code));
-}
-
-/**
- * Нарушения физики всего плана — та же проверка, что показывает вкладка
- * «Проверка», просто без правил комплектования. Этим пользуется отказ
- * сохранения: окно и панель не могут разойтись, потому что считает одно и то
- * же. Отдельная функция ещё и потому, что граница импортов не даёт feature
- * читать `domain/validation` напрямую — имя совпадает с именем feature.
- */
-export function planPhysicsIssues(plan: PlanDocument): Issue[] {
-  return physicsIssues(validatePlan(plan));
 }
 
 function issueOf(code: string, message: string, refs: Issue['refs'], polygon: Polygon): Issue {

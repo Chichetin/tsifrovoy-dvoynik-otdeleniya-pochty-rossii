@@ -39,7 +39,8 @@ import {
   type DraftWriter,
   type PlanDraft,
 } from '../../persistence/browser-draft';
-import { planPhysicsIssues } from '../../domain/physics';
+import { physicsIssues } from '../../domain/physics';
+import { validatePlan } from '../../domain/validation';
 import { NBSP } from '../../domain/number-format';
 import type { OpenedPlan } from '../../persistence/format';
 import { pngFileName, renderPlanPng } from '../../persistence/plan-png';
@@ -415,7 +416,7 @@ export function FileControls({
    */
   const save = (force = false): void => {
     if (!force) {
-      const violations = planPhysicsIssues(plan);
+      const violations = physicsIssues(validatePlan(plan));
       if (violations.length > 0) {
         setBlocking(violations);
         return;
