@@ -439,7 +439,9 @@ export function FileControls({
 
   // Ctrl+S saves the plan file instead of the browser's «save page» (#6).
   const saveRef = useRef(save);
-  saveRef.current = save;
+  useEffect(() => {
+    saveRef.current = save;
+  });
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
