@@ -1,4 +1,3 @@
-import { openingDeleteRejection, openingEditRejection } from '../features/plan-tools/opening-edit-rejection';
 import { useOpeningController } from '../features/plan-tools/use-opening-controller';
 import { OpeningControls } from '../features/plan-tools/OpeningControls';
 import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer';
@@ -362,9 +361,7 @@ export function App(): React.JSX.Element {
 
   const dispatch = useCallback(
     (command: Command): Result<PlanDocument> => {
-      const openingError = command.type === 'opening.put' ? openingEditRejection(store.getState().document,command.opening)
-        : command.type === 'opening.delete' ? openingDeleteRejection(store.getState().document,command.id) : null;
-      const result: Result<PlanDocument> = openingError === null ? store.getState().dispatch(command) : {ok:false,issues:[openingError]};
+      const result = store.getState().dispatch(command);
       // A refused command is not a silent no-op: the user has to learn why the
       // thing they just dragged snapped back.
       setLastError(result.ok ? null : refusalOf(result.issues, store.getState().revision));
