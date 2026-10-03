@@ -172,7 +172,7 @@ docker run -d --name ops-digital-twin -p 8080:8080 -e HOST=0.0.0.0 -e PORT=8080 
   `failure_reason: stuck_or_timeout_failure` — команды из `.gitlab-ci.yml` ни разу не
   запускались. Бейдж «failed» на коммитах — следствие таймаута ожидания раннера, а не
   красных тестов. Единственная проверка перед merge — локальный прогон в worktree
-  (typecheck, lint, unit, build, e2e), его делают `builder` и `integrator` по GIT.md.
+  (typecheck, lint, unit, build, e2e), его делает `builder` по GIT.md.
   Конвейер оставлен: он заработает без правок, если организаторы подключат раннер или
   команда зарегистрирует свой (`Settings → CI/CD → Runners`, нужны права maintainer).
 

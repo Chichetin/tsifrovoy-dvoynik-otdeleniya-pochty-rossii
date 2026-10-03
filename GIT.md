@@ -79,6 +79,11 @@ git worktree add .claude/worktrees/<N>-<тема> -b worktree-<N>-<тема> ori
 
 ## Финиш: ветка → Merge Request → main
 
+Одна команда из worktree задачи: `bash scripts/finish.sh`. Она делает шаги 1–5 ниже:
+merge `origin/main`, build (если `main` ушёл), push с MR, merge MR, pull основной
+копии, уборка. GitLab отказал — до трёх попыток. Конфликт — стоп: разреши, закоммить,
+запусти снова. Шаги ниже — что скрипт делает и как сделать руками.
+
 ```bash
 # 1. проверки зелёные, коммит только своих путей
 git fetch --prune
