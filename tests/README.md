@@ -27,4 +27,4 @@ Unit-тесты живут рядом с модулем: *.test.ts(x), server/*.
 - `demo.test.ts` — E01.
 - `example-plan-checks.test.ts` — ловушки `example_plan.json`.
 
-[Карта проекта и владельцы](../docs/project-structure.md) · [Контракты](../docs/contracts-v1.md) · [План задач](../docs/plans/2026-09-16-parallel-plan.md)
+[Карта проекта и владельцы](../docs/project-structure.md) · [Контракты](../docs/contracts-v1.md)

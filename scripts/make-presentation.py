@@ -171,7 +171,7 @@ card(c, 350, 305, 565, 118, "Числа считает код",
      "Перебор кандидатов проверяет геометрию и правила. Ответ содержит id объекта и зоны, факты, источник правила и ограничения.")
 card(c, 350, 166, 565, 118, "Модель только объясняет",
      "Внешний ответ проходит проверку допустимых id и фактов. Если ключа нет или ответ неверен, сервис показывает тот же расчёт с явной пометкой «Без LLM».", PALE)
-text(c, "Живой вызов провайдера подтверждён 19.09: DeepSeek-V4-Flash через Yandex Cloud AI Studio, mode=llm (docs/verification/llm-live-2026-09-19.md).",
+text(c, "Живой вызов провайдера подтверждён 19.09: DeepSeek-V4-Flash через Yandex Cloud AI Studio, mode=llm.",
      350, 129, 565, 13, RED, True)
 text(c, "Источник: demo/recommendation.json · src/domain/advice · server/advice-route.test.ts",
      350, 91, 565, 9, MUTED)
@@ -202,7 +202,7 @@ for y, volume, opened, roundtrip, bar in [
     c.roundRect(327, y - 1, bar, 10, 5, fill=1, stroke=0)
     text(c, opened, 327 + bar + 10, y + 13, 90, 13, NAVY)
     text(c, roundtrip, 576, y + 14, 190, 14, NAVY, True)
-text(c, "Пять прогонов на объём, Chrome 153, Ryzen AI 9 365; кандидат 17ad4dc. Подробнее: docs/verification/performance-rc.md.",
+text(c, "Пять прогонов на объём, Chrome 153, Ryzen AI 9 365; кандидат 17ad4dc.",
      44, 238, 870, 10, MUTED)
 card(c, 44, 94, 416, 117, "Готово", "Исходный код и README в GitLab; демо-ZIP с двумя редактируемыми планами; локальные unit, Chrome e2e и Docker-сборка.", colors.HexColor("#E5F6EF"), GREEN)
 card(c, 500, 94, 416, 117, "Открыто", "Публичный адрес ещё не выбран. Живой вызов LLM проверен локально (DeepSeek-V4-Flash, mode=llm); на публичном сервере нужен тот же ключ. Для сдачи нужны внешний прогон и прикрепление PDF.", colors.HexColor("#FFF0E7"), RED)
