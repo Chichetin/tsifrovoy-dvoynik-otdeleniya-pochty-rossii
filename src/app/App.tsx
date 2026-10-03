@@ -933,6 +933,7 @@ export function App(): React.JSX.Element {
                   session={session}
                   onCommand={dispatch}
                   onSelect={selectFromLeft}
+                  onFocus={(ref) => { focusOn(ref); keepLeftTab(ref); }}
                   objectMounts={objectMounts}
                   pictograms={pictogramsView}
                 />
