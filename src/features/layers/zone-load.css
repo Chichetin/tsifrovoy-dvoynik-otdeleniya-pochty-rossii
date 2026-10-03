@@ -1,0 +1,74 @@
+/* #15: zones of a heat layer ranked by value (LayersPanel). */
+
+.zone-load {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.zone-load__caption {
+  margin: 0 0 2px;
+  padding: 0 4px;
+  color: var(--muted);
+}
+
+.zone-load__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.zone-load__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 6px;
+  align-items: baseline;
+  padding: 2px 4px 3px;
+  border-radius: 4px;
+}
+
+/* The busiest zone stands out without reading the numbers. */
+.zone-load__row:first-child {
+  background: var(--ground);
+  font-weight: 600;
+}
+
+.zone-load__row:first-child .zone-load__name {
+  font-weight: 600;
+}
+
+.zone-load__name {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zone-load__value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.zone-load__bar {
+  grid-column: 1 / -1;
+  display: block;
+  height: 4px;
+  margin-top: 2px;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.zone-load__bar > span {
+  display: block;
+  height: 100%;
+}
+
+.zone-load__flag {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-weight: 600;
+}

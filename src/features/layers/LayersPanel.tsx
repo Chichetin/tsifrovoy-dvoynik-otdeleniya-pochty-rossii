@@ -13,7 +13,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { Equipment, Id, Layer, LayerType, Zone } from '../../contracts/model';
+import type { Equipment, Id, Layer, LayerType, Ref, Zone } from '../../contracts/model';
 import type { LayersPanelProps } from '../../contracts/ui';
 import { findLayerType, findObjectType } from '../../domain/catalog';
 import { takenIds } from '../../domain/commands';
@@ -22,6 +22,8 @@ import { objectColorValue } from '../../domain/object-color';
 import { OBJECT_MOUNTS, countByMount, type ObjectMount } from '../../domain/object-mount';
 import { BLIND_SPOT_SWATCH_CSS, visibleCoverage } from './coverage';
 import { formatValue, legendOf } from './legend';
+import { zoneLoad } from './zone-load';
+import './zone-load.css';
 
 /** Пустое поле — это «значения нет», а не ноль. */
 function parseValue(input: string): number | null {
@@ -98,10 +100,13 @@ export function LayersPanel({
   onSelect,
   objectMounts,
   pictograms,
+  onFocus,
   mode = 'view',
 }: LayersPanelProps & {
   objectMounts?: ObjectMountsView;
   pictograms?: PictogramsView;
+  /** #15: select a zone and bring it into view on the canvas; plain selection without it. */
+  onFocus?: (ref: Ref) => void;
   /**
    * D-352: `view` — the side tab, what is used while working (visibility,
    * lock, legends, data); `setup` — the «Настройки» section, what is set up
@@ -235,6 +240,46 @@ export function LayersPanel({
             </tr>
           </tbody>
         </table>
+      </div>
+    );
+  };
+
+  /** #15: the busiest zone first, so the manager sees it at a glance and goes to it in one click. */
+  const zoneLoadView = (type: LayerType): React.JSX.Element | null => {
+    const representation = type.representation;
+    if (representation.kind !== 'zone-heat' || plan.zones.length === 0) return null;
+    const { rows, missing } = zoneLoad(plan.zones, representation);
+    const go = (zoneId: Id): void => (onFocus ?? onSelect)({ kind: 'zone', id: zoneId });
+    const threshold = formatValue(representation.max, representation.unit);
+    return (
+      <div className="zone-load" role="group" aria-label={`${type.label} по убыванию`}>
+        <p className="zone-load__caption">По убыванию · перегружена — от {threshold}</p>
+        {rows.length === 0 ? (
+          <p className="panel__empty">Значений пока нет — задайте их в таблице ниже</p>
+        ) : (
+          <ol className="zone-load__list">
+            {rows.map((row) => (
+              <li key={row.zoneId} className={row.overloaded ? 'zone-load__row is-overloaded' : 'zone-load__row'}>
+                <button
+                  type="button"
+                  className="table__link zone-load__name"
+                  title={`${row.name} — показать на плане · id ${row.zoneId}`}
+                  onClick={() => go(row.zoneId)}
+                >
+                  {row.name}
+                </button>
+                <span className="zone-load__value">
+                  {formatValue(row.value, representation.unit)}
+                  {row.overloaded ? <span className="zone-load__flag">перегружена</span> : null}
+                </span>
+                <span className="zone-load__bar" aria-hidden="true" style={{ background: representation.colors[0] }}>
+                  <span style={{ width: `${row.share * 100}%`, background: representation.colors[1] }} />
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+        {missing === 0 ? null : <p className="layers__note">Без значения: {missing} — в список не вошли</p>}
       </div>
     );
   };
@@ -629,6 +674,7 @@ export function LayersPanel({
                     </p>
                   </details>
                   {layer.visible ? coverageView(type) : null}
+                  {layer.visible ? zoneLoadView(type) : null}
                   {layer.visible ? dataTable(type) : null}
                 </>
               )}
