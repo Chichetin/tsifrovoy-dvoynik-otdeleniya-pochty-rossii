@@ -31,7 +31,8 @@ import type {
   Rule,
 } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
-import { findObjectType, defaultAttributes } from '../catalog';
+import { findObjectType } from '../catalog';
+import { objectOfType, takenIds } from '../commands';
 import {
   boundingBox,
   boxesOverlap,
@@ -44,7 +45,6 @@ import {
   locatePoint,
   polygonSegmentDistance,
   wallObstacles,
-  withTypeOutline,
   type BoundingBox,
   type HeightInterval,
 } from '../geometry';
@@ -334,33 +334,6 @@ function withinReach(position: Point, reaches: Reach[]): boolean {
   );
 }
 
-/** A placement as it would sit in the plan, before its zone is resolved. */
-export function trialObject(
-  id: Id,
-  type: ObjectType,
-  position: Point,
-  rotation_deg: number,
-  layerId: Id,
-): Equipment {
-  // The type's shape (D-277): a round table is searched for as a round table.
-  return withTypeOutline(
-    {
-      id,
-      typeId: type.id,
-      label: type.label,
-      position,
-      size_m: [type.defaultSize_m[0], type.defaultSize_m[1]],
-      rotation_deg,
-      base_m: type.defaultBase_m,
-      height_m: type.defaultHeight_m,
-      zoneId: null,
-      layerId,
-      attributes: defaultAttributes(type),
-    },
-    type,
-  );
-}
-
 function fits(
   shape: Polygon,
   room: Polygon,
@@ -575,7 +548,7 @@ function sweep(
       if (probes >= PLACEMENT_SEARCH.maxProbes) return found;
       probes += 1;
 
-      const trial = trialObject('probe', type, position, rotation_deg, layerId);
+      const trial = objectOfType(type, { id: 'probe', position, rotation_deg, layerId });
       const shape = footprint(trial);
       if (!fits(shape, plan.room.boundary, target, blockers)) continue;
       // Only after the cheap geometric test: a spot outside the zones where the
@@ -640,18 +613,6 @@ export function verify(
   );
   if (fresh.some((entry) => entry.severity === 'error')) return null;
   return fresh.length;
-}
-
-/** Ids the plan already uses, so a reserved id cannot shadow a real one. */
-export function usedIds(plan: PlanDocument): Set<Id> {
-  return new Set<Id>([
-    plan.room.id,
-    ...plan.walls.map((wall) => wall.id),
-    ...plan.openings.map((opening) => opening.id),
-    ...plan.layers.map((layer) => layer.id),
-    ...plan.zones.map((zone) => zone.id),
-    ...plan.objects.map((object) => object.id),
-  ]);
 }
 
 export function reserveId(taken: Set<Id>, prefix: string, index: number): Id {
@@ -748,12 +709,12 @@ export const findPlacements: FindPlacements = (plan, request) => {
   );
 
   const baseline = new Set(validatePlan(plan).map(issueKey));
-  const taken = usedIds(plan);
+  const taken = takenIds(plan);
   const zoneIndex = prepareZones(plan.zones);
   const verified: VerifiedProbe[] = [];
   for (const probe of probes) {
     const id = reserveId(taken, `adv_${type.id}`, verified.length + 1);
-    const trial = trialObject(id, type, probe.position, probe.rotation_deg, layer.id);
+    const trial = objectOfType(type, { id, position: probe.position, rotation_deg: probe.rotation_deg, layerId: layer.id });
     const object = { ...trial, zoneId: resolveZone(trial, plan.zones, zoneIndex).zoneId };
     const warnings = verify(plan, baseline, object);
     if (warnings === null) {

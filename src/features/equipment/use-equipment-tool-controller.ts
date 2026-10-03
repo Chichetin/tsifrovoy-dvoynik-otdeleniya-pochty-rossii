@@ -8,10 +8,8 @@
 
 import { useCallback } from 'react';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
-import { defaultAttributes, findObjectType } from '../../domain/catalog';
-import { takenIds, withInventoryNumber } from '../../domain/commands';
-import { editableContentLayer } from '../../domain/content-layer';
-import { nextObjectId } from './selection-edit';
+import { findObjectType } from '../../domain/catalog';
+import { newObject } from '../../domain/commands';
 import { snapPosition } from './transform';
 import { isWallMounted, wallMountPlacement } from './wall-mount';
 
@@ -27,21 +25,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
       if (tool.kind !== 'object.place' || event.phase !== 'down') return;
 
       const type = findObjectType(plan.catalog, tool.typeId);
-      // Только обычный слой: информационный слой — представление поверх плана
-      // и ничего не содержит (D-063).
-      // No unlocked content layer: still address the first content layer, so
-      // the store refuses with «слой заперт» and the person learns why nothing
-      // was placed. A silent no-op is not an outcome (D-174 keeps content off
-      // informational layers; it does not ask for silence).
-      const layer =
-        editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
-      if (type === null || layer === undefined) return;
-
-      // Ids of everything on the plan plus ids a delete retired this session:
-      // the store refuses to resurrect the latter (D-019), so «удалить → поставить
-      // снова» must not offer them. Один генератор с вставкой из буфера
-      // (`nextObjectId`): два номерователя рядом рано или поздно выдадут один id.
-      const taken = takenIds(plan, session.retired);
+      if (type === null) return;
       // Настенное оборудование (D-228) прижимается к ближайшей стене и
       // смотрит внутрь помещения: камера с `rotation_deg: 0` направляла бы
       // сектор обзора в стену, куда бы её ни поставили. Остальные типы
@@ -50,25 +34,20 @@ export const useEquipmentToolController: UsePlanToolController = ({
       const placement = isWallMounted(type)
         ? wallMountPlacement(plan.walls, plan.room.boundary, type.defaultSize_m, event.point)
         : null;
-      // D-310: the new item enters the inventory with the next number of the
-      // plan's series, in the same command — one undo removes both.
-      onCommand({
-        type: 'object.put',
-        object: withInventoryNumber(plan, {
-          id: nextObjectId(taken),
-          typeId: type.id,
-          label: type.label,
+      // Id, layer, catalog defaults and the next inventory number (D-310) come
+      // from one rule for every new object; one command — one undo removes all.
+      const object = newObject(
+        plan,
+        type,
+        {
           // Centimetres, like every other gesture: the file stays readable.
           position: placement?.position ?? snapPosition(event.point),
-          size_m: type.defaultSize_m,
           rotation_deg: placement?.rotation_deg ?? 0,
-          base_m: type.defaultBase_m,
-          height_m: type.defaultHeight_m,
-          zoneId: null,
-          layerId: layer.id,
-          attributes: defaultAttributes(type),
-        }),
-      });
+        },
+        session.retired,
+      );
+      if (object === null) return;
+      onCommand({ type: 'object.put', object });
     },
     [onCommand, plan, session.retired, tool],
   );

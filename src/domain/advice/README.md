@@ -37,6 +37,6 @@
 эффект в процентах пересчитывает `cameraCandidateEffect` из плана и кандидата — для `assumptions`,
 фактов чата (`coverage.percent`, единица `percent`, изменение в п. п.) и текста без LLM; кешируется на объект плана и варианта. Слой камер ответ называет словами — действие «включить слой» изменило бы ревизию и погасило «Применить». Нет
 клиентских зон, нет пятна, зона не клиентская или указана точка — обычный `findPlacements`.
-`placement.ts` для этого экспортирует `trialObject`, `verify`, `usedIds`, `reserveId`, `issueKey`.
+`placement.ts` для этого экспортирует `verify`, `reserveId`, `issueKey`. Пробный объект типа — `objectOfType` из `domain/commands`.
 
 [Карта проекта и владельцы](../../../docs/project-structure.md) · [Контракты](../../../docs/contracts-v1.md)

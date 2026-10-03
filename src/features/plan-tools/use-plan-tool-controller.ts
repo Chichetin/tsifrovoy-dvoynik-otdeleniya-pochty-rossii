@@ -19,8 +19,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Id, Point, Polygon } from '../../contracts/model';
 import type { ToolController, ToolKind, UsePlanToolController, WorldPointer } from '../../contracts/ui';
-import { defaultAttributes, findObjectType } from '../../domain/catalog';
-import { nextFreeId, takenIds } from '../../domain/commands';
+import { findObjectType } from '../../domain/catalog';
+import { newObject, nextFreeId, takenIds } from '../../domain/commands';
 import { editableContentLayer } from '../../domain/content-layer';
 import { SNAP, pointGuides, snapHint } from '../../domain/geometry';
 import { getMeasurement, setMeasurement } from './measure';
@@ -162,30 +162,17 @@ export const usePlanToolController = ({
    * a library placement gives it. false keeps the draft on screen.
    */
   const drawShape = useCallback(
-    (ring: Polygon, typeId: Id, taken: Set<Id>): boolean => {
+    (ring: Polygon, typeId: Id): boolean => {
       const type = findObjectType(plan.catalog, typeId);
-      const layer =
-        editableContentLayer(plan.layers) ?? plan.layers.find((entry) => entry.typeId === null);
-      if (type === null || layer === undefined) {
+      // Id, layer, catalog defaults and the next inventory number (D-310): the
+      // same new object a library click gives; the ring then sets its shape.
+      const base =
+        type === null ? null : newObject(plan, type, { position: [0, 0], rotation_deg: 0 }, session.retired);
+      if (base === null) {
         setNotice(SHAPE_NO_TYPE_NOTICE);
         return false;
       }
-      const shaped = objectFromRing(
-        {
-          id: nextFreeId('eq_', taken),
-          typeId: type.id,
-          label: type.label,
-          position: [0, 0],
-          size_m: type.defaultSize_m,
-          rotation_deg: 0,
-          base_m: type.defaultBase_m,
-          height_m: type.defaultHeight_m,
-          zoneId: null,
-          layerId: layer.id,
-          attributes: defaultAttributes(type),
-        },
-        ring,
-      );
+      const shaped = objectFromRing(base, ring);
       if (!shaped.ok) {
         setNotice(shaped.reason === 'too-small' ? SHAPE_TOO_SMALL_NOTICE : DRAFT_SELF_INTERSECTION_NOTICE);
         return false;
@@ -194,7 +181,7 @@ export const usePlanToolController = ({
       setNotice(null);
       return true;
     },
-    [onCommand, plan.catalog, plan.layers],
+    [onCommand, plan, session.retired],
   );
 
   /** Returns false when the ring was refused and the draft has to stay. */
@@ -219,10 +206,10 @@ export const usePlanToolController = ({
           );
           return result.ok;
         }
+        if (tool.kind === 'shape.draw') return drawShape(ring, tool.typeId);
         // Plus ids retired by a delete this session: the store would refuse them (D-019).
         // One id space for the whole plan plus what a delete retired this session (D-198).
         const taken = takenIds(plan, session.retired);
-        if (tool.kind === 'shape.draw') return drawShape(ring, tool.typeId, taken);
         // Содержимое живёт только на обычных слоях: информационный слой рисует
         // поверх всего плана и ничего не содержит (D-063).
         // Every content layer locked: address the first one anyway, so the

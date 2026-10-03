@@ -35,7 +35,8 @@ import {
   type CameraCoverage,
   type CameraFieldRepresentation,
 } from './camera-coverage';
-import { issueKey, reserveId, spreadApart, trialObject, usedIds, verify } from './placement';
+import { issueKey, reserveId, spreadApart, verify } from './placement';
+import { objectOfType, takenIds } from '../commands';
 
 export const CAMERA_SEARCH = {
   /** Candidate points: a grid of this step inside the client zones, metres. */
@@ -207,7 +208,7 @@ export function cameraPlacementAdvice(
 
   const { probes, step_m } = searchProbes(scopeZones.map((entry) => entry.polygon), centres, patchBox, angle, range);
   const baseline = new Set(validatePlan(plan).map(issueKey));
-  const taken = usedIds(plan);
+  const taken = takenIds(plan);
   const zoneIndex = prepareZones(plan.zones);
   const verified: (Probe & { object: Equipment })[] = [];
   for (const probe of probes) {
@@ -215,7 +216,7 @@ export function cameraPlacementAdvice(
     // Variants differ visibly: the best point, then the best one a metre away, and so on.
     if (spreadApart([...verified, probe], CAMERA_SEARCH.minSeparation_m, verified.length + 1).length <= verified.length) continue;
     const id = reserveId(taken, `adv_${type.id}`, verified.length + 1);
-    const trial = cameraObject(trialObject(id, type, probe.position, probe.rotation_deg, layer.id), representation, angle, range);
+    const trial = cameraObject(objectOfType(type, { id, position: probe.position, rotation_deg: probe.rotation_deg, layerId: layer.id }), representation, angle, range);
     const object = { ...trial, zoneId: resolveZone(trial, plan.zones, zoneIndex).zoneId };
     if (verify(plan, baseline, object) === null) {
       taken.delete(id);
