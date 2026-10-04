@@ -11,7 +11,7 @@ import layerTypes from '../../data/catalog/layer-types.json';
 import objectTypes from '../../data/catalog/object-types.json';
 import rules from '../../data/catalog/rules.json';
 import zoneTypes from '../../data/catalog/zone-types.json';
-import showroomText from '../../demo/showroom.json?raw';
+import startPlanText from '../../demo/before.json?raw';
 import type { Catalog, Layer, PlanDocument } from '../contracts/model';
 import { SCHEMA_VERSION } from '../contracts/model';
 import { parseCatalog } from '../contracts/schema';
@@ -69,16 +69,16 @@ function startingLayers(): Layer[] {
 }
 
 /**
- * The plan the application opens with (#73): a synthetic showroom with every
- * type that has a 3D model, so the first look shows the equipment in 2D and
- * 3D. The demo menu opens the same file; "new" gives the empty room below.
+ * The original department from the submission ZIP (#111). The first look
+ * shows its zones, equipment and validation findings. The showroom remains
+ * available in the demo menu; "new" gives the empty room below.
  */
 export function openStartPlan(): PlanDocument {
-  const decoded = decodePlan(showroomText);
+  const decoded = decodePlan(startPlanText);
   if (!decoded.ok) {
     // Same as a broken catalog: a data error of the build, fail loudly.
     const where = decoded.issues.map((issue) => issue.path ?? issue.code).join(', ');
-    throw new Error(`Стартовый план demo/showroom.json не открылся: ${where}`);
+    throw new Error(`Стартовый план demo/before.json не открылся: ${where}`);
   }
   return decoded.value;
 }

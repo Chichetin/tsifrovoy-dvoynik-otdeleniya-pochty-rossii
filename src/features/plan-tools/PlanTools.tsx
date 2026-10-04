@@ -49,8 +49,8 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
   },
   {
     kind: 'room.draw',
-    label: 'Помещение',
-    hint: 'Построить комнату двумя противоположными углами. Слева можно выбрать изменение внешнего контура. Alt — без привязки',
+    label: 'Комната',
+    hint: 'Комната внутри отделения: два противоположных угла, затем «Создать комнату». Старые стены сохраняются. Alt — без привязки',
   },
   {
     kind: 'zone.draw',
@@ -141,7 +141,8 @@ export function PlanTools({
   session,
   onTool,
   drawingActive = false,
-}: PlanToolsProps & { drawingActive?: boolean }): React.JSX.Element {
+  boundaryEditing = false,
+}: PlanToolsProps & { drawingActive?: boolean; boundaryEditing?: boolean }): React.JSX.Element {
   const notice = useNotice();
   const tool = session.tool;
   const toolbar = useRef<HTMLDivElement>(null);
@@ -169,8 +170,8 @@ export function PlanTools({
           <button
             type="button"
             title={tool.hint}
-            aria-pressed={session.tool.kind === tool.kind}
-            className={session.tool.kind === tool.kind ? 'toolbar__button is-active' : 'toolbar__button'}
+            aria-pressed={session.tool.kind === tool.kind && !(tool.kind === 'room.draw' && boundaryEditing)}
+            className={session.tool.kind === tool.kind && !(tool.kind === 'room.draw' && boundaryEditing) ? 'toolbar__button is-active' : 'toolbar__button'}
             onClick={() => onTool({ kind: tool.kind })}
           >
             {tool.label}

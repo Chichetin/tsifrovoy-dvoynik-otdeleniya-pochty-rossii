@@ -35,7 +35,7 @@ import {
 import type { AxisSnap, Gap } from '../../domain/geometry';
 import { formatLength } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
-import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
+import { equipmentHoverHint, equipmentHoverSummary, hasLearnedEquipmentSelection, rememberEquipmentSelection } from './hover-summary';
 import { fitCaption } from './caption-fit';
 import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
 import {
@@ -251,6 +251,7 @@ export function EquipmentLayer({
   onSelect,
   onSelectMany,
   preview,
+  previewEdits = null,
   onGesturePreview,
   hideHandlesFor = null,
   reshapeFor = null,
@@ -332,6 +333,8 @@ export function EquipmentLayer({
   const layerRef = useRef<Konva.Layer>(null);
   // Konva nodes live in state so event callbacks can update them without a
   // React render on every pointer move. They are assigned once on mount.
+  const [hoverLearned, setHoverLearned] = useState(hasLearnedEquipmentSelection);
+  if (!hoverLearned && (selectedObject !== null || group.size > 0)) setHoverLearned(true);
   const [hoverCard, setHoverCard] = useState<Konva.Group | null>(null);
   const [hoverBox, setHoverBox] = useState<Konva.Rect | null>(null);
   const [hoverTitle, setHoverTitle] = useState<Konva.Text | null>(null);
@@ -614,7 +617,7 @@ export function EquipmentLayer({
     if (stage === null || stage === undefined || pointer === null || pointer === undefined) return;
     if (card === null || box === null || title === null || rule === null || hint === null) return;
 
-    const summary = equipmentHoverSummary(shown(object), picking);
+    const summary = equipmentHoverSummary(shown(object), picking, hoverLearned);
     title.text(summary.title);
     hint.text(summary.hint);
 
@@ -622,11 +625,15 @@ export function EquipmentLayer({
     // поэтому блоки укладываются после того, как текст уже задан.
     let y = HOVER_PAD_PX;
     title.y(y);
-    y += title.height() + HOVER_RULE_GAP_PX;
+    y += title.height();
+    const showHint = summary.hint !== '';
+    rule.visible(showHint);
+    hint.visible(showHint);
+    if (showHint) y += HOVER_RULE_GAP_PX;
     rule.points([HOVER_PAD_PX, y, HOVER_WIDTH_PX - HOVER_PAD_PX, y]);
-    y += HOVER_RULE_GAP_PX;
+    if (showHint) y += HOVER_RULE_GAP_PX;
     hint.y(y);
-    const height = y + hint.height() + HOVER_PAD_PX;
+    const height = y + (showHint ? hint.height() : 0) + HOVER_PAD_PX;
     box.height(height);
 
     const left = Math.min(pointer.x + HOVER_GAP_PX, Math.max(0, stage.width() - HOVER_WIDTH_PX));
@@ -643,14 +650,20 @@ export function EquipmentLayer({
   // A keyboard tool switch can leave the pointer still over the same object.
   // Refresh only the hint node, keeping the document and equipment nodes intact.
   useEffect(() => {
-    if (hoverHint === null || hoverBox === null || hoverCard === null || !hoverCard.visible()) return;
-    hoverHint.text(equipmentHoverHint(picking));
-    const height = hoverHint.y() + hoverHint.height() + HOVER_PAD_PX;
+    if (hoverLearned) rememberEquipmentSelection();
+    if (hoverHint === null || hoverTitle === null || hoverRule === null || hoverBox === null || hoverCard === null || !hoverCard.visible()) return;
+    const text = equipmentHoverHint(picking, hoverLearned);
+    hoverHint.text(text);
+    hoverHint.visible(text !== '');
+    hoverRule.visible(text !== '');
+    const height = text === ''
+      ? HOVER_PAD_PX * 2 + hoverTitle.height()
+      : hoverHint.y() + hoverHint.height() + HOVER_PAD_PX;
     hoverBox.height(height);
     const stage = hoverCard.getStage();
     if (stage !== null) hoverCard.y(Math.min(hoverCard.y(), Math.max(0, stage.height() - height)));
     hoverCard.getLayer()?.batchDraw();
-  }, [picking, hoverHint, hoverBox, hoverCard]);
+  }, [picking, hoverLearned, hoverHint, hoverTitle, hoverRule, hoverBox, hoverCard]);
 
   /**
    * Start of every gesture: select what is being pulled, remember where from.
@@ -1005,6 +1018,30 @@ export function EquipmentLayer({
           .map((object) => render(object, false))}
 
         {previewObject === null ? null : render(previewObject, true)}
+
+        {/* #126: the agent's edits before «Применить правки» — moved, turned
+            and new objects as ghosts, deleted ones outlined in red. A ghost
+            of an existing object sits in its own group: same id, other key. */}
+        {previewEdits === null ? null : (
+          <Group name="edit-ghosts" listening={false}>
+            {previewEdits.put.map((object) => (
+              <Group key={`ghost-${object.id}`}>{render(object, true)}</Group>
+            ))}
+            {plan.objects
+              .filter((object) => previewEdits.removed.includes(object.id))
+              .map((object) => (
+                <Line
+                  key={`removed-${object.id}`}
+                  points={footprint(object).flatMap((point) => modelToScreen(point, viewport))}
+                  closed
+                  stroke="#C92A2A"
+                  strokeWidth={2}
+                  dash={[6, 4]}
+                  perfectDrawEnabled={false}
+                />
+              ))}
+          </Group>
+        )}
 
         {/* Captions sit above every shape and never catch the pointer: the plan
             is read by a manager who should not have to click to learn what a

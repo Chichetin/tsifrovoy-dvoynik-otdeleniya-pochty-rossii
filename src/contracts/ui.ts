@@ -13,6 +13,7 @@ import type { AgentAnswer, AgentExchange, AssistantAction } from './advice-chat'
 import type { Command } from './commands';
 import type {
   Catalog,
+  Equipment,
   Id,
   Inventory,
   Issue,
@@ -58,6 +59,14 @@ export type ToolController = {
   draft: Point[] | null;
 };
 
+/**
+ * #126: ghosts of an agent's edit proposal, built from
+ * `AgentEditProposal.commands`. `put` — objects as they would stand after the
+ * edits (moved, turned or new); `removed` — ids the edits delete. Drawn
+ * translucently; never turns into a command on its own.
+ */
+export type EditsPreview = { put: Equipment[]; removed: Id[] };
+
 /** Coordinated by src/app and never persisted. */
 export type EditorSession = {
   tool: Tool;
@@ -70,6 +79,8 @@ export type EditorSession = {
    */
   selected?: ReadonlySet<Id>;
   preview: Candidate | null;
+  /** Optional until the app wires it; absent means no edit ghosts. */
+  previewEdits?: EditsPreview | null;
   focus: FocusRequest | null;
   /**
    * Ids a delete has retired in this session (`PlanStore.retired`): tools that
@@ -132,6 +143,8 @@ export type EquipmentLayerProps = {
   onSelectMany?: SelectManySink;
   /** Drawn translucently; never turns into a command on its own. */
   preview: Candidate | null;
+  /** Ghosts of an agent's edit proposal; optional until the app wires it. */
+  previewEdits?: EditsPreview | null;
   /** Current move frame for the properties card; null when the gesture ends. */
   onGesturePreview?: (preview: ObjectGesturePreview) => void;
 };

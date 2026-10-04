@@ -24,7 +24,15 @@ export type MetricCode =
   | 'equipment.max'
   | 'objects.added'
   | 'objects.removed'
-  | 'placement.distance';
+  | 'placement.distance'
+  /**
+   * #122: the narrowest clear gap in the zone — between two of its floor
+   * objects, or between an object and the zone's edge. Shapes closer than
+   * 5 cm stand together (a desk at a wall) and form no passage.
+   */
+  | 'layout.passage'
+  /** #122: mean distance from the zone's objects to the nearest entrance. */
+  | 'layout.entrance';
 
 export type ReasonCode =
   | 'placement.available'

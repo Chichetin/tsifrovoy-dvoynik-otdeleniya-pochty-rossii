@@ -34,6 +34,8 @@ const METRIC_LABELS: Record<ChatMetric, string> = {
   'objects.added': 'Добавлено объектов',
   'objects.removed': 'Удалено объектов',
   'placement.distance': 'Расстояние',
+  'layout.passage': 'Самый узкий проход',
+  'layout.entrance': 'Среднее расстояние до входа',
   'validation.errors': 'Ошибки проверки',
   'validation.warnings': 'Предупреждения проверки',
   'zones.count': 'Количество зон',
@@ -158,6 +160,23 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
         : recommendation.scenario === 'compare' ? 'Суммарное перемещение сохранившихся объектов между снимками'
           : 'Расстояние от центра кандидата до середины ограничивающего прямоугольника выбранной зоны или помещения';
       facts.push({ ...fact, id: JSON.stringify([recommendation.id, fact.id]), sourceFactId: fact.id, refs: fact.refs.map((ref) => ({ ...ref })), scope, recommendationId: recommendation.id, ...(candidate === undefined ? {} : { candidateId: candidate.id }), ...(metricLabel === undefined ? {} : { metricLabel }) });
+    }
+  }
+  // #126: the effect of an edit proposal — calculated on a copy of the plan.
+  for (const proposal of state.proposals) {
+    if (proposal.commands.length === 0) continue;
+    // #122: a layout variant only moves objects — its area facts repeat the
+    // plan, so only its passage and entrance go to the model, under its title.
+    const layout = proposal.title !== undefined;
+    const zone = layout ? proposal.facts.find((fact) => fact.metric.startsWith('layout.'))?.refs[0] : undefined;
+    const refs: Ref[] = zone === undefined ? [{ kind: 'room', id: state.plan.room.id }] : [zone];
+    const scope = layout ? `${subject(state, refs)}; ${proposal.title}` : `${subject(state, refs)}; с предложенными правками ${proposal.id}`;
+    for (const fact of proposal.facts) {
+      if (layout && !fact.metric.startsWith('layout.')) continue;
+      facts.push({ ...fact, id: JSON.stringify([proposal.id, fact.id]), refs, scope });
+    }
+    for (const phase of ['before', 'after'] as const) {
+      facts.push({ id: JSON.stringify([proposal.id, `errors.${phase}`]), metric: 'validation.errors', phase, value: proposal.findings.errors[phase], unit: 'count', refs, scope });
     }
   }
   return facts;

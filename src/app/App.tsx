@@ -17,7 +17,7 @@ import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advi
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
-import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
+import type { AssistantPanelRequest, EditorSession, EditsPreview, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
@@ -29,8 +29,8 @@ import {
   withHiddenMounts,
   type ObjectMount,
 } from '../domain/object-mount';
-import { validatePlan } from '../domain/validation';
-import { candidateObjectForInsert } from '../domain/advice';
+import { planHealth, validatePlan } from '../domain/validation';
+import { candidateObjectForInsert, proposalCommands } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
@@ -72,6 +72,7 @@ import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
+import { HealthBadge } from '../features/validation/HealthScore';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
@@ -141,6 +142,14 @@ function initialPanelWidths(): PanelWidths {
 
 function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
   return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
+}
+
+/** #126: what the plan shows before «Применить правки»: objects as they would stand, ids to delete. */
+function editGhostsOf(commands: readonly Command[]): EditsPreview {
+  return {
+    put: commands.flatMap((command) => (command.type === 'object.put' ? [command.object] : [])),
+    removed: commands.flatMap((command) => (command.type === 'object.delete' ? [command.id] : [])),
+  };
 }
 
 export function App(): React.JSX.Element {
@@ -287,6 +296,8 @@ export function App(): React.JSX.Element {
 
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
+  // #126: ghosts of the agent's edits, for the plan revision they were built on.
+  const [editGhosts, setEditGhosts] = useState<{ revision: number; preview: EditsPreview } | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
   const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
   // #105: the object whose «Изменить форму» switch is on. It belongs to one
@@ -337,9 +348,11 @@ export function App(): React.JSX.Element {
   // what is selected.
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
+  // Any edit after the answer makes the ghosts stale: they leave the plan.
+  const previewEdits = editGhosts !== null && editGhosts.revision === contentRevision ? editGhosts.preview : null;
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, selected, preview, focus, retired }),
-    [tool, viewport, selection, selected, preview, focus, retired],
+    () => ({ tool, viewport, selection, selected, preview, previewEdits, focus, retired }),
+    [tool, viewport, selection, selected, preview, previewEdits, focus, retired],
   );
 
   // #105: «Свойства» stand in the right column above its tabs, so the library
@@ -630,6 +643,9 @@ export function App(): React.JSX.Element {
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
+  // #125: the header score reads the same findings as «Проверка».
+  const health = useMemo(() => planHealth(issues), [issues]);
+  const [healthRequest, setHealthRequest] = useState(0);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
   // D-249: the one live signal a tab keeps while its panel is hidden — how
@@ -707,7 +723,12 @@ export function App(): React.JSX.Element {
         // plan, otherwise a ring round the first entity of the answer.
         const offered = answer.actions.find((action) => action.kind === 'preview-candidate');
         const candidate = offered === undefined ? null : candidateOf(answer, offered.recommendationId, offered.candidateId);
-        if (candidate !== null) {
+        const edits = answer.actions.find((action) => action.kind === 'preview-edits');
+        const proposal = edits === undefined ? undefined : answer.proposals.find((entry) => entry.id === edits.proposalId);
+        if (proposal !== undefined) {
+          const current = store.getState();
+          setEditGhosts({ revision: answer.revision, preview: editGhostsOf(proposalCommands(current.document, proposal, current.retired)) });
+        } else if (candidate !== null) {
           setPreview(candidate);
           if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
         } else if (answer.refs[0] !== undefined) {
@@ -715,7 +736,7 @@ export function App(): React.JSX.Element {
         }
       });
     },
-    [baseline, contentRevision, document, exchanges, highlight],
+    [baseline, contentRevision, document, exchanges, highlight, store],
   );
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
@@ -845,6 +866,34 @@ export function App(): React.JSX.Element {
         case 'open-panel':
           showRightTab(action.panel);
           return;
+        case 'preview-edits':
+        case 'apply-edits': {
+          const proposal = answer.proposals.find((entry) => entry.id === action.proposalId);
+          if (proposal === undefined || proposal.commands.length === 0) {
+            setAgentActionStatus('Правки не найдены в ответе — спросите заново.');
+            return;
+          }
+          // Preview and apply mint the same ids: a retired id is replaced in both (D-019).
+          const current = store.getState();
+          const commands = proposalCommands(current.document, proposal, current.retired);
+          if (action.kind === 'preview-edits') {
+            setPreview(null);
+            setEditGhosts({ revision: answer.revision, preview: editGhostsOf(commands) });
+            setAgentActionStatus('Правки показаны на плане полупрозрачно, удаляемое обведено красным.');
+            return;
+          }
+          // Like «Подтвердить» in «Проверка» (#105): one command, one undo step.
+          const result = dispatch({ type: 'batch', commands });
+          // A refused batch leaves the plan as it was: the ghosts stay to explain it.
+          if (result.ok) setEditGhosts(null);
+          const added = editGhostsOf(commands).put.filter((object) => !current.document.objects.some((entry) => entry.id === object.id));
+          setAgentActionStatus(
+            result.ok
+              ? `Применено правок: ${commands.length}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Отменить — Ctrl+Z.`
+              : `Не применено, план не изменён: ${result.issues.map((issue) => issue.message).join('; ')}`,
+          );
+          return;
+        }
       }
     },
     [dispatch, dispatchAndSelect, document, focusOn, highlight, store, showLeftTab, showRightTab],
@@ -855,6 +904,7 @@ export function App(): React.JSX.Element {
     setExchanges([]);
     setAgentActionStatus(null);
     setPreview(null);
+    setEditGhosts(null);
   }, []);
 
   // A recommendation belongs to the plan it was computed for: after «Открыть»
@@ -867,6 +917,7 @@ export function App(): React.JSX.Element {
     setAdvice(null);
     setAdviceState({ status: 'idle' });
     setPreview(null);
+    setEditGhosts(null);
     agentSequence.current += 1;
     setExchanges([]);
     setAgentActionStatus(null);
@@ -932,6 +983,13 @@ export function App(): React.JSX.Element {
               dirty={dirty}
               onRename={(name) => dispatch({ type: 'plan.rename', name }).ok}
             />
+            <HealthBadge
+              health={health}
+              onOpen={() => {
+                showRightTab('validation');
+                setHealthRequest((count) => count + 1);
+              }}
+            />
             <button
               type="button"
               className="shell__quiet shell__settings"
@@ -949,7 +1007,14 @@ export function App(): React.JSX.Element {
         </div>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
-          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch}
+          <PlanTools document={document} session={session} onTool={(next) => {
+            if (next.kind === 'room.draw') {
+              planTool.cancel();
+              setRoomMode('internal');
+            }
+            setTool(next);
+          }} onCommand={dispatch}
+            boundaryEditing={roomMode === 'boundary'}
             drawingActive={tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw'}
           />
         </div>
@@ -1015,6 +1080,13 @@ export function App(): React.JSX.Element {
           encode={encodePlan}
           onReplace={replaceDocument}
           onNew={startNewPlan}
+          onEditBoundary={() => {
+            internalRoom.cancel();
+            planTool.cancel();
+            setRoomMode('boundary');
+            setView('2d');
+            setTool({ kind: 'room.draw' });
+          }}
           onExported={() => {
             store.getState().markExported(revision);
           }}
@@ -1024,14 +1096,10 @@ export function App(): React.JSX.Element {
 
       <div className={`shell__body${planOnly ? ' shell__body--plan-only' : ''}`}>
         <aside id="side-panel-left" className="shell__side" data-tour="side-left">
-          {view === '2d' && tool.kind === 'room.draw' ? <fieldset className="drawing-controls"><legend>Что построить</legend>
-            <label><input type="radio" name="room-mode" checked={roomMode === 'internal'} onChange={() => { planTool.cancel(); setRoomMode('internal'); }} /> Комнату внутри отделения</label>
-            <label><input type="radio" name="room-mode" checked={roomMode === 'boundary'} onChange={() => { internalRoom.cancel(); setRoomMode('boundary'); }} /> Изменить внешний контур</label>
-          </fieldset> : null}
           {placingOpening ? <OpeningControls ready={openingTool.ready} valid={openingTool.valid} message={openingTool.message} kind={openingTool.kind} width={openingTool.width} onKind={openingTool.changeKind} onWidth={openingTool.setWidth} onApply={openingTool.apply} onCancel={openingTool.cancel} /> : null}
           {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} name={internalRoom.name} typeId={internalRoom.typeId} types={document.catalog.zoneTypes} onName={internalRoom.setName} onType={internalRoom.setTypeId} onApply={internalRoom.apply} onCancel={internalRoom.cancel} onRemoveLast={internalRoom.removeLast} /> : null}
           {view === '2d' && !drawingRoom && (tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw') ? (
-            <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
+            <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'границу отделения' : 'фигуру'}
               shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
               roomBoundary={tool.kind === 'room.draw'} pendingRoom={planTool.pendingRoom} onConfirmRoom={planTool.confirmRoom}
               draft={planTool.draft} onFinish={planTool.finish} onRemoveLast={planTool.removeLast}
@@ -1274,6 +1342,7 @@ export function App(): React.JSX.Element {
               onSelect={select}
               onSelectMany={selectMany}
               preview={preview}
+              previewEdits={previewEdits}
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
               reshapeFor={reshapeFor}
@@ -1414,7 +1483,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
               inventory: (
                 <>
                   <RuleChecklist
