@@ -31,7 +31,8 @@ test('выбор другой базы исключает поздний отв�
     revision: 0, recommendations: [], explanations: [], mode: 'fallback', fallbackReason: 'ответ старой базы',
   } }));
   expect(screen.queryByText(/ответ старой базы/)).toBeNull();
-  expect(screen.getByRole('button', { name: 'Спросить' })).toHaveProperty('disabled', true);
+  // The app opens the demo at start (#111), so before.json is the same plan: related, and the old request is gone.
+  expect(screen.getByRole('button', { name: 'Спросить' })).toHaveProperty('disabled', false);
 }, 20_000);
 
 test('новый документ сбрасывает внешний исходный файл', async () => {
@@ -40,7 +41,8 @@ test('новый документ сбрасывает внешний исход
   fireEvent.change(screen.getByLabelText('Сценарий'), { target: { value: 'compare' } });
   selectSource();
   await waitFor(() => expect(screen.getByRole('region', { name: 'Сравнение планов' }).textContent).toContain('before.json'));
-  fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
+  fireEvent.click(screen.getByRole('menuitem', { name: 'Создать новый' }));
   expect(screen.getByRole('region', { name: 'Сравнение планов' }).textContent).not.toContain('before.json');
   expect(screen.getByRole('button', { name: 'Спросить' })).toHaveProperty('disabled', false);
 }, 20_000);

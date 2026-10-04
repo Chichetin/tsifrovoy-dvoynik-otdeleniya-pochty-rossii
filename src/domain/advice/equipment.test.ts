@@ -218,7 +218,7 @@ describe('A02: недостающее и лишнее оборудование',
     const organizers = check(plan([rule({ source: 'organizer-material' })], []))[0];
 
     expect(team?.assumptions).toContain(
-      'Источник правила: допущение команды, не норматив Почты России (rule_bench_min).',
+      'Источник правила: справочник проекта (rule_bench_min).',
     );
     expect(organizers?.assumptions).toContain(
       'Источник правила: материалы организаторов (rule_bench_min).',

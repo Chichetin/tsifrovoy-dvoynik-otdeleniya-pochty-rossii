@@ -17,7 +17,7 @@ import { readFileSync } from 'node:fs';
 import { cleanup, render } from '@testing-library/react';
 import type Konva from 'konva';
 import { createRef } from 'react';
-import { Stage } from 'react-konva';
+import { Layer, Stage } from 'react-konva';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -64,7 +64,9 @@ function renderStage(plan: PlanDocument): Konva.Stage {
   const stage = createRef<Konva.Stage>();
   render(
     <Stage ref={stage} width={800} height={600}>
+<Layer>
       <InformationLayer document={plan} session={SESSION} />
+</Layer>
     </Stage>,
   );
   if (stage.current === null) throw new Error('Stage не смонтировался');

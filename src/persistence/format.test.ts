@@ -123,7 +123,7 @@ describe('readPlanFile', () => {
     expect(result.value.plan.objects.map((object) => object.id)).toContain('eq_kiosk');
     // Допущения приходят из extensions импортёра (D-027), а не сочиняются здесь.
     expect(result.value.assumptions.length).toBeGreaterThan(0);
-    expect(result.value.assumptions.join(' ')).toContain('допущение команды');
+    expect(result.value.assumptions.join(' ')).toContain('в исходном файле толщина не указана');
   });
 
   test('импортированный пример сохраняется нашим кодеком без правок', () => {

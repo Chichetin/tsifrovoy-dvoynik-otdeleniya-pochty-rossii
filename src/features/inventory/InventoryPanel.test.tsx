@@ -264,9 +264,10 @@ describe('названия вместо сырых id', () => {
     const row = within(first(objectRows()));
 
     expect(row.getByText('Рабочее место')).not.toBeNull();
-    expect(row.getByText('ot_workplace')).not.toBeNull();
+    // The row names the type and the zone; raw ids are not printed beside them.
+    expect(row.queryByText('ot_workplace')).toBeNull();
     expect(row.getByRole('button', { name: /Клиентская зона/ })).not.toBeNull();
-    expect(row.getByText('z_client')).not.toBeNull();
+    expect(row.queryByText('z_client')).toBeNull();
   });
 
   test('клик по зоне в строке ведёт к самой зоне, а не к объекту', () => {
@@ -284,8 +285,8 @@ describe('названия вместо сырых id', () => {
     const tables = [...screen.getByLabelText('Инвентаризация').querySelectorAll('table')];
     const zones = within(first(tables.slice(1)));
 
-    expect(zones.getByRole('button', { name: /Клиентская зона/ })).not.toBeNull();
-    expect(zones.getByRole('button', { name: /Зона ожидания/ })).not.toBeNull();
+    expect(zones.getAllByRole('button', { name: /Клиентская зона/ }).length).toBeGreaterThan(0);
+    expect(zones.getAllByRole('button', { name: /Зона ожидания/ }).length).toBeGreaterThan(0);
   });
 
   test('без документа панель работает и показывает id: пустых ячеек не появляется', () => {
