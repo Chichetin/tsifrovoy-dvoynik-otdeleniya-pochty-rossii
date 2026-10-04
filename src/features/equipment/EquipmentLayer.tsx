@@ -251,6 +251,7 @@ export function EquipmentLayer({
   onSelect,
   onSelectMany,
   preview,
+  previewEdits = null,
   onGesturePreview,
   hideHandlesFor = null,
   reshapeFor = null,
@@ -1017,6 +1018,30 @@ export function EquipmentLayer({
           .map((object) => render(object, false))}
 
         {previewObject === null ? null : render(previewObject, true)}
+
+        {/* #126: the agent's edits before «Применить правки» — moved, turned
+            and new objects as ghosts, deleted ones outlined in red. A ghost
+            of an existing object sits in its own group: same id, other key. */}
+        {previewEdits === null ? null : (
+          <Group name="edit-ghosts" listening={false}>
+            {previewEdits.put.map((object) => (
+              <Group key={`ghost-${object.id}`}>{render(object, true)}</Group>
+            ))}
+            {plan.objects
+              .filter((object) => previewEdits.removed.includes(object.id))
+              .map((object) => (
+                <Line
+                  key={`removed-${object.id}`}
+                  points={footprint(object).flatMap((point) => modelToScreen(point, viewport))}
+                  closed
+                  stroke="#C92A2A"
+                  strokeWidth={2}
+                  dash={[6, 4]}
+                  perfectDrawEnabled={false}
+                />
+              ))}
+          </Group>
+        )}
 
         {/* Captions sit above every shape and never catch the pointer: the plan
             is read by a manager who should not have to click to learn what a

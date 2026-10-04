@@ -4,23 +4,25 @@
  * Each exchange reads as a work log: the question, the tools the agent ran —
  * live while it works — and the answer, whose ids are buttons that show the
  * entity on the plan. Under the answer: whether the text passed the check
- * against the calculation, and the actions. «Применить вариант» is the only
- * one that edits the plan, and only when pressed.
+ * against the calculation, and the actions. «Применить вариант» and «Применить
+ * правки» (#126) edit the plan, and only when pressed.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
+import type { AgentAnswer, AgentEdit, AgentEditPose, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
 import { QUOTED_ID_PATTERN } from '../../domain/advice';
+import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
 
 const PANEL_NAMES = { metrics: 'Площади', validation: 'Проверка', inventory: 'Инвентаризация' } as const;
 
-/** The three scenarios of the brief, as a person would ask them. */
+/** The three scenarios of the brief and an edit by text (#126), as a person would ask them. */
 export const AGENT_EXAMPLES = [
   'Где поставить ещё одно кассовое окно ближе к входу?',
   'Чего не хватает или что лишнее по оборудованию?',
   'Как мои изменения повлияли на свободную площадь?',
+  'Добавь скамью для ожидания в зону ожидания',
 ] as const;
 
 /**
@@ -177,6 +179,60 @@ function StepLog({ exchange, working }: { exchange: AgentExchange; working: bool
   );
 }
 
+const OP_NAMES: Record<AgentEdit['op'], string> = { move: 'перемещение', rotate: 'поворот', add: 'новый объект', delete: 'удаление' };
+
+const metres = (value: number): string => formatShort(value, 2);
+
+function poseText(pose: AgentEditPose | null, names: PlanIndex): string {
+  if (pose === null) return 'нет';
+  const zone = pose.zoneId === null ? 'вне зон' : `зона «${names.zoneName(pose.zoneId) ?? pose.zoneId}»`;
+  return `(${metres(pose.position[0])}; ${metres(pose.position[1])}) м, ${pose.rotation_deg}°, ${zone}`;
+}
+
+/** What the model asked for, in words: shown next to the reason it was refused. */
+function editText(edit: AgentEdit): string {
+  switch (edit.op) {
+    case 'move':
+      return `сдвинуть ${edit.id} на (${metres(edit.dx_m)}; ${metres(edit.dy_m)}) м`;
+    case 'rotate':
+      return `повернуть ${edit.id} на ${metres(edit.by_deg)}°`;
+    case 'add':
+      return `добавить ${edit.typeId}${edit.zoneId === null ? '' : ` в ${edit.zoneId}`}`;
+    case 'delete':
+      return `удалить ${edit.id}`;
+  }
+}
+
+/** #126: every edit of the answer — «было → стало» with ids, and each refusal with its reason. */
+function EditList({ answer, names }: { answer: AgentAnswer; names: PlanIndex }): React.JSX.Element | null {
+  if (answer.proposals.length === 0) return null;
+  return (
+    <>
+      {answer.proposals.map((proposal) => (
+        <div key={proposal.id} className="agent__edits">
+          <p className="agent__mode">
+            Правки {proposal.id}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
+          </p>
+          <ul className="agent__steps" aria-label={`Правки ${proposal.id}: было → стало`}>
+            {proposal.changes.map((change) => (
+              <li key={`${change.op}-${change.id}`}>
+                <span className="agent__tick" aria-hidden="true">✓</span>
+                <code>{change.id}</code> «{change.label}», {OP_NAMES[change.op]}: {poseText(change.before, names)} → {poseText(change.after, names)}
+              </li>
+            ))}
+            {proposal.rejected.map((entry, index) => (
+              <li key={`rejected-${index}`} className="is-failed">
+                <span className="agent__tick" aria-hidden="true">×</span>
+                Отклонено: {editText(entry.edit)} — {entry.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAsk, onAction, onClear, selection }: Props): React.JSX.Element {
   const [question, setQuestion] = useState('');
   const history = useRef<HTMLOListElement>(null);
@@ -255,6 +311,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                         </ul>
                       </details>
                     )}
+                    <EditList answer={answer} names={names} />
                     {answer.actions.length === 0 ? null : (
                       <div className="agent__actions" role="group" aria-label="Действия по ответу">
                         {answer.actions
@@ -263,7 +320,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                             <button
                               key={index}
                               type="button"
-                              className={action.kind === 'apply-candidate' ? 'files__button is-primary' : 'files__button'}
+                              className={action.kind === 'apply-candidate' || action.kind === 'apply-edits' ? 'files__button is-primary' : 'files__button'}
                               disabled={stale || working}
                               onClick={() => onAction(action, answer)}
                             >

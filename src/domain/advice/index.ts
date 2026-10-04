@@ -43,6 +43,7 @@ export type {
   CoverageTally,
   ZoneCoverage,
 } from './camera-coverage';
+export { checkAgentEdits, proposalCommands } from './agent-edits';
 export { candidateObjectForInsert } from './candidate-object';
 export { comparePlans, diffPlans } from './compare';
 export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements, zoneFit } from './placement';
