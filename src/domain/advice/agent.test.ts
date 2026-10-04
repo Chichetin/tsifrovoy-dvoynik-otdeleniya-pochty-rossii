@@ -123,7 +123,13 @@ describe('агент без модели', () => {
       name: 'zone_details',
       args: { zoneId: 'z_client' },
     });
-    expect(routeAgentQuery(before, 'Привет', false)[0]?.name).toBe('plan_overview');
+    // #150: a question outside every scenario is not read as «find a place».
+    for (const query of ['Привет', 'Какая погода в Москве?', 'Сколько стоит принтер?', 'Что будет, если убрать стеллаж?']) {
+      expect(routeAgentQuery(before, query, false)).toEqual([]);
+      const answer = answerWithoutModel(before, null, query, 1, 'без LLM');
+      expect(answer.text).toContain('Не понял вопрос без модели');
+      expect(answer.recommendations).toEqual([]);
+    }
   });
 
   test('ответ без модели: шаги, текст расчёта, вариант с кнопкой «Применить»', () => {
