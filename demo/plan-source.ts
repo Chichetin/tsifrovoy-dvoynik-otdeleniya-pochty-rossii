@@ -227,7 +227,7 @@ export const OBJECTS: ObjectSource[] = [
   { id: 'eq_2', typeId: 'ot_info_stand', label: 'Стенд навигации по услугам', position: [5.8, 0.45], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-002' } },
   { id: 'eq_3', typeId: 'ot_mailbox', label: 'Ящик для писем', position: [8.6, 0.45], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-003' } },
   { id: 'eq_4', typeId: 'ot_payment_terminal', label: 'Терминал оплаты у входа', position: [8.5, 1.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-004' } },
-  { id: 'eq_5', typeId: 'ot_media_panel', label: 'Медиапанель у входа', position: [6.6, 0.25], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-005', diagonalInch: 43 } },
+  { id: 'eq_5', typeId: 'ot_media_panel', label: 'Медиапанель у входа', position: [8.45, 0.25], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-005', diagonalInch: 43 } },
 
   // Зона ожидания и зона очереди.
   { id: 'eq_6', typeId: 'ot_bench', label: 'Скамья ожидания 1', position: [2.2, 0.75], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-006', seats: 3 } },
@@ -264,15 +264,15 @@ export const OBJECTS: ObjectSource[] = [
   { id: 'eq_33', typeId: 'ot_printer', label: 'МФУ служебной зоны', position: [10.2, 3], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-033', isColor: false } },
   { id: 'eq_34', typeId: 'ot_scales', label: 'Весы приёма посылок', position: [10.2, 0.75], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-034', maxWeightKg: 50 } },
   { id: 'eq_35', typeId: 'ot_parcel_rack', label: 'Стеллаж приёма посылок', position: [13, 0.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-035', shelves: 5 } },
-  { id: 'eq_36', typeId: 'ot_goods_rack', label: 'Стеллаж товаров служебной зоны', position: [13, 5.8], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-036', shelves: 4 } },
+  { id: 'eq_36', typeId: 'ot_goods_rack', label: 'Стеллаж товаров служебной зоны', position: [11.6, 5.8], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-036', shelves: 4 } },
   { id: 'eq_37', typeId: 'ot_switchboard', label: 'Электрощит служебной зоны', position: [14.5, 5], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-037' } },
   { id: 'eq_38', typeId: 'ot_alarm_panel', label: 'Панель охранной сигнализации', position: [9.8, 0.6], rotation_deg: 90, attributes: { inventoryNumber: 'ИНВ-ДЕМО-038' } },
   { id: 'eq_39', typeId: 'ot_camera', label: 'Камера служебной зоны', position: [14.5, 0.4], rotation_deg: 315, attributes: { inventoryNumber: 'ИНВ-ДЕМО-039', viewAngleDeg: 90, viewRangeM: 7 } },
   { id: 'eq_40', typeId: 'ot_fire_sensor', label: 'Датчик пожарной сигнализации служебной зоны', position: [12, 3], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-040' } },
 
   // Хранение и посылки.
-  { id: 'eq_41', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 1', position: [10.6, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-041', shelves: 5 } },
-  { id: 'eq_42', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 2', position: [12.2, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-042', shelves: 5 } },
+  { id: 'eq_41', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 1', position: [10.3, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-041', shelves: 5 } },
+  { id: 'eq_42', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 2', position: [11.6, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-042', shelves: 5 } },
   { id: 'eq_43', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 3', position: [13.8, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-043', shelves: 5 } },
   { id: 'eq_44', typeId: 'ot_goods_rack', label: 'Стеллаж хранения бланков', position: [10.5, 8.2], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-044', shelves: 4 } },
   { id: 'eq_45', typeId: 'ot_camera', label: 'Камера хранения', position: [14.6, 8.4], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-045', viewAngleDeg: 90, viewRangeM: 6 } },
