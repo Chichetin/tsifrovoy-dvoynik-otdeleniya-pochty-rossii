@@ -44,6 +44,7 @@ import {
   marqueeHits,
   moveObjects,
   pasteObjects,
+  repeatOffset,
   rotateDelta,
   rotateObjects,
 } from './selection-edit';
@@ -301,6 +302,9 @@ export function EquipmentLayer({
     Math.min(selectedObject.size_m[0], selectedObject.size_m[1]) * viewport.scale >=
       HANDLE_RADIUS_PX * 2 + 6;
   const clipboard = useRef<Clipboard | null>(null);
+  // Последний Ctrl+D: id копии → где стоял её оригинал. Копию сдвинули — повторный
+  // Ctrl+D ставит следующую от неё с тем же смещением (ряд стульев).
+  const duplicated = useRef<Map<Id, Point>>(new Map());
 
   // The group (marquee, Shift+click): visible members only, the primary among
   // them. One member is the ordinary single selection; two or more make the
@@ -493,8 +497,15 @@ export function EquipmentLayer({
         event.preventDefault();
         if (selectedObject === null || !selectedVisible) return;
         const taken = takenIds(plan, session.retired);
-        const copies = duplicateObjects(isGroup ? members : [selectedObject], taken);
+        const sources = isGroup ? members : [selectedObject];
+        const from = duplicated.current.get(selectedObject.id);
+        const copies = duplicateObjects(
+          sources,
+          taken,
+          from === undefined ? undefined : repeatOffset(from, selectedObject.position),
+        );
         if (copies.length === 0 || !onCommand({ type: 'batch', commands: copies.map(put) }).ok) return;
+        duplicated.current = new Map(copies.map((copy, i) => [copy.id, sources[i]!.position]));
         const last = copies.at(-1);
         if (copies.length > 1 && onSelectMany !== undefined) {
           onSelectMany(copies.map((copy) => copy.id));

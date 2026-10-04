@@ -117,8 +117,11 @@ export function pasteObjects(
   taken: ReadonlySet<Id>,
   step = 1,
 ): Equipment[] {
+  return copyObjects(source, taken, [PASTE_OFFSET_M[0] * step, PASTE_OFFSET_M[1] * step]);
+}
+
+function copyObjects(source: readonly Equipment[], taken: ReadonlySet<Id>, [dx, dy]: Point): Equipment[] {
   const used = new Set<Id>(taken);
-  const [dx, dy] = PASTE_OFFSET_M;
   return source.map((object) => {
     const id = nextObjectId(used);
     // Only clear a number the source has: a catalog type without the
@@ -130,7 +133,7 @@ export function pasteObjects(
     return {
       ...object,
       id,
-      position: snapPosition([object.position[0] + dx * step, object.position[1] + dy * step]),
+      position: snapPosition([object.position[0] + dx, object.position[1] + dy]),
       zoneId: null,
       attributes,
     };
@@ -139,14 +142,29 @@ export function pasteObjects(
 
 /**
  * Копии набора для `Ctrl+D` — своя команда, не второе имя для `Ctrl+C`/
- * `Ctrl+V`: без буфера, всегда от текущего выделения, шаг смещения всегда
- * первый (`pasteObjects(…, 1)`), так что повторное «Ctrl+D» от уже
- * выделенной копии просто уводит следующую копию туда же на `PASTE_OFFSET_M`
- * дальше — держать свой счётчик вставок не нужно. `inventoryNumber` у копии
+ * `Ctrl+V`: без буфера, всегда от текущего выделения. Смещение по умолчанию —
+ * `PASTE_OFFSET_M`; после сдвига копии вызывающий передаёт `repeatOffset`, и
+ * ряд стульев набирается повторными нажатиями. `inventoryNumber` у копии
  * пуст, как и при вставке (D-243, D-266).
  */
-export function duplicateObjects(source: readonly Equipment[], taken: ReadonlySet<Id>): Equipment[] {
-  return pasteObjects(source, taken, 1);
+export function duplicateObjects(
+  source: readonly Equipment[],
+  taken: ReadonlySet<Id>,
+  offset: Point = PASTE_OFFSET_M,
+): Equipment[] {
+  return copyObjects(source, taken, offset);
+}
+
+/**
+ * Смещение следующей копии при повторном `Ctrl+D`: копию сдвинули от
+ * оригинала — новая встаёт от неё на столько же. Копию вернули на оригинал:
+ * нулевое смещение положило бы третий предмет на те же места, поэтому снова
+ * `PASTE_OFFSET_M`.
+ */
+export function repeatOffset(source: Point, copy: Point): Point {
+  const dx = copy[0] - source[0];
+  const dy = copy[1] - source[1];
+  return Math.hypot(dx, dy) < NUDGE_FINE_STEP_M / 2 ? PASTE_OFFSET_M : [dx, dy];
 }
 
 /**

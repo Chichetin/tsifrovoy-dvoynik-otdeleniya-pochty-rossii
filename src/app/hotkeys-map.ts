@@ -41,7 +41,7 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
       { keys: 'R', description: `Повернуть на ${rotationStep} по часовой` },
       { keys: 'Shift+R', description: `Повернуть на ${rotationStep} против часовой` },
       { keys: 'Ctrl+C затем Ctrl+V', description: 'Скопировать, затем вставить со смещением' },
-      { keys: 'Ctrl+D', description: 'Дублировать со смещением, без буфера обмена' },
+      { keys: 'Ctrl+D', description: 'Дублировать со смещением, без буфера обмена; после сдвига копии — с тем же смещением' },
       { keys: 'Delete или Backspace', description: 'Удалить' },
       {
         keys: 'Двойной щелчок',
