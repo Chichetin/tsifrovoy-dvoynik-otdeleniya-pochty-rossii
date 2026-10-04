@@ -79,6 +79,15 @@ describe('round-trip', () => {
     expectRefused(JSON.stringify(input));
   });
 
+  test('границы атрибута (#138) переживают сохранение и открытие', () => {
+    const plan = decodeFixture('minimal.json');
+    const bounded = { key: 'loadPercent', label: 'Загрузка зоны, %', type: 'number' as const, required: false, min: 0, max: 100 };
+    plan.catalog.zoneTypes[0] = { ...first(plan.catalog.zoneTypes, 'тип зоны'), attributes: [bounded] };
+    const reopened = decodePlan(encodeOrThrow(plan));
+    if (!reopened.ok) throw new Error('не открылся');
+    expect(reopened.value.catalog.zoneTypes[0]?.attributes[0]).toEqual(bounded);
+  });
+
   test.each(READABLE)('%s: encode → decode возвращает тот же документ', (name) => {
     const original = decodeFixture(name);
     const reopened = decodePlan(encodeOrThrow(original));

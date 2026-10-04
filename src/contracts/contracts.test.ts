@@ -150,6 +150,8 @@ describe('schema: точные коды отказа', () => {
     expect(accepted.catalog.zoneTypes[0]?.attributes[0]?.max).toBe(100);
     zoneTypes[0]!['attributes'] = [{ ...load, min: 100, max: 0 }];
     expect(codesOf(expectRefused(plan))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    zoneTypes[0]!['attributes'] = [{ ...load, type: 'string', min: 0, max: 100 }];
+    expect(codesOf(expectRefused(plan))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
   });
 
   test('полигон сверх предела вершин отклоняется', () => {

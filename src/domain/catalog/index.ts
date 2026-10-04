@@ -8,12 +8,14 @@
  */
 
 import type {
+  AttributeDef,
   Attributes,
   Catalog,
   Id,
   Issue,
   LayerType,
   ObjectType,
+  PlanDocument,
   Ref,
   Rule,
   ZoneType,
@@ -29,6 +31,8 @@ export const CATALOG_ISSUE_CODES = {
   /** A size or height not taken from the organizers' material must say so. */
   UNSIGNED_ASSUMPTION: 'UNSIGNED_ASSUMPTION',
   INVALID_COLOR: 'INVALID_COLOR',
+  /** A number default outside the min/max of its own attribute. */
+  DEFAULT_OUT_OF_BOUNDS: 'DEFAULT_OUT_OF_BOUNDS',
   EMPTY_RULE_BOUNDS: 'EMPTY_RULE_BOUNDS',
   INVERTED_RULE_BOUNDS: 'INVERTED_RULE_BOUNDS',
   /** The file schema takes only whole non-negative counts; catch it before save. */
@@ -67,6 +71,44 @@ function duplicateIds(ids: Id[], namespace: string): Issue[] {
   return issues;
 }
 
+/** Declared range of a number attribute in words, or null when it has none. */
+export function attributeRange(def: AttributeDef): string | null {
+  if (def.type !== 'number') return null;
+  if (def.min !== undefined && def.max !== undefined) return `от ${def.min} до ${def.max}`;
+  if (def.min !== undefined) return `не меньше ${def.min}`;
+  if (def.max !== undefined) return `не больше ${def.max}`;
+  return null;
+}
+
+/**
+ * Why a value breaks the bounds of its attribute, or null when it fits. Only
+ * numbers are checked; an attribute without min/max accepts any number.
+ */
+export function attributeBoundsError(def: AttributeDef, value: Attributes[string]): string | null {
+  if (def.type !== 'number' || typeof value !== 'number') return null;
+  const below = def.min !== undefined && value < def.min;
+  const above = def.max !== undefined && value > def.max;
+  if (!below && !above) return null;
+  return `«${def.label}»: ${value} вне границ, допустимо ${attributeRange(def) ?? ''}.`;
+}
+
+/**
+ * Attribute values of zones and objects outside the bounds of their type. The
+ * plan still opens: these are warnings for the person, not a refusal.
+ */
+export function attributeBoundsWarnings(plan: PlanDocument): string[] {
+  const warnings: string[] = [];
+  const check = (id: Id, type: ObjectType | ZoneType | null, attributes: Attributes): void => {
+    for (const def of type?.attributes ?? []) {
+      const outside = attributeBoundsError(def, attributes[def.key] ?? null);
+      if (outside !== null) warnings.push(`${id}: ${outside}`);
+    }
+  };
+  for (const zone of plan.zones) check(zone.id, findZoneType(plan.catalog, zone.typeId), zone.attributes);
+  for (const object of plan.objects) check(object.id, findObjectType(plan.catalog, object.typeId), object.attributes);
+  return warnings;
+}
+
 function attributeIssues(
   owner: ObjectType | ZoneType,
   namespace: string,
@@ -91,6 +133,17 @@ function attributeIssues(
         problem(
           CATALOG_ISSUE_CODES.DEFAULT_TYPE_MISMATCH,
           `Тип «${owner.id}»: значение по умолчанию атрибута «${definition.key}» не совпадает с типом ${definition.type}.`,
+          path,
+        ),
+      );
+    }
+
+    const outside = attributeBoundsError(definition, definition.default ?? null);
+    if (outside !== null) {
+      issues.push(
+        problem(
+          CATALOG_ISSUE_CODES.DEFAULT_OUT_OF_BOUNDS,
+          `Тип «${owner.id}»: значение по умолчанию. ${outside}`,
           path,
         ),
       );
