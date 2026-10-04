@@ -93,68 +93,6 @@
       "changes": []
     },
     {
-      "id": "adv_rule_info_display_max_z_client_excess",
-      "scenario": "equipment",
-      "refs": [
-        {
-          "kind": "zone",
-          "id": "z_client"
-        },
-        {
-          "kind": "object",
-          "id": "eq_7"
-        },
-        {
-          "kind": "object",
-          "id": "eq_8"
-        }
-      ],
-      "candidates": [],
-      "facts": [
-        {
-          "id": "adv_rule_info_display_max_z_client_excess.count",
-          "metric": "equipment.count",
-          "phase": "current",
-          "value": 2,
-          "unit": "count",
-          "refs": [
-            {
-              "kind": "zone",
-              "id": "z_client"
-            }
-          ]
-        },
-        {
-          "id": "adv_rule_info_display_max_z_client_excess.bound",
-          "metric": "equipment.max",
-          "phase": "current",
-          "value": 1,
-          "unit": "count",
-          "refs": [
-            {
-              "kind": "zone",
-              "id": "z_client"
-            }
-          ]
-        }
-      ],
-      "ruleIds": [
-        "rule_info_display_max"
-      ],
-      "assumptions": [
-        "Правило команды: одно центральное информационное табло на клиентскую зону, второе избыточно.",
-        "Источник правила: справочник проекта (rule_info_display_max).",
-        "Считались объекты зоны вместе с вложенными."
-      ],
-      "reasonCodes": [
-        "equipment.excess"
-      ],
-      "limitations": [
-        "Правило комплектования принято командой и не является нормативом Почты России."
-      ],
-      "changes": []
-    },
-    {
       "id": "adv_place_ot_bench_z_waiting",
       "scenario": "place",
       "refs": [
@@ -1350,7 +1288,7 @@
           "id": "adv_compare.equipment.count.after",
           "metric": "equipment.count",
           "phase": "after",
-          "value": 53,
+          "value": 54,
           "unit": "count",
           "refs": [
             {
@@ -1363,7 +1301,7 @@
           "id": "adv_compare.equipment.count.delta",
           "metric": "equipment.count",
           "phase": "delta",
-          "value": 0,
+          "value": 1,
           "unit": "count",
           "refs": [
             {
@@ -1389,7 +1327,7 @@
           "id": "adv_compare.objects.removed",
           "metric": "objects.removed",
           "phase": "delta",
-          "value": 1,
+          "value": 0,
           "unit": "count",
           "refs": [
             {
@@ -1437,13 +1375,6 @@
             "id": "eq_54"
           },
           "kind": "added"
-        },
-        {
-          "ref": {
-            "kind": "object",
-            "id": "eq_8"
-          },
-          "kind": "removed"
         }
       ]
     }
@@ -1456,15 +1387,6 @@
       "factIds": [
         "adv_rule_bench_min_z_waiting_missing.count",
         "adv_rule_bench_min_z_waiting_missing.bound"
-      ]
-    },
-    {
-      "recommendationId": "adv_rule_info_display_max_z_client_excess",
-      "candidateId": null,
-      "reasonCode": "equipment.excess",
-      "factIds": [
-        "adv_rule_info_display_max_z_client_excess.count",
-        "adv_rule_info_display_max_z_client_excess.bound"
       ]
     },
     {
@@ -1506,10 +1428,9 @@
   ],
   "texts": {
     "adv_rule_bench_min_z_waiting_missing": "Не хватает оборудования: 1 при минимуме 2. Разница: 1.",
-    "adv_rule_info_display_max_z_client_excess": "Оборудования больше нормы: 2 при максимуме 1. Разница: 1.",
     "adv_place_ot_bench_z_waiting": "Место найдено: Скамья для ожидания, размер 1,60 × 0,50 м, центр 2,20; 2,00, поворот 0°. Свободная площадь: 114,73 → 113,93 м². Объектов этого типа: 3 → 4.",
     "adv_place_ot_queue_terminal_z_entrance": "Место найдено: Терминал управления очередью, размер 0,50 × 0,50 м, центр 7,90; 2,10, поворот 0°. Свободная площадь: 114,73 → 114,48 м². Объектов этого типа: 1 → 2.",
-    "adv_compare": "Планировка изменилась. Свободная площадь: 114,73 → 113,93 м² (−0,80 м²). Изменения объектов: добавлено 1, удалено 1, перемещено 1."
+    "adv_compare": "Планировка изменилась. Свободная площадь: 114,73 → 113,93 м² (−0,80 м²). Изменения объектов: добавлено 1, перемещено 1."
   },
   "applied": [
     {
@@ -1518,13 +1439,6 @@
       "action": "object.put",
       "objectId": "eq_54",
       "description": "Вторая скамья поставлена в найденную точку [2.2, 2], поворот 0°; редактор присвоил ей следующий свободный id eq_54, название и атрибуты заполнены в карточке свойств."
-    },
-    {
-      "recommendationId": "adv_rule_info_display_max_z_client_excess",
-      "candidateId": null,
-      "action": "object.delete",
-      "objectId": "eq_8",
-      "description": "Лишнее информационное табло eq_8 удалено: правило команды разрешает одно табло на клиентскую зону вместе с вложенными."
     },
     {
       "recommendationId": "adv_place_ot_queue_terminal_z_entrance",
@@ -1553,8 +1467,8 @@
       "metric": "equipment.count",
       "unit": "count",
       "before": 53,
-      "after": 53,
-      "delta": 0
+      "after": 54,
+      "delta": 1
     },
     {
       "metric": "bench.in.waiting",
@@ -1567,8 +1481,8 @@
       "metric": "display.in.client",
       "unit": "count",
       "before": 2,
-      "after": 1,
-      "delta": -1
+      "after": 2,
+      "delta": 0
     },
     {
       "metric": "entrance.distance",
@@ -1587,9 +1501,9 @@
     {
       "metric": "issues.warning",
       "unit": "count",
-      "before": 2,
+      "before": 1,
       "after": 0,
-      "delta": -2
+      "delta": -1
     }
   ]
 }

@@ -655,6 +655,29 @@
       }
     },
     {
+      "id": "eq_8",
+      "typeId": "ot_info_display",
+      "label": "Табло над зоной очереди",
+      "position": [
+        9.12,
+        3.6
+      ],
+      "size_m": [
+        1.1,
+        0.1
+      ],
+      "rotation_deg": 270,
+      "base_m": 2,
+      "height_m": 0.65,
+      "zoneId": "z_client",
+      "layerId": "l_base",
+      "attributes": {
+        "diagonalInch": 55,
+        "equipmentStatus": "retired",
+        "inventoryNumber": "ИНВ-ДЕМО-008"
+      }
+    },
+    {
       "id": "eq_9",
       "typeId": "ot_bench",
       "label": "Скамья у зоны очереди",
@@ -3911,12 +3934,12 @@
         "id": "rule_info_display_max",
         "kind": "count",
         "source": "team-assumption",
-        "rationale": "Правило команды: одно центральное информационное табло на клиентскую зону, второе избыточно.",
+        "rationale": "Правило команды: не больше двух информационных табло на клиентскую зону — центральное и у очереди, третье избыточно.",
         "zoneTypeId": "zt_client",
         "objectTypeId": "ot_info_display",
         "scope": "inclusive",
         "min": null,
-        "max": 1
+        "max": 2
       }
     ]
   },
