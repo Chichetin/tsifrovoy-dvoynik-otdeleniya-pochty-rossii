@@ -244,8 +244,8 @@ describe('правила комплектования', () => {
 
     const findings = validatePlan(parsed.value);
     const messages = findings.map((entry) => entry.message).join('\n');
-    expect(messages).toContain('Скамья / кресла для ожидания');
-    expect(messages).toContain('Центральное информационное табло');
+    expect(messages).toContain('Скамья для ожидания');
+    expect(messages).toContain('Терминал электронной очереди');
     expect(messages).toContain('от главного входа');
     expect(messages).not.toMatch(/«(?:ot_|op_)/);
 
@@ -285,7 +285,7 @@ describe('правила комплектования', () => {
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]?.severity).toBe('warning');
-    expect(issues[0]?.message).toContain('допущение команды, не норматив Почты');
+    expect(issues[0]?.message).toContain('Источник правила: справочник проекта');
     expect(issues[0]?.message).not.toContain('rule_test_max');
     expect(issues[0]?.ruleIds).toEqual(['rule_test_max']);
     // Тип назван как в библиотеке, а не внутренним кодом (operator №8).

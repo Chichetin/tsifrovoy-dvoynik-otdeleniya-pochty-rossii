@@ -63,6 +63,7 @@ function renderLayer(
   preview: Candidate | null,
   tool: EditorSession['tool'] = { kind: 'select' },
   hideHandlesFor: string | null = null,
+  reshapeFor: string | null = null,
 ): Konva.Stage {
   const stage = createRef<Konva.Stage>();
   const session: EditorSession = {
@@ -81,6 +82,7 @@ function renderLayer(
         onSelect={() => undefined}
         preview={preview}
         hideHandlesFor={hideHandlesFor}
+        reshapeFor={reshapeFor}
       />
     </Stage>,
   );
@@ -124,8 +126,13 @@ test('слой состояния перекрашивает объект и о�
 });
 
 /** Имена ручек выбранного объекта на слое выделения. */
-function handleNames(plan: PlanDocument, objectId: string, hideHandlesFor: string | null = null): string[] {
-  return renderLayer(plan, { kind: 'object', id: objectId }, null, { kind: 'select' }, hideHandlesFor)
+function handleNames(
+  plan: PlanDocument,
+  objectId: string,
+  hideHandlesFor: string | null = null,
+  reshapeFor: string | null = null,
+): string[] {
+  return renderLayer(plan, { kind: 'object', id: objectId }, null, { kind: 'select' }, hideHandlesFor, reshapeFor)
     .find((node: Konva.Node) => node.name().startsWith('handle-'))
     .map((node) => node.name());
 }
@@ -144,9 +151,10 @@ function mountedOnWall(plan: PlanDocument, typeId: string): PlanDocument {
 }
 
 describe('ручки выбранного объекта', () => {
-  test('мебель тянется за восемь ручек размера и поворачивается', () => {
+  test('без «Изменить форму» выбранный объект только поворачивается; с ним тянется за восемь ручек (#105)', () => {
     const plan = planWith('rect');
-    expect(handleNames(plan, 'eq_bench_1').sort()).toEqual([
+    expect(handleNames(plan, 'eq_bench_1').sort()).toEqual(['handle-rotate', 'handle-rotate-icon']);
+    expect(handleNames(plan, 'eq_bench_1', null, 'eq_bench_1').sort()).toEqual([
       'handle-resize-e',
       'handle-resize-n',
       'handle-resize-ne',
@@ -156,21 +164,22 @@ describe('ручки выбранного объекта', () => {
       'handle-resize-sw',
       'handle-resize-w',
       'handle-rotate',
+      'handle-rotate-icon',
     ]);
   });
 
   test('настенный прибор (D-228) поворачивается, но не растягивается', () => {
     const plan = mountedOnWall(planWith('rect'), 'ot_bench');
-    expect(handleNames(plan, 'eq_bench_1')).toEqual(['handle-rotate']);
+    expect(handleNames(plan, 'eq_bench_1', null, 'eq_bench_1').sort()).toEqual(['handle-rotate', 'handle-rotate-icon']);
     // Соседний тип остался мебелью: запрет адресный, а не «всем без ручек».
-    expect(handleNames(plan, 'eq_work_1')).toHaveLength(9);
+    expect(handleNames(plan, 'eq_work_1', null, 'eq_work_1')).toHaveLength(10);
   });
 
   test('в правке формы (D-290) у объекта нет ручек размера и поворота', () => {
     const plan = planWith('rect');
-    expect(handleNames(plan, 'eq_bench_1', 'eq_bench_1')).toEqual([]);
+    expect(handleNames(plan, 'eq_bench_1', 'eq_bench_1', 'eq_bench_1')).toEqual([]);
     // Скрытие адресное: режим другого объекта ручки выбранного не прячет.
-    expect(handleNames(plan, 'eq_bench_1', 'eq_work_1')).toHaveLength(9);
+    expect(handleNames(plan, 'eq_bench_1', 'eq_work_1', 'eq_bench_1')).toHaveLength(10);
   });
 });
 

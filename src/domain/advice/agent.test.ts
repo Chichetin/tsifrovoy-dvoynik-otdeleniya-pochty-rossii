@@ -24,6 +24,11 @@ function load(path: string): PlanDocument {
 
 const before = load('demo/before.json');
 const after = load('demo/after.json');
+// The demo keeps two displays: the maximum is reached, not exceeded (#120). A third one exceeds it.
+const crowded: PlanDocument = {
+  ...before,
+  objects: [...before.objects, { ...before.objects.find((object) => object.id === 'eq_7')!, id: 'eq_extra_display', label: 'Лишнее табло' }],
+};
 
 describe('инструменты агента', () => {
   test('сводка плана — числа расчёта, округлённые до сантиметров', () => {
@@ -144,20 +149,19 @@ describe('ответ без модели называет зоны, типы и 
     // «name» (id): the chat UI turns this shape into a single button labelled
     // with the name (D-320) — this test still checks the calculation's raw
     // text, which keeps both, in AgentChat.test.tsx's format.
-    const { text } = answer(before, 'Чего не хватает или что лишнее по оборудованию?');
+    const { text } = answer(crowded, 'Чего не хватает или что лишнее по оборудованию?');
     expect(text).toContain('«Центральное информационное табло»');
     expect(text).toContain('«Клиентский зал» (z_client)');
     expect(text).toContain('eq_7');
     expect(text).toContain('eq_8');
     expect(text).toContain('rule_info_display_max');
-    expect(text).toContain('«Скамья / кресла для ожидания»');
+    expect(text).toContain('«Скамья для ожидания»');
     expect(text).toContain('«Зона ожидания» (z_waiting)');
-    expect(text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8).');
+    expect(text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8), «Лишнее табло» (eq_extra_display).');
     expect(text).toContain('eq_6');
     expect(text).toContain('rule_bench_min');
     // The rationale already says «Правило команды» — the mark is not repeated.
-    expect(text).toContain('(rule_bench_min, не норматив Почты России)');
-    expect(text).not.toContain('правило команды, не норматив');
+    expect(text).toContain('(rule_bench_min, справочник проекта)');
     // One paragraph per recommendation: the chat splits on blank lines.
     expect(text.split('\n\n')).toHaveLength(2);
   });
@@ -170,7 +174,7 @@ describe('ответ без модели называет зоны, типы и 
         rules: before.catalog.rules.map((rule) => (rule.id === 'rule_bench_min' ? { ...rule, rationale: 'В зоне ожидания не меньше двух мест.' } : rule)),
       },
     };
-    expect(answer(plan, 'Чего не хватает в зоне ожидания?').text).toContain('(rule_bench_min; правило команды, не норматив Почты России)');
+    expect(answer(plan, 'Чего не хватает в зоне ожидания?').text).toContain('(rule_bench_min; справочник проекта)');
   });
 
   test('длинный список учтённых объектов сокращается, общее число — из расчёта', () => {
@@ -210,43 +214,42 @@ describe('ответ без модели называет зоны, типы и 
     expect(text).toContain('не названа');
   });
 
-  test('максимум уже превышен (табло на before): вариант не предлагается, ответ начинается с отказа', () => {
+  test('максимум уже превышен (третье табло): вариант не предлагается, ответ начинается с отказа', () => {
     const query = 'Куда поставить информационное табло?';
-    expect(routeAgentQuery(before, query, false).map((call) => [call.name, call.args.zoneId])).toEqual([['check_equipment', 'z_client']]);
-    const result = answerWithoutModel(before, null, query, 1, 'без LLM');
-    expect(result.text.startsWith('Ставить ещё одно «Центральное информационное табло» в зону «Зона ожидания» (z_waiting)')).toBe(true);
+    expect(routeAgentQuery(crowded, query, false).map((call) => [call.name, call.args.zoneId])).toEqual([['check_equipment', 'z_client']]);
+    const result = answerWithoutModel(crowded, null, query, 1, 'без LLM');
+    expect(result.text.startsWith('Ставить ещё одно «Центральное информационное табло» в зону «Клиентский зал» (z_client)')).toBe(true);
     expect(result.text.split('\n\n')[0]).toContain('не рекомендуется');
     expect(result.text).toContain('rule_info_display_max');
     expect(result.text).toContain('Сначала уберите лишнее');
-    expect(result.text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8).');
+    expect(result.text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8), «Лишнее табло» (eq_extra_display).');
     expect(result.text).not.toContain('Место найдено');
     expect(result.actions.some((action) => action.kind === 'apply-candidate')).toBe(false);
     expect(result.recommendations.every((entry) => entry.scenario === 'equipment')).toBe(true);
   });
 
   test('зона названа, превышение в родительской зоне: тоже отказ; в зоне без правила — вариант', () => {
-    expect(routeAgentQuery(before, 'Куда поставить информационное табло в зоне очереди?', false)[0]).toMatchObject({ name: 'check_equipment', args: { zoneId: 'z_client' } });
-    expect(routeAgentQuery(before, 'Куда поставить информационное табло в служебной зоне?', false)).toEqual([
+    expect(routeAgentQuery(crowded, 'Куда поставить информационное табло в зоне очереди?', false)[0]).toMatchObject({ name: 'check_equipment', args: { zoneId: 'z_client' } });
+    expect(routeAgentQuery(crowded, 'Куда поставить информационное табло в служебной зоне?', false)).toEqual([
       { name: 'find_place', args: { typeId: 'ot_info_display', zoneId: 'z_back' } },
     ]);
   });
 
   test('максимум достигнут, но не превышен: вариант с утвердительным предупреждением', () => {
-    const plan: PlanDocument = { ...before, objects: before.objects.filter((object) => object.id !== 'eq_8') };
-    const result = answerWithoutModel(plan, null, 'Куда поставить информационное табло?', 1, 'без LLM');
+    const result = answerWithoutModel(before, null, 'Куда поставить информационное табло?', 1, 'без LLM');
     expect(result.recommendations[0]?.candidates[0]?.object.zoneId).toBe('z_waiting');
-    expect(result.text).toContain('Этот вариант нарушит максимум (rule_info_display_max, не норматив Почты России)');
+    expect(result.text).toContain('Этот вариант нарушит максимум (rule_info_display_max, справочник проекта)');
     expect(result.text).not.toContain('не рекомендуется');
   });
 
   test('зону выбрал поиск и попал туда, где максимум превышен — вариант снят, отказ первым', () => {
     // A minimum on the same rule: the router guesses no zone, the search keeps to the rule's zones.
     const plan: PlanDocument = {
-      ...before,
+      ...crowded,
       catalog: {
-        ...before.catalog,
+        ...crowded.catalog,
         rules: [
-          ...before.catalog.rules.map((rule) => (rule.id === 'rule_info_display_max' ? { ...rule, min: 1 } : rule)),
+          ...crowded.catalog.rules.map((rule) => (rule.id === 'rule_info_display_max' ? { ...rule, min: 1 } : rule)),
           // A zoneless rule gives the search call a note of its own: the refusal must still come first.
           { id: 'rule_display_entrance', kind: 'distance-to-entrance' as const, source: 'team-assumption' as const, rationale: 'Табло видно от входа.', objectTypeId: 'ot_info_display', maxDistance_m: 3, entranceId: null },
         ],

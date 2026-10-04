@@ -5,7 +5,8 @@ import { DEMO_PLANS, readDemoText } from './demo-plan';
 
 describe('демо загружается из файлов сервера через обычный codec', () => {
   test.each(DEMO_PLANS)('$label', async (item) => {
-    const source = readFileSync(`public${item.url}`, 'utf8');
+    // The showroom is served by Vite straight from demo/ (`?url` import); the others have a copy in public/.
+    const source = readFileSync(item.id === 'showroom' ? 'demo/showroom.json' : `public${item.url}`, 'utf8');
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(source));
     const signal = new AbortController().signal;
     const text = await readDemoText(item.id, { fetch: request, signal });

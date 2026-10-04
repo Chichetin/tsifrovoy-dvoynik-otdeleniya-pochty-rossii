@@ -197,22 +197,22 @@ describe('квадраты зоны по строкам — то же, что п
 });
 
 describe('числа на демо-планах', () => {
-  test('demo/before.json: 29,8 % клиентской площади видно, очередь и вход — слепые', () => {
+  test('demo/before.json: 93,8 % клиентской площади видно, слепых 4 м² (камеры повёрнуты внутрь, #118)', () => {
     const result = cameraCoverage(demo, representation);
-    expect(result.total).toMatchObject({ cells: 1008, covered: 300, area_m2: 63, covered_m2: 18.75, blind_m2: 44.25 });
-    expect(result.total.percent).toBeCloseTo(29.76, 2);
+    expect(result.total).toMatchObject({ cells: 1036, covered: 972, area_m2: 64.75, covered_m2: 60.75, blind_m2: 4 });
+    expect(result.total.percent).toBeCloseTo(93.82, 2);
     const byId = Object.fromEntries(result.zones.map((entry) => [entry.zoneId, entry]));
-    expect(byId.z_client).toMatchObject({ covered: 300, cameraIds: ['eq_25', 'eq_26'] });
-    expect(byId.z_waiting?.percent).toBeCloseTo(42.31, 2);
-    expect(byId.z_waiting?.cameraIds).toEqual(['eq_26']);
-    expect(byId.z_entrance?.percent).toBe(0);
-    expect(byId.z_queue?.percent).toBe(0);
+    expect(byId.z_client).toMatchObject({ covered: 972, cameraIds: ['eq_25', 'eq_26', 'eq_39', 'eq_45'] });
+    expect(byId.z_waiting?.percent).toBeCloseTo(95.86, 2);
+    expect(byId.z_waiting?.cameraIds).toEqual(['eq_25', 'eq_26']);
+    expect(byId.z_entrance?.percent).toBeCloseTo(99.38, 2);
+    expect(byId.z_queue?.percent).toBe(100);
     // Cameras of the service rooms do not count towards the client area.
     expect(result.cameras.map((field) => field.objectId)).toEqual(['eq_25', 'eq_26', 'eq_39', 'eq_45']);
   });
 
   test('demo/after.json: те же камеры — те же числа', () => {
     const after = load('demo/after.json');
-    expect(cameraCoverage(after, representation).total.covered).toBe(300);
+    expect(cameraCoverage(after, representation).total.covered).toBe(972);
   });
 });

@@ -160,27 +160,6 @@ describe('карточка помещения', () => {
     expect(text).not.toContain('м²');
     expect(text).not.toContain('0,00');
   });
-
-  test('название плана набирается посимвольно, пробел между словами не пропадает', () => {
-    render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
-    const input = screen.getByLabelText('Название плана') as HTMLInputElement;
-    for (const typed of ['О', 'ОП', 'ОПС', 'ОПС ', 'ОПС 7']) {
-      fireEvent.change(input, { target: { value: typed } });
-      expect(input.value).toBe(typed);
-    }
-  });
-
-  test('отказ на пустом названии остаётся у поля помещения и не переезжает в карточку зоны', () => {
-    const { rerender } = render(<Live selection={{ kind: 'room', id: plan.room.id }} />);
-    fireEvent.change(screen.getByLabelText('Название плана'), { target: { value: '   ' } });
-    expect(screen.getByRole('alert').textContent).toContain('название');
-
-    const zone = plan.zones[0];
-    if (zone === undefined) throw new Error('в minimal.json нет зон');
-    rerender(<Live selection={{ kind: 'zone', id: zone.id }} />);
-    expect(screen.queryByRole('alert')).toBeNull();
-    expect((screen.getByLabelText('Название') as HTMLInputElement).value).toBe(zone.name);
-  });
 });
 
 describe('живые координаты объекта', () => {

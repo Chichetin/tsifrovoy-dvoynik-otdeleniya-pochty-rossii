@@ -13,7 +13,6 @@ import nested from '../../contracts/fixtures/nested.json';
 import type { FocusRequest } from '../../contracts/ui';
 import type { Issue, PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import type { ValidationIssue } from '../../domain/validation';
 import { RELATION_ISSUE_CODES, relationIssues } from '../../domain/relations';
 import { ValidationPanel } from './ValidationPanel';
 
@@ -33,6 +32,14 @@ const collision: Issue = {
   ],
 };
 
+/** Rows of the findings list; the score breakdown above it has its own buttons and items (#125). */
+const issueItems = (): HTMLElement[] => Array.from(document.querySelectorAll<HTMLElement>('ul.issues > li'));
+const issueList = (): HTMLElement => {
+  const list = document.querySelector<HTMLElement>('ul.issues');
+  if (list === null) throw new Error('нет списка находок');
+  return list;
+};
+
 function renderPanel(issues: Issue[], document: PlanDocument | undefined) {
   const onFocus = vi.fn();
   render(<ValidationPanel issues={issues} document={document} onFocus={onFocus} />);
@@ -42,41 +49,35 @@ function renderPanel(issues: Issue[], document: PlanDocument | undefined) {
 describe('названия в находках', () => {
   test('по умолчанию видны названия, но не код и внутренние id', () => {
     renderPanel([collision], plan);
-    const item = within(screen.getByRole('listitem'));
+    const item = within(issueItems()[0]!);
 
     expect(item.getByRole('button', { name: 'Скамья 1' })).not.toBeNull();
     expect(item.getByRole('button', { name: 'Клиентская зона' })).not.toBeNull();
     expect(item.queryByText('eq_bench_1')).toBeNull();
     expect(item.queryByText('z_client')).toBeNull();
     expect(screen.queryByText('OBJECTS_OVERLAP')).toBeNull();
-    const checkbox = screen.getByRole<HTMLInputElement>('checkbox', {
-      name: 'Показать технические детали',
-    });
-    expect(checkbox.checked).toBe(false);
+    // The details of a finding sit behind «Почему?» (#33) and start closed.
+    expect(item.getByRole('button', { name: 'Почему?' }).getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByTestId('issue-why-details')).toBeNull();
   });
 
-  test('флажок раскрывает код, ссылки, правила и путь', () => {
-    const technical: ValidationIssue = {
-      ...collision,
-      path: '/objects/0/position',
-      ruleIds: ['rule_bench_min'],
-    };
-    renderPanel([technical], plan);
+  test('«Почему?» раскрывает разбор находки и закрывает его', () => {
+    renderPanel([collision], plan);
+    const toggle = within(issueItems()[0]!).getByRole('button', { name: 'Почему?' });
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Показать технические детали' }));
+    fireEvent.click(toggle);
 
-    expect(screen.getByText('OBJECTS_OVERLAP')).not.toBeNull();
-    expect(screen.getByText('object:eq_bench_1')).not.toBeNull();
-    expect(screen.getByText('zone:z_client')).not.toBeNull();
-    expect(screen.getByText('rule_bench_min')).not.toBeNull();
-    expect(screen.getByText('/objects/0/position')).not.toBeNull();
-    expect(screen.getByLabelText('Технические детали находки').getAttribute('translate')).toBe('no');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('issue-why-details')).not.toBeNull();
+
+    fireEvent.click(toggle);
+    expect(screen.queryByTestId('issue-why-details')).toBeNull();
   });
 
   test('клик по находке ведёт к тому, о чём она', () => {
     const { onFocus } = renderPanel([collision], plan);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Скамья 1' }));
+    fireEvent.click(within(issueList()).getByRole('button', { name: 'Скамья 1' }));
 
     expect(onFocus).toHaveBeenCalledWith({ kind: 'object', id: 'eq_bench_1' });
   });
@@ -85,7 +86,7 @@ describe('названия в находках', () => {
     const ghost: Issue = { ...collision, refs: [{ kind: 'object', id: 'eq_ghost' }] };
     renderPanel([ghost], plan);
 
-    expect(screen.getByRole('button', { name: 'eq_ghost' })).not.toBeNull();
+    expect(within(issueList()).getByRole('button', { name: 'eq_ghost' })).not.toBeNull();
   });
 
   test('известные стена и проём названы без raw id', () => {
@@ -98,8 +99,8 @@ describe('названия в находках', () => {
     };
     renderPanel([infrastructure], plan);
 
-    expect(screen.getByRole('button', { name: 'Стена' })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Главный вход' })).not.toBeNull();
+    expect(within(issueList()).getByRole('button', { name: 'Стена' })).not.toBeNull();
+    expect(within(issueList()).getByRole('button', { name: 'Главный вход' })).not.toBeNull();
     expect(screen.queryByText('w_north')).toBeNull();
     expect(screen.queryByText('op_entrance')).toBeNull();
   });
@@ -127,15 +128,15 @@ describe('названия в находках', () => {
   test('без документа панель показывает id и не ломается', () => {
     renderPanel([collision], undefined);
 
-    expect(screen.getByRole('button', { name: 'eq_bench_1' })).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'z_client' })).not.toBeNull();
+    expect(within(issueList()).getByRole('button', { name: 'eq_bench_1' })).not.toBeNull();
+    expect(within(issueList()).getByRole('button', { name: 'z_client' })).not.toBeNull();
   });
 
   test('ошибки идут раньше предупреждений', () => {
     const warning: Issue = { ...collision, code: 'BENCH_MIN', severity: 'warning', refs: [] };
     renderPanel([warning, collision], plan);
 
-    expect(screen.getAllByRole('listitem').map((item) => item.className)).toEqual([
+    expect(issueItems().map((item) => item.className)).toEqual([
       'issues__item is-error',
       'issues__item is-warning',
     ]);
@@ -159,7 +160,7 @@ describe('клик по маркеру на плане (V02-marker-click)', () =
   test('без фокуса ни одна строка не выделена', () => {
     render(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} />);
 
-    for (const item of screen.getAllByRole('listitem')) {
+    for (const item of issueItems()) {
       expect(item.className.includes('is-focused')).toBe(false);
       expect(item.getAttribute('aria-current')).toBeNull();
     }
@@ -171,8 +172,7 @@ describe('клик по маркеру на плане (V02-marker-click)', () =
     const focus: FocusRequest = { ref: { kind: 'object', id: 'eq_bench_1' }, sequence: 1 };
     render(<ValidationPanel issues={[collision, zoneOnly]} document={plan} onFocus={vi.fn()} focus={focus} />);
 
-    const items = screen.getAllByRole('listitem');
-    const [benchRow, zoneRow] = items;
+    const [benchRow, zoneRow] = issueItems();
     expect(benchRow?.className.includes('is-focused')).toBe(true);
     expect(benchRow?.getAttribute('aria-current')).toBe('true');
     expect(zoneRow?.className.includes('is-focused')).toBe(false);

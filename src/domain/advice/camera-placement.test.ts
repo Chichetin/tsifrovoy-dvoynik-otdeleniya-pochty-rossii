@@ -19,7 +19,17 @@ function load(path: string): PlanDocument {
   return parsed.value;
 }
 
-const demo = load('demo/before.json');
+// The demo cameras now look into the room (#118) and leave 4 m² blind. The cases below
+// need a real blind patch, so the cameras are put back as they were: corner points, turn 0.
+const OLD_CAMERAS: Record<string, [number, number]> = { eq_25: [8.7, 6.7], eq_26: [0.5, 0.5], eq_39: [14.5, 0.4], eq_45: [14.6, 8.4] };
+const turned = load('demo/before.json');
+const demo: PlanDocument = {
+  ...turned,
+  objects: turned.objects.map((object) => {
+    const position = OLD_CAMERAS[object.id];
+    return position === undefined ? object : { ...object, position, rotation_deg: 0 };
+  }),
+};
 const representation = fieldRepresentationFor(demo.catalog, 'ot_camera') as CameraFieldRepresentation;
 
 function place(plan: PlanDocument, zoneId: string | null, anchor?: [number, number]): Recommendation {
@@ -40,11 +50,11 @@ describe('куда поставить камеру, чтобы закрыть с
     const after = recommendation.candidates.map((candidate) => coverageWith(demo, representation, candidate.object).total.percent!);
     for (const value of after) expect(value).toBeGreaterThan(before + 30);
     expect(after[0]).toBe(Math.max(...after));
-    // Deterministic answer on the demo: a corner of the entrance, looking into the hall.
+    // Deterministic answer on the demo: a point in the waiting zone, looking into the hall.
     const best = recommendation.candidates[0]!.object;
-    expect(best).toMatchObject({ position: [8.5, 0.5], rotation_deg: 315, zoneId: 'z_entrance', typeId: 'ot_camera' });
+    expect(best).toMatchObject({ position: [3.5, 1.5], rotation_deg: 60, zoneId: 'z_waiting', typeId: 'ot_camera' });
     expect(best.attributes).toMatchObject({ viewAngleDeg: 90, viewRangeM: 6 });
-    expect(after[0]).toBeCloseTo(72.12, 2);
+    expect(after[0]).toBeCloseTo(70.46, 2);
     // Variants are at least a metre apart.
     const [a, b, c] = recommendation.candidates.map((candidate) => candidate.object.position);
     for (const [p, q] of [[a!, b!], [a!, c!], [b!, c!]] as const) expect(Math.hypot(p[0] - q[0], p[1] - q[1])).toBeGreaterThanOrEqual(1);
@@ -69,8 +79,8 @@ describe('куда поставить камеру, чтобы закрыть с
   test('допущения называют метод и эффект «было → стало»; объяснение проходит проверку контракта', () => {
     const recommendation = place(demo, null);
     const text = recommendation.assumptions.join(' ');
-    expect(text).toContain('сейчас 29,8 %');
-    expect(text).toContain('вариант 1 — 72,1 %');
+    expect(text).toContain('сейчас 29 %');
+    expect(text).toContain('вариант 1 — 70,5 %');
     expect(text).toContain('стены и мебель обзор не перекрывают, видео не подключается');
     expect(recommendation.limitations[0]).toBe('Проверена геометрия размещения, а не доступность прохода, эргономика или нормативы.');
     const explanation = defaultExplanation(recommendation);
@@ -160,7 +170,7 @@ describe('куда поставить камеру, чтобы закрыть с
     const recommendation = place(demo, null);
     const effect = cameraCandidateEffect(demo, recommendation.candidates[0]!);
     expect(effect?.before.total.covered).toBe(300);
-    expect(effect?.after.total.percent).toBeCloseTo(72.12, 2);
+    expect(effect?.after.total.percent).toBeCloseTo(70.46, 2);
     const desk = demo.objects.find((object) => object.typeId === 'ot_workplace')!;
     expect(cameraCandidateEffect(demo, { object: desk })).toBeNull();
   });
@@ -192,9 +202,9 @@ describe('чат: покрытие камерами в фактах и в отв
     const output = runAgentTool(state, 'plan_overview', {}).output;
     const facts = collectAgentFacts(state, [{ name: 'plan_overview', output }]).filter((fact) => fact.metric === 'coverage.percent');
     const total = facts.find((fact) => fact.scope === 'все клиентские зоны')!;
-    expect(total.value).toBe(29.76);
+    expect(total.value).toBe(28.96);
     expect(total.refs).toEqual([{ kind: 'room', id: demo.room.id }, { kind: 'object', id: 'eq_25' }, { kind: 'object', id: 'eq_26' }]);
-    expect(renderAgentFact(total)).toBe('Доля клиентских зон, видимая камерами — все клиентские зоны: 29,8 % (сейчас).');
+    expect(renderAgentFact(total)).toBe('Доля клиентских зон, видимая камерами — все клиентские зоны: 29 % (сейчас).');
     const queue = facts.find((fact) => fact.refs[0]?.id === 'z_queue')!;
     expect(renderAgentFact(queue)).toContain('«Зона очереди» (z_queue): 0 %');
     expect(facts.map((fact) => fact.refs[0]?.id)).not.toContain('z_back');
@@ -208,11 +218,11 @@ describe('чат: покрытие камерами в фактах и в отв
     expect(facts).toHaveLength(3 * recommendation.candidates.length);
     const first = recommendation.candidates[0]!;
     const of = (phase: string) => facts.find((fact) => fact.candidateId === first.id && fact.phase === phase)!;
-    expect(of('before').value).toBeCloseTo(29.76, 2);
+    expect(of('before').value).toBeCloseTo(28.96, 2);
     expect(of('after').value).toBeCloseTo(coverageWith(demo, representation, first.object).total.percent!, 9);
-    expect(of('delta').value).toBeCloseTo(72.1 - 29.8, 9);
-    expect(renderAgentFact(of('delta'))).toContain('+42,3 п. п. (изменение)');
-    expect(renderAgentFact(of('after'))).toContain('вариант 1 «Камера видеонаблюдения», центр [8,5; 0,5] м, поворот 315°: 72,1 % (стало)');
+    expect(of('delta').value).toBeCloseTo(70.5 - 29, 9);
+    expect(renderAgentFact(of('delta'))).toContain('+41,5 п. п. (изменение)');
+    expect(renderAgentFact(of('after'))).toContain('вариант 1 «Камера видеонаблюдения», центр [3,5; 1,5] м, поворот 60°: 70,5 % (стало)');
 
     // Selecting a fact brings the recommendation's assumptions — the method goes with the number.
     runAgentTool(state, 'suggest_candidate', { recommendationId: recommendation.id, candidateId: first.id });
@@ -244,7 +254,7 @@ describe('чат: покрытие камерами в фактах и в отв
   test('ответ без LLM: вариант на плане, «было → стало» и id камер в тексте; слой назван словами, не действием', () => {
     const answer = answerWithoutModel(demo, null, 'Где слепые пятна камер?', 3, 'нет ключа');
     expect(answer.mode).toBe('fallback');
-    expect(answer.text).toContain('Клиентские зоны видны камерами на 29,8 %, с этим вариантом — на 72,1 % (+42,3 п. п.).');
+    expect(answer.text).toContain('Клиентские зоны видны камерами на 29 %, с этим вариантом — на 70,5 % (+41,5 п. п.).');
     expect(answer.text).toContain('Сейчас их видят камеры eq_25, eq_26.');
     expect(answer.actions).toEqual(
       expect.arrayContaining([

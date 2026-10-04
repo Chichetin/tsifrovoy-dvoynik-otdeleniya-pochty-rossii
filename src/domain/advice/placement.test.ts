@@ -629,7 +629,8 @@ describe('A01: место у стены', () => {
         ),
       );
     }
-    expect(gap).toBeLessThanOrEqual(PLACEMENT_SEARCH.step_m + TOLERANCE.coordinate_m);
+    // The bench keeps 0.2 m from the zone edge: the search starts one step off the wall.
+    expect(gap).toBeLessThanOrEqual(2 * PLACEMENT_SEARCH.step_m + TOLERANCE.coordinate_m);
   });
 
   test('в зоне место у стены помещения предпочитается середине зоны', () => {
@@ -773,7 +774,7 @@ describe('A-fit: место ищется в зоне, где объект уме
     const said = recommendation.limitations.join(' ');
     expect(said).toContain('Служебная зона');
     expect(said).toContain('rule_rack_service');
-    expect(recommendation.assumptions.join(' ')).toContain('не норматив Почты');
+    expect(recommendation.assumptions.join(' ')).toContain('по правилам команды');
   });
 
   test('уместные зоны заняты — пустой ответ говорит, где искали', () => {
@@ -828,7 +829,7 @@ describe('A-fit: место ищется в зоне, где объект уме
     const said = recommendation.assumptions.join(' ');
     expect(said).toContain('z_client');
     expect(said).toContain('rule_desk_min');
-    expect(said).toContain('не норматив Почты');
+    expect(said).toContain('по правилам команды');
     expect(said).not.toContain('z_queue');
   });
 

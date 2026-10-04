@@ -164,7 +164,7 @@ describe('семантический словарь объяснений', () =>
     expect(METRIC_UNITS['area.free']).toBe('m2');
     expect(METRIC_UNITS['placement.distance']).toBe('m');
     expect(METRIC_UNITS['equipment.count']).toBe('count');
-    expect(Object.keys(METRIC_UNITS)).toHaveLength(9);
+    expect(Object.keys(METRIC_UNITS)).toHaveLength(11);
     expect(INTEGER_METRICS).toContain('equipment.count');
     expect(INTEGER_METRICS).not.toContain('area.free');
   });
