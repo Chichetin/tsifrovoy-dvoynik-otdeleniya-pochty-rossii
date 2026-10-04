@@ -32,6 +32,7 @@ import { decodePlan, encodePlan } from '../src/persistence/codec';
 import { createPlanStore } from '../src/state/plan-store';
 import { placedObject, placementRefusal, placementVerdict } from '../src/features/equipment/placement-ghost';
 import { checklistItems } from '../src/features/inventory/rule-checklist';
+import { labelledAttributes } from '../src/features/inventory/rows';
 import { routeAgentQuery } from '../src/domain/advice/agent-fallback';
 
 function readJson(...path: string[]): unknown {
@@ -458,5 +459,13 @@ describe('чек-лист комплектности (#31)', () => {
     }
     // В примере есть и выполненные, и невыполненные строки: проверка не пустая.
     expect(new Set(items.map((item) => item.met))).toEqual(new Set([true, false]));
+  });
+});
+
+describe('подписи перечислений в инвентаризации (#92)', () => {
+  test('код состояния показывается подписью справочника, чужое значение — как записано', () => {
+    expect(labelledAttributes(plan.catalog, { equipmentStatus: 'working', note: 'working' })).toEqual({ equipmentStatus: 'Работает', note: 'working' });
+    expect(labelledAttributes(plan.catalog, { equipmentStatus: 'сломан по-своему' })).toEqual({ equipmentStatus: 'сломан по-своему' });
+    expect(labelledAttributes(undefined, { equipmentStatus: 'working' })).toEqual({ equipmentStatus: 'working' });
   });
 });

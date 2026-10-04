@@ -12,7 +12,7 @@
  * these functions only group, name and filter what it returned.
  */
 
-import type { Attributes, Equipment, Id, Inventory } from '../../contracts/model';
+import type { Attributes, Catalog, Equipment, Id, Inventory } from '../../contracts/model';
 import type { PlanIndex } from '../../domain/plan-index';
 import { type MaintenanceStatus, maintenanceStatus } from '../../domain/validation';
 import { attributeText } from '../../persistence/inventory-csv';
@@ -124,11 +124,29 @@ export function zoneSummary(inventory: Inventory, naming: Naming): ZoneSummaryRo
   }));
 }
 
+/**
+ * Codes of an enumerated attribute (`working`) by the label the card and the
+ * colour layer show («Работает») — the table and the CSV are read by people.
+ * A value the catalog has no label for stays as written.
+ */
+export function labelledAttributes(catalog: Catalog | undefined, attributes: Attributes): Attributes {
+  let shown = attributes;
+  for (const type of catalog?.layerTypes ?? []) {
+    const representation = type.representation;
+    if (representation.kind !== 'object-color') continue;
+    const raw = attributes[representation.attribute];
+    const option = typeof raw === 'string' ? representation.values.find((entry) => entry.value === raw) : undefined;
+    if (option !== undefined) shown = { ...shown, [representation.attribute]: option.label };
+  }
+  return shown;
+}
+
 /** `today` is «YYYY-MM-DD», the same day the plan check uses. */
-export function objectRows(inventory: Inventory, naming: Naming, today: string): ObjectRow[] {
+export function objectRows(inventory: Inventory, naming: Naming, today: string, catalog?: Catalog): ObjectRow[] {
   return inventory.rows.map((object) => {
     const typeLabel = naming.objectTypeLabel(object.typeId);
     const zoneName = object.zoneId === null ? null : naming.zoneName(object.zoneId);
+    const attributes = labelledAttributes(catalog, object.attributes);
     return {
       id: object.id,
       label: object.label,
@@ -137,9 +155,9 @@ export function objectRows(inventory: Inventory, naming: Naming, today: string):
       typeLabel,
       zoneId: object.zoneId,
       zoneName,
-      attributes: object.attributes,
+      attributes,
       maintenance: maintenanceStatus(object, today),
-      haystack: haystackOf(object, typeLabel, zoneName),
+      haystack: haystackOf(object, typeLabel, zoneName, attributes),
     };
   });
 }
@@ -221,7 +239,12 @@ function compareText(left: string, right: string): number {
   return left.localeCompare(right, 'ru', { numeric: true, sensitivity: 'base' });
 }
 
-function haystackOf(object: Equipment, typeLabel: string | null, zoneName: string | null): string {
+function haystackOf(
+  object: Equipment,
+  typeLabel: string | null,
+  zoneName: string | null,
+  shown: Attributes,
+): string {
   const parts: (string | null)[] = [
     object.id,
     object.label,
@@ -230,7 +253,8 @@ function haystackOf(object: Equipment, typeLabel: string | null, zoneName: strin
     object.zoneId,
     zoneName,
   ];
-  for (const value of Object.values(object.attributes)) {
+  // The code and the label the table shows: a person types what they see.
+  for (const value of [...Object.values(object.attributes), ...Object.values(shown)]) {
     if (typeof value === 'string' || typeof value === 'number') parts.push(String(value));
   }
   return parts.filter((part) => part !== null).join(' ').toLowerCase();
