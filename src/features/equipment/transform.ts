@@ -139,3 +139,18 @@ export function resizeFromPointer(
 export function snapPosition(point: Point): Point {
   return [roundTo(point[0], POSITION_UNITS_PER_M), roundTo(point[1], POSITION_UNITS_PER_M)];
 }
+
+/**
+ * Rounds to the centimetre, each coordinate towards the sign of `direction`
+ * (to the nearest one where it is 0). The point never moves against
+ * `direction`, so an object pushed off a wall does not round back into it.
+ */
+export function snapPositionToward(point: Point, direction: Point): Point {
+  const round = (value: number, sign: number): number => {
+    // 1e-6 keeps an exact centimetre computed as 14.750000000000002 in place.
+    const units = value * POSITION_UNITS_PER_M;
+    const rounded = sign > 0 ? Math.ceil(units - 1e-6) : sign < 0 ? Math.floor(units + 1e-6) : Math.round(units);
+    return rounded / POSITION_UNITS_PER_M || 0;
+  };
+  return [round(point[0], direction[0]), round(point[1], direction[1])];
+}
