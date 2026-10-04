@@ -28,6 +28,7 @@ import {
   sharedAttributeDefs,
 } from '../src/features/properties/group-attributes';
 import { findFix, planFix } from '../src/features/validation/finding-why';
+import { selectionDeletion } from '../src/app/selection-delete';
 import { decodePlan, encodePlan } from '../src/persistence/codec';
 import { createPlanStore } from '../src/state/plan-store';
 import { placedObject, placementRefusal, placementVerdict } from '../src/features/equipment/placement-ghost';
@@ -411,6 +412,28 @@ describe('вариант исправления находки (#33)', () => {
       objects: [...noRetired.objects.filter((object) => object.id === 'eq_8'), ...noRetired.objects.filter((object) => object.id !== 'eq_8')],
     };
     expect(removed(reordered)).not.toBe('eq_8');
+  });
+});
+
+describe('удаление выбранного (#121)', () => {
+  const demo = (): PlanDocument => {
+    const decoded = decodePlan(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
+    if (!decoded.ok) throw new Error('demo/before.json не открылся');
+    return decoded.value;
+  };
+
+  test('зона: заранее сказано, сколько объектов останутся вне зон; закреплённый объект — отказ с причиной', () => {
+    const plan = demo();
+    const zone = selectionDeletion({ kind: 'zone', id: 'z_staff' }, new Set(), plan);
+    expect(zone?.command).not.toBeNull();
+    expect(zone?.consequence).toContain('вне зон: 4');
+    const locked: PlanDocument = {
+      ...plan,
+      objects: plan.objects.map((object) => (object.id === 'eq_10' ? { ...object, locked: true } : object)),
+    };
+    const object = selectionDeletion({ kind: 'object', id: 'eq_10' }, new Set(), locked);
+    expect(object?.command).toBeNull();
+    expect(object?.refusal).not.toBeNull();
   });
 });
 
