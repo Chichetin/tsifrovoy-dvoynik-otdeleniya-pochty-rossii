@@ -94,6 +94,7 @@ const equipmentSchema = z.object({
   layerId: idSchema,
   attributes: attributesSchema,
   outline: outlineSchema.optional(),
+  locked: z.boolean().optional(),
 });
 
 const wallSchema = z.object({

@@ -62,6 +62,22 @@ function expectRefused(text: string): Issue[] {
 const READABLE = ['minimal.json', 'nested.json', 'rotated.json', 'collision.json', 'outline.json'];
 
 describe('round-trip', () => {
+  test.each([true, false])('замок объекта (%s) переживает сохранение и открытие', (locked) => {
+    const plan = decodeFixture('rotated.json');
+    plan.objects[0] = { ...first(plan.objects, 'объект'), locked };
+    const reopened = decodePlan(encodeOrThrow(plan));
+    if (!reopened.ok) throw new Error('не открылся');
+    expect(reopened.value.objects[0]?.locked).toBe(locked);
+  });
+
+  test('замок требует boolean; отсутствие поля сохраняет старый формат', () => {
+    const text = fixtureText('rotated.json');
+    expect(decodeFixture('rotated.json').objects[0]?.locked).toBeUndefined();
+    const input = JSON.parse(text) as { objects: Array<Record<string, unknown>> };
+    first(input.objects, 'объект').locked = 'true';
+    expectRefused(JSON.stringify(input));
+  });
+
   test.each(READABLE)('%s: encode → decode возвращает тот же документ', (name) => {
     const original = decodeFixture(name);
     const reopened = decodePlan(encodeOrThrow(original));

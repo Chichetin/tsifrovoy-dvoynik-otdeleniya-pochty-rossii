@@ -71,6 +71,8 @@ export type Equipment = {
   zoneId: Id | null;
   layerId: Id;
   attributes: Attributes;
+  /** Protects geometry and deletion. Absent or false means unlocked. */
+  locked?: boolean;
   /**
    * Own floor shape (D-277): a ring in fractions of `size_m`, local frame
    * before rotation, box exactly [-0.5, 0.5]. Absent — the full rectangle.

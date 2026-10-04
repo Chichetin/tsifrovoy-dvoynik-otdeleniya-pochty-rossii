@@ -29,6 +29,7 @@ type Equipment = {
   rotation_deg: number; base_m: number; height_m: number;
   zoneId: Id | null; layerId: Id; attributes: Attributes;
   outline?: Polygon; // D-277: доли size_m, до поворота, рамка ровно [-0.5, 0.5]
+  locked?: boolean; // защищает геометрию и удаление; нет поля или false — без замка
 };
 type Wall = { id: Id; from: Point; to: Point; thickness_m: number; height_m: number };
 type Opening = {
