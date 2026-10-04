@@ -10,11 +10,13 @@
 import type {
   Catalog,
   Equipment,
+  LayerType,
   Opening,
   PlanDocument,
   Point,
   Polygon,
   Ref,
+  Viewport,
   Wall,
   Zone,
 } from '../../contracts/model';
@@ -24,12 +26,17 @@ import {
   boundingBox,
   footprint,
   rotateOffset,
+  screenToModel,
   wallLength,
   wallObstacles,
   wallSpanPolygon,
   type BoundingBox,
 } from '../../domain/geometry';
+import { findLayerType } from '../../domain/catalog';
+import { heatColor } from '../../domain/heat-color';
+import { formatShort, NBSP } from '../../domain/number-format';
 import { zoneDepth } from '../../domain/relations';
+import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 
 export type PrismKind = 'floor' | 'zone' | 'wall' | 'opening' | 'object';
 
@@ -61,8 +68,24 @@ export type SceneModel = {
   size_m: [number, number, number];
 };
 
+/**
+ * A zone's name standing over its floor. `value` is the heat reading when a
+ * heat layer paints the zone — the colour alone would not say what it means.
+ */
+export type SceneLabel = {
+  ref: Ref;
+  text: string;
+  value?: string;
+  /** Where the caption sits: the plan's own placement (D-348), in world metres. */
+  center: Point;
+  z_m: number;
+  /** The caption never grows wider than the room it was placed in. */
+  width_m: number;
+};
+
 export type Scene = {
   prisms: ScenePrism[];
+  labels: SceneLabel[];
   /** Extent of the room boundary, for framing the camera. */
   bounds: BoundingBox;
   ceilingHeight_m: number;
@@ -86,6 +109,10 @@ export const SCENE_COLORS = {
 const FLOOR_THICKNESS_M = 0.1;
 /** Each nesting level lifts a zone by one slab, so children read above parents. */
 const ZONE_SLAB_M = 0.02;
+/** Zone captions are placed by the 2D layout at this scale; its pixels read back as metres. */
+const LABEL_VIEWPORT: Viewport = { origin: [0, 0], scale: 40 };
+/** Captions float a little above the slab, clear of the floor's z-fighting. */
+const LABEL_LIFT_M = 0.1;
 const OPENING_OPACITY = 0.45;
 /** Pane thickness as a share of the wall: visible from both sides, never wider than the wall. */
 const PANE_SHARE = 0.4;
@@ -101,12 +128,14 @@ export function buildScene(plan: PlanDocument, catalog: Catalog = plan.catalog):
   // стены и проёмы слоёв не имеют и остаются всегда. Ссылка на несуществующий
   // слой не показывается — то же правило, что в `EquipmentLayer`.
   const shown = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+  const heat = heatLayers(plan);
+  const shownZones = plan.zones.filter((zone) => shown.has(zone.layerId));
+  const byId = new Map(plan.zones.map((zone) => [zone.id, zone]));
+  const readings = new Map(shownZones.map((zone) => [zone.id, heatReading(zone, byId, heat)]));
   const prisms: ScenePrism[] = [
     floorPrism(plan),
     // Глубина вложенности считается по всем зонам: родитель может быть скрыт.
-    ...plan.zones
-      .filter((zone) => shown.has(zone.layerId))
-      .map((zone) => zonePrism(zone, plan.zones, catalog)),
+    ...shownZones.map((zone) => zonePrism(zone, plan.zones, catalog, readings.get(zone.id) ?? null)),
     ...plan.walls.flatMap((wall) => wallPrisms(wall, plan.openings, plan.walls)),
     ...plan.openings.flatMap((opening) => openingPrism(opening, plan.walls)),
     ...plan.objects
@@ -115,6 +144,7 @@ export function buildScene(plan: PlanDocument, catalog: Catalog = plan.catalog):
   ];
   return {
     prisms,
+    labels: zoneLabels(plan, shownZones, readings),
     bounds: boundingBox(plan.room.boundary),
     ceilingHeight_m: plan.room.ceilingHeight_m,
   };
@@ -133,7 +163,66 @@ function floorPrism(plan: PlanDocument): ScenePrism {
   };
 }
 
-function zonePrism(zone: Zone, zones: Zone[], catalog: Catalog): ScenePrism {
+type ZoneHeat = Extract<LayerType['representation'], { kind: 'zone-heat' }>;
+type HeatReading = { color: string; value: string };
+
+/** Visible heat layers, the topmost first: where two have a value, the upper one paints. */
+function heatLayers(plan: PlanDocument): ZoneHeat[] {
+  return plan.layers
+    .filter((layer) => layer.visible)
+    .sort((a, b) => b.order - a.order)
+    .flatMap((layer) => {
+      const representation = findLayerType(plan.catalog, layer.typeId)?.representation;
+      return representation?.kind === 'zone-heat' ? [representation] : [];
+    });
+}
+
+/**
+ * Deepest zone with a value paints each point (D-138): a zone without its own
+ * value shows the nearest parent's, as the 2D layer does.
+ */
+function heatReading(zone: Zone, byId: Map<string, Zone>, heat: ZoneHeat[]): HeatReading | null {
+  for (const representation of heat) {
+    // A cyclic parent chain ends at the first zone seen twice.
+    const seen = new Set<string>();
+    let current: Zone | undefined = zone;
+    while (current !== undefined && !seen.has(current.id)) {
+      seen.add(current.id);
+      const value = current.attributes[representation.attribute];
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        const unit = representation.unit === '' ? '' : `${NBSP}${representation.unit}`;
+        return {
+          color: heatColor(representation.colors, value, representation.max),
+          value: `${formatShort(value)}${unit}`,
+        };
+      }
+      current = current.parentId === null ? undefined : byId.get(current.parentId);
+    }
+  }
+  return null;
+}
+
+/** Zone names for 3D sit where the 2D editor puts them, so both views read the same. */
+function zoneLabels(plan: PlanDocument, zones: Zone[], readings: Map<string, HeatReading | null>): SceneLabel[] {
+  const boxes = zoneCaptionBoxes(plan, LABEL_VIEWPORT);
+  return zones.flatMap((zone) => {
+    const box = boxes.get(zone.id);
+    if (box === undefined || zone.name.trim() === '') return [];
+    const reading = readings.get(zone.id);
+    return [
+      {
+        ref: { kind: 'zone', id: zone.id },
+        text: zone.name,
+        ...(reading == null ? {} : { value: reading.value }),
+        center: screenToModel([box.x + box.width / 2, box.y + box.height / 2], LABEL_VIEWPORT),
+        z_m: (zoneDepth(zone.id, plan.zones) ?? 0) * ZONE_SLAB_M + ZONE_SLAB_M + LABEL_LIFT_M,
+        width_m: box.width / LABEL_VIEWPORT.scale,
+      },
+    ];
+  });
+}
+
+function zonePrism(zone: Zone, zones: Zone[], catalog: Catalog, heat: HeatReading | null): ScenePrism {
   const type = catalog.zoneTypes.find((candidate) => candidate.id === zone.typeId);
   return {
     kind: 'zone',
@@ -144,7 +233,7 @@ function zonePrism(zone: Zone, zones: Zone[], catalog: Catalog): ScenePrism {
     // cyclic chain (domain returns null) lies flat rather than guessing.
     base_m: (zoneDepth(zone.id, zones) ?? 0) * ZONE_SLAB_M,
     height_m: ZONE_SLAB_M,
-    color: type?.color ?? SCENE_COLORS.zone,
+    color: heat?.color ?? type?.color ?? SCENE_COLORS.zone,
     opacity: 1,
   };
 }
