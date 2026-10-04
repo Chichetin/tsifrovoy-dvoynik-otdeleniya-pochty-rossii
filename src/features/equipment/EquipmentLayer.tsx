@@ -27,13 +27,14 @@ import {
   footprint,
   modelToScreen,
   objectGaps,
+  wallAxisGaps,
   objectGuides,
   objectOutline,
   screenToModel,
   snapObjectCentre,
 } from '../../domain/geometry';
 import type { AxisSnap, Gap } from '../../domain/geometry';
-import { formatLength } from '../../domain/number-format';
+import { formatLength, formatMeasure } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverHint, equipmentHoverSummary, hasLearnedEquipmentSelection, rememberEquipmentSelection } from './hover-summary';
 import { fitCaption } from './caption-fit';
@@ -102,7 +103,7 @@ const HOVER_RULE_GAP_PX = 9;
 type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
 
 /** Shortest lines from the moved object to the nearest wall and neighbour, in world metres. */
-type Gaps = { wall: Gap | null; object: Gap | null };
+type Gaps = { wall: Gap | null; object: Gap | null; axes: (Gap | null)[] };
 
 /**
  * The object as the pointer is currently shaping it; null outside a gesture.
@@ -764,7 +765,10 @@ export function EquipmentLayer({
       // The drop needs only the position: the distances leave with the gesture.
       const obstacles = phase === 'move' ? started?.obstacles : undefined;
       const measured = (position: Point): Gaps | undefined =>
-        obstacles === undefined ? undefined : objectGaps({ ...object, position }, obstacles);
+        obstacles === undefined ? undefined : {
+          ...objectGaps({ ...object, position }, obstacles),
+          axes: wallAxisGaps({ ...object, position }, obstacles.walls),
+        };
       const guides = started?.guides;
       if (started?.snapOff === true || guides === undefined) {
         const position = snapPosition(centre);
@@ -1164,12 +1168,12 @@ export function EquipmentLayer({
               );
             })}
 
-        {/* How far the moved object is from the nearest wall and neighbour: a
+        {/* Four clearances to wall faces and the nearest neighbour: a
             dashed line along the shortest gap and its length in metres. */}
         {gesture?.gaps === undefined
           ? null
-          : (['wall', 'object'] as const).map((kind) => {
-              const gap = gesture.gaps?.[kind];
+          : [...gesture.gaps.axes.map((gap, i) => ({kind: `wall-${i}`, gap})),
+            {kind: 'object', gap: gesture.gaps.object}].map(({kind, gap}) => {
               if (gap === null || gap === undefined) return null;
               const [x1, y1] = modelToScreen(gap.from, viewport);
               const [x2, y2] = modelToScreen(gap.to, viewport);
@@ -1191,6 +1195,13 @@ export function EquipmentLayer({
                     dash={[3, 3]}
                     listening={false}
                   />
+                  {kind === 'object' ? null : [0, 1].map((end) => {
+                    const x = end === 0 ? x1 : x2;
+                    const y = end === 0 ? y1 : y2;
+                    return <Line key={end}
+                      points={Math.abs(y1-y2) < 0.01 ? [x,y-4,x,y+4] : [x-4,y,x+4,y]}
+                      stroke={GAP_STROKE} strokeWidth={1} listening={false} />;
+                  })}
                   <Group
                     name={`gap-label-${kind}`}
                     x={(x1 + x2) / 2}
@@ -1211,7 +1222,7 @@ export function EquipmentLayer({
                     <Text
                       width={GAP_LABEL_WIDTH_PX}
                       height={GAP_LABEL_HEIGHT_PX}
-                      text={`${kind === 'wall' ? 'до стены' : 'до объекта'} ${formatLength(gap.distance)}`}
+                      text={`${kind === 'object' ? 'до объекта' : 'до стены'} ${kind === 'object' ? formatLength(gap.distance) : formatMeasure(gap.distance, 'м', 1)}`}
                       fontSize={12}
                       fontFamily="system-ui, sans-serif"
                       fill="#212529"

@@ -514,3 +514,58 @@ export function viewSectorTest(
 export function footprintArea(object: Equipment): number {
   return polygonArea(footprint(object));
 }
+
+/** A polygon's extreme coordinates on one axis at a fixed transverse level. */
+function axisSpan(shape: Polygon, axis: 0 | 1, level: number): [number, number] | null {
+  const across = axis === 0 ? 1 : 0;
+  const hits: number[] = [];
+  for (let i = 0; i < shape.length; i += 1) {
+    const a = shape[i]!;
+    const b = shape[(i + 1) % shape.length]!;
+    if (level < Math.min(a[across], b[across]) || level > Math.max(a[across], b[across])) continue;
+    if (a[across] === b[across]) hits.push(a[axis], b[axis]);
+    else hits.push(a[axis] + (b[axis] - a[axis]) * (level - a[across]) / (b[across] - a[across]));
+  }
+  return hits.length === 0 ? null : [Math.min(...hits), Math.max(...hits)];
+}
+
+/** Four axis-aligned clearances: -X, +X, -Y, +Y, from footprint to wall faces.
+ * Wall rings are prepared once per drag. No search through the equipment list.
+ * Candidate levels are polygon vertices and the overlapping centre: distance
+ * varies linearly between them, so a minimum lies at one of these endpoints.
+ */
+export function wallAxisGaps(object: Equipment, walls: readonly Obstacle[]): (Gap | null)[] {
+  const shape = footprint(object);
+  const box = boundingBox(shape);
+  const best: (Gap | null)[] = [null, null, null, null];
+  for (const wall of walls) {
+    if (boxesOverlap(box, wall.box) && polygonsOverlap(shape, wall.ring)) continue;
+    for (const axis of [0, 1] as const) {
+      const across = axis === 0 ? 1 : 0;
+      const lo = Math.max(across === 0 ? box.minX : box.minY, across === 0 ? wall.box.minX : wall.box.minY);
+      const hi = Math.min(across === 0 ? box.maxX : box.maxY, across === 0 ? wall.box.maxX : wall.box.maxY);
+      if (lo > hi) continue;
+      const middle = across === 0 ? object.position[0] : object.position[1];
+      const levels = [Math.max(lo, Math.min(hi, middle)), lo, hi,
+        ...shape.map(p => p[across]), ...wall.ring.map(p => p[across])];
+      for (const level of levels) {
+        if (level < lo || level > hi) continue;
+        const own = axisSpan(shape, axis, level);
+        const other = axisSpan(wall.ring, axis, level);
+        if (own === null || other === null) continue;
+        for (const side of [0, 1] as const) {
+          const start = own[side];
+          const end = other[side === 0 ? 1 : 0];
+          const distance = side === 0 ? start - end : end - start;
+          const index = axis * 2 + side;
+          const previous = best[index];
+          if (distance < 0 || (previous != null && distance >= previous.distance - 1e-9)) continue;
+          const from: Point = axis === 0 ? [start, level] : [level, start];
+          const to: Point = axis === 0 ? [end, level] : [level, end];
+          best[index] = {id:wall.id,from,to,distance};
+        }
+      }
+    }
+  }
+  return best.map(gap => gap !== null && gap.distance > TOLERANCE.coordinate_m ? gap : null);
+}
