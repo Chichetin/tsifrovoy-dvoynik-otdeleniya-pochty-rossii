@@ -11,7 +11,7 @@
 import { expect, test, type Page } from './fixtures';
 import { showTab } from './side-tabs';
 
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 
 const card = (page: Page) => page.getByLabel('Свойства');
 const inventoryRows = (page: Page) =>

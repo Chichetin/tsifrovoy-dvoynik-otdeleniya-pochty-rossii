@@ -5,7 +5,7 @@
  * Спеки импортируют `test` и `expect` отсюда вместо `@playwright/test`.
  */
 
-import { expect, test as base, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test as base, type BrowserContext, type Dialog, type Page } from '@playwright/test';
 import { ONBOARDING_KEY } from '../../src/features/onboarding/tour';
 
 export * from '@playwright/test';
@@ -21,10 +21,44 @@ export async function skipOnboarding(context: BrowserContext): Promise<void> {
   }, ONBOARDING_KEY);
 }
 
-export const test = base.extend({
+/**
+ * The app opens the demo branch at start (#111). Most specs were written for the
+ * empty plan a user gets on «Создать новый», so by default the first `goto('/')`
+ * of a page ends with that command. A spec that works on the demo or on the
+ * deployed service turns this off with `test.use({ emptyStart: false })`.
+ */
+async function startWithNewPlan(page: Page): Promise<void> {
+  // A spec may have its own `dialog` handler; a second answer would throw.
+  const answered = (page as unknown as { listenerCount(event: string): number }).listenerCount('dialog') > 0;
+  const accept = (dialog: Dialog): void => void dialog.accept();
+  if (!answered) page.on('dialog', accept);
+  await page.getByRole('button', { name: 'Файл' }).click();
+  await page.getByRole('menuitem', { name: 'Создать новый' }).click();
+  await expect(page.getByRole('menu', { name: 'Файл' })).toHaveCount(0);
+  // Taken off for good: the spec may add its own answer for later dialogs.
+  page.off('dialog', accept);
+}
+
+export const test = base.extend<{ emptyStart: boolean }>({
+  emptyStart: [true, { option: true }],
   context: async ({ context }, provide) => {
     await skipOnboarding(context);
     await provide(context);
+  },
+  page: async ({ page, emptyStart }, provide) => {
+    if (emptyStart) {
+      const goto = page.goto.bind(page);
+      let first = true;
+      page.goto = (async (url: string, options?: Parameters<Page['goto']>[1]) => {
+        const response = await goto(url, options);
+        if (first && url === '/') {
+          first = false;
+          await startWithNewPlan(page);
+        }
+        return response;
+      }) as Page['goto'];
+    }
+    await provide(page);
   },
 });
 

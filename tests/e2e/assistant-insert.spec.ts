@@ -21,7 +21,7 @@ test('слой из ответа не мешает применить вариа
       contentType: 'application/x-ndjson',
       body: JSON.stringify({ type: 'answer', answer: {
         revision: input.revision, mode: 'fallback', text: 'Вариант рассчитан во входной группе.',
-        steps: [], recommendations: calculated.value, refs: [],
+        steps: [], recommendations: calculated.value, proposals: [], refs: [],
         actions: [
           { kind: 'preview-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
           { kind: 'show-layer', layerId: 'l_lt_cameras' },

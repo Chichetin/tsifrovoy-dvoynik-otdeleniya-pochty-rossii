@@ -66,7 +66,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function drawZone(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Зона', exact: true }).click();
+  await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
   await clickCanvas(page, 200, 180);
   await clickCanvas(page, 430, 180);
   await clickCanvas(page, 430, 360);
@@ -314,7 +314,8 @@ test.describe('слои в браузере', () => {
     // Все правки слоёв переживают сохранение и повторное открытие.
     const saved = await savePlan(page);
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toHaveCount(0);
 
     await page.getByTestId('plan-file-input').setInputFiles({

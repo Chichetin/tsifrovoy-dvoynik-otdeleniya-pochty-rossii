@@ -16,9 +16,11 @@ for (const width of [1280, 1440]) {
   test(`название комнаты персонала не перекрывает бирку дивана (${width})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Демо', exact: true }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
     await page.getByRole('menuitem', { name: 'Исходный демо-план' }).click();
     await expect(page.getByTestId('files-notice')).toContainText('учебное отделение');
+    // Подписи объектов выключены по умолчанию (D-362): бирку дивана видно только с ними.
+    await page.getByRole('button', { name: 'Подписи объектов' }).click();
     await expect.poll(() => overlap(page)).toBe(false);
     if (process.env.SAVE_ZONE_CAPTIONS === '1' && width === 1440) {
       await page.screenshot({ path: 'docs/verification/2026-10-02-zone-captions-accepted-1440.png' });

@@ -149,13 +149,13 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
   expect(now.overflow, `шапка не шире окна: ${label}`).toBeLessThanOrEqual(0);
   expect(new Set(now.rowTops).size, `кнопки шапки в одну строку: ${label}`).toBe(1);
   const viewport = page.viewportSize();
-  // D-260: кнопка карты горячих клавиш — в шапке, на экране, левее «Экспорт».
+  // D-260: кнопка карты горячих клавиш — в шапке, на экране, левее «Файл».
   const help = await page.locator('.shell__bar').getByRole('button', { name: 'Горячие клавиши', exact: true }).boundingBox();
   expect(help, `кнопка «Горячие клавиши» в шапке: ${label}`).not.toBeNull();
-  const right = await page.getByRole('button', { name: 'Экспорт' }).boundingBox();
-  expect(right, 'кнопка «Экспорт» на экране').not.toBeNull();
-  expect(right!.x + right!.width, `«Экспорт» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
-  expect(help!.x + help!.width, `«Горячие клавиши» левее «Экспорт»: ${label}`).toBeLessThanOrEqual(right!.x);
+  const right = await page.getByRole('button', { name: 'Файл' }).boundingBox();
+  expect(right, 'кнопка «Файл» на экране').not.toBeNull();
+  expect(right!.x + right!.width, `«Файл» не обрезана: ${label}`).toBeLessThanOrEqual(viewport!.width);
+  expect(help!.x + help!.width, `«Горячие клавиши» левее «Файл»: ${label}`).toBeLessThanOrEqual(right!.x);
 }
 
 // Different system fonts made the 1280/1460 header 13 px too wide on Linux.
@@ -341,7 +341,7 @@ test('плашки над холстом не наезжают друг на д�
 
   // Отказ правки: скамья на занятое место демо-плана (физика, D-286).
   await showTab(page, 'Библиотека');
-  await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
+  await page.locator('.library__item', { hasText: 'Скамья для ожидания' }).first().click();
   // Поставить скамью ровно на рабочее место другого типа. Фиксированный
   // экранный пиксель меняется при ширине панелей и масштабе.
   const occupied = await page.evaluate(() => {

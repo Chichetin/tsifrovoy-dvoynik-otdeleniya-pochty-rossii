@@ -15,7 +15,7 @@ import { expect, test, type Page , exportPlan } from './fixtures';
 import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 
 /** Шаги из src/features/equipment/selection-edit.ts и transform.ts. */
 const NUDGE_STEP_M = 0.5;
@@ -266,7 +266,7 @@ test.describe('правка выбранного с клавиатуры', () =>
     const finding = validation.locator('.issues__item', { hasText: `«${number}»` });
     await expect(finding).toHaveCount(1);
     await expect(finding).toContainText('уже присвоен');
-    await expect(finding.locator('button[data-ref-id]')).toHaveCount(2);
+    await expect(finding.locator('button[data-ref-id]')).toHaveCount(3);
   });
 
   test('R поворачивает на 15° по часовой, Shift+R — против, «Отменить» возвращает угол', async ({

@@ -7,6 +7,7 @@
  * `size_m`. Проверяется через карточку свойств и сохранённый JSON, не на глаз.
  */
 
+import { DEFAULT_SCALE } from '../../src/features/editor/viewport';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page, exportPlan, passPhysicsBlock } from './fixtures';
@@ -14,12 +15,12 @@ import { validatePlan } from '../../src/domain/validation';
 import { parsePlanDocument } from '../../src/contracts/schema';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 import { expandInventoryRows } from './inventory-collapse';
-import { showProps, showTab } from './side-tabs';
+import { enableReshape, showProps, showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Calibration = { scale: number; origin: Screen };
 
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 /** Зазор ручки поворота от передней кромки, как в EquipmentLayer. */
 const ROTATION_GAP_PX = 28;
 
@@ -95,7 +96,8 @@ async function savePlan(page: Page): Promise<string> {
 
 async function newPlan(page: Page): Promise<void> {
   page.once('dialog', (dialog) => void dialog.accept());
-  await page.getByRole('button', { name: 'Создать новый' }).click();
+  await page.getByRole('button', { name: 'Файл' }).click();
+  await page.getByRole('menuitem', { name: 'Создать новый' }).click();
   await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 }
 
@@ -160,12 +162,12 @@ function rotationHandle(centre: Screen, depth_m: number, scale: number, deg: num
   return { x: centre.x + reach * Math.sin(rad), y: centre.y - reach * Math.cos(rad) };
 }
 
-/** Масштаб холста из подписи «px/м»: округлён до целого, для одиночных проверок хватает. */
+/** Масштаб холста из подписи «Сетка … м · N %» (N — доля от `DEFAULT_SCALE`): округлён до целого px/м. */
 async function shownScale(page: Page): Promise<number> {
   const text = (await page.getByTestId('canvas-scale').textContent()) ?? '';
-  const match = /(\d+) px\/м/.exec(text);
+  const match = /(\d+)\s*%/.exec(text);
   if (match === null) throw new Error(`нет масштаба в «${text}»`);
-  return Number(match[1]);
+  return Math.round((Number(match[1]) / 100) * DEFAULT_SCALE);
 }
 
 /** Пиксели цвета подписи (#212529) внутри прямоугольника холста, по всем слоям сцены. */
@@ -277,7 +279,7 @@ test.describe('жесты над оборудованием', () => {
         return stage.findOne('.equipment-hover').find('Text').map((node) => node.text()).join('\n');
       });
       expect(text).toContain(object.label);
-      expect(text).toContain('Нажмите на сам предмет на плане — слева откроются «Свойства»');
+      expect(text).toContain('Нажмите на сам предмет на плане — справа откроются «Свойства»');
       // Паспорт объекта и находки проверки карточка не дублирует — они в
       // «Свойствах» и в панели «Проверка», по клику.
       expect(text).not.toContain(`ID: ${object.id}`);
@@ -298,7 +300,7 @@ test.describe('жесты над оборудованием', () => {
       await page.getByRole('button', { name: 'Выбор', exact: true }).focus();
       await page.screenshot({ path: `docs/verification/2026-09-29-hover-mode-${width}.png` });
       await page.keyboard.press('Enter');
-      await expect.poll(hintText).toContain('слева откроются «Свойства»');
+      await expect.poll(hintText).toContain('справа откроются «Свойства»');
       await page.mouse.click(pagePoint.x, pagePoint.y);
       await expect(card(page)).toBeVisible();
       await expect(card(page).getByLabel('Название')).toHaveValue(object.label);
@@ -354,6 +356,8 @@ test.describe('жесты над оборудованием', () => {
     const centre: Screen = { x: 420, y: 330 };
     await placeFromLibrary(page, RACK, centre.x, centre.y);
     await expect(inventoryRows(page)).toHaveCount(1);
+    // Подписи на плане выключены по умолчанию (D-362): включаем кнопкой «Подписи объектов».
+    await page.getByRole('button', { name: 'Подписи объектов' }).click();
     const scale = await shownScale(page);
     const w = 1.2 * scale;
     const h = 0.5 * scale;
@@ -538,6 +542,7 @@ test.describe('жесты над оборудованием', () => {
     const centre: Screen = { x: 420, y: 330 };
     await placeFromLibrary(page, RACK, centre.x, centre.y);
     await selectRow(page, 0);
+    await enableReshape(page);
     const width = await numberOf(page, 'Ширина, м');
     const depth = await numberOf(page, 'Глубина, м');
     const x0 = await numberOf(page, 'X, м');
@@ -734,6 +739,7 @@ test.describe('жесты над оборудованием', () => {
     const centre: Screen = { x: 420, y: 330 };
     await placeFromLibrary(page, RACK, centre.x, centre.y);
     await selectRow(page, 0);
+    await enableReshape(page);
     const width = await numberOf(page, 'Ширина, м');
     const scale = await shownScale(page);
 

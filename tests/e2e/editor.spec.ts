@@ -35,13 +35,13 @@ test.describe('сквозной сценарий редактора', () => {
     await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
     // Konva рисует по canvas на слой: сетка, план, оборудование.
     await expect(page.locator('canvas').first()).toBeVisible();
-    await expect(page.getByTestId('canvas-scale')).toContainText('px/м');
+    await expect(page.getByTestId('canvas-scale')).toContainText('Сетка');
 
     // Пустой план: инвентаризация пуста, нарушений нет.
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     // Зона: четыре точки и клик по первой, чтобы замкнуть.
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     await clickCanvas(page, 200, 180);
     await clickCanvas(page, 430, 180);
     await clickCanvas(page, 430, 360);
@@ -49,7 +49,9 @@ test.describe('сквозной сценарий редактора', () => {
     await clickCanvas(page, 200, 180);
 
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
-    await expect(page.locator('.table__link', { hasText: 'z_1' }).first()).toBeVisible();
+    // Зона выбирается кликом по её полу (в перечне зон рядом — только названия).
+    await clickCanvas(page, 300, 270);
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'z_1');
 
     // Оборудование: первый тип библиотеки внутрь нарисованной зоны.
     const placed = await placeFirstLibraryItem(page, 300, 260);
@@ -84,7 +86,8 @@ test.describe('сквозной сценарий редактора', () => {
 
     // Новый план стирает всё — это состояние, из которого открываем файл.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     // Повторное открытие: зона, объект и их идентификаторы на месте.
