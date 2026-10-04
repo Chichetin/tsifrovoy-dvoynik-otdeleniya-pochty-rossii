@@ -197,9 +197,10 @@ function canonicalObject(object: Equipment): Json {
     zoneId: object.zoneId,
     layerId: object.layerId,
     attributes: attributes(object.attributes),
-  } satisfies Omit<Record<keyof Equipment, Json>, 'outline'>;
+  } satisfies Omit<Record<keyof Equipment, Json>, 'outline' | 'locked'>;
+  const guarded = object.locked === undefined ? base : { ...base, locked: object.locked };
   // A rectangle has no outline field (D-277): a plain plan keeps its plain file.
-  return object.outline === undefined ? base : { ...base, outline: polygon(object.outline) };
+  return object.outline === undefined ? guarded : { ...guarded, outline: polygon(object.outline) };
 }
 
 function canonicalWall(wall: Wall): Json {
