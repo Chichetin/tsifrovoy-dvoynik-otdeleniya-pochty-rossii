@@ -141,6 +141,17 @@ describe('schema: точные коды отказа', () => {
     expect(codesOf(expectRefused('не json'))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
   });
 
+  test('границы числового атрибута: min ≤ max принимается, min > max отклоняется', () => {
+    const plan = loadPlan('minimal.json');
+    const zoneTypes = (plan['catalog'] as Record<string, unknown>)['zoneTypes'] as Record<string, unknown>[];
+    const load = { key: 'loadPercent', label: 'Загрузка зоны, %', type: 'number', required: false, min: 0, max: 100 };
+    zoneTypes[0]!['attributes'] = [load];
+    const accepted = expectAccepted(plan);
+    expect(accepted.catalog.zoneTypes[0]?.attributes[0]?.max).toBe(100);
+    zoneTypes[0]!['attributes'] = [{ ...load, min: 100, max: 0 }];
+    expect(codesOf(expectRefused(plan))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+  });
+
   test('полигон сверх предела вершин отклоняется', () => {
     const plan = loadPlan('minimal.json');
     const boundary = Array.from({ length: LIMITS.maxPolygonVertices + 1 }, (_, i) => [i, 0]);

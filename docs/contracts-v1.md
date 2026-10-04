@@ -39,6 +39,7 @@ type Opening = {
 type AttributeDef = {
   key: string; label: string; type: 'string' | 'number' | 'boolean';
   required: boolean; default?: string | number | boolean;
+  min?: number; max?: number; // D-373: границы для type 'number', включительно
 };
 type ObjectType = {
   id: Id; label: string; category: string; defaultSize_m: Point;
