@@ -19,6 +19,7 @@ import type { View3DProps } from '../../contracts/ui';
 import { buildScene } from './scene';
 import { hasWebgl } from './webgl';
 import { canvasRecoveryUrl } from './module-recovery';
+import { planFileName } from '../../persistence/plan-svg';
 
 let failedCanvasUrl: string | null = null;
 let loadedCanvas: typeof import('./View3DCanvas') | null = null;
@@ -46,6 +47,8 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
   // Probed once per session, not per mount: every probe costs a GPU context.
   const [webgl] = useState(hasWebgl);
   const [{ Canvas, attempt }, setLoad] = useState(() => ({ Canvas: newCanvas(), attempt: 0 }));
+  // Next to the plan's own PNG, not over it: both land in the same downloads folder.
+  const pictureName = planFileName(document, 'png').replace(/\.png$/, '-3d.png');
   const retry = () => setLoad(previous => ({ Canvas: newCanvas(true), attempt: previous.attempt + 1 }));
 
   const zonesShown = scene.prisms.filter((prism) => prism.kind === 'zone').length;
@@ -73,7 +76,7 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
                 </p>
               }
             >
-              <Canvas scene={scene} selection={selection} onSelect={onSelect} />
+              <Canvas scene={scene} selection={selection} onSelect={onSelect} fileName={pictureName} />
             </Suspense>
           </LoadFailure>
         ) : (

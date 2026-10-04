@@ -41,12 +41,14 @@ import { readPlanFile } from '../src/persistence/format';
 
 const DEMO_DIR = join(process.cwd(), 'demo');
 
-test('настенное оборудование демо смотрит от стены внутрь комнаты', () => {
+test('оборудование у стены демо смотрит от стены внутрь комнаты', () => {
   for (const name of ['before.json', 'after.json']) {
     const plan = JSON.parse(readFileSync(join(DEMO_DIR, name), 'utf8')) as PlanDocument;
     const mounts = {
       eq_5: 'w_south', eq_24: 'w_west', eq_37: 'w_east', eq_38: 'w_hall_back',
       eq_47: 'w_north', eq_48: 'w_north', eq_49: 'w_east', eq_52: 'w_staff',
+      eq_13: 'w_notch_south', eq_14: 'w_notch_south', eq_15: 'w_notch_south',
+      eq_36: 'w_storage', eq_50: 'w_north',
     };
     for (const [id, wallId] of Object.entries(mounts)) {
       const object = plan.objects.find((entry) => entry.id === id)!;

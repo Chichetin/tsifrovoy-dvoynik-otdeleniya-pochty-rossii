@@ -11,6 +11,10 @@
  * click, so picking works the same for models and boxes. Objects of one model
  * and one size share a fitted geometry and are drawn as one InstancedMesh.
  *
+ * Zone names are sprites in the same scene, not page elements: the PNG that
+ * "Скачать картинку 3D" saves is the canvas itself, so it carries them. They are
+ * kept in their own group, apart from the prisms, and never take a click.
+ *
  * Rendering is on demand: a frame is drawn after the scene changes and while
  * the camera moves, not in a loop. Every geometry, material and the renderer
  * itself are disposed on unmount.
@@ -24,6 +28,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   ACESFilmicToneMapping,
+  CanvasTexture,
   Color,
   DirectionalLight,
   EdgesGeometry,
@@ -43,6 +48,9 @@ import {
   Raycaster,
   Scene as ThreeScene,
   Shape,
+  Sprite,
+  SpriteMaterial,
+  SRGBColorSpace,
   type Texture,
   Vector2,
   Vector3,
@@ -52,9 +60,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
-import { isSelected, type Scene, type SceneModel, type ScenePrism } from './scene';
+import { isSelected, type Scene, type SceneLabel, type SceneModel, type ScenePrism } from './scene';
 
-type Props = { scene: Scene; selection: Ref | null; onSelect: (ref: Ref) => void };
+type Props = { scene: Scene; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
 
 type Stage = {
   renderer: WebGLRenderer;
@@ -65,6 +73,8 @@ type Stage = {
   group: Group;
   /** Instanced models; their geometry belongs to `fitted`, not to the meshes. */
   models: Group;
+  /** Zone name sprites; the pick ray looks at `group` only. */
+  labels: Group;
   /** Fitted geometry by model and size, kept while the scene still uses it. */
   fitted: Map<string, FittedPart[]>;
   /** Room reflections for model materials. */
@@ -97,12 +107,19 @@ const OUTLINE_LIFT_M = 0.05;
 const EDGE_ANGLE_DEG = 30;
 /** A wall in front of the camera is a hint of glass, not a screen. */
 const FADED_WALL_OPACITY = 0.12;
+/** Zone name: texture pixels per metre and the font in the same pixels (≈ 0,33 м высота букв). */
+const LABEL_PX_PER_M = 80;
+const LABEL_FONT_PX = 26;
+const LABEL_PAD_PX = 8;
+const LABEL_COLOR = '#343A40';
+/** Names are drawn after everything, so a wall or a shelf never hides one. */
+const LABEL_ORDER = 10;
 /** Share of the room environment in the light: reflections without washing out. */
 const ENVIRONMENT_INTENSITY = 0.5;
 /** Shadow map side: 2048 keeps the edges soft but not blurry on a 15 m room. */
 const SHADOW_MAP = 2048;
 
-export default function View3DCanvas({ scene, selection, onSelect }: Props): React.JSX.Element {
+export default function View3DCanvas({ scene, selection, onSelect, fileName }: Props): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const framed = useRef<string | null>(null);
@@ -116,6 +133,7 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
   const [generation, setGeneration] = useState(0);
   // Счётчик загрузок моделей: файл пришёл — коробки меняются на модели.
   const [modelsLoaded, setModelsLoaded] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const container = host.current;
@@ -178,8 +196,10 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
       current.group.add(...prismMeshes(prism, isSelected(prism, selection), drawn !== undefined));
     }
     placeModels(current, placed);
+    placeLabels(current.labels, scene.labels);
     // Machine-readable, like the section's counts: objects that stand as models.
     current.renderer.domElement.dataset['modelsCount'] = String(placed.length);
+    current.renderer.domElement.dataset['labelsCount'] = String(current.labels.children.length);
     // Re-frame only when the room changes: moving an object must not yank the
     // camera the user has just placed.
     const key = JSON.stringify([scene.bounds, scene.ceilingHeight_m]);
@@ -190,6 +210,26 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
     current.render();
     // `generation` — новая сцена на новом контексте: её надо наполнить заново.
   }, [scene, selection, generation, lost, modelsLoaded]);
+
+  const savePicture = (): void => {
+    const current = stage.current;
+    if (!current) return;
+    // A canvas keeps its picture only until the frame is shown: draw, then read at once.
+    current.render();
+    current.renderer.domElement.toBlob((blob) => {
+      if (blob === null) {
+        setSaveError('Картинка 3D не собралась: холст вернул пустой файл. План и вид не изменились, можно повторить.');
+        return;
+      }
+      setSaveError(null);
+      const url = URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  };
 
   return (
     <>
@@ -206,6 +246,18 @@ export default function View3DCanvas({ scene, selection, onSelect }: Props): Rea
         ref={host}
         style={lost ? { display: 'none' } : undefined}
       />
+      {lost ? null : (
+        <div className="view3d__tools">
+          <button type="button" className="files__button" onClick={savePicture}>
+            Скачать картинку 3D
+          </button>
+          {saveError === null ? null : (
+            <p className="view3d__status" role="alert" data-testid="view3d-save-error">
+              {saveError}
+            </p>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -244,7 +296,8 @@ function createStage(container: HTMLDivElement): Stage {
 
   const group = new Group();
   const models = new Group();
-  world.add(group, models);
+  const labels = new Group();
+  world.add(group, models, labels);
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = false;
@@ -262,6 +315,7 @@ function createStage(container: HTMLDivElement): Stage {
     sun,
     group,
     models,
+    labels,
     fitted: new Map(),
     environment,
     render,
@@ -269,6 +323,7 @@ function createStage(container: HTMLDivElement): Stage {
       controls.removeEventListener('change', render);
       controls.dispose();
       clearGroup(group);
+      placeLabels(labels, []);
       placeModels(stage, []);
       environment.dispose();
       renderer.dispose();
@@ -482,6 +537,79 @@ function placeModels(stage: Stage, placed: { model: SceneModel; base_m: number }
     if (!fitted.has(key)) parts.forEach((part) => part.geometry.dispose());
   }
   stage.fitted = fitted;
+}
+
+/** Replaces the zone names. A texture is the sprite's own: it goes with the sprite. */
+function placeLabels(group: Group, labels: SceneLabel[]): void {
+  for (const child of [...group.children]) {
+    if (child instanceof Sprite) {
+      child.material.map?.dispose();
+      child.material.dispose();
+    }
+    group.remove(child);
+  }
+  for (const label of labels) {
+    const sprite = labelSprite(label);
+    if (sprite !== null) group.add(sprite);
+  }
+}
+
+/** Lines that fit `maxWidth`; one word longer than that stays on its own line. */
+function wrapLine(context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/u)) {
+    const next = line === '' ? word : `${line} ${word}`;
+    if (line !== '' && context.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  return line === '' ? lines : [...lines, line];
+}
+
+/**
+ * The name (and the heat reading under it) drawn to a canvas, uppercase as on the
+ * 2D plan, with a white halo so it reads on any floor colour. A name wider than
+ * its zone shrinks to fit rather than run over the neighbours.
+ */
+function labelSprite(label: SceneLabel): Sprite | null {
+  const canvas = window.document.createElement('canvas');
+  const context = canvas.getContext('2d');
+  if (context === null) return null;
+  const font = `600 ${LABEL_FONT_PX}px system-ui, sans-serif`;
+  const maxWidth = label.width_m * LABEL_PX_PER_M;
+  context.font = font;
+  const lines = wrapLine(context, label.text.toLocaleUpperCase('ru'), maxWidth);
+  if (label.value !== undefined) lines.push(label.value);
+  const lineHeight = LABEL_FONT_PX * 1.2;
+  const widest = Math.max(...lines.map((line) => context.measureText(line).width));
+  canvas.width = Math.ceil(widest + LABEL_PAD_PX * 2);
+  canvas.height = Math.ceil(lines.length * lineHeight + LABEL_PAD_PX * 2);
+  // A resized canvas forgets its state.
+  context.font = font;
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.lineJoin = 'round';
+  context.lineWidth = 6;
+  context.strokeStyle = '#FFFFFF';
+  context.fillStyle = LABEL_COLOR;
+  lines.forEach((line, index) => {
+    const y = LABEL_PAD_PX + lineHeight * (index + 0.5);
+    context.strokeText(line, canvas.width / 2, y);
+    context.fillText(line, canvas.width / 2, y);
+  });
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  const sprite = new Sprite(new SpriteMaterial({ map: texture, depthTest: false, depthWrite: false, toneMapped: false }));
+  const fit = Math.min(1, maxWidth / widest);
+  sprite.scale.set((canvas.width / LABEL_PX_PER_M) * fit, (canvas.height / LABEL_PX_PER_M) * fit, 1);
+  sprite.position.set(label.center[0], label.center[1], label.z_m);
+  sprite.renderOrder = LABEL_ORDER;
+  sprite.name = `label:${label.ref.id}`;
+  return sprite;
 }
 
 /**

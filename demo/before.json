@@ -781,7 +781,7 @@
         1.4,
         0.8
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0,
       "height_m": 0.75,
       "zoneId": "z_client",
@@ -805,7 +805,7 @@
         1.4,
         0.8
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0,
       "height_m": 0.75,
       "zoneId": "z_client",
@@ -829,7 +829,7 @@
         1.4,
         0.8
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0,
       "height_m": 0.75,
       "zoneId": "z_client",
@@ -853,7 +853,7 @@
         0.4,
         0.45
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.45,
       "zoneId": "z_client",
@@ -875,7 +875,7 @@
         0.4,
         0.45
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.45,
       "zoneId": "z_client",
@@ -897,7 +897,7 @@
         0.4,
         0.45
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.45,
       "zoneId": "z_client",
@@ -919,7 +919,7 @@
         0.2,
         0.3
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.2,
       "zoneId": "z_client",
@@ -941,7 +941,7 @@
         0.2,
         0.3
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.2,
       "zoneId": "z_client",
@@ -963,7 +963,7 @@
         0.2,
         0.3
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.2,
       "zoneId": "z_client",
@@ -985,7 +985,7 @@
         0.4,
         0.35
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.12,
       "zoneId": "z_client",
@@ -1008,7 +1008,7 @@
         0.25,
         0.2
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0.75,
       "height_m": 0.2,
       "zoneId": "z_client",
@@ -1628,7 +1628,7 @@
         1,
         0.4
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0,
       "height_m": 1.8,
       "zoneId": "z_back",
@@ -2267,7 +2267,7 @@
         1.6,
         0.5
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 0,
       "height_m": 0.45,
       "zoneId": "z_staff",

@@ -17,6 +17,7 @@ import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model'
 import type { InformationLayerProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
 import { modelToScreen, viewSector } from '../../domain/geometry';
+import { heatColor } from '../../domain/heat-color';
 import { labelWidth, placeLabels, type Box } from './label-layout';
 import { formatValue, legendLine, legendOf } from './legend';
 import { heatRegions } from './heat-regions';
@@ -38,18 +39,6 @@ function numberAttribute(
 ): number | null {
   const value = attributes[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
-}
-
-/** Линейная смесь двух цветов #RRGGBB: 0 — первый, 1 — второй. */
-function mixColors(from: string, to: string, ratio: number): string {
-  const channel = (hex: string, at: number): number => parseInt(hex.slice(at, at + 2), 16);
-  const blend = (at: number): string => {
-    const value = Math.round(channel(from, at) + (channel(to, at) - channel(from, at)) * ratio);
-    return Math.min(Math.max(value, 0), 255)
-      .toString(16)
-      .padStart(2, '0');
-  };
-  return `#${blend(1)}${blend(3)}${blend(5)}`;
 }
 
 /** Colour that stands for the layer in its labels and in the canvas legend. */
@@ -144,7 +133,6 @@ export function InformationLayer({
       if (representation.kind === 'zone-heat') {
         // Deepest zone with a value paints each point; nested zones are holes (D-138).
         for (const region of heatRegions(plan.zones, representation.attribute)) {
-          const ratio = Math.min(Math.max(region.value / representation.max, 0), 1);
           const rings = region.rings.map(ring);
           fills.push(
             <Shape
@@ -161,7 +149,7 @@ export function InformationLayer({
                 }
                 context.fillStrokeShape(shape);
               }}
-              fill={mixColors(representation.colors[0], representation.colors[1], ratio)}
+              fill={heatColor(representation.colors, region.value, representation.max)}
               opacity={0.7}
               listening={false}
             />,

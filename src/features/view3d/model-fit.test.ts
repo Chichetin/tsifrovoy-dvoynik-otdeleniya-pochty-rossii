@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import type { Equipment, ObjectType, PlanDocument } from '../../contracts/model';
+import type { Equipment, ObjectType, PlanDocument, Zone } from '../../contracts/model';
 import { footprint } from '../../domain/geometry';
 import { fitPositions, track, type Fit } from './model-fit';
 import { buildScene } from './scene';
@@ -44,14 +44,14 @@ describe('модель на плане', () => {
   test('повёрнутая модель стоит углом в угол своего следа', () => {
     const type = { id: 'ot_desk', model3d: 'workplace', symbol: 'rect' } as ObjectType;
     const desk = {
-      id: 'eq_1', typeId: 'ot_desk', position: [3, 2], size_m: [1.4, 0.8], rotation_deg: 37,
+      id: 'eq_1', typeId: 'ot_desk', label: 'Стол', position: [3, 2], size_m: [1.4, 0.8], rotation_deg: 37,
       base_m: 0, height_m: 0.75, layerId: 'l_1',
     } as Equipment;
     const plan = {
       room: { id: 'r', boundary: [[0, 0], [6, 0], [6, 6]], ceilingHeight_m: 3 },
       zones: [], walls: [], openings: [], objects: [desk],
       layers: [{ id: 'l_1', visible: true }],
-      catalog: { objectTypes: [type], zoneTypes: [] },
+      catalog: { objectTypes: [type], zoneTypes: [], layerTypes: [] },
     } as unknown as PlanDocument;
 
     const model = buildScene(plan).prisms.find((prism) => prism.kind === 'object')?.model;
@@ -60,5 +60,34 @@ describe('модель на плане', () => {
     const corner = [0, 1].map((i) => model.center[i]! + model.xAxis[i]! * 0.7 + model.yAxis[i]! * 0.4);
     const corners = footprint(desk).map(([x, y]) => [Number(x.toFixed(9)), Number(y.toFixed(9))]);
     expect(corners).toContainEqual(corner.map((value) => Number(value.toFixed(9))));
+  });
+});
+
+describe('слой тепла на полу', () => {
+  const heatType = {
+    id: 'lt_heat',
+    representation: { kind: 'zone-heat', attribute: 'load', unit: '%', max: 100, colors: ['#000000', '#FFFFFF'] },
+  };
+  const zone = (id: string, parentId: string | null, attributes: Zone['attributes']) =>
+    ({ id, name: id, typeId: 'zt', parentId, layerId: 'l_base', polygon: [[0, 0], [4, 0], [4, 4]], attributes }) as unknown as Zone;
+  const planWith = (heatVisible: boolean) =>
+    ({
+      room: { id: 'r', boundary: [[0, 0], [6, 0], [6, 6]], ceilingHeight_m: 3 },
+      zones: [zone('z_hall', null, { load: 50 }), zone('z_desk', 'z_hall', {})],
+      walls: [], openings: [], objects: [],
+      layers: [
+        { id: 'l_base', typeId: '', visible: true, order: 0 },
+        { id: 'l_heat', typeId: 'lt_heat', visible: heatVisible, order: 1 },
+      ],
+      catalog: { objectTypes: [], zoneTypes: [{ id: 'zt', color: '#123456' }], layerTypes: [heatType] },
+    }) as unknown as PlanDocument;
+  const colors = (plan: PlanDocument) =>
+    Object.fromEntries(buildScene(plan).prisms.filter((prism) => prism.kind === 'zone').map((prism) => [prism.ref.id, prism.color]));
+
+  test('зона без значения берёт цвет и число ближайшего родителя, скрытый слой цвет не меняет', () => {
+    expect(colors(planWith(true))).toEqual({ z_hall: '#808080', z_desk: '#808080' });
+    expect(buildScene(planWith(true)).labels.map((label) => label.value)).toEqual(['50\u00A0%', '50\u00A0%']);
+    expect(colors(planWith(false))).toEqual({ z_hall: '#123456', z_desk: '#123456' });
+    expect(buildScene(planWith(false)).labels.map((label) => label.value)).toEqual([undefined, undefined]);
   });
 });
