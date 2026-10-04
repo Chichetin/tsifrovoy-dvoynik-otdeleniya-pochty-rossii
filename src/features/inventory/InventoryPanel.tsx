@@ -66,20 +66,20 @@ export type InventoryPanelViewProps = InventoryPanelProps & { document?: PlanDoc
  * The summary lives in styles owned by another stream, so its two rules are
  * inline — the same way the library paints its colour swatch.
  */
-const LIST_STYLE = { margin: '0 0 8px', padding: 0, listStyle: 'none' } as const;
+const LIST_STYLE = { margin: '0 0 0.5rem', padding: 0, listStyle: 'none' } as const;
 
 const CHIP_STYLE = {
   display: 'flex',
   justifyContent: 'space-between',
-  gap: '8px',
+  gap: '0.5rem',
   width: '100%',
-  padding: '3px 6px',
+  padding: '0.1875rem 0.375rem',
   // Longhand on purpose: React warns when a shorthand `border` and the
   // `borderColor` of the selected state replace each other between renders.
   borderWidth: '1px',
   borderStyle: 'solid',
   borderColor: 'transparent',
-  borderRadius: '5px',
+  borderRadius: '0.3125rem',
   background: 'none',
   font: 'inherit',
   textAlign: 'left',
@@ -115,7 +115,7 @@ const STICKY_HEAD_STYLE = {
 const SORT_BUTTON_STYLE = {
   display: 'flex',
   justifyContent: 'space-between',
-  gap: '4px',
+  gap: '0.25rem',
   width: '100%',
   padding: 0,
   border: 'none',
@@ -126,7 +126,7 @@ const SORT_BUTTON_STYLE = {
   cursor: 'pointer',
 } as const;
 
-const EXPORT_ROW_STYLE = { display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' } as const;
+const EXPORT_ROW_STYLE = { display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.25rem 0' } as const;
 
 /**
  * Both groups — types and the object list — start collapsed at the same
@@ -186,13 +186,13 @@ function columnWidths(extra: number): number[] {
   return widths;
 }
 
-const COLUMN_PICKER_STYLE = { margin: '4px 0' } as const;
+const COLUMN_PICKER_STYLE = { margin: '0.25rem 0' } as const;
 const FIELDSET_STYLE = { border: 'none', margin: 0, padding: 0 } as const;
 const COLUMN_LIST_STYLE = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(10em, 1fr))',
-  gap: '2px 8px',
-  margin: '4px 0',
+  gap: '0.125rem 0.5rem',
+  margin: '0.25rem 0',
 } as const;
 
 /**

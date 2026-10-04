@@ -179,8 +179,10 @@ test.describe('развёрнутый сервис', () => {
       buffer: Buffer.from(fixture, 'utf8'),
     });
 
-    // В перечне зона видна по идентификатору, объект — по подписи из файла.
-    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    // В перечне зона и объект видны по названиям из файла; id — в подсказке.
+    await expect(
+      page.getByLabel('Инвентаризация').locator('.table__link', { hasText: 'Клиентская зона' }).first(),
+    ).toBeVisible();
     await expect(
       page.getByLabel('Инвентаризация').locator('.table__link', { hasText: 'Рабочее место 1' }),
     ).toBeVisible();

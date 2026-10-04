@@ -229,7 +229,7 @@ export function ValidationPanel({
                       <p className="issues__message">
                         <strong>{subject}</strong> — нарушений: {group.issues.length}
                       </p>
-                      <ul className="issues__group" style={{ margin: '0 0 4px', paddingLeft: 18 }}>
+                      <ul className="issues__group" style={{ margin: '0 0 0.25rem', paddingLeft: '1.125rem' }}>
                         {group.issues.map((issue, line) => (
                           <li key={`${issue.code}-${line}`} className="issues__message">
                             <FindingMessage message={issue.message} />

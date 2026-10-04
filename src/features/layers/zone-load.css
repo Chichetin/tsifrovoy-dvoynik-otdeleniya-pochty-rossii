@@ -1,13 +1,13 @@
 /* #15: zones of a heat layer ranked by value (LayersPanel). */
 
 .zone-load {
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
 }
 
 .zone-load__caption {
-  margin: 0 0 2px;
-  padding: 0 4px;
+  margin: 0 0 0.125rem;
+  padding: 0 0.25rem;
   color: var(--muted);
 }
 
@@ -20,10 +20,10 @@
 .zone-load__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 6px;
+  column-gap: 0.375rem;
   align-items: baseline;
-  padding: 2px 4px 3px;
-  border-radius: 4px;
+  padding: 0.125rem 0.25rem 0.1875rem;
+  border-radius: 0.25rem;
 }
 
 /* The busiest zone stands out without reading the numbers. */
@@ -53,10 +53,10 @@
 .zone-load__bar {
   grid-column: 1 / -1;
   display: block;
-  height: 4px;
-  margin-top: 2px;
+  height: 0.25rem;
+  margin-top: 0.125rem;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: 0.125rem;
 }
 
 .zone-load__bar > span {
@@ -65,9 +65,9 @@
 }
 
 .zone-load__flag {
-  margin-left: 4px;
-  padding: 0 4px;
-  border-radius: 3px;
+  margin-left: 0.25rem;
+  padding: 0 0.25rem;
+  border-radius: 0.1875rem;
   background: var(--color-danger-soft);
   color: var(--color-danger);
   font-weight: 600;

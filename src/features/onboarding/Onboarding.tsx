@@ -24,6 +24,7 @@ export type OnboardingProps = {
 
 /** The ring stands this far outside the panel, px. */
 const RING_PAD = 4;
+/** Width of the card in px for the first layout; the card itself is 22.5 rem wide. */
 const CARD_WIDTH = 360;
 const MASK_ID = 'onboarding-mask';
 
@@ -153,7 +154,7 @@ function TourCard({ onClose, steps, onOpenDemo }: Omit<OnboardingProps, 'open' |
         aria-describedby="onboarding-text"
         tabIndex={-1}
         className="onboarding__card"
-        style={{ left: position.left, top: position.top, width: CARD_WIDTH }}
+        style={{ left: position.left, top: position.top, width: '22.5rem' }}
       >
         <p className="onboarding__count">
           Шаг {step + 1} из {steps.length}

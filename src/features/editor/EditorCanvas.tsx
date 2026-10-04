@@ -24,6 +24,7 @@ import { focusViewport, planExtent, refExtent } from './focus';
 import { isFitHotkey, isTypingTarget } from './hotkeys';
 import {
   type CanvasSize,
+  DEFAULT_SCALE,
   fitToExtent,
   gridLines,
   panBy,
@@ -535,8 +536,12 @@ export function EditorCanvas({
           накладкой, — это угол помещения, куда не поставить объект. */}
       {grid === null ? null : (
         <div className="editor-canvas__hud">
-          <p className="editor-canvas__scale" data-testid="canvas-scale">
-            Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
+          <p
+            className="editor-canvas__scale"
+            data-testid="canvas-scale"
+            title={`${Math.round(session.viewport.scale)} px/м; 100 % — масштаб, с которого открывается пустой план`}
+          >
+            Сетка {grid.step_m} м · {Math.round((session.viewport.scale / DEFAULT_SCALE) * 100)} %
           </p>
           <button
             type="button"

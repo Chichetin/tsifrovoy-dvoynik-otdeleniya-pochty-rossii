@@ -27,28 +27,28 @@
   --color-focus: #0b5cad;
 
   /* Spacing, radii by hierarchy, type scale (nothing below 12 px). */
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --radius-s: 3px;
-  --radius-m: 5px;
-  --radius-l: 8px;
-  --text-xs: 12px;
-  --text-s: 13px;
-  --text-m: 14px;
-  --text-l: 16px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --radius-s: 0.1875rem;
+  --radius-m: 0.3125rem;
+  --radius-l: 0.5rem;
+  --text-xs: 0.75rem;
+  --text-s: 0.8125rem;
+  --text-m: 0.875rem;
+  --text-l: 1rem;
   --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Liberation Sans", sans-serif;
   --font-code: ui-monospace, "Cascadia Code", "DejaVu Sans Mono", monospace;
   --motion-fast: 120ms;
 
   /* Shell geometry: the header never changes height with its content. */
-  --bar-row: 48px;
-  --strip-row: 28px;
-  --control-h: 30px;
-  --side-left: 260px;
-  --side-right: 340px;
+  --bar-row: 3rem;
+  --strip-row: 1.75rem;
+  --control-h: 1.875rem;
+  --side-left: 16.25rem;
+  --side-right: 21.25rem;
 
   /* Aliases kept for module blocks. */
   --ink: var(--color-ink);
@@ -67,8 +67,21 @@
   box-sizing: border-box;
 }
 
+/* #105: every size of the interface is in rem, and the root grows with the
+   window: 16 px at 1280 px wide, 18 px at 1920 px, 14 px at the least. The
+   rem part keeps browser zoom and a changed default font size working — a
+   root that depended on `vw` alone would not grow when the page is zoomed.
+   The plan on the canvas stays in model units: it is fitted to the canvas,
+   not scaled with the font. Hairlines (1 px borders) and focus rings stay px. */
+html {
+  font-size: clamp(0.875rem, 0.75rem + 0.3125vw, 1.375rem);
+}
+
 body {
   margin: 0;
+  /* One screen, panels scroll inside: a fractional rem must not give the page
+     a stray one-pixel scroll of its own. */
+  overflow: hidden;
   background: var(--color-ground);
   color: var(--color-ink);
   font: var(--text-m) / 1.45 var(--font-ui);
@@ -91,7 +104,7 @@ body {
 }
 
 :where(select, textarea, input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'])) {
-  padding: 3px 6px;
+  padding: 0.1875rem 0.375rem;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-s);
   background: var(--color-surface);
@@ -167,7 +180,7 @@ body {
   color: var(--color-muted);
   font-size: var(--text-xs);
   font-weight: 500;
-  line-height: 14px;
+  line-height: 0.875rem;
 }
 
 .shell__doc {
@@ -179,10 +192,10 @@ body {
 
 .shell__doc-name,
 .shell__doc-input {
-  max-width: 240px;
-  height: 24px;
-  margin-left: -3px;
-  padding: 0 2px;
+  max-width: 15rem;
+  height: 1.5rem;
+  margin-left: -0.1875rem;
+  padding: 0 0.125rem;
   border: 1px solid transparent;
   border-radius: var(--radius-s);
   background: transparent;
@@ -203,7 +216,7 @@ body {
 }
 
 .shell__doc-input {
-  width: 240px;
+  width: 15rem;
   border-color: var(--color-accent);
   background: var(--color-surface);
 }
@@ -219,8 +232,8 @@ body {
 
 .shell__doc-hint {
   position: absolute;
-  top: calc(100% + 6px);
-  left: -3px;
+  top: calc(100% + 0.375rem);
+  left: -0.1875rem;
   z-index: 20;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-danger);
@@ -234,7 +247,7 @@ body {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   color: var(--color-success);
   font-size: var(--text-xs);
   line-height: 1;
@@ -258,8 +271,8 @@ body {
    tooltip — the header has no width for a visible «Настройки». */
 .shell__quiet.shell__settings {
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   padding: 0;
   color: var(--color-muted);
 }
@@ -301,14 +314,14 @@ body {
 
 .shell__history {
   display: flex;
-  gap: 2px;
+  gap: 0.125rem;
 }
 
 /* Quiet buttons: history actions sit beside the work, not on top of it. */
 .shell__quiet {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   height: var(--control-h);
   padding: 0 var(--space-2);
   border: 1px solid transparent;
@@ -328,8 +341,8 @@ body {
 
 .shell__icon {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;
@@ -350,9 +363,9 @@ body {
   z-index: 26;
   display: flex;
   gap: var(--space-2);
-  max-width: min(560px, 60%);
+  max-width: min(35rem, 60%);
   margin: 0;
-  padding: 6px 10px;
+  padding: 0.375rem 0.625rem;
   /* A plaque over the canvas must not steal the next click on the plan. */
   pointer-events: none;
   border: 1px solid var(--color-danger);
@@ -369,13 +382,13 @@ body {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   margin-top: 1px;
   border-radius: 50%;
   background: var(--color-danger);
   color: var(--color-surface);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -390,9 +403,9 @@ body {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  margin: 0 -4px 0 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0 -0.25rem 0 0;
   padding: 0;
   pointer-events: auto;
   cursor: pointer;
@@ -400,7 +413,7 @@ body {
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--color-danger);
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1;
 }
 
@@ -410,7 +423,7 @@ body {
 
 .shell__body {
   display: grid;
-  grid-template-columns: var(--side-left) 8px minmax(0, 1fr) 8px var(--side-right);
+  grid-template-columns: var(--side-left) 0.5rem minmax(0, 1fr) 0.5rem var(--side-right);
   flex: 1;
   min-height: 0;
 }
@@ -426,10 +439,10 @@ body {
 .shell__resize::after {
   position: absolute;
   top: 50%;
-  left: 3px;
-  width: 2px;
-  height: 36px;
-  border-radius: 2px;
+  left: 0.1875rem;
+  width: 0.125rem;
+  height: 2.25rem;
+  border-radius: 0.125rem;
   background: var(--color-line-strong);
   content: '';
   transform: translateY(-50%);
@@ -481,14 +494,14 @@ body {
 
 .shell__plan-only-toggle {
   position: absolute;
-  top: calc(var(--strip-row) + 12px);
-  right: 12px;
+  top: calc(var(--strip-row) + 0.75rem);
+  right: 0.75rem;
   z-index: 20;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  padding: 6px;
+  width: 2.125rem;
+  height: 2.125rem;
+  padding: 0.375rem;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-m);
   background: rgb(255 255 255 / 94%);
@@ -497,16 +510,16 @@ body {
 }
 
 .shell--plan-only .shell__plan-only-toggle {
-  top: 12px;
+  top: 0.75rem;
 }
 
 /* Under the «show only the plan» button; D-362. */
 .shell__captions-toggle {
-  top: calc(var(--strip-row) + 52px);
+  top: calc(var(--strip-row) + 3.25rem);
 }
 
 .shell--plan-only .shell__captions-toggle {
-  top: 52px;
+  top: 3.25rem;
 }
 
 .shell__plan-only-toggle:hover,
@@ -515,8 +528,8 @@ body {
 }
 
 .shell__plan-only-toggle svg {
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
@@ -533,30 +546,30 @@ body {
    симметрии, кликом в занятый угол объект не поставишь. */
 .editor-canvas__hud {
   position: absolute;
-  right: 12px;
-  bottom: 12px;
+  right: 0.75rem;
+  bottom: 0.75rem;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 /* Bottom-left of the canvas, away from the scale and «Вписать» in the right
    corner; it never takes a click meant for the plan. */
 .canvas-status {
   position: absolute;
-  bottom: 12px;
-  left: 12px;
+  bottom: 0.75rem;
+  left: 0.75rem;
   z-index: 10;
   display: flex;
   flex-wrap: wrap;
-  gap: 0 12px;
+  gap: 0 0.75rem;
   /* Leaves the right corner to the scale and «Вписать». */
-  max-width: calc(100% - 300px);
-  padding: 2px 8px;
-  border-radius: 4px;
+  max-width: calc(100% - 18.75rem);
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
   background: rgb(255 255 255 / 85%);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
   white-space: nowrap;
@@ -569,30 +582,30 @@ body {
 
 .editor-canvas__scale {
   margin: 0;
-  padding: 2px 8px;
-  border-radius: 4px;
+  padding: 0.125rem 0.5rem;
+  border-radius: 0.25rem;
   background: rgb(255 255 255 / 85%);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 /* Вписывание — действие вида, а не документа, поэтому кнопка живёт на холсте
    рядом с масштабом, а не в панели инструментов плана. */
 .editor-canvas__fit {
-  padding: 5px 10px;
+  padding: 0.3125rem 0.625rem;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 0.3125rem;
   background: rgb(255 255 255 / 92%);
   color: inherit;
   font: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
 .editor-canvas__zoom {
-  min-width: 28px;
+  min-width: 1.75rem;
   padding-inline: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1;
 }
 
@@ -628,9 +641,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 0.375rem;
   min-height: var(--control-h);
-  padding: 0 10px;
+  padding: 0 0.625rem;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-m);
   background: var(--color-surface);
@@ -653,8 +666,8 @@ body {
 
 .toolbar__icon {
   flex: none;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.4;
@@ -735,9 +748,9 @@ body {
   left: calc(var(--side-left) + var(--space-3));
   z-index: 1;
   display: grid;
-  gap: 2px;
-  max-width: min(440px, calc((100vw - var(--side-left) - var(--side-right)) * 0.4));
-  padding: 6px 10px;
+  gap: 0.125rem;
+  max-width: min(27.5rem, calc((100vw - var(--side-left) - var(--side-right)) * 0.4));
+  padding: 0.375rem 0.625rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-m);
   background: rgb(255 255 255 / 94%);
@@ -753,16 +766,16 @@ body {
 
 .drawing-controls {
   display: grid;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 10px;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.625rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-m);
   background: var(--color-surface);
   font-size: var(--text-xs);
 }
-.drawing-controls__actions { display: flex; flex-direction: column; gap: 6px; }
-.drawing-controls__actions .files__button { padding: 5px 8px; white-space: normal; }
+.drawing-controls__actions { display: flex; flex-direction: column; gap: 0.375rem; }
+.drawing-controls__actions .files__button { padding: 0.3125rem 0.5rem; white-space: normal; }
 .drawing-controls__actions .files__button:first-child:not(:disabled) { background: var(--color-accent); color: white; border-color: var(--color-accent); }
 
 .toolbar__note.is-notice {
@@ -773,16 +786,16 @@ body {
   content: '!' / '';
   display: inline-grid;
   place-items: center;
-  width: 14px;
-  height: 14px;
-  margin-right: 6px;
+  width: 0.875rem;
+  height: 0.875rem;
+  margin-right: 0.375rem;
   border-radius: 50%;
   background: var(--color-danger);
   color: var(--color-surface);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;
-  vertical-align: -2px;
+  vertical-align: -0.125rem;
 }
 
 /* View switch: same segmented look as the tools, smaller set. */
@@ -792,7 +805,7 @@ body {
 
 .shell__view .files__button {
   position: relative;
-  min-width: 40px;
+  min-width: 2.5rem;
   border-radius: 0;
 }
 
@@ -811,7 +824,7 @@ body {
   grid-column: 7;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 /* D-255: «Экспорт» — одна кнопка на обе картинки (PNG, SVG); план файлом
@@ -823,13 +836,13 @@ body {
 
 .files__menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + 0.25rem);
   right: 0;
   z-index: 30;
   display: flex;
-  min-width: 232px;
+  min-width: 14.5rem;
   flex-direction: column;
-  padding: 4px;
+  padding: 0.25rem;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-m);
   background: var(--color-surface);
@@ -843,15 +856,15 @@ body {
 
 .files__menu-caption {
   display: block;
-  margin-top: 4px;
-  padding: 6px 10px 2px;
+  margin-top: 0.25rem;
+  padding: 0.375rem 0.625rem 0.125rem;
   border-top: 1px solid var(--color-line);
   color: var(--color-muted);
   font-size: var(--text-s);
 }
 
 .files__menu-item {
-  padding: 7px 10px;
+  padding: 0.4375rem 0.625rem;
   border: none;
   border-radius: var(--radius-s);
   background: transparent;
@@ -898,7 +911,7 @@ body {
   border: 3px dashed var(--color-accent-strong);
   background: rgb(25 113 194 / 12%);
   color: var(--color-accent-strong);
-  font-size: 22px;
+  font-size: 1.375rem;
   font-weight: 600;
   pointer-events: none;
 }
@@ -919,7 +932,7 @@ body {
   position: absolute;
   top: var(--bar-row);
   left: var(--space-4);
-  width: 190px;
+  width: 11.875rem;
   height: var(--strip-row);
   overflow: hidden;
   color: var(--color-ink);
@@ -930,9 +943,9 @@ body {
 .files > .files__status::before {
   content: '';
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  margin-right: 6px;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.375rem;
   border: 1.5px solid var(--color-muted);
   border-radius: 50%;
   vertical-align: 0;
@@ -970,7 +983,7 @@ body {
   gap: var(--space-4);
   min-width: 0;
   min-height: var(--strip-row);
-  padding: 2px var(--space-3);
+  padding: 0.125rem var(--space-3);
   /* Пустое место плашки не забирает клик по плану под ней; сами сообщения
      кликабельны — у ошибки есть «×», у списка полей — раскрытие. */
   pointer-events: none;
@@ -1007,7 +1020,7 @@ body {
   top: calc(100% + var(--space-1));
   left: 0;
   z-index: 10;
-  width: min(520px, 60vw);
+  width: min(32.5rem, 60vw);
   max-height: 50vh;
   margin: 0;
   padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
@@ -1022,11 +1035,11 @@ body {
 
 .files__error {
   display: flex;
-  gap: 6px;
+  gap: 0.375rem;
   flex: 1 1 auto;
-  min-width: 240px;
+  min-width: 15rem;
   margin: 0;
-  padding: 3px 0;
+  padding: 0.1875rem 0;
   color: var(--color-danger);
   font-size: var(--text-xs);
   white-space: normal;
@@ -1037,13 +1050,13 @@ body {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 14px;
-  height: 14px;
+  width: 0.875rem;
+  height: 0.875rem;
   margin-top: 1px;
   border-radius: 50%;
   background: var(--color-danger);
   color: var(--color-surface);
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   line-height: 1;
 }
@@ -1058,15 +1071,15 @@ body {
   flex: none;
   display: inline-grid;
   place-items: center;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   padding: 0;
   cursor: pointer;
   border: 0;
   border-radius: var(--radius-s);
   background: transparent;
   color: var(--color-danger);
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1;
 }
 
@@ -1090,7 +1103,7 @@ body {
   top: calc(100% + var(--space-1));
   left: 0;
   z-index: 10;
-  width: min(520px, 60vw);
+  width: min(32.5rem, 60vw);
   max-height: 50vh;
   margin: 0;
   padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
@@ -1135,12 +1148,12 @@ body {
 
   .shell__doc-name,
   .shell__doc-input {
-    max-width: 200px;
+    max-width: 12.5rem;
     font-size: var(--text-s);
   }
 
   .shell__doc-input {
-    width: 200px;
+    width: 12.5rem;
   }
 
   .files > .files__status {
@@ -1148,7 +1161,7 @@ body {
   }
 
   .shell__view .files__button {
-    min-width: 36px;
+    min-width: 2.25rem;
   }
 
   .toolbar__button:not([aria-pressed]) {
@@ -1180,11 +1193,11 @@ body {
   /* D-260: the header hotkeys button costs one more grid column. */
   .shell__doc-name,
   .shell__doc-input {
-    max-width: 160px;
+    max-width: 10rem;
   }
 
   .shell__doc-input {
-    width: 160px;
+    width: 10rem;
   }
 }
 
@@ -1199,11 +1212,11 @@ body {
   .shell__bar { column-gap: var(--space-1); padding-inline: var(--space-1); }
   /* #6: «Сохранить» added a fifth file button; 3 px less padding per side
      returns the slack the delete icon and Linux fonts need (D-316). */
-  .files .files__button { padding-inline: 7px; }
+  .files .files__button { padding-inline: 0.4375rem; }
 }
 
 @media (max-width: 1500px) {
-  .toolbar__group-gap { margin-inline: 2px; }
+  .toolbar__group-gap { margin-inline: 0.125rem; }
   /* D-319: D-316's 20 px slack still fell to 15.2/13.5 px on Linux system
      fonts. One more pixel off each side of a tool button's padding buys
      12 px back across the six labelled tools above the 44 px floor, without
@@ -1212,7 +1225,7 @@ body {
      icon-only «Удалить перегородку» renders 44×30 px here (was 30×30 on
      main) and «Зона» 44 px (was ~40 px natural) — a wider hit target, not a
      regression; button height stays 30 px everywhere, unchanged. */
-  .shell__bar .toolbar__button { min-width: 44px; padding-inline: 4px; }
+  .shell__bar .toolbar__button { min-width: 2.75rem; padding-inline: 0.25rem; }
 }
 
 /* D-261: the history goes icon-only below 1460 px (was 1400): at 1400–1459 px
@@ -1245,7 +1258,7 @@ body {
 
 /* D-249: a side column's tabs (WAI-ARIA tabs, `SideTabs.tsx`). #105: two equal
    columns instead of a wrapping row — four Russian titles do not fit in 340px
-   on one line (measured: 374px of tabs), a ragged 3 + 1 looked like a defect,
+   on one line (measured: 23.375rem of tabs), a ragged 3 + 1 looked like a defect,
    and a hidden tab behind a horizontal scroll is a tab nobody finds. */
 .side-tabs {
   display: flex;
@@ -1281,6 +1294,14 @@ body {
   cursor: pointer;
 }
 
+/* A column widened past 26 rem (416 px at the base root) holds all four titles
+   in one row; narrower, they stay two by two. */
+@container (min-width: 26rem) {
+  .side-tabs__list {
+    display: flex;
+  }
+}
+
 .side-tabs__tab:hover {
   background: var(--color-hover);
   color: var(--color-ink);
@@ -1293,13 +1314,13 @@ body {
 }
 
 .side-tabs__badge {
-  min-width: 18px;
+  min-width: 1.125rem;
   padding: 0 var(--space-1);
-  border-radius: 9px;
+  border-radius: 0.5625rem;
   background: var(--color-hover);
   color: var(--color-muted);
   font-size: var(--text-xs);
-  line-height: 18px;
+  line-height: 1.125rem;
   text-align: center;
 }
 
@@ -1372,7 +1393,7 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  min-height: 32px;
+  min-height: 2rem;
   padding: 0 var(--space-1) 0 var(--space-2);
   border-bottom: 1px solid var(--color-accent);
   background: var(--color-accent-soft);
@@ -1398,8 +1419,8 @@ body {
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
   padding: 0;
   border: none;
   border-radius: var(--radius-m);
@@ -1414,8 +1435,8 @@ body {
 }
 
 .shell__props-close svg {
-  width: 14px;
-  height: 14px;
+  width: 0.875rem;
+  height: 0.875rem;
   stroke: currentColor;
   stroke-width: 1.8;
   fill: none;
@@ -1442,8 +1463,8 @@ body {
 }
 
 .panel__count {
-  padding: 0 6px;
-  border-radius: 9px;
+  padding: 0 0.375rem;
+  border-radius: 0.5625rem;
   background: var(--color-ground);
   color: var(--color-ink);
   font-size: var(--text-xs);
@@ -1476,15 +1497,15 @@ body {
 .panel__search {
   width: 100%;
   margin-bottom: var(--space-2);
-  padding: 5px 8px;
+  padding: 0.3125rem 0.5rem;
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-s);
   font: inherit;
 }
 
 .library__category {
-  margin: 12px 0 4px;
-  font-size: 12px;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -1497,11 +1518,11 @@ body {
 .library__item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   width: 100%;
-  padding: 4px 6px;
+  padding: 0.25rem 0.375rem;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 0.3125rem;
   background: none;
   font: inherit;
   text-align: left;
@@ -1533,14 +1554,14 @@ body {
 }
 
 .library__swatch {
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 0.1875rem;
   flex: none;
 }
 
 .library__shape {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
 }
 
 .library__swatch--shape {
@@ -1550,8 +1571,8 @@ body {
 /* Знак типа рядом с названием: 12 px хватает цветному пятну, а линиям знака
    нет — на узкой панели он остаётся тем же, только строка переносится. */
 .library__swatch--icon {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: 0;
 }
 
@@ -1562,38 +1583,38 @@ body {
 
 .library__size {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 /* At the compact sidebar widths, put dimensions below the name instead of
    letting the two columns collide. Tables retain readable columns and scroll. */
-@container (max-width: 230px) {
+@container (max-width: 14.375rem) {
   .library__item {
     display: grid;
-    grid-template-columns: 12px minmax(0, 1fr);
+    grid-template-columns: 0.75rem minmax(0, 1fr);
     align-items: start;
-    column-gap: 8px;
-    row-gap: 2px;
+    column-gap: 0.5rem;
+    row-gap: 0.125rem;
   }
 
   .library__swatch { grid-column: 1; grid-row: 1; }
   .library__label { grid-column: 2; grid-row: 1; }
   .library__size { grid-column: 2; grid-row: 2; }
-  .table { min-width: 340px; }
+  .table { min-width: 21.25rem; }
 }
 
 .table {
   width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .table th,
 .table td {
-  padding: 3px 4px;
+  padding: 0.1875rem 0.25rem;
   border-bottom: 1px solid var(--line);
   text-align: left;
 }
@@ -1601,7 +1622,7 @@ body {
 .table th {
   color: var(--muted);
   font-weight: 500;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .table__resizable-head {
@@ -1612,8 +1633,8 @@ body {
   position: absolute;
   z-index: 2;
   top: 0;
-  right: -5px;
-  width: 10px;
+  right: -0.3125rem;
+  width: 0.625rem;
   height: 100%;
   cursor: col-resize;
   touch-action: none;
@@ -1621,10 +1642,10 @@ body {
 
 .table__resize-handle::after {
   position: absolute;
-  top: 3px;
-  bottom: 3px;
-  left: 4px;
-  width: 2px;
+  top: 0.1875rem;
+  bottom: 0.1875rem;
+  left: 0.25rem;
+  width: 0.125rem;
   border-radius: 1px;
   background: transparent;
   content: '';
@@ -1651,8 +1672,8 @@ body {
 
 .metrics {
   display: flex;
-  gap: 16px;
-  margin: 8px 0;
+  gap: 1rem;
+  margin: 0.5rem 0;
 }
 
 .metrics div {
@@ -1661,12 +1682,12 @@ body {
 
 .metrics dt {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .metrics dd {
   margin: 0;
-  font-size: 18px;
+  font-size: 1.125rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1689,9 +1710,9 @@ span.inventory__num {
 
 .metrics__caption {
   caption-side: top;
-  padding: 0 0 2px;
+  padding: 0 0 0.125rem;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   text-align: left;
 }
 
@@ -1706,7 +1727,7 @@ span.inventory__num {
    list into its scroll box; a long word breaks inside its own cell instead
    of running over the neighbour. */
 .inventory__table {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .inventory__table td {
@@ -1717,7 +1738,7 @@ span.inventory__num {
 
 .metrics__table td.metrics__num,
 .metrics__table th.metrics__num {
-  padding-left: 8px;
+  padding-left: 0.5rem;
 }
 
 .issues {
@@ -1729,19 +1750,19 @@ span.inventory__num {
 .issues__technical-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  margin: 0 0 8px;
+  gap: 0.375rem;
+  min-height: 1.5rem;
+  margin: 0 0 0.5rem;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
 .issues__item {
-  padding: 6px 8px;
-  margin-bottom: 6px;
+  padding: 0.375rem 0.5rem;
+  margin-bottom: 0.375rem;
   border-left: 3px solid var(--line);
-  border-radius: 0 4px 4px 0;
+  border-radius: 0 0.25rem 0.25rem 0;
   background: var(--ground);
 }
 
@@ -1760,38 +1781,38 @@ span.inventory__num {
 }
 
 .issues__message {
-  margin: 0 0 2px;
+  margin: 0 0 0.125rem;
 }
 
 .issues__source {
   display: block;
-  margin-top: 3px;
+  margin-top: 0.1875rem;
   color: var(--muted);
 }
 
 .issues__refs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.375rem;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .issues__technical {
   display: grid;
-  gap: 3px;
-  margin: 6px 0 0;
-  padding: 6px;
-  border-radius: 4px;
+  gap: 0.1875rem;
+  margin: 0.375rem 0 0;
+  padding: 0.375rem;
+  border-radius: 0.25rem;
   background: color-mix(in srgb, var(--line) 22%, transparent);
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 .issues__technical > div {
   display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  gap: 6px;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 0.375rem;
 }
 
 .issues__technical dt,
@@ -1803,7 +1824,7 @@ span.inventory__num {
   display: flex;
   min-width: 0;
   flex-wrap: wrap;
-  gap: 3px 8px;
+  gap: 0.1875rem 0.5rem;
 }
 
 .issues__technical code {
@@ -1815,25 +1836,25 @@ span.inventory__num {
 
 .assistant__form {
   display: grid;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 0.5rem;
+  margin-bottom: 0.625rem;
 }
 
 .assistant__field {
   display: grid;
-  gap: 3px;
-  font-size: 12px;
+  gap: 0.1875rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
 .assistant__field select,
 .assistant__field input,
 .assistant__field textarea {
-  padding: 5px 6px;
+  padding: 0.3125rem 0.375rem;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink);
   background: var(--surface);
 }
@@ -1853,7 +1874,7 @@ span.inventory__num {
 .agent__intro p { margin: 0 0 var(--space-2); font-size: var(--text-s); color: var(--muted); line-height: 1.45; }
 .agent__examples { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
 .agent__example {
-  width: 100%; padding: 6px 8px; border: 1px dashed var(--color-line-strong); border-radius: var(--radius-m);
+  width: 100%; padding: 0.375rem 0.5rem; border: 1px dashed var(--color-line-strong); border-radius: var(--radius-m);
   background: var(--surface); color: var(--accent); font: inherit; font-size: var(--text-s); text-align: left; cursor: pointer;
 }
 .agent__example:hover { border-style: solid; background: var(--color-accent-soft); }
@@ -1861,18 +1882,18 @@ span.inventory__num {
 .agent__chips { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; }
 .agent__chips-title { width: 100%; font-size: var(--text-xs); color: var(--muted); overflow-wrap: anywhere; }
 .agent__chip {
-  padding: 4px 8px; border: 1px solid var(--color-line-strong); border-radius: var(--radius-m);
+  padding: 0.25rem 0.5rem; border: 1px solid var(--color-line-strong); border-radius: var(--radius-m);
   background: var(--surface); color: var(--accent); font: inherit; font-size: var(--text-s); text-align: left; cursor: pointer;
 }
 .agent__chip:hover:not(:disabled) { background: var(--color-accent-soft); }
 .agent__chip:disabled { cursor: default; opacity: 0.55; }
-.agent__history { display: grid; gap: var(--space-3); max-height: 56vh; margin: 0; padding: 0 2px 0 0; overflow-y: auto; list-style: none; }
+.agent__history { display: grid; gap: var(--space-3); max-height: 56vh; margin: 0; padding: 0 0.125rem 0 0; overflow-y: auto; list-style: none; }
 .agent__exchange { display: grid; gap: var(--space-2); padding-bottom: var(--space-3); border-bottom: 1px solid var(--line); }
 .agent__exchange:last-child { border-bottom: none; padding-bottom: 0; }
 .agent__question { margin: 0; font-size: var(--text-m); font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 .agent__who { display: block; font-size: var(--text-xs); font-weight: 400; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 .agent__steps {
-  display: grid; gap: 2px; margin: 0; padding: 2px 0 2px 10px; border-left: 2px solid var(--color-line-strong);
+  display: grid; gap: 0.125rem; margin: 0; padding: 0.125rem 0 0.125rem 0.625rem; border-left: 2px solid var(--color-line-strong);
   list-style: none; font-family: var(--font-code); font-size: var(--text-xs); color: var(--muted); line-height: 1.45;
 }
 .agent__steps li { overflow-wrap: anywhere; }
@@ -1883,25 +1904,25 @@ span.inventory__num {
 .agent__steps li.is-working .agent__tick { color: var(--accent); }
 .agent__log summary { cursor: pointer; font-size: var(--text-xs); color: var(--muted); }
 .agent__log[open] summary { margin-bottom: var(--space-1); }
-.agent__answer { display: grid; gap: var(--space-2); padding-left: 10px; border-left: 3px solid var(--color-success); }
+.agent__answer { display: grid; gap: var(--space-2); padding-left: 0.625rem; border-left: 3px solid var(--color-success); }
 .agent__answer.is-fallback { border-left-color: var(--warning); }
-.agent__text p { margin: 0 0 6px; font-size: var(--text-m); line-height: 1.5; }
+.agent__text p { margin: 0 0 0.375rem; font-size: var(--text-m); line-height: 1.5; }
 .agent__text p:last-child { margin-bottom: 0; }
 .agent__id {
-  padding: 0 3px; border: 1px solid var(--color-line); border-radius: var(--radius-s); background: var(--ground);
+  padding: 0 0.1875rem; border: 1px solid var(--color-line); border-radius: var(--radius-s); background: var(--ground);
   color: var(--accent); font-family: var(--font-code); font-size: 0.86em; cursor: pointer;
 }
 .agent__id:hover:not(:disabled) { border-color: var(--accent); background: var(--color-accent-soft); }
 .agent__id:disabled { color: var(--muted); cursor: default; }
 .agent__mode { margin: 0; font-size: var(--text-xs); color: var(--color-success); }
 .agent__answer.is-fallback .agent__mode { color: var(--warning); }
-.agent__actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.agent__actions .files__button { max-width: 100%; height: auto; padding: 5px 10px; white-space: normal; text-align: left; }
+.agent__actions { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+.agent__actions .files__button { max-width: 100%; height: auto; padding: 0.3125rem 0.625rem; white-space: normal; text-align: left; }
 .agent__status { margin: 0; min-height: 1em; font-size: var(--text-xs); color: var(--muted); }
 .agent__status:empty { min-height: 0; }
-.agent__form { display: grid; gap: 6px; }
-.agent__form textarea { width: 100%; min-height: 52px; resize: vertical; }
-.agent__form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.agent__form { display: grid; gap: 0.375rem; }
+.agent__form textarea { width: 100%; min-height: 3.25rem; resize: vertical; }
+.agent__form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
 .agent__hint { font-size: var(--text-xs); color: var(--muted); }
 .agent__section { margin: var(--space-2) 0; padding-top: var(--space-3); border-top: 1px solid var(--line); font-size: var(--text-s); }
 .agent__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -1909,11 +1930,11 @@ span.inventory__num {
 /* The mode is read, not decoded from a colour: dark text on a tint, the kind
    of answer said in words, the colour only repeats it on the left edge. */
 .assistant__mode {
-  margin: 0 0 8px;
-  padding: 5px 8px;
+  margin: 0 0 0.5rem;
+  padding: 0.3125rem 0.5rem;
   border-left: 3px solid var(--accent);
-  border-radius: 0 4px 4px 0;
-  font-size: 12px;
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-size: 0.75rem;
   background: color-mix(in srgb, var(--accent) 8%, var(--surface));
   color: var(--ink);
 }
@@ -1924,26 +1945,26 @@ span.inventory__num {
 }
 
 .assistant__stale {
-  margin: 0 0 8px;
-  padding: 5px 8px;
+  margin: 0 0 0.5rem;
+  padding: 0.3125rem 0.5rem;
   border-left: 3px solid var(--error);
-  border-radius: 0 4px 4px 0;
-  font-size: 12px;
+  border-radius: 0 0.25rem 0.25rem 0;
+  font-size: 0.75rem;
   background: color-mix(in srgb, var(--error) 8%, var(--surface));
   color: var(--ink);
 }
 
 .advice {
-  padding: 8px;
-  margin-bottom: 10px;
+  padding: 0.5rem;
+  margin-bottom: 0.625rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.375rem;
   background: var(--ground);
 }
 
 .advice__sentence {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
   line-height: 1.45;
 }
 
@@ -1952,18 +1973,18 @@ span.inventory__num {
 .advice__changes,
 .advice__limitations,
 .advice__more ul {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
   padding-left: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .advice__facts li,
 .advice__changes li {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 2px 0;
+  gap: 0.5rem;
+  padding: 0.125rem 0;
   border-bottom: 1px dashed var(--line);
 }
 
@@ -1979,11 +2000,11 @@ span.inventory__num {
 
 .advice__candidates li {
   display: grid;
-  gap: 2px;
-  padding: 5px 6px;
-  margin-bottom: 4px;
+  gap: 0.125rem;
+  padding: 0.3125rem 0.375rem;
+  margin-bottom: 0.25rem;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: var(--surface);
   font-variant-numeric: tabular-nums;
   cursor: default;
@@ -2000,14 +2021,14 @@ span.inventory__num {
 .advice__refs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 6px;
-  font-size: 12px;
+  gap: 0.375rem;
+  margin: 0 0 0.375rem;
+  font-size: 0.75rem;
 }
 
 .advice__more {
-  margin-bottom: 6px;
-  font-size: 12px;
+  margin-bottom: 0.375rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -2021,14 +2042,14 @@ span.inventory__num {
 }
 
 .advice__more li {
-  padding: 2px 0;
+  padding: 0.125rem 0;
   line-height: 1.4;
 }
 
 .advice__limitations li {
-  padding: 2px 0 2px 8px;
+  padding: 0.125rem 0 0.125rem 0.5rem;
   border-left: 2px solid var(--warning);
-  margin-bottom: 2px;
+  margin-bottom: 0.125rem;
   color: var(--muted);
   line-height: 1.4;
 }
@@ -2038,23 +2059,23 @@ span.inventory__num {
 
 .layers__add {
   display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
+  gap: 0.375rem;
+  margin-bottom: 0.5rem;
 }
 
 /* Вид плана, а не содержимое: отделено от списка слоёв чертой. */
 .layers__view {
-  margin-bottom: 8px;
-  padding-bottom: 8px;
+  margin-bottom: 0.5rem;
+  padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--line);
 }
 
 .layers__add select {
   flex: 1;
   min-width: 0;
-  padding: 4px 6px;
+  padding: 0.25rem 0.375rem;
   border: 1px solid var(--line);
-  border-radius: 5px;
+  border-radius: 0.3125rem;
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -2066,13 +2087,13 @@ span.inventory__num {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .layers__item {
-  padding: 4px 6px 6px;
+  padding: 0.25rem 0.375rem 0.375rem;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 0.375rem;
 }
 
 .layers__item.is-selected {
@@ -2083,22 +2104,22 @@ span.inventory__num {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px;
+  gap: 0.125rem;
 }
 
 .layers__visible {
   display: flex;
   flex: 1;
   align-items: center;
-  gap: 6px;
-  min-height: 26px;
-  padding: 2px 4px;
+  gap: 0.375rem;
+  min-height: 1.625rem;
+  padding: 0.125rem 0.25rem;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 
@@ -2110,12 +2131,12 @@ span.inventory__num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 0.875rem;
+  height: 0.875rem;
   border: 1px solid var(--muted);
-  border-radius: 3px;
+  border-radius: 0.1875rem;
   background: var(--surface);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1;
 }
 
@@ -2128,13 +2149,13 @@ span.inventory__num {
 /* D-275: floor/ceiling groups nested under the base layer, indented like a sub-list. */
 .layers__mounts {
   margin: 0;
-  padding: 0 0 0 16px;
+  padding: 0 0 0 1rem;
   list-style: none;
 }
 
 .layers__mounts .layers__visible {
   width: 100%;
-  min-height: 24px;
+  min-height: 1.5rem;
   text-align: left;
 }
 
@@ -2151,9 +2172,9 @@ span.inventory__num {
 .layers__name {
   flex: 1 1 100%;
   min-width: 0;
-  padding: 3px 5px;
+  padding: 0.1875rem 0.3125rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   color: var(--ink);
   font: inherit;
   font-weight: 600;
@@ -2184,11 +2205,11 @@ span.inventory__num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -2233,24 +2254,24 @@ span.inventory__num {
 
 .layers__meta,
 .layers__note {
-  margin: 2px 0 0;
-  padding: 0 4px;
-  font-size: 12px;
+  margin: 0.125rem 0 0;
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
   color: var(--muted);
   line-height: 1.4;
 }
 
 
 .layers__about {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
 .layers__about summary {
   width: fit-content;
-  padding: 2px 4px;
-  border-radius: 4px;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
   cursor: pointer;
 }
 
@@ -2259,32 +2280,32 @@ span.inventory__num {
 }
 
 .layers__about .layers__note {
-  margin-top: 2px;
+  margin-top: 0.125rem;
 }
 
 .layers__data {
   width: 100%;
-  margin-top: 6px;
+  margin-top: 0.375rem;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .layers__data th {
-  padding: 2px 4px 2px 0;
+  padding: 0.125rem 0.25rem 0.125rem 0;
   font-weight: 400;
   text-align: left;
 }
 
 .layers__data td {
-  padding: 2px 0;
+  padding: 0.125rem 0;
 }
 
 .layers__data input,
 .layers__data select {
   width: 100%;
-  padding: 2px 4px;
+  padding: 0.125rem 0.25rem;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   font: inherit;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -2296,58 +2317,58 @@ span.inventory__num {
 }
 
 .layers__unit {
-  width: 34px;
-  padding-left: 4px !important;
+  width: 2.125rem;
+  padding-left: 0.25rem !important;
   color: var(--muted);
   white-space: nowrap;
 }
 
 .layers__legend {
-  margin-top: 6px;
-  padding: 5px 6px;
-  border-radius: 4px;
+  margin-top: 0.375rem;
+  padding: 0.3125rem 0.375rem;
+  border-radius: 0.25rem;
   background: var(--ground);
 }
 
 .layers__scale {
-  height: 10px;
-  border-radius: 3px;
+  height: 0.625rem;
+  border-radius: 0.1875rem;
 }
 
 .layers__scale-ticks {
   display: flex;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
 
 .layers__legend-text {
-  margin: 2px 0 0;
-  font-size: 12px;
+  margin: 0.125rem 0 0;
+  font-size: 0.75rem;
   line-height: 1.4;
 }
 
 .layers__swatch {
   display: inline-block;
-  width: 10px;
-  height: 10px;
-  margin-right: 5px;
-  border-radius: 2px;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-right: 0.3125rem;
+  border-radius: 0.125rem;
   vertical-align: -1px;
 }
 
 .layers__palette {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
+  gap: 0.25rem 0.75rem;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .layers__palette button {
-  padding: 2px 3px;
+  padding: 0.125rem 0.1875rem;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: transparent;
   color: var(--ink);
   font: inherit;
@@ -2363,23 +2384,23 @@ span.inventory__num {
 /* U06: карточка свойств */
 
 .props__line {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
 }
 
 .props__field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 8px;
+  gap: 0.125rem;
+  margin-bottom: 0.5rem;
 }
 
 .props__field input[type='text'],
 .props__field input[type='number'],
 .props__field select {
-  padding: 4px 6px;
+  padding: 0.25rem 0.375rem;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   background: var(--surface);
   color: var(--ink);
   font: inherit;
@@ -2395,7 +2416,7 @@ span.inventory__num {
 }
 
 .props__label {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -2403,25 +2424,25 @@ span.inventory__num {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  margin: 0 0 8px;
+  gap: 0.375rem;
+  margin: 0 0 0.5rem;
 }
 
 .props__align {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin: 0 0 8px;
+  gap: 0.25rem;
+  margin: 0 0 0.5rem;
 }
 
 .props__hint {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
   line-height: 1.4;
 }
 
 .props__error {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--error);
   line-height: 1.4;
 }
@@ -2437,14 +2458,14 @@ span.inventory__num {
      size=20), и пара вылезала за карточку; в узкой левой колонке, куда
      карточка переехала (D-268), это заметно сильнее. */
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .props__position-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 0.375rem;
+  margin-bottom: 0.625rem;
 }
 
 .props__position-actions .files__button {
@@ -2453,8 +2474,8 @@ span.inventory__num {
 }
 
 .props__extra {
-  margin-top: 8px;
-  font-size: 12px;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -2492,19 +2513,19 @@ span.inventory__num {
 
 .view3d__tools {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 0.75rem;
+  right: 0.75rem;
   display: grid;
   justify-items: end;
-  gap: 8px;
-  max-width: calc(100% - 24px);
+  gap: 0.5rem;
+  max-width: calc(100% - 1.5rem);
 }
 
 .view3d__status {
-  margin: 16px;
-  padding: 12px;
+  margin: 1rem;
+  padding: 0.75rem;
   border: 1px solid var(--line, #ddd);
-  border-radius: 6px;
+  border-radius: 0.375rem;
   background: #fff;
 }
 
@@ -2512,36 +2533,36 @@ span.inventory__num {
 
 .catalog__form {
   display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
+  gap: 0.375rem;
+  margin-bottom: 0.625rem;
 }
 
 .catalog__row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .catalog__row .assistant__field {
-  flex: 1 1 90px;
+  flex: 1 1 5.625rem;
 }
 
 .catalog__check {
   flex-direction: row;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   align-self: end;
 }
 
 .catalog__types {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
   padding: 0;
   list-style: none;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .catalog__types li {
-  padding: 2px 0;
+  padding: 0.125rem 0;
   border-bottom: 1px dashed var(--line);
 }
 
@@ -2550,7 +2571,7 @@ span.inventory__num {
 }
 
 .catalog__remove {
-  margin-left: 8px;
+  margin-left: 0.5rem;
   color: var(--muted);
 }
 
@@ -2571,7 +2592,7 @@ span.inventory__num {
   justify-content: center;
   gap: var(--space-2);
   width: 100%;
-  min-height: 36px;
+  min-height: 2.25rem;
   margin: var(--space-2) 0 0;
   padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-accent);
@@ -2617,11 +2638,11 @@ span.inventory__num {
 
 .onboarding__card {
   position: absolute;
-  max-width: calc(100vw - 24px);
-  padding: 14px 16px 12px;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.875rem 1rem 0.75rem;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 0.5rem;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
 }
 
@@ -2633,22 +2654,22 @@ span.inventory__num {
 .onboarding__count {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 .onboarding__title {
-  margin: 2px 0 6px;
-  font-size: 16px;
+  margin: 0.125rem 0 0.375rem;
+  font-size: 1rem;
 }
 
 .onboarding__text {
-  margin: 0 0 12px;
+  margin: 0 0 0.75rem;
 }
 
 .onboarding__actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .onboarding__spacer {
@@ -2670,8 +2691,8 @@ span.inventory__num {
    scrolling stays inside the dialog, never horizontal. */
 .hotkeys-map__dialog {
   box-sizing: border-box;
-  width: min(880px, calc(100vw - 24px));
-  max-height: calc(100vh - 48px);
+  width: min(55rem, calc(100vw - 1.5rem));
+  max-height: calc(100vh - 3rem);
   overflow-y: auto;
   padding: var(--space-4);
   background: var(--surface);
@@ -2701,7 +2722,7 @@ span.inventory__num {
   border: none;
   background: none;
   color: var(--muted);
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
   padding: var(--space-1);
@@ -2713,7 +2734,7 @@ span.inventory__num {
 }
 
 .hotkeys-map__groups {
-  columns: 2 360px;
+  columns: 2 22.5rem;
   column-gap: var(--space-5);
 }
 
@@ -2752,7 +2773,7 @@ span.inventory__num {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-1) 6px;
+  gap: var(--space-1) 0.375rem;
   margin: 0;
 }
 
@@ -2760,7 +2781,7 @@ span.inventory__num {
 .hotkeys-map__alternative {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 0.1875rem;
   white-space: nowrap;
 }
 
@@ -2769,9 +2790,9 @@ span.inventory__num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
   background: var(--surface);
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-m);
@@ -2788,7 +2809,7 @@ span.inventory__num {
 }
 
 .hotkeys-map__word {
-  margin: 0 3px;
+  margin: 0 0.1875rem;
   color: var(--muted);
   font-size: var(--text-xs);
 }
@@ -2816,8 +2837,8 @@ span.inventory__num {
 
 .file-dialog__panel {
   box-sizing: border-box;
-  width: min(520px, 100%);
-  max-height: calc(100vh - 48px);
+  width: min(32.5rem, 100%);
+  max-height: calc(100vh - 3rem);
   overflow-y: auto;
   padding: var(--space-4);
   background: var(--surface);
@@ -2843,11 +2864,11 @@ span.inventory__num {
 
 .file-dialog__list {
   margin: 0 0 var(--space-2);
-  padding-left: 18px;
+  padding-left: 1.125rem;
 }
 
 .file-dialog__list > li + li {
-  margin-top: 4px;
+  margin-top: 0.25rem;
 }
 
 .file-dialog__actions {
@@ -2885,26 +2906,26 @@ span.inventory__num {
   color: var(--color-muted);
 }
 
-.onboarding__demo { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-.comparison { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
+.onboarding__demo { display: flex; flex-direction: column; gap: 0.5rem; margin: 0.75rem 0; }
+.comparison { display: grid; gap: 0.625rem; min-width: 0; container-type: inline-size; }
 .comparison__source { overflow-wrap: anywhere; margin: 0; }
-.comparison__actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.comparison__actions { display: flex; flex-wrap: wrap; gap: 0.375rem; }
 .comparison__table { overflow-x: auto; max-width: 100%; }
-.comparison__table table { border-collapse: collapse; width: 100%; font-size: 12px; }
-.comparison__table caption { text-align: left; margin-bottom: 6px; }
-.comparison__table th, .comparison__table td { padding: 6px; border-bottom: 1px solid var(--color-line); text-align: right; white-space: nowrap; }
-.comparison__table th:first-child { text-align: left; white-space: normal; min-width: 105px; }
-.comparison__changes { padding-left: 18px; margin: 0; }
-.comparison__changes li { margin-bottom: 8px; overflow-wrap: anywhere; }
+.comparison__table table { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
+.comparison__table caption { text-align: left; margin-bottom: 0.375rem; }
+.comparison__table th, .comparison__table td { padding: 0.375rem; border-bottom: 1px solid var(--color-line); text-align: right; white-space: nowrap; }
+.comparison__table th:first-child { text-align: left; white-space: normal; min-width: 6.5625rem; }
+.comparison__changes { padding-left: 1.125rem; margin: 0; }
+.comparison__changes li { margin-bottom: 0.5rem; overflow-wrap: anywhere; }
 .comparison__focus { color: var(--color-accent); background: none; border: 0; text-decoration: underline; cursor: pointer; font: inherit; padding: 0; text-align: left; }
 
 .comparison .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
-@container (max-width: 250px) {
+@container (max-width: 15.625rem) {
   .comparison__table tr { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .comparison__table thead th:first-child { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   .comparison__table tbody th { grid-column: 1 / -1; min-width: 0; }
-  .comparison__table th, .comparison__table td { padding: 6px 2px; }
+  .comparison__table th, .comparison__table td { padding: 0.375rem 0.125rem; }
   .comparison__table th:first-child { min-width: 0; }
   .comparison__table td { font-variant-numeric: tabular-nums; }
 }
@@ -2925,8 +2946,8 @@ span.inventory__num {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: min(960px, calc(100vw - 24px));
-  height: min(640px, calc(100vh - 48px));
+  width: min(60rem, calc(100vw - 1.5rem));
+  height: min(40rem, calc(100vh - 3rem));
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-l);
@@ -2952,13 +2973,13 @@ span.inventory__num {
 }
 
 .settings__close {
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   border: none;
   border-radius: var(--radius-m);
   background: none;
   color: var(--muted);
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
   cursor: pointer;
 }
@@ -2970,7 +2991,7 @@ span.inventory__num {
 
 .settings__body {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: 11.25rem minmax(0, 1fr);
   min-height: 0;
   flex: 1;
 }
@@ -2978,14 +2999,14 @@ span.inventory__num {
 .settings__nav {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   padding: var(--space-3) var(--space-2);
   border-right: 1px solid var(--line);
   background: var(--color-ground);
 }
 
 .settings__section {
-  height: 32px;
+  height: 2rem;
   padding: 0 var(--space-3);
   border: none;
   border-radius: var(--radius-m);
@@ -3019,7 +3040,7 @@ span.inventory__num {
 }
 
 .settings__fields {
-  max-width: 420px;
+  max-width: 26.25rem;
   margin-top: var(--space-3);
 }
 
@@ -3054,7 +3075,7 @@ span.inventory__num {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: min(640px, calc(100vw - 24px));
+  width: min(40rem, calc(100vw - 1.5rem));
   max-height: 70vh;
   background: var(--surface);
   border: 1px solid var(--line);
@@ -3066,7 +3087,7 @@ span.inventory__num {
 .quick-search__input {
   box-sizing: border-box;
   width: 100%;
-  padding: 12px 16px;
+  padding: 0.75rem 1rem;
   border: none;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -3082,7 +3103,7 @@ span.inventory__num {
 
 .quick-search__list {
   margin: 0;
-  padding: 4px;
+  padding: 0.25rem;
   overflow-y: auto;
   list-style: none;
 }
@@ -3093,8 +3114,8 @@ span.inventory__num {
 
 .quick-search__option {
   display: grid;
-  gap: 2px;
-  padding: 6px 12px;
+  gap: 0.125rem;
+  padding: 0.375rem 0.75rem;
   border-radius: var(--radius-m);
   cursor: pointer;
 }
@@ -3123,7 +3144,7 @@ span.inventory__num {
 
 .quick-search__status {
   margin: 0;
-  padding: 8px 16px;
+  padding: 0.5rem 1rem;
   border-top: 1px solid var(--line);
   font-size: var(--text-xs);
   color: var(--muted);
@@ -3144,7 +3165,7 @@ span.inventory__num {
 }
 
 .rule-checklist__ask {
-  padding: 2px var(--space-2);
+  padding: 0.125rem var(--space-2);
   border: 1px solid var(--color-danger);
   border-radius: var(--radius-s);
   background: var(--color-danger-soft);
@@ -3185,7 +3206,7 @@ span.inventory__num {
   position: fixed;
   z-index: 900;
   display: grid;
-  min-width: 220px;
+  min-width: 13.75rem;
   padding: var(--space-1);
   border: 1px solid var(--color-line-strong);
   border-radius: var(--radius-m);
@@ -3206,7 +3227,7 @@ span.inventory__num {
   display: flex;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: 6px var(--space-2);
+  padding: 0.375rem var(--space-2);
   border: 0;
   border-radius: var(--radius-s);
   background: none;

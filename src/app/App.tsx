@@ -99,28 +99,37 @@ import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
-const PANEL_WIDTHS_KEY = 'posttech.panel-widths';
-const PANEL_HANDLE_PX = 8;
-const MIN_CANVAS_PX = 360;
-const PANEL_LIMITS = { left: [160, 440], right: [200, 500] } as const;
+// #105: panel widths are in rem — the interface scales with the root font size —
+// so the key is new: widths saved in px by the old key would read as 260 rem.
+const PANEL_WIDTHS_KEY = 'posttech.panel-widths.v2';
+const PANEL_HANDLE_REM = 0.5;
+const MIN_CANVAS_REM = 22.5;
+const PANEL_LIMITS = { left: [10, 27.5], right: [12.5, 31.25] } as const;
+const PANEL_STEP_REM = 1;
 type PanelSide = 'left' | 'right';
 type PanelWidths = { left: number; right: number };
 
+/** One rem in pixels: pointer and window sizes come in px, panel widths are in rem. */
+function remPx(): number {
+  return Number.parseFloat(window.getComputedStyle(window.document.documentElement).fontSize) || 16;
+}
+
 function clampPanelWidth(side: PanelSide, width: number, available: number, other: number): number {
   const [minimum, maximum] = PANEL_LIMITS[side];
-  const room = available - other - PANEL_HANDLE_PX * 2 - MIN_CANVAS_PX;
-  return Math.round(Math.max(minimum, Math.min(width, maximum, Math.max(minimum, room))));
+  const room = available - other - PANEL_HANDLE_REM * 2 - MIN_CANVAS_REM;
+  return Math.round(Math.max(minimum, Math.min(width, maximum, Math.max(minimum, room))) * 100) / 100;
 }
 
 function initialPanelWidths(): PanelWidths {
-  const fallback = { left: 260, right: 340 };
+  const fallback = { left: 16.25, right: 21.25 };
   try {
     const saved: unknown = JSON.parse(window.localStorage.getItem(PANEL_WIDTHS_KEY) ?? 'null');
     if (saved === null || typeof saved !== 'object') return fallback;
     const widths = saved as Partial<PanelWidths>;
     if (!Number.isFinite(widths.left) || !Number.isFinite(widths.right)) return fallback;
-    const left = clampPanelWidth('left', widths.left as number, window.innerWidth, widths.right as number);
-    const right = clampPanelWidth('right', widths.right as number, window.innerWidth, left);
+    const available = window.innerWidth / remPx();
+    const left = clampPanelWidth('left', widths.left as number, available, widths.right as number);
+    const right = clampPanelWidth('right', widths.right as number, available, left);
     return { left, right };
   } catch {
     return fallback;
@@ -222,8 +231,9 @@ export function App(): React.JSX.Element {
   const moveResize = (side: PanelSide, event: React.PointerEvent<HTMLDivElement>): void => {
     const start = resizeStart.current;
     if (start === null || start.side !== side) return;
-    const width = start.width + (side === 'left' ? event.clientX - start.x : start.x - event.clientX);
-    const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
+    const unit = remPx();
+    const width = start.width + (side === 'left' ? event.clientX - start.x : start.x - event.clientX) / unit;
+    const available = (event.currentTarget.parentElement?.clientWidth ?? window.innerWidth) / unit;
     setPanelWidths((current) => ({
       ...current,
       [side]: clampPanelWidth(side, width, available, current[side === 'left' ? 'right' : 'left']),
@@ -238,11 +248,11 @@ export function App(): React.JSX.Element {
   const resizeByKey = (side: PanelSide, event: React.KeyboardEvent<HTMLDivElement>): void => {
     const direction = side === 'left' ? 1 : -1;
     const [minimum, maximum] = PANEL_LIMITS[side];
-    const step = event.key === 'ArrowLeft' ? -16 * direction : event.key === 'ArrowRight' ? 16 * direction : 0;
+    const step = event.key === 'ArrowLeft' ? -PANEL_STEP_REM * direction : event.key === 'ArrowRight' ? PANEL_STEP_REM * direction : 0;
     if (step === 0 && event.key !== 'Home' && event.key !== 'End') return;
     event.preventDefault();
     const before = canvasBeforeResize();
-    const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
+    const available = (event.currentTarget.parentElement?.clientWidth ?? window.innerWidth) / remPx();
     setPanelWidths((current) => ({
       ...current,
       [side]: clampPanelWidth(
@@ -852,7 +862,7 @@ export function App(): React.JSX.Element {
   return (
     <div
       className={`shell${planOnly ? ' shell--plan-only' : ''}`}
-      style={{ '--side-left': `${panelWidths.left}px`, '--side-right': `${panelWidths.right}px` } as React.CSSProperties}
+      style={{ '--side-left': `${panelWidths.left}rem`, '--side-right': `${panelWidths.right}rem` } as React.CSSProperties}
     >
       <header className="shell__bar">
         {/* D-350: the product name is a small caption, the plan name under it is
