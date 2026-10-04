@@ -20,6 +20,7 @@ import { findObjectType, findZoneType } from '../../domain/catalog';
 import { openingCentre } from '../../domain/geometry';
 import { formatShort } from '../../domain/number-format';
 import { PHYSICS_RULES } from '../../domain/physics';
+import { RELATION_ISSUE_CODES } from '../../domain/relations';
 import { VALIDATION_ISSUE_CODES, type ValidationIssue } from '../../domain/validation';
 
 export type WhyParam = { label: string; value: string };
@@ -94,11 +95,11 @@ const CHECK_METHODS: Readonly<Record<string, { title: string; method: string }>>
     title: 'Инвентарный номер заполнен',
     method: 'Тип объекта объявляет инвентарный номер, а у объекта он пуст. Проверка молчит, если номеров в плане нет совсем.',
   },
-  ZONE_UNASSIGNED: {
+  [RELATION_ISSUE_CODES.ZONE_UNASSIGNED]: {
     title: 'Объект стоит в какой-либо зоне',
     method: 'Ни одна зона не содержит контур объекта целиком.',
   },
-  ZONE_GEOMETRY_UNUSABLE: {
+  [RELATION_ISSUE_CODES.ZONE_GEOMETRY_UNUSABLE]: {
     title: 'Контур зоны пригоден для расчёта',
     method: 'По контуру зоны нельзя определить, что в ней лежит.',
   },

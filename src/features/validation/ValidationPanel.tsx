@@ -61,17 +61,23 @@ export function ValidationPanel({
   // late for an older plan or an older click shows nothing.
   const fixSequence = useRef(0);
   const ghostShown = useRef(false);
+  const fixTimer = useRef<number | null>(null);
 
-  // A variant belongs to the plan it was searched on: an edit drops the text
-  // and the ghost.
+  // A variant belongs to the plan it was searched on: an edit or unmounting
+  // the panel cancels a pending search and takes the ghost off the plan.
   const fix = fixState !== null && fixState.plan === plan ? fixState : null;
-  useEffect(() => {
-    fixSequence.current += 1;
-    if (ghostShown.current) {
-      ghostShown.current = false;
-      onPreview?.(null);
-    }
-  }, [plan, onPreview]);
+  useEffect(
+    () => () => {
+      fixSequence.current += 1;
+      if (fixTimer.current !== null) window.clearTimeout(fixTimer.current);
+      fixTimer.current = null;
+      if (ghostShown.current) {
+        ghostShown.current = false;
+        onPreview?.(null);
+      }
+    },
+    [plan, onPreview],
+  );
 
   const toggleWhy = (key: string): void => {
     setOpenWhy((previous) => {
@@ -91,7 +97,9 @@ export function ValidationPanel({
     onPreview(null);
     ghostShown.current = false;
     // The search runs after the «ищет» state is painted: it may take a moment.
-    window.setTimeout(() => {
+    if (fixTimer.current !== null) window.clearTimeout(fixTimer.current);
+    fixTimer.current = window.setTimeout(() => {
+      fixTimer.current = null;
       if (sequence !== fixSequence.current) return;
       const result = findFix(plan, planned);
       setFix({ key, plan, status: 'done', result });
