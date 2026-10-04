@@ -12,6 +12,7 @@ import type { FocusRequest, ValidationPanelProps } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import { PHYSICS_RULES } from '../../domain/physics';
 import type { ValidationIssue } from '../../domain/validation';
+import { type IssueGroup, groupIssuesBySubject } from './issue-highlight';
 
 /**
  * The document is optional: without it the list keeps working and names each
@@ -36,6 +37,21 @@ function mentions(issue: ValidationIssue, ref: Ref): boolean {
   return issue.refs.some((entry) => entry.kind === ref.kind && entry.id === ref.id);
 }
 
+/** Links of a grouped row: each entity once, in order of first mention. */
+function uniqueRefs(issues: ValidationIssue[]): Ref[] {
+  const seen = new Set<string>();
+  const out: Ref[] = [];
+  for (const issue of issues) {
+    for (const ref of issue.refs) {
+      const key = `${ref.kind}:${ref.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(ref);
+    }
+  }
+  return out;
+}
+
 export function ValidationPanel({
   issues,
   document: plan,
@@ -48,12 +64,17 @@ export function ValidationPanel({
   // stays raw.
   const names = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const sorted = [...issues].sort((a, b) => order(a) - order(b));
+  // #14: all findings about one object form one row with a list, the same
+  // grouping the plan's marker counts.
+  const groups = groupIssuesBySubject(sorted);
   const errors = issues.filter((issue) => issue.severity === 'error').length;
 
   // The column may be scrolled past the row a marker click asks about; the
   // row comes to the viewer, the same way «Свойства» does for a card.
   const firstMatch = useRef<HTMLLIElement>(null);
-  const matchIndex = focus == null ? -1 : sorted.findIndex((issue) => mentions(issue, focus.ref));
+  const groupMentions = (group: IssueGroup<ValidationIssue>, ref: Ref): boolean =>
+    group.issues.some((issue) => mentions(issue, ref));
+  const matchIndex = focus == null ? -1 : groups.findIndex((group) => groupMentions(group, focus.ref));
   const focusSequence = focus?.sequence ?? null;
   useEffect(() => {
     if (focusSequence === null) return;
@@ -82,19 +103,37 @@ export function ValidationPanel({
             <span>Показать технические детали</span>
           </label>
           <ul className="issues">
-            {sorted.map((issue, index) => {
-              const isMatch = focus != null && mentions(issue, focus.ref);
+            {groups.map((group, index) => {
+              const isMatch = focus != null && groupMentions(group, focus.ref);
+              const first = group.issues[0];
+              const refs = uniqueRefs(group.issues);
+              const subject = group.ref === null ? '' : (names.nameOf(group.ref) ?? group.ref.id);
               return (
                 <li
-                  key={`${issue.code}-${index}`}
+                  key={`${first?.code ?? 'group'}-${index}`}
                   ref={index === matchIndex ? firstMatch : undefined}
-                  className={`issues__item is-${issue.severity}${isMatch ? ' is-focused' : ''}`}
+                  className={`issues__item is-${group.severity}${isMatch ? ' is-focused' : ''}`}
                   aria-current={isMatch ? 'true' : undefined}
                 >
-                  <p className="issues__message">{issue.message}</p>
-                  {issue.refs.length === 0 ? null : (
+                  {group.issues.length === 1 ? (
+                    <p className="issues__message">{first?.message}</p>
+                  ) : (
+                    <>
+                      <p className="issues__message">
+                        <strong>{subject}</strong> — нарушений: {group.issues.length}
+                      </p>
+                      <ul className="issues__group" style={{ margin: '0 0 4px', paddingLeft: 18 }}>
+                        {group.issues.map((issue, line) => (
+                          <li key={`${issue.code}-${line}`} className="issues__message">
+                            {issue.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {refs.length === 0 ? null : (
                     <p className="issues__refs">
-                      {issue.refs.map((ref) => {
+                      {refs.map((ref) => {
                         const name = names.nameOf(ref);
                         const label = name ?? ref.id;
                         return (
@@ -112,7 +151,11 @@ export function ValidationPanel({
                       })}
                     </p>
                   )}
-                  {showTechnical ? <TechnicalDetails issue={issue} /> : null}
+                  {showTechnical
+                    ? group.issues.map((issue, line) => (
+                        <TechnicalDetails key={`${issue.code}-${line}`} issue={issue} />
+                      ))
+                    : null}
                 </li>
               );
             })}

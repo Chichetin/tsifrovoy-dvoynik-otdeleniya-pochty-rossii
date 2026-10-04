@@ -58,8 +58,14 @@ export {
   maintenanceStatus,
 } from './maintenance';
 
+/**
+ * The segment a distance rule measured: from the object's centre to the
+ * entrance point, in metres. The plan draws it next to the finding.
+ */
+export type IssueMeasure = { from: Point; to: Point; distance_m: number };
+
 /** UI metadata kept outside the persisted, shared Issue contract. */
-export type ValidationIssue = Issue & { ruleIds?: Id[] };
+export type ValidationIssue = Issue & { ruleIds?: Id[]; measure?: IssueMeasure };
 
 /** Codes owned by this module. */
 export const VALIDATION_ISSUE_CODES = {
@@ -638,19 +644,18 @@ function distanceRuleIssues(
     }
     if (best <= rule.maxDistance_m) continue;
 
-    issues.push(
-      issue(
-        VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE,
-        severityOf(rule),
-        `Объект «${object.label}» в ${formatLength(best)} от ${openingName(nearest.opening)} при норме не более ${formatShort(rule.maxDistance_m, 2)}${NBSP}м. ${ruleNote(rule)}`,
-        [
-          { kind: 'object', id: object.id },
-          { kind: 'opening', id: nearest.opening.id },
-        ],
-        footprint(object),
-        [rule.id],
-      ),
+    const far = issue(
+      VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE,
+      severityOf(rule),
+      `Объект «${object.label}» в ${formatLength(best)} от ${openingName(nearest.opening)} при норме не более ${formatShort(rule.maxDistance_m, 2)}${NBSP}м. ${ruleNote(rule)}`,
+      [
+        { kind: 'object', id: object.id },
+        { kind: 'opening', id: nearest.opening.id },
+      ],
+      footprint(object),
+      [rule.id],
     );
+    issues.push({ ...far, measure: { from: object.position, to: nearest.point, distance_m: best } });
   }
   return issues;
 }
