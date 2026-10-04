@@ -57,6 +57,8 @@ export {
   MAINTENANCE_DATE_KEY,
   MAINTENANCE_WARNING_DAYS,
   type MaintenanceStatus,
+  maintenanceDateError,
+  maintenanceDateWarnings,
   localToday,
   maintenanceStatus,
 } from './maintenance';

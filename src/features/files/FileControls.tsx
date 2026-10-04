@@ -961,7 +961,7 @@ export function FileControls({
 
       {warnings.length === 0 ? null : (
         <details className="files__status" data-testid="attribute-warnings">
-          <summary>Значения вне границ ({warnings.length}) — исправьте в «Свойствах»</summary>
+          <summary>Значения вне границ или не даты ({warnings.length}) — исправьте в «Свойствах»</summary>
           <ul>
             {warnings.map((line) => (
               <li key={line}>{line}</li>
