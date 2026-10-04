@@ -4,7 +4,7 @@ import { footprint, locatePoint, pointSegmentDistance } from '../../domain/geome
 /** A near miss should feel like the same target at every zoom level. */
 export const PLACEMENT_PICK_TOLERANCE_PX = 8;
 
-function distanceToObject(point: Point, object: Equipment): number {
+export function distanceToObject(point: Point, object: Equipment): number {
   const polygon = footprint(object);
   if (locatePoint(point, polygon) !== 'outside') return 0;
   let distance = Number.POSITIVE_INFINITY;
