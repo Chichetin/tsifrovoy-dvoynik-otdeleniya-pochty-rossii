@@ -5,7 +5,7 @@ import { expandInventoryRows } from './inventory-collapse';
 const before = JSON.parse(readFileSync('demo/before.json', 'utf8'));
 const after = JSON.parse(readFileSync('demo/after.json', 'utf8'));
 async function openDemo(page: import('@playwright/test').Page, label: string) {
-  await page.getByRole('button', { name: 'Демо', exact: true }).click();
+  await page.getByRole('button', { name: 'Файл' }).click();
   await page.getByRole('menuitem', { name: label }).click();
 }
 async function save(page: import('@playwright/test').Page) {
@@ -35,8 +35,11 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     expect(edited.plan.objects.some((object: { label: string }) => object.label === 'Демо — моя правка')).toBe(true);
     await page.getByTestId('plan-file-input').setInputFiles(edited.path);
     expect((await save(page)).plan).toEqual(edited.plan);
-    await page.getByRole('button', { name: 'Демо', exact: true }).focus();
+    await page.getByRole('button', { name: 'Файл' }).focus();
     await page.keyboard.press('ArrowDown');
+    // Меню открывается на первом пункте; демо-планы идут дальше по стрелке вниз.
+    await expect(page.getByRole('menuitem', { name: 'Создать новый' })).toBeFocused();
+    await page.getByRole('menuitem', { name: 'Исходный демо-план' }).focus();
     await expect(page.getByRole('menuitem', { name: 'Исходный демо-план' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Изменённый демо-план' })).toBeFocused();

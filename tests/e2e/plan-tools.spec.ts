@@ -226,7 +226,7 @@ test.describe('инструменты плана', () => {
       [0.5, 0.8],
       [0.2, 0.8],
     ]);
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     for (const point of left) await clickAt(page, point);
     await clickAt(page, left[0] as Pixel);
     await expect(card).toHaveAttribute('data-entity-id', 'z_1');
@@ -259,7 +259,7 @@ test.describe('инструменты плана', () => {
       [0.6, 0.2],
       [0.6, 0.7],
     ]);
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     await clickAt(page, triangle[0] as Pixel);
     await clickAt(page, triangle[1] as Pixel);
     // Двух точек мало: Enter объясняет и ничего не создаёт.
@@ -284,7 +284,7 @@ test.describe('инструменты плана', () => {
       [0.6, 0.7],
       [0.2, 0.7],
     ]);
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     for (const point of quad.slice(0, 3)) await clickAt(page, point);
     await dblclickAt(page, quad[3] as Pixel);
     await expect(card).toHaveAttribute('data-entity-id', 'z_1');
@@ -482,7 +482,8 @@ test.describe('инструменты плана', () => {
     expect(saved.zones[1]?.polygon).toHaveLength(4);
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await showTab(page, 'Площади');
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
 
@@ -649,7 +650,8 @@ test.describe('инструменты плана', () => {
     await expect(notice).toContainText('вершин');
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await showTab(page, 'Площади');
     await expect(page.getByText('Зоны ещё не размечены')).toBeVisible();
     await expect(notice).toHaveCount(0);
@@ -859,7 +861,7 @@ test.describe('инструменты плана', () => {
 
     // Заказ от 22.09: переключение на любой другой инструмент снимает
     // выделение с проёма так же, как Enter.
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     await expect(page.getByLabel('Свойства')).toHaveCount(0);
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
@@ -1026,7 +1028,7 @@ test.describe('инструменты плана', () => {
       [5, 5],
       [2, 5],
     ];
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     await page.keyboard.down('Alt');
     for (const [x, y] of corners) await clickAt(page, await worldPixel(page, x, y));
     await clickAt(page, await worldPixel(page, corners[0]![0], corners[0]![1]));
@@ -1039,7 +1041,7 @@ test.describe('инструменты плана', () => {
 
     // Инструмент рисования снова в руках — и под курсором видно, за что
     // зацепится следующая точка (находка operator 20.09 №5).
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
 
     await hoverWorld(page, vertex[0] + 0.05, vertex[1] + 0.05);
     expect(await snapMarker(page)).toEqual({
@@ -1106,7 +1108,7 @@ test.describe('инструменты плана', () => {
     await expect(hint).toBeVisible();
 
     // Другой инструмент — ручек контура нет, и подсказки тоже.
-    await page.getByRole('button', { name: 'Зона', exact: true }).click();
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
     await expect(hint).toHaveCount(0);
     await page.keyboard.press('Escape');
   });

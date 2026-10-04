@@ -142,7 +142,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function drawZone(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Зона', exact: true }).click();
+  await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
   await clickCanvas(page, 200, 180);
   await clickCanvas(page, 430, 180);
   await clickCanvas(page, 430, 360);
@@ -337,7 +337,7 @@ test.describe('ассистент в браузере', () => {
     await panel(page).getByLabel('Сценарий').selectOption('equipment');
     await panel(page).getByRole('button', { name: 'Спросить' }).click();
 
-    const bench = panel(page).locator('.advice').filter({ hasText: 'Скамья / кресла для ожидания' });
+    const bench = panel(page).locator('.advice').filter({ hasText: 'Скамья для ожидания' });
     await expect(bench).toHaveCount(1);
     await expect(bench.locator('.advice__sentence')).toContainText('Зона ожидания');
     await expect(bench.locator('.advice__sentence')).toContainText('Не хватает оборудования: 1 при минимуме 2');

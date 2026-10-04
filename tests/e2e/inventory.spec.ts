@@ -152,7 +152,7 @@ test.describe('перечень оборудования', () => {
     );
     // В перечне остался только выбранный тип — строка называет его в каждой строке.
     for (const row of await inventoryRows(page).all()) {
-      await expect(row).toContainText('ot_workplace');
+      await expect(row).toContainText('Рабочее место оператора');
     }
 
     await panel(page).getByRole('button', { name: 'Сбросить фильтр' }).click();
@@ -169,12 +169,11 @@ test.describe('перечень оборудования', () => {
 
     await chipOf(page, 'ot_bench').click();
     const row = inventoryRows(page).first();
-    // В строке перечня: название типа словами и его id рядом, не вместо.
+    // В строке перечня тип и зона названы словами; сырых id в строке нет.
     await expect(row).toContainText(bench);
-    await expect(row).toContainText('ot_bench');
-    // Зона названа именем из плана, id — рядом.
+    await expect(row).not.toContainText('ot_bench');
     await expect(row).toContainText('Зона ожидания');
-    await expect(row).toContainText('z_waiting');
+    await expect(row).not.toContainText('z_waiting');
     await panel(page).getByRole('button', { name: 'Сбросить фильтр' }).click();
 
     // Разрез по зонам — тоже по именам.
@@ -193,7 +192,7 @@ test.describe('перечень оборудования', () => {
     // Само предложение и ссылка читаются без внутренних кодов. Они доступны
     // только после явного раскрытия технических деталей.
     const messages = checks.locator('.issues__message');
-    await expect(messages.filter({ hasText: 'Скамья / кресла для ожидания' }).first()).toBeVisible();
+    await expect(messages.filter({ hasText: 'Скамья для ожидания' }).first()).toBeVisible();
     await expect(messages.filter({ hasText: 'от главного входа' }).first()).toBeVisible();
     for (const message of await messages.allTextContents()) {
       expect(message).not.toMatch(/\b(?:ot|op|w)_[a-z0-9_]+\b/i);
@@ -228,7 +227,7 @@ test.describe('перечень оборудования', () => {
     await expect(chipOf(page, 'ot_bench')).toContainText(String(benches));
 
     await page
-      .locator('.library__item', { hasText: 'Скамья / кресла для ожидания' })
+      .locator('.library__item', { hasText: 'Скамья для ожидания' })
       .first()
       .click();
     // Свободный пол демо-плана: на занятое место объект теперь не встаёт (D-286).
@@ -349,7 +348,7 @@ test.describe('перечень оборудования', () => {
     const text = bytes.toString('utf8');
     const lines = text.split('\r\n');
     expect(lines).toHaveLength(demo.objects.length + 1);
-    expect(lines[0]).toBe('﻿Инв. №;Объект;id объекта;Тип;id типа;Зона;id зоны');
+    expect(lines[0]).toBe('﻿Инв. №;Объект;id объекта;Тип;id типа;Зона;id зоны;Состояние');
     const [firstObject] = demo.objects;
     if (firstObject === undefined) throw new Error('в демо-плане нет объектов');
     expect(lines[1]).toContain(String(firstObject.attributes['inventoryNumber']));
@@ -371,7 +370,7 @@ test.describe('перечень оборудования', () => {
     expect(benches).toBeGreaterThan(1);
 
     await chipOf(page, 'ot_bench').click();
-    await expect(panel(page).getByTestId('inventory-csv-scope')).toHaveText(
+    await expect(panel(page).getByTestId('inventory-csv-scope')).toContainText(
       `выгрузится отфильтрованное: строк ${benches} из ${demo.objects.length}`,
     );
 

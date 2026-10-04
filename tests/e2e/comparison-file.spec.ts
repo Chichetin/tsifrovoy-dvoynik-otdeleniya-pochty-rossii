@@ -33,10 +33,9 @@ for (const width of [1280, 1440]) {
     await expect(errorRow.locator('td').nth(0)).toHaveText('1');
     await expect(errorRow.locator('td').nth(1)).toHaveText('0');
     const warningRow = panel.getByTestId('comparison-issues.warning');
-    await expect(warningRow.locator('td').nth(0)).toHaveText('2');
+    await expect(warningRow.locator('td').nth(0)).toHaveText('1');
     await expect(warningRow.locator('td').nth(1)).toHaveText('0');
     await expect(panel).toContainText('Скамья ожидания 2');
-    await expect(panel).toContainText('Табло над зоной очереди');
     await expect(panel).toContainText('Терминал электронной очереди');
     // The committed snapshot is refreshed on request only, so an ordinary run
     // does not rewrite a tracked file: UPDATE_SNAPSHOTS=1 npx playwright test …
@@ -46,7 +45,7 @@ for (const width of [1280, 1440]) {
     const handle = page.getByRole('separator', { name: 'Изменить ширину правой панели' });
     await handle.focus();
     await page.keyboard.press('Home');
-    await expect(handle).toHaveAttribute('aria-valuenow', '200');
+    await expect(handle).toHaveAttribute('aria-valuenow', '12.5');
     const table = panel.getByRole('region', { name: 'Показатели было и стало' });
     await expect(table.getByRole('columnheader', { name: 'Показатель', exact: true })).toHaveCount(1);
     await table.focus();

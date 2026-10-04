@@ -44,10 +44,14 @@ test('копия без номера — предупреждение с наз�
 
   await showTab(page, 'Проверка');
   await expect(missing).toHaveCount(1);
-  await expect(missing).toHaveClass(/is-warning/);
-  await expect(missing.locator('.issues__message')).toHaveText(
-    'У объекта «Терминал электронной очереди» нет инвентарного номера: впишите номер с ярлыка предмета в карточке.',
-  );
+  // Копия терминала стоит дальше 3 м от входа: находки одного объекта идут одной группой (#14),
+  // и строка называется по самой тяжёлой из них.
+  await expect(missing).toHaveClass(/is-(warning|error)/);
+  await expect(
+    missing.getByText(
+      'У объекта «Терминал электронной очереди» нет инвентарного номера: впишите номер с ярлыка предмета в карточке.',
+    ),
+  ).toBeVisible();
   const ref = missing.getByRole('button', { name: 'Терминал электронной очереди' });
   await expect(ref).toHaveAttribute('data-ref-id', 'eq_54');
   // The committed snapshot is refreshed on request only, so an ordinary run

@@ -14,7 +14,7 @@ import { expect, test, type Page } from './fixtures';
 import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Горячие клавиши' });
 // D-260: кнопка — иконка в шапке, имя без «(?)», клавиша — в подсказке.

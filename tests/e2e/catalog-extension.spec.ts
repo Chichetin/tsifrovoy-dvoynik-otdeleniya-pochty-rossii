@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page , exportPlan } from './fixtures';
 import { showProps, showTab } from './side-tabs';
+import { closeSettings, openSettings } from './settings';
 
 async function save(page: Page): Promise<string> {
   const download = await Promise.all([
@@ -48,8 +49,10 @@ test('новый тип в каталоге → атрибут и слой → �
   const card = page.getByLabel('Свойства');
   await card.getByLabel('Номер окна').fill('4');
   await card.getByLabel('Самообслуживание').check();
-  await showTab(page, 'Слои');
-  await page.getByLabel('Слои').getByRole('button', { name: 'Добавить слой' }).click();
+  // Слои добавляются в окне «Настройки» (D-350).
+  const settings = await openSettings(page, 'Слои');
+  await settings.getByRole('button', { name: 'Добавить слой' }).click();
+  await closeSettings(page);
   // Вкладка «Слои» заменила карточку, выделение осталось — вернуть (D-268).
   await showProps(page);
   await card.getByLabel('Слой').selectOption({ label: 'Слой 7' });

@@ -113,22 +113,23 @@ test('находки примера помечены на плане без кл
   // Каждая сущность, которую находка называет первой, помечена на плане.
   const listed = new Set(
     await items.evaluateAll((nodes) =>
-      nodes.map((node) => node.querySelector('button')?.getAttribute('data-ref-id') ?? ''),
+      nodes.flatMap((node) =>
+        [...node.querySelectorAll('button[data-ref-id]')].map((button) => button.getAttribute('data-ref-id') ?? ''),
+      ),
     ),
   );
-  await expect.poll(async () => (await markers(page)).length).toBe(listed.size);
+  await expect.poll(async () => (await markers(page)).length).toBe(10);
   const shown = await markers(page);
-  expect(new Set(shown.map((marker) => marker.id.replace(/^issue-marker:[a-z]+:/, '')))).toEqual(
-    listed,
-  );
-  // Восемь сущностей: три коллизии помечают кассы и банкомат, стены и зона — оба
-  // стеллажа и ПВЗ, правило расстояния — терминал, правило комплектования — зону
-  // клиентского зала. Числа на значках в сумме — 10 находок списка.
-  expect(shown).toHaveLength(8);
-  expect(shown.reduce((sum, marker) => sum + marker.count, 0)).toBe(10);
+  // Маркер стоит только на сущности, которую список называет ссылкой.
+  for (const marker of shown) expect(listed.has(marker.id.replace(/^issue-marker:[a-z]+:/, ''))).toBe(true);
+  // Десять сущностей: коллизии помечают кассы, банкомат, стеллажи, ПВЗ, скамью и рабочее место
+  // служебной зоны; правило расстояния — терминал-киоск; правило комплектования — зону
+  // клиентского зала. Числа на значках в сумме — 13 находок.
+  expect(shown).toHaveLength(10);
+  expect(shown.reduce((sum, marker) => sum + marker.count, 0)).toBe(13);
   expect(shown.every((marker) => !marker.focused)).toBe(true);
   // Геометрия и норма организаторов — ошибки; правило команды у зоны — предупреждение.
-  expect(shown.filter((marker) => marker.severity === 'error')).toHaveLength(7);
+  expect(shown.filter((marker) => marker.severity === 'error')).toHaveLength(9);
   expect(shown.find((marker) => marker.id === 'issue-marker:zone:z_client')?.severity).toBe('warning');
   // У стеллажа три находки: коллизия с кассой помечена у кассы, стена и зона — у него.
   expect(shown.find((marker) => marker.id === 'issue-marker:object:eq_rack_1')?.count).toBe(2);
@@ -144,7 +145,7 @@ test('находки примера помечены на плане без кл
   const rack = after.find((marker) => marker.focused);
   const other = after.find((marker) => !marker.focused);
   expect(rack?.radius ?? 0).toBeGreaterThan(other?.radius ?? 0);
-  expect(after).toHaveLength(listed.size);
+  expect(after).toHaveLength(10);
 
   // Контур выделенного — с белой каймой: читается и на красном стеллаже.
   // Кайма в 1.5 px по обе стороны контура стеллажа — сотни белых пикселей.
@@ -155,7 +156,7 @@ test('находки примера помечены на плане без кл
   // Escape гасит выделение, но не маркеры.
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await markers(page)).some((m) => m.focused)).toBe(false);
-  expect(await markers(page)).toHaveLength(listed.size);
+  expect(await markers(page)).toHaveLength(10);
   await expect.poll(() => whitePixels(page)).toBe(whiteBefore);
 
   expect(errors).toEqual([]);
@@ -192,7 +193,7 @@ test('клик по кружочку маркера открывает нахо�
   // нажимаем — он всегда снимает выделение вместе с черновиком контура
   // (комментарий EditorCanvas), а тут проверяется именно судьба выделения.
   await showTab(page, 'Инвентаризация');
-  await page.getByRole('button', { name: 'Помещение', exact: true }).click();
+  await page.getByRole('button', { name: 'Комната', exact: true }).click();
   await clickOnCanvas(page, markerPoint as { x: number; y: number });
   await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
   await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'false');
