@@ -1,7 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {expect,it} from 'vitest';
 import type {Command} from '../../contracts/commands';
-import type {Opening,PlanDocument} from '../../contracts/model';
+import type {Equipment,Opening,PlanDocument} from '../../contracts/model';
 import {applyCommand} from '../commands';
 import {editRejection,introducesOpeningOverlap,openingDeleteRejection,openingRejection} from '.';
 function fixture(){
@@ -161,4 +161,19 @@ it('предмет перед дверью отклоняется, камера 
  };
  expect(check({...o,position:[3,0.8]})).toBe('OBJECT_BLOCKS_OPENING');
  expect(check({...o,position:[3,0.8],base_m:2.2,height_m:0.3})).toBeNull();
+});
+
+it('техника мимо стола отклоняется, на столе и на полу — нет',()=>{
+ const p=fixture();const o=p.objects[0]!;
+ p.objects=[{...o,id:'desk',typeId:'ot_workplace',position:[3,2],size_m:[1.4,0.8],height_m:0.75}];
+ const pc:Equipment={...o,id:'pc',typeId:'ot_computer',position:[3,2],size_m:[0.4,0.45],base_m:0.75,height_m:0.45};
+ const check=(object:Equipment)=>{
+  const put:Command={type:'object.put',object};
+  const after=applyCommand(p,put);
+  if(!after.ok)throw new Error('put must apply before the gate');
+  return editRejection(p,after.value,put)?.code??null;
+ };
+ expect(check(pc)).toBeNull();
+ expect(check({...pc,position:[3.6,2]})).toBe('OBJECT_UNSUPPORTED');
+ expect(check({...pc,position:[3,3.5],base_m:0})).toBeNull();
 });

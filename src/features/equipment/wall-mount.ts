@@ -21,27 +21,20 @@
 import type { Id, ObjectType, Point, Polygon, Wall } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
 import { locatePoint, projectOnSegment } from '../../domain/geometry';
+import { WORK_SURFACE_M } from '../../domain/validation';
 import { rotationFromPointer, snapPosition } from './transform';
 
 /**
- * Высота рабочей поверхности в справочнике: у стола `ot_workplace`
- * `defaultHeight_m` 0,75 м, и ровно 0,75 м стоит в `defaultBase_m` у всей
- * настольной техники (компьютер, принтер, этикеточник, терминал оплаты, весы).
- * Всё, что крепится выше, висит уже не на мебели, а на стене: от щита 0,8 м до
- * датчика 2,9 м. Известное ограничение: розетка (0,3 м) ниже стола и под
- * правило не попадает — она ставится там, где кликнули.
- */
-export const SUPPORT_SURFACE_M = 0.75;
-
-/**
  * Крепится к стене: не занимает пол и поднято выше рабочей поверхности.
+ * Известное ограничение: розетка (0,3 м) ниже стола и под правило не
+ * попадает — она ставится там, где кликнули.
  * Из этого следуют оба поведения пакета — разворот при постановке и
  * отсутствие ручек размера (габариты такого прибора — его собственные,
  * а не решение планировщика).
  */
 export function isWallMounted(type: ObjectType | null | undefined): boolean {
   if (type === null || type === undefined) return false;
-  return !type.occupiesFloor && type.defaultBase_m > SUPPORT_SURFACE_M;
+  return !type.occupiesFloor && type.defaultBase_m > WORK_SURFACE_M;
 }
 
 /**
