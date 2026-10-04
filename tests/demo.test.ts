@@ -35,7 +35,7 @@ import { calculateAdvice, routeAgentQuery, verifyExplanation } from '../src/doma
 import { countInZoneScope } from '../src/domain/inventory';
 import { measurePlan } from '../src/domain/metrics';
 import { reconcileZones } from '../src/domain/relations';
-import { validatePlan } from '../src/domain/validation';
+import { planHealth, validatePlan } from '../src/domain/validation';
 import { encodePlan } from '../src/persistence/codec';
 import { readPlanFile } from '../src/persistence/format';
 
@@ -203,6 +203,8 @@ describe('комплект демо-проекта', () => {
     ).toEqual(['RULE_COUNT_BELOW_MIN']);
     // The changed plan is clean: that is the point of the recommendation.
     expect(validatePlan(after)).toEqual([]);
+    // #125: the score in the header says the same — «after» is higher.
+    expect(planHealth(issues).score).toBeLessThan(planHealth(validatePlan(after)).score);
   });
 
   test('рекомендация в файле повторяется расчётом на before.json', SLOW_CALCULATION, () => {
