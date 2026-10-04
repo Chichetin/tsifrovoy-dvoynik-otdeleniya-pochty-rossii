@@ -69,6 +69,20 @@ export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLaye
   const markers = issueMarkers(issues, focus);
   const measures = measuresFor(issues, focus);
   const clickable = onMarkerClick !== undefined;
+  // Markers of neighbouring shapes can land on one spot: push a later one down
+  // until it clears the markers already placed, so no marker hides another.
+  const placed: Array<{ x: number; y: number }> = [];
+  const positions = markers.map((marker) => {
+    const [ax, ay] = markerAnchor(marker.polygon, viewport);
+    const shift = (marker.focused ? FOCUSED_MARKER_RADIUS : MARKER_RADIUS) + RESIZE_HANDLE_RADIUS_PX;
+    const x = ax + shift;
+    let y = ay - shift;
+    while (placed.some((other) => Math.hypot(other.x - x, other.y - y) < 2 * FOCUSED_MARKER_RADIUS)) {
+      y += 2 * MARKER_RADIUS + 2;
+    }
+    placed.push({ x, y });
+    return { x, y };
+  });
   return (
     <Group listening={clickable} name="issue-highlights">
       <Group name="issue-focus" listening={false}>
@@ -111,13 +125,12 @@ export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLaye
         })}
       </Group>
       <Group name="issue-markers">
-        {markers.map((marker) => {
-          const [x, y] = markerAnchor(marker.polygon, viewport);
-          const radius = marker.focused ? FOCUSED_MARKER_RADIUS : MARKER_RADIUS;
+        {markers.map((marker, index) => {
           // Clear of the corner by the marker's own radius plus the handle's:
           // this layer sits above the equipment layer, so a marker centred
           // near the corner would hide the resize handle of a selected object.
-          const shift = radius + RESIZE_HANDLE_RADIUS_PX;
+          const radius = marker.focused ? FOCUSED_MARKER_RADIUS : MARKER_RADIUS;
+          const position = positions[index] ?? { x: 0, y: 0 };
           return (
             <Group
               key={`${marker.ref.kind}:${marker.ref.id}`}
@@ -126,8 +139,8 @@ export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLaye
               issueCount={marker.count}
               severity={marker.severity}
               focused={marker.focused}
-              x={x + shift}
-              y={y - shift}
+              x={position.x}
+              y={position.y}
               listening={clickable}
               onPointerDown={
                 onMarkerClick === undefined
