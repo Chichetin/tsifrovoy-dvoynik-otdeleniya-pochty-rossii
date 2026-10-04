@@ -30,6 +30,7 @@ import {
 import { findFix, planFix } from '../src/features/validation/finding-why';
 import { decodePlan, encodePlan } from '../src/persistence/codec';
 import { createPlanStore } from '../src/state/plan-store';
+import { placedObject, placementRefusal } from '../src/features/equipment/placement-ghost';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -365,5 +366,26 @@ describe('вариант исправления находки (#33)', () => {
     expect(fix.kind === 'move' ? fix.object.id : fix.kind).toBe('eq_rack_1');
     if (fix.kind === 'none') throw new Error('вариант не запланирован');
     expect(findFix(plan, fix).ok).toBe(true);
+  });
+});
+
+describe('силуэт постановки (#26)', () => {
+  test('цвет силуэта совпадает с ответом хранилища при отпускании — на сетке точек по всему плану', () => {
+    const type = plan.catalog.objectTypes.find((entry) => entry.id === 'ot_workplace');
+    if (type === undefined) throw new Error('нет типа ot_workplace');
+    const xs = plan.room.boundary.map((point) => point[0]);
+    const ys = plan.room.boundary.map((point) => point[1]);
+    const seen = new Set<boolean>();
+    for (let x = Math.min(...xs) - 1; x <= Math.max(...xs) + 1; x += 1.3) {
+      for (let y = Math.min(...ys) - 1; y <= Math.max(...ys) + 1; y += 1.3) {
+        const object = placedObject(plan, type, [x, y]);
+        if (object === null) throw new Error('постановка не дала объекта');
+        const accepted = createPlanStore(plan).getState().dispatch({ type: 'object.put', object }).ok;
+        expect(placementRefusal(plan, object) === null, `точка ${x}, ${y}`).toBe(accepted);
+        seen.add(accepted);
+      }
+    }
+    // Сетка задевает и свободные места, и занятые или внешние: проверка не пустая.
+    expect([...seen].sort()).toEqual([false, true]);
   });
 });

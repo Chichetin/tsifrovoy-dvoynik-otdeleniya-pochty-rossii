@@ -299,8 +299,18 @@ export function EditorCanvas({
       if (!event.dataTransfer.types.includes('text/plain')) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = 'copy';
+      // The dragged type is carried by the pointer like a click-armed one: a
+      // `move` lets the equipment controller show where it would land (#26).
+      const bounds = event.currentTarget.getBoundingClientRect();
+      onPointer({
+        phase: 'move',
+        point: screenToModel([event.clientX - bounds.left, event.clientY - bounds.top], session.viewport),
+        shift: event.shiftKey,
+        alt: event.altKey,
+        button: 0,
+      });
     },
-    [session.tool],
+    [onPointer, session.tool, session.viewport],
   );
 
   const handleDrop = useCallback(

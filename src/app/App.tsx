@@ -37,6 +37,7 @@ import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
+import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
 import { historyHotkey } from '../features/editor/hotkeys';
@@ -1130,6 +1131,9 @@ export function App(): React.JSX.Element {
                 onEditingChange={setShapeEditingId}
               />
               <InformationLayer document={document} session={session} />
+              {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
+                  откажет, причина рядом (#26). Над объектами, под линейкой. */}
+              <PlacementGhostLayer active={tool.kind === 'object.place'} viewport={viewport} />
               {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                   должен уходить под объект или под имя зоны. В план она ничего не
                   кладёт (D-256). */}
