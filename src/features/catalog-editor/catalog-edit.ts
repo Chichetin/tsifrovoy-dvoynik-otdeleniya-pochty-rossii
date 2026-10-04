@@ -22,6 +22,7 @@ import type {
   Point,
   ZoneType,
 } from '../../contracts/model';
+import { INVENTORY_NUMBER_KEY } from '../../domain/commands';
 
 /** Новый тип оборудования — все размеры условные, и это записано в источнике. */
 export type NewObjectType = {
@@ -89,6 +90,10 @@ export function slugId(prefix: string, label: string, taken: Iterable<Id>): Id {
  * с латинской буквы (так требует `ATTRIBUTE_KEY` панели); занятый — с номером.
  */
 export function attributeKeyFromLabel(label: string, takenKeys: Iterable<string>): string {
+  const used = new Set(takenKeys);
+  // «Инвентарный номер» is the system attribute the table, the CSV and the
+  // duplicate check read: a transliterated twin would stay an empty column (#93).
+  if (/^инвентарн[а-я]*\s+номер$/i.test(label.trim()) && !used.has(INVENTORY_NUMBER_KEY)) return INVENTORY_NUMBER_KEY;
   const stem = label
     .toLowerCase()
     .split('')
@@ -97,7 +102,6 @@ export function attributeKeyFromLabel(label: string, takenKeys: Iterable<string>
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
   const base = stem === '' ? 'attr' : /^[a-z]/.test(stem) ? stem : `attr_${stem}`;
-  const used = new Set(takenKeys);
   if (!used.has(base)) return base;
   for (let index = 2; ; index += 1) {
     const candidate = `${base}_${index}`;

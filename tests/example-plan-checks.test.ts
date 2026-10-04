@@ -312,6 +312,13 @@ describe('ключ атрибута из подписи (#13)', () => {
     expect(attributeKeyFromLabel('  ', [])).toBe('attr');
   });
 
+  test('«Инвентарный номер» — системный ключ, второй раз в типе — обычное правило', () => {
+    expect(attributeKeyFromLabel('Инвентарный номер', [])).toBe('inventoryNumber');
+    expect(attributeKeyFromLabel(' инвентарный  номер ', ['x'])).toBe('inventoryNumber');
+    expect(attributeKeyFromLabel('Инвентарный номер', ['inventoryNumber'])).toBe('inventarnyy_nomer');
+    expect(attributeKeyFromLabel('Номер по описи', [])).not.toBe('inventoryNumber');
+  });
+
   test('ключ уникален в типе: занятый получает _2, _3', () => {
     expect(attributeKeyFromLabel('Дата поверки', ['data_poverki'])).toBe('data_poverki_2');
     expect(attributeKeyFromLabel('Дата поверки', ['data_poverki', 'data_poverki_2'])).toBe('data_poverki_3');
