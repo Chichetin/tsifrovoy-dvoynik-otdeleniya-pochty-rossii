@@ -462,7 +462,7 @@ export function InventoryPanel({
                 data-testid="inventory-maintenance-toggle"
                 onChange={(event) => setMaintenanceOnly(event.target.checked)}
               />{' '}
-              Только ТО просрочено или в ближайшие {MAINTENANCE_WARNING_DAYS} дн.: {dueCount}
+              Только ТО просрочено, в ближайшие {MAINTENANCE_WARNING_DAYS} дн. или дата не распознана: {dueCount}
             </label>
           ) : null}
 
@@ -577,6 +577,12 @@ export function InventoryPanel({
                       >
                         {row.label}
                       </button>
+                      {row.maintenance?.kind === 'invalid' ? (
+                        <span className="table__muted" data-testid="inventory-date-invalid" title={`«${row.maintenance.text}»`}>
+                          {' '}
+                          — дата ТО не распознана
+                        </span>
+                      ) : null}
                     </td>
                     <td title={row.typeLabel === null ? undefined : row.typeId}>
                       {display(row.typeLabel, row.typeId)}

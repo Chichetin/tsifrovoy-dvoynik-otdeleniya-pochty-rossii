@@ -41,6 +41,24 @@ export function parseDay(text: string): number | null {
   return time;
 }
 
+/** Why the text is not a date of the next maintenance, or null when it is one. */
+export function maintenanceDateError(text: string): string | null {
+  if (text.trim() === '' || parseDay(text) !== null) return null;
+  return 'Дата в формате 31.12.2026 или 2026-12-31.';
+}
+
+/** Warnings for the open file: objects whose next maintenance is not a date. */
+export function maintenanceDateWarnings(objects: Equipment[]): string[] {
+  const warnings: string[] = [];
+  for (const object of objects) {
+    const value = object.attributes[MAINTENANCE_DATE_KEY];
+    if (typeof value === 'string' && maintenanceDateError(value) !== null) {
+      warnings.push(`${object.id}: «Следующее ТО»: «${value.trim()}» не дата. Дата в формате 31.12.2026 или 2026-12-31.`);
+    }
+  }
+  return warnings;
+}
+
 /** Today as «YYYY-MM-DD» by the local clock: the default of the check. */
 export function localToday(now: Date = new Date()): string {
   const month = String(now.getMonth() + 1).padStart(2, '0');

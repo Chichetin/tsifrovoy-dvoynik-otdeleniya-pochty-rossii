@@ -188,6 +188,11 @@ describe('фильтр строк', () => {
     expect(ids('   ')).toEqual(['eq_work_1', 'eq_bench_1']);
   });
 
+  test('фильтр «ТО» оставляет строку с неверной датой (#151)', () => {
+    const bad = { ...rows[0]!, maintenance: { kind: 'invalid' as const, text: 'вчера' } };
+    expect(filterObjectRows([bad, rows[1]!], { query: '', typeId: null, maintenanceDue: true })).toEqual([bad]);
+  });
+
   test('ищет по названию объекта без учёта регистра', () => {
     expect(ids('СКАМЬЯ')).toEqual(['eq_bench_1']);
   });

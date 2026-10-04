@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { Equipment, Issue, PlanDocument, Point } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
-import { VALIDATION_ISSUE_CODES, validatePlan } from './index';
+import { VALIDATION_ISSUE_CODES, maintenanceDateError, validatePlan } from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -583,5 +583,15 @@ describe('контуры объектов в проверке (D-277)', () => {
     expect(codesOf(issues)).toEqual([VALIDATION_ISSUE_CODES.POLYGON_UNUSABLE]);
     expect(issues[0]?.refs).toEqual([{ kind: 'object', id: 'eq_trapezoid' }]);
     expect(issues[0]?.polygon).toHaveLength(4);
+  });
+});
+
+describe('дата следующего ТО (#151)', () => {
+  test('31.02.2026 и «вчера» — не даты, ISO и ДД.ММ.ГГГГ — даты', () => {
+    expect(maintenanceDateError('31.02.2026')).not.toBeNull();
+    expect(maintenanceDateError('вчера')).not.toBeNull();
+    expect(maintenanceDateError('2026-10-10')).toBeNull();
+    expect(maintenanceDateError('01.10.2026')).toBeNull();
+    expect(maintenanceDateError('')).toBeNull();
   });
 });

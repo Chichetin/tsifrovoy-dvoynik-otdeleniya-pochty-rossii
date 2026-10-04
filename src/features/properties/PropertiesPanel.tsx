@@ -27,6 +27,7 @@ import type {
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { attributeBoundsError, attributeRange, findObjectType, findZoneType } from '../../domain/catalog';
+import { MAINTENANCE_DATE_KEY, maintenanceDateError } from '../../domain/validation';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
@@ -315,9 +316,17 @@ export function PropertiesPanel({
           aria-label={label}
           value={shown(name, isMixed ? '' : attributeValue(attributes, def))}
           placeholder={isMixed ? 'разные' : undefined}
-          onChange={(event) =>
-            commitCommand(name, set(event.target.value === '' ? null : event.target.value), event.target.value)
-          }
+          onChange={(event) => {
+            const raw = event.target.value;
+            // Дата ТО: текст не дата — не применяется, черновик остаётся в поле (#151).
+            const notDate = def.key === MAINTENANCE_DATE_KEY ? maintenanceDateError(raw) : null;
+            if (notDate !== null) {
+              setDraft((current) => ({ ...current, [name]: raw }));
+              setErrors((current) => ({ ...current, [name]: notDate }));
+              return;
+            }
+            commitCommand(name, set(raw === '' ? null : raw), raw);
+          }}
         />,
       );
     });
