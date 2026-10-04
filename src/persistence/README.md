@@ -6,6 +6,6 @@
 
 ## Граница модуля
 
-codec.ts и organizer-import.ts не зависят от DOM/store. browser-draft.ts — отдельный браузерный адаптер. inventory-csv.ts — CSV инвентаризации и выбор столбцов атрибутов (выбор хранится в localStorage). Открытием и скачиванием управляет features/files.
+codec.ts и organizer-import.ts не зависят от DOM/store. browser-draft.ts и plan-versions.ts — браузерные адаптеры: черновик и именованные версии плана в localStorage. inventory-csv.ts — CSV инвентаризации и выбор столбцов атрибутов (выбор хранится в localStorage). Открытием и скачиванием управляет features/files.
 
 [Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md)
