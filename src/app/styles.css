@@ -554,8 +554,9 @@ body {
   z-index: 10;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  max-width: calc(100% - 24px);
+  gap: 0 12px;
+  /* Leaves the right corner to the scale and «Вписать». */
+  max-width: calc(100% - 300px);
   padding: 2px 8px;
   border-radius: 4px;
   background: rgb(255 255 255 / 85%);
@@ -563,6 +564,12 @@ body {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
   pointer-events: none;
+  white-space: nowrap;
+}
+
+/* The widest reading is reserved, so the segments after it do not jump. */
+.canvas-status__cursor {
+  min-width: 21ch;
 }
 
 .editor-canvas__scale {

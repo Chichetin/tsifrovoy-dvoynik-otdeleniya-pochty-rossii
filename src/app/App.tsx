@@ -1082,7 +1082,7 @@ export function App(): React.JSX.Element {
             document={document}
             session={session}
             onPointer={(event) => {
-              publishCanvasCursor(event.phase === 'cancel' ? null : event.point);
+              if (event.phase !== 'cancel') publishCanvasCursor(event.point);
               if (placingOpening) openingTool.handlePointer(event);
               else if (drawingRoom) internalRoom.handlePointer(event);
               else planTool.handlePointer(event);
@@ -1177,11 +1177,8 @@ export function App(): React.JSX.Element {
             <CanvasStatus
               document={shownDocument}
               session={session}
-              segment={
-                drawingRoom || planTool.draft === null || planTool.cursor === null || planTool.draft.length === 0
-                  ? null
-                  : [planTool.draft[planTool.draft.length - 1]!, planTool.cursor]
-              }
+              draft={drawingRoom ? null : planTool.draft}
+              draftCursor={drawingRoom ? null : planTool.cursor}
             />
           ) : null}
           {view === '3d' ? (

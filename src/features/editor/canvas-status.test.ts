@@ -37,6 +37,8 @@ it('выделение: группа объектов даёт число и с�
     count: 2,
     area_m2: 3,
   });
+  const both = session({ selected: new Set(['eq_1', 'eq_2']), selection: { kind: 'object', id: 'eq_1' } });
+  expect(selectionReadout(plan, both)?.count).toBe(2);
   expect(selectionReadout(plan, session({ selection: { kind: 'zone', id: 'z_1' } }))).toEqual({
     kind: 'zone',
     count: 1,
