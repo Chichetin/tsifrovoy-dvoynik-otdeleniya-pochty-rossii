@@ -43,6 +43,17 @@ const METRIC_LABELS: Record<Fact['metric'], string> = {
   'layout.entrance': 'Среднее расстояние до входа',
 };
 
+/** Compare has its own meaning for two metrics: a sum of moves and one object's distance to the entrance. */
+function metricLabel(fact: Fact, scenario: Recommendation['scenario'], index: PlanIndex): string {
+  if (scenario !== 'compare') return METRIC_LABELS[fact.metric];
+  if (fact.metric === 'placement.distance') return 'Перемещено объектов, м (сумма)';
+  if (fact.metric === 'layout.entrance') {
+    const ref = fact.refs[0];
+    return `Расстояние до входа: ${ref === undefined ? '' : (index.nameOf(ref) ?? ref.id)}`;
+  }
+  return METRIC_LABELS[fact.metric];
+}
+
 const PHASE_LABELS: Record<Fact['phase'], string> = {
   current: 'сейчас',
   before: 'было',
@@ -339,7 +350,7 @@ export function AssistantPanel({
                   {ownFacts(recommendation).map((fact) => (
                     <li key={fact.id}>
                       <span>
-                        {METRIC_LABELS[fact.metric]} ({PHASE_LABELS[fact.phase]})
+                        {metricLabel(fact, recommendation.scenario, names)} ({PHASE_LABELS[fact.phase]})
                       </span>
                       <b>{formatValue(fact)}</b>
                     </li>
