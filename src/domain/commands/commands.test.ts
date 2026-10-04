@@ -584,6 +584,16 @@ describe('applyCommand: числовые инварианты документа
     expect(parsePlanDocument(JSON.parse(JSON.stringify(turned)) as unknown).ok).toBe(true);
   });
 
+  test('координата объекта дальше ±1000 м отклоняется, на месте далёкий объект правится', () => {
+    const plan = minimalPlan();
+    const base = plan.objects[0]!;
+    const far = { ...base, position: [99999, 0] as [number, number] };
+
+    expect(codes(applyCommand(plan, { type: 'object.put', object: far }))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    const placed = { ...plan, objects: [far] };
+    expectOk(applyCommand(placed, { type: 'object.put', object: { ...far, rotation_deg: 90 } }));
+  });
+
   test('нулевой размер, отрицательная высота и бесконечная координата отклоняются', () => {
     const plan = minimalPlan();
     const base = plan.objects[0]!;
