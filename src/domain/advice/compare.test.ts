@@ -272,7 +272,7 @@ describe('A03: диспетчер сценариев', () => {
     expect(advice?.candidates.length).toBeGreaterThan(0);
     expect(advice?.ruleIds).toEqual(['rule_desk_min']);
     expect(advice?.assumptions.join(' ')).toContain('Перебор: сетка 0.1 м');
-    expect(advice?.assumptions.join(' ')).toContain('допущение команды');
+    expect(advice?.assumptions.join(' ')).toContain('Правило команды: в клиентской зоне хотя бы один стол');
     expect(advice?.limitations).toEqual([
       REASON_CODE_SPECS['placement.available'].requiredLimitation,
     ]);

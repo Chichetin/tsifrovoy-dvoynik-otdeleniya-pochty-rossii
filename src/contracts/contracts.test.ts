@@ -150,6 +150,8 @@ describe('schema: точные коды отказа', () => {
     expect(accepted.catalog.zoneTypes[0]?.attributes[0]?.max).toBe(100);
     zoneTypes[0]!['attributes'] = [{ ...load, min: 100, max: 0 }];
     expect(codesOf(expectRefused(plan))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    zoneTypes[0]!['attributes'] = [{ ...load, type: 'string', min: 0, max: 100 }];
+    expect(codesOf(expectRefused(plan))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
   });
 
   test('полигон сверх предела вершин отклоняется', () => {
@@ -175,7 +177,7 @@ describe('семантический словарь объяснений', () =>
     expect(METRIC_UNITS['area.free']).toBe('m2');
     expect(METRIC_UNITS['placement.distance']).toBe('m');
     expect(METRIC_UNITS['equipment.count']).toBe('count');
-    expect(Object.keys(METRIC_UNITS)).toHaveLength(9);
+    expect(Object.keys(METRIC_UNITS)).toHaveLength(11);
     expect(INTEGER_METRICS).toContain('equipment.count');
     expect(INTEGER_METRICS).not.toContain('area.free');
   });

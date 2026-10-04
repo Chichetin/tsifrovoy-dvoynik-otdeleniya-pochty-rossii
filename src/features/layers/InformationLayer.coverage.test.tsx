@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { cleanup, render } from '@testing-library/react';
 import type Konva from 'konva';
 import { createRef } from 'react';
-import { Stage } from 'react-konva';
+import { Layer, Stage } from 'react-konva';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -59,14 +59,18 @@ function stageWith(plan: PlanDocument, scale = 48) {
   const stage = createRef<Konva.Stage>();
   const view = render(
     <Stage ref={stage} width={900} height={700}>
+<Layer>
       <InformationLayer document={plan} session={session(scale)} />
+</Layer>
     </Stage>,
   );
   if (stage.current === null) throw new Error('Stage');
   const rerender = (next: PlanDocument, nextScale: number): void =>
     view.rerender(
       <Stage ref={stage} width={900} height={700}>
+<Layer>
         <InformationLayer document={next} session={session(nextScale)} />
+</Layer>
       </Stage>,
     );
   return { stage: stage.current, rerender };
@@ -80,7 +84,7 @@ describe('слепые пятна клиентских зон на холсте'
     expect(named(stage, 'camera-blind')).toHaveLength(1);
     expect(named(stage, 'camera-blind-legend')).toHaveLength(1);
     const captions = named(stage, 'info-caption').map((node) => (node as Konva.Text).text());
-    expect(captions).toContain('Слепые пятна клиентских зон · видно 29,8 %');
+    expect(captions).toContain('Слепые пятна клиентских зон · видно 93,8 %');
     // Hatch is a plain fill without stroke or opacity: no buffer canvas (D-190).
     const hatch = named(stage, 'camera-blind')[0] as Konva.Shape;
     expect(hatch._useBufferCanvas()).toBe(false);

@@ -46,7 +46,7 @@ describe('shapeTypeFrom', () => {
     expect(type.defaultSize_m).toEqual(source.size_m);
     expect(type.category).toBe(origin.category);
     expect(type.attributes).toEqual(origin.attributes);
-    expect(type.provenance).toMatch(/^Допущение команды/);
+    expect(type.provenance).toMatch(/^Форма нарисована в редакторе/);
   });
 
   test('без названия или без своей формы типа нет', () => {

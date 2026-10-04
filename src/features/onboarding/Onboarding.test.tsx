@@ -177,7 +177,7 @@ describe('подсветка панели', async () => {
     expect(rings().map((ring) => ring.target)).toEqual(['files']);
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     await nextFrame();
-    expect(rings().map((ring) => ring.target)).toEqual(['tools', 'side-left']);
+    expect(rings().map((ring) => ring.target)).toEqual(['tools', 'side-left', 'side-right']);
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     await nextFrame();
     expect(rings().map((ring) => ring.target)).toEqual(['side-right']);

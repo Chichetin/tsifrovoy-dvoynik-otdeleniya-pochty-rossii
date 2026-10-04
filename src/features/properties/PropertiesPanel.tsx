@@ -26,7 +26,7 @@ import type {
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
-import { findObjectType, findZoneType } from '../../domain/catalog';
+import { attributeBoundsError, attributeRange, findObjectType, findZoneType } from '../../domain/catalog';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
@@ -257,12 +257,18 @@ export function PropertiesPanel({
         );
       }
       if (def.type === 'number') {
+        const range = attributeRange(def);
+        // Значение из файла может лежать вне границ (#138): поле называет это,
+        // пока человек не исправит число.
+        const stored = isMixed ? null : attributeBoundsError(def, attributes[def.key] ?? null);
         return field(
           name,
           label,
           <input
             type="number"
             aria-label={label}
+            min={def.min}
+            max={def.max}
             value={shown(name, isMixed ? '' : attributeValue(attributes, def))}
             placeholder={isMixed ? 'разные' : undefined}
             onChange={(event) => {
@@ -270,9 +276,17 @@ export function PropertiesPanel({
               // Пустое поле — очистка значения (null), а не ноль. Нечисло не
               // уходит в команду вовсе: NaN прошёл бы проверку типа атрибута.
               const parsed = parseNumber(raw);
+              const outside = parsed === null ? null : attributeBoundsError(def, parsed);
+              if (outside !== null) {
+                // Число вне границ не применяется; черновик остаётся в поле.
+                setDraft((current) => ({ ...current, [name]: raw }));
+                setErrors((current) => ({ ...current, [name]: outside }));
+                return;
+              }
               commitCommand(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
             }}
           />,
+          stored ?? (range === null ? undefined : `Допустимо ${range}`),
         );
       }
       const choices = colorChoices.get(def.key);

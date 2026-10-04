@@ -86,6 +86,20 @@ describe('readPlanFile', () => {
     expect(result.value.plan.zones.length).toBeGreaterThan(0);
   });
 
+  test('значение атрибута вне границ (#138) открывается с предупреждением', () => {
+    const payload = JSON.parse(fixtureText('nested.json')) as {
+      catalog: { zoneTypes: { id: string; attributes: unknown[] }[] };
+      zones: { id: string; typeId: string; attributes: Record<string, unknown> }[];
+    };
+    const zone = payload.zones[0]!;
+    const type = payload.catalog.zoneTypes.find((entry) => entry.id === zone.typeId)!;
+    type.attributes = [{ key: 'loadPercent', label: 'Загрузка зоны, %', type: 'number', required: false, min: 0, max: 100 }];
+    zone.attributes.loadPercent = 150;
+    const result = readPlanFile(JSON.stringify(payload));
+    if (!result.ok) throw new Error(result.issues.map((issue) => issue.code).join('; '));
+    expect(result.value.warnings).toEqual([`${zone.id}: «Загрузка зоны, %»: 150 вне границ, допустимо от 0 до 100.`]);
+  });
+
   test('поля вне формата названы при открытии, а не потеряны молча при сохранении', () => {
     const payload = JSON.parse(fixtureText('nested.json')) as Record<string, unknown>;
     payload.futureField = { a: 1 };
@@ -123,7 +137,7 @@ describe('readPlanFile', () => {
     expect(result.value.plan.objects.map((object) => object.id)).toContain('eq_kiosk');
     // Допущения приходят из extensions импортёра (D-027), а не сочиняются здесь.
     expect(result.value.assumptions.length).toBeGreaterThan(0);
-    expect(result.value.assumptions.join(' ')).toContain('допущение команды');
+    expect(result.value.assumptions.join(' ')).toContain('в исходном файле толщина не указана');
   });
 
   test('импортированный пример сохраняется нашим кодеком без правок', () => {

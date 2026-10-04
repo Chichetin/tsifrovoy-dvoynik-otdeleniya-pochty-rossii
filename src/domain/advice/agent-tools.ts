@@ -20,6 +20,7 @@ import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
 import { checkAgentEdits } from './agent-edits';
 import { layoutZone } from './layout';
+import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
 import { calculateAdvice } from './index';
 
@@ -241,7 +242,9 @@ function recommendationView(state: AgentToolState, recommendation: Recommendatio
     candidates: recommendation.candidates.map((candidate) => ({
       candidateId: candidate.id,
       zoneId: candidate.object.zoneId,
-      zoneName: zoneName(state, candidate.object.zoneId),
+      zoneName: placementZonePath(state.plan, candidate.object)
+        .map((zoneId) => zoneName(state, zoneId) ?? zoneId)
+        .join(' → ') || null,
       position_m: candidate.object.position.map(round),
       size_m: candidate.object.size_m.map(round),
       rotation_deg: candidate.object.rotation_deg,

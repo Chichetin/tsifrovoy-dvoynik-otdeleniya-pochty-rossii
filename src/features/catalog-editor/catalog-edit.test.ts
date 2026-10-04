@@ -64,7 +64,6 @@ describe('новый тип оборудования', () => {
     expect(id).toBe('ot_seyf_ops');
     const added = catalog.objectTypes.find((t) => t.id === id);
     expect(added?.provenance).toBe(TEAM_ASSUMPTION_PROVENANCE);
-    expect(added?.provenance).toContain('Допущение команды');
     expect(validateCatalog(catalog).filter((i) => i.severity === 'error')).toEqual([]);
   });
 
