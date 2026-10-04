@@ -54,6 +54,7 @@ import {
   zoneSummary,
 } from './rows';
 import { useResizableColumns } from './resizable-columns';
+import { orderZonesByNesting } from './zone-tree';
 
 /**
  * The document is optional: until the composition passes it the panel keeps
@@ -276,7 +277,21 @@ export function InventoryPanel({
 
   const naming = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const types = useMemo(() => typeSummary(inventory, naming), [inventory, naming]);
-  const zones = useMemo(() => zoneSummary(inventory, naming), [inventory, naming]);
+  const zones = useMemo(() => {
+    const summary = zoneSummary(inventory, naming);
+    const ordered = orderZonesByNesting(plan?.zones ?? []);
+    const nesting = new Map(ordered.map(({ zone, depth }, index) => [zone.id, {
+      depth,
+      index,
+      parentName: zone.parentId == null ? null : naming.zoneName(zone.parentId),
+    }]));
+    return summary.map((zone, index) => ({
+      ...zone,
+      depth: nesting.get(zone.zoneId)?.depth ?? 0,
+      parentName: nesting.get(zone.zoneId)?.parentName ?? null,
+      index: nesting.get(zone.zoneId)?.index ?? ordered.length + index,
+    })).sort((a, b) => a.index - b.index);
+  }, [inventory, naming, plan]);
   // Тот же день, что у проверки плана: фильтр и находки «ТО» не расходятся.
   const today = useMemo(() => localToday(), []);
   const rows = useMemo(() => objectRows(inventory, naming, today, plan?.catalog), [inventory, naming, today, plan?.catalog]);
@@ -699,13 +714,16 @@ export function InventoryPanel({
             </thead>
             <tbody>
               {zones.map((zone) => (
-                <tr key={zone.zoneId}>
+                <tr key={zone.zoneId} data-depth={zone.depth}>
                   <td>
                     <button
                       type="button"
                       className="table__link"
+                      aria-label={zone.parentName === null ? undefined : `${display(zone.name, zone.zoneId)}, внутри зоны ${zone.parentName}`}
+                      style={zone.depth === 0 ? undefined : { marginInlineStart: `${zone.depth * 12}px` }}
                       onClick={() => onFocus({ kind: 'zone', id: zone.zoneId })}
                     >
+                      {zone.depth === 0 ? null : <span aria-hidden="true" className="metrics__nested">└ </span>}
                       {display(zone.name, zone.zoneId)}
                       {zone.name === null ? null : <RawId id={zone.zoneId} />}
                     </button>
