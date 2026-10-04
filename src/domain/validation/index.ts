@@ -90,6 +90,8 @@ export const VALIDATION_ISSUE_CODES = {
   OBJECT_HITS_WALL: 'OBJECT_HITS_WALL',
   /** An object stands in the free floor in front of a door or the entrance. */
   OBJECT_BLOCKS_OPENING: 'OBJECT_BLOCKS_OPENING',
+  /** Desk equipment above the floor has no surface under it. */
+  OBJECT_UNSUPPORTED: 'OBJECT_UNSUPPORTED',
   /** An object's top rises above the ceiling of its own room. */
   OBJECT_ABOVE_CEILING: 'OBJECT_ABOVE_CEILING',
   /** Two objects carry the same non-empty inventory number. */
@@ -170,6 +172,7 @@ export function validatePlan(plan: PlanDocument, today: string = localToday()): 
     ...collisionIssues(plan),
     ...wallIssues(plan),
     ...plan.objects.flatMap((object) => objectOpeningIssues(plan, object)),
+    ...plan.objects.flatMap((object) => objectSupportIssues(plan, object)),
     ...ceilingIssues(plan),
     ...inventoryNumberIssues(plan),
     ...missingInventoryNumberIssues(plan),
@@ -436,6 +439,44 @@ export function objectOpeningIssues(plan: PlanDocument, object: Equipment): Issu
     );
   }
   return issues;
+}
+
+/**
+ * Height of the work surface: `ot_workplace` is 0.75 m tall, and every piece of
+ * desk equipment (computer, printer, label printer, POS terminal, scales) has
+ * `defaultBase_m` 0.75 m. Anything mounted higher hangs on a wall, not on furniture.
+ */
+export const WORK_SURFACE_M = 0.75;
+
+/** Desk equipment by its type: off the floor exactly at the work surface. */
+function isDeskEquipment(catalog: Catalog, object: Equipment): boolean {
+  const type = findObjectType(catalog, object.typeId);
+  if (type === null || type.occupiesFloor) return false;
+  return Math.abs(type.defaultBase_m - WORK_SURFACE_M) <= TOLERANCE.coordinate_m;
+}
+
+/**
+ * Desk equipment raised off the floor stands on a physical object whose top is
+ * at its base and whose outline holds its outline. On the floor it needs nothing.
+ */
+export function objectSupportIssues(plan: PlanDocument, object: Equipment): Issue[] {
+  if (!isDeskEquipment(plan.catalog, object)) return [];
+  if (object.base_m <= TOLERANCE.coordinate_m) return [];
+  const shape = footprint(object);
+  for (const other of plan.objects) {
+    if (other.id === object.id || !isPhysical(plan.catalog, other)) continue;
+    if (Math.abs(other.base_m + other.height_m - object.base_m) > TOLERANCE.coordinate_m) continue;
+    if (contains(footprint(other), shape)) return [];
+  }
+  return [
+    issue(
+      VALIDATION_ISSUE_CODES.OBJECT_UNSUPPORTED,
+      'error',
+      `Объект «${object.label}» висит на высоте ${formatLength(object.base_m)}: под ним нет стола, на котором он целиком помещается.`,
+      [{ kind: 'object', id: object.id }],
+      shape,
+    ),
+  ];
 }
 
 function wallIssues(plan: PlanDocument): Issue[] {

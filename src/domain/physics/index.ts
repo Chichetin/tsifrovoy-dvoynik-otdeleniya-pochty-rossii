@@ -3,7 +3,7 @@
  * могут держать физически, в отличие от правил комплектования, которые
  * говорят лишь, чего не хватает.
  *
- * Правил пять, и все они уже считаются проверкой плана
+ * Правил шесть, и все они уже считаются проверкой плана
  * (`domain/validation`) — здесь выделено их подмножество и добавлены два
  * применения, которых у проверки нет:
  *
@@ -37,7 +37,14 @@ import {
   objectInterval,
 } from '../geometry';
 import { formatLength } from '../number-format';
-import { OPENING_CLEARANCE_M, VALIDATION_ISSUE_CODES, isPhysical, objectOpeningIssues } from '../validation';
+import {
+  OPENING_CLEARANCE_M,
+  VALIDATION_ISSUE_CODES,
+  WORK_SURFACE_M,
+  isPhysical,
+  objectOpeningIssues,
+  objectSupportIssues,
+} from '../validation';
 import { openingDeleteRejection, openingRejection } from './opening';
 
 export { introducesOpeningOverlap, openingDeleteRejection, openingRejection, openingsOverlap } from './opening';
@@ -85,6 +92,12 @@ export const PHYSICS_RULES: readonly PhysicsRule[] = [
     code: VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING,
     title: 'Дверь и вход не загорожены',
     detail: `С обеих сторон двери и входа ${formatLength(OPENING_CLEARANCE_M)} пола свободны на высоте проёма. Глубина — правило команды.`,
+  },
+  {
+    id: 'phys_support',
+    code: VALIDATION_ISSUE_CODES.OBJECT_UNSUPPORTED,
+    title: 'Настольная техника стоит на опоре',
+    detail: `Компьютер, принтер, весы и другая техника выше пола стоят на столе: верх стола на высоте ${formatLength(WORK_SURFACE_M)}, техника целиком на нём. На полу техника опоры не требует.`,
   },
 ];
 
@@ -188,14 +201,15 @@ export function objectPhysicsIssues(plan: PlanDocument, object: Equipment): Issu
   }
 
   issues.push(...objectOpeningIssues(plan, object));
+  issues.push(...objectSupportIssues(plan, object));
   return issues;
 }
 
 /**
  * Чем жест ограничен на месте, а чем — только при сохранении (D-286).
  *
- * Жест останавливают три правила из пяти: чужой объём, потолок и проём
- * (#104). Первые два — те случаи, ради которых граница и заводилась («стул
+ * Жест останавливают четыре правила из шести: чужой объём, потолок, проём
+ * (#104) и опора (#106): компьютер, поставленный мимо стола, повис бы в 3D. Первые два — те случаи, ради которых граница и заводилась («стул
  * на столе», «вывеска выше потолка»); проём с настенным оборудованием тоже
  * не спорит: полоса не шире проёма, а рядом с ним стена.
  *
@@ -210,6 +224,7 @@ const GESTURE_GATED: ReadonlySet<string> = new Set([
   VALIDATION_ISSUE_CODES.OBJECT_COLLISION,
   VALIDATION_ISSUE_CODES.OBJECT_ABOVE_CEILING,
   VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING,
+  VALIDATION_ISSUE_CODES.OBJECT_UNSUPPORTED,
 ]);
 
 /** Нарушение узнаётся по правилу и участникам, а не по тексту сообщения. */
