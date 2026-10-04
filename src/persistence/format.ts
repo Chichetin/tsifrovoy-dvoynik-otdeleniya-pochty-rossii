@@ -19,6 +19,7 @@ import {
   type Result,
 } from '../contracts/model';
 import { attributeBoundsWarnings } from '../domain/catalog';
+import { maintenanceDateWarnings } from '../domain/validation';
 import { decodePlan } from './codec';
 import { importOrganizerExample } from './organizer-import';
 
@@ -145,7 +146,7 @@ export function readPlanFile(text: string): Result<OpenedPlan> {
       format,
       assumptions: format === 'organizer' ? assumptionsOf(opened.value) : [],
       dropped: format === 'ours' ? droppedFields(payload, opened.value) : [],
-      warnings: attributeBoundsWarnings(opened.value),
+      warnings: [...attributeBoundsWarnings(opened.value), ...maintenanceDateWarnings(opened.value.objects)],
     },
   };
 }
