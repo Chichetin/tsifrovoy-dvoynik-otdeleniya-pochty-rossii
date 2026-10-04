@@ -166,7 +166,7 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
   },
   waiting_seat: {
     id: 'ot_bench',
-    label: 'Скамья / кресло для ожидания',
+    label: 'Скамья для ожидания',
     category: 'Зона обслуживания клиентов',
     size_m: [1.6, 0.5],
     height_m: 0.45,

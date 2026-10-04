@@ -1,5 +1,6 @@
 import type { PlanDocument, Polygon, Viewport } from '../contracts/model';
 import { boundingBox, contains, footprint, modelToScreen } from './geometry';
+import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
 import { isPlanPictogramVisible, planPictogram, planPictogramSize } from './plan-pictogram';
 
 export type CaptionBox = { x: number; y: number; width: number; height: number };
@@ -85,12 +86,21 @@ export function zoneCaptionBoxes(plan: PlanDocument, viewport: Viewport): Map<st
     const bounds = boundingBox(footprint(object).map((point) => modelToScreen(point, viewport)));
     obstacles.push({ x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
     const kind = planPictogram(object.typeId);
-    const [w, h] = object.size_m.map((size) => size * viewport.scale);
-    if (kind !== null && isPlanPictogramVisible(w!, h!)) {
-      const diameter = planPictogramSize(w!, h!) * 1.24 + 0.5;
-      const [x, y] = modelToScreen(object.position, viewport);
-      obstacles.push({ x: x - diameter / 2, y: y - diameter / 2, width: diameter, height: diameter });
+    const label = objectLabel(object, viewport, kind === null ? 0 : CAPTION_ICON_SPACE_PX);
+    if (label === null) {
+      const [w, h] = object.size_m.map((size) => size * viewport.scale);
+      if (kind !== null && isPlanPictogramVisible(w!, h!)) {
+        const diameter = planPictogramSize(w!, h!) * 1.24 + 0.5;
+        const [x, y] = modelToScreen(object.position, viewport);
+        obstacles.push({ x: x - diameter / 2, y: y - diameter / 2, width: diameter, height: diameter });
+      }
+      continue;
     }
+    const height = Math.max(label.lines * LABEL_LINE_PX + 2, 22);
+    const angle = label.rotation * Math.PI / 180;
+    const width = Math.abs(Math.cos(angle)) * label.width + Math.abs(Math.sin(angle)) * height;
+    const rotatedHeight = Math.abs(Math.sin(angle)) * label.width + Math.abs(Math.cos(angle)) * height;
+    obstacles.push({ x: label.x - width / 2, y: label.y - rotatedHeight / 2, width, height: rotatedHeight });
   }
   const result = new Map<string, CaptionBox>();
   for (const zone of plan.zones) {
