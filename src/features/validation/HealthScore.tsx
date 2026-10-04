@@ -12,8 +12,17 @@ import {
   SEVERITY_PENALTY,
   type PlanHealth,
   healthLineRefs,
+  VALIDATION_ISSUE_CODES,
 } from '../../domain/validation';
 import { explainFinding } from './finding-why';
+
+/** Plain-language names for catalog-rule findings; the code stays in the tooltip. */
+const RULE_LINE_TITLES: Readonly<Record<string, string>> = {
+  [VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN]: 'Оборудования меньше нормы комплектования',
+  [VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX]: 'Оборудования больше нормы комплектования',
+  [VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE]: 'Объект дальше допустимого расстояния от входа',
+  [VALIDATION_ISSUE_CODES.RULE_ENTRANCE_MISSING]: 'Для правила не найден вход',
+};
 
 export const HEALTH_NOTE = 'Правило команды, не норматив Почты.';
 
@@ -81,13 +90,15 @@ export const HealthBreakdown = forwardRef<HTMLDetailsElement, BreakdownProps>(
             <ul className="health__lines">
               {health.lines.map((line) => {
                 const first = line.issues[0];
-                const title = plan === undefined || first === undefined ? line.code : explainFinding(plan, first).title;
+                const title =
+                  RULE_LINE_TITLES[line.code] ??
+                  (plan === undefined || first === undefined ? 'Проверка плана' : explainFinding(plan, first).title);
+                const tech = [line.code, ...line.ruleIds].join(' · ');
                 const refs = healthLineRefs(line);
                 return (
                   <li key={`${line.code}|${line.severity}|${line.ruleIds.join(',')}`} className={`health__line is-${line.severity}`}>
-                    <span className="health__title">
+                    <span className="health__title" title={tech}>
                       {title}
-                      <span className="health__code"> · {line.code}</span>
                     </span>
                     <span className="health__penalty">
                       {line.issues.length > 1 ? `${line.issues.length} × −${line.weight} = ` : ''}−{line.penalty}

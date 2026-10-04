@@ -20,6 +20,7 @@ import Konva from 'konva';
 import type { Point, Polygon, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
+import { formatShort } from '../../domain/number-format';
 import { focusViewport, planExtent, refExtent } from './focus';
 import { isFitHotkey, isTypingTarget } from './hotkeys';
 import {
@@ -555,7 +556,7 @@ export function EditorCanvas({
             data-testid="canvas-scale"
             title={`${Math.round(session.viewport.scale)} px/м; 100 % — масштаб, с которого открывается пустой план`}
           >
-            Сетка {grid.step_m} м · {Math.round((session.viewport.scale / DEFAULT_SCALE) * 100)} %
+            Сетка {formatShort(grid.step_m, 2)} м · {Math.round((session.viewport.scale / DEFAULT_SCALE) * 100)} %
           </p>
           <button
             type="button"
