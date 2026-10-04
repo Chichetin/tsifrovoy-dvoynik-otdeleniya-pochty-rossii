@@ -1,6 +1,7 @@
 /**
- * D-288: маленькое модальное окно для двух вопросов о файле — «восстановить
- * черновик?» и «план нарушает физику, всё равно сохранить?».
+ * D-288: маленькое модальное окно для вопросов о файле — «восстановить
+ * черновик?», «план нарушает физику, всё равно сохранить?» — и списка
+ * версий плана (#110).
  *
  * Своё, а не общее с `HotkeysMapDialog`: тот живёт в `src/app`, а feature не
  * читает файлы приложения (`docs/project-structure.md`). Приёмы те же и
@@ -27,8 +28,9 @@ export type FileDialogProps = {
 };
 
 function focusables(dialog: HTMLElement): HTMLElement[] {
-  return Array.from(dialog.querySelectorAll<HTMLButtonElement>('button')).filter(
-    (button) => !button.disabled,
+  // The version name field (#110) is in the Tab loop too.
+  return Array.from(dialog.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input')).filter(
+    (item) => !item.disabled,
   );
 }
 

@@ -39,6 +39,7 @@ import {
   type DraftWriter,
   type PlanDraft,
 } from '../../persistence/browser-draft';
+import { addVersion, readVersions, removeVersion, type PlanVersion } from '../../persistence/plan-versions';
 import { physicsIssues } from '../../domain/physics';
 import { validatePlan } from '../../domain/validation';
 import { NBSP } from '../../domain/number-format';
@@ -137,6 +138,13 @@ function atTime(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return 'неизвестного времени';
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+/** Версия живёт дольше дня: время без даты её не отличит. */
+function atDateTime(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'неизвестного времени';
+  return date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
 
 /**
@@ -242,6 +250,10 @@ export function FileControls({
   const [draftAt, setDraftAt] = useState<string | null>(null);
   const [draftError, setDraftError] = useState<string | null>(null);
   const writer = useRef<DraftWriter | null>(null);
+  /** #110: окно версий; список читается из хранилища при каждом открытии. */
+  const [versions, setVersions] = useState<PlanVersion[] | null>(null);
+  const [versionLabel, setVersionLabel] = useState('');
+  const [versionError, setVersionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (storage === null) return;
@@ -702,6 +714,64 @@ export function FileControls({
     input.current?.click();
   };
 
+  const openVersions = (): void => {
+    closeMenu(false);
+    setVersionLabel('');
+    setVersionError(storage === null ? 'Хранилище браузера недоступно: версии не сохраняются.' : null);
+    setVersions(storage === null ? [] : readVersions(storage));
+  };
+
+  const closeVersions = (): void => {
+    setVersions(null);
+    fileTrigger.current?.focus();
+  };
+
+  /** Версия — тот же текст, что файл плана: план с ошибкой данных не запишется. */
+  const saveVersion = (): void => {
+    if (storage === null) return;
+    const encoded = encode(plan);
+    if (!encoded.ok) {
+      setVersionError('Версия не сохранена: сначала исправьте ошибки в данных плана.');
+      return;
+    }
+    const added = addVersion(storage, { label: versionLabel, name: plan.name, text: encoded.value }, Date.now());
+    if (!added.ok) {
+      setVersionError(added.issues.map((issue) => issue.message).join('; '));
+      return;
+    }
+    setVersions(added.value);
+    setVersionLabel('');
+    setVersionError(null);
+  };
+
+  /**
+   * Открыть версию — заменить план, как при открытии файла: история отмены
+   * начинается заново (plan-store). Поэтому сначала тот же вопрос, что и для
+   * файла. План из версии не выгружен файлом — он открывается несохранённым.
+   */
+  const openVersion = (version: PlanVersion): void => {
+    if (needsReplacementWarning(plan, dirty, revision, untouchedSample) &&
+        !window.confirm(`${dirty ? 'Несохранённые правки будут потеряны.' : 'Текущий план будет заменён.'} Открыть версию «${version.label}»?`)) return;
+    const opened = read(version.text);
+    if (!opened.ok) {
+      setVersionError(`Версия «${version.label}» не открылась, текущий план не изменён.`);
+      return;
+    }
+    setVersions(null);
+    accept(opened.value, 'draft');
+    setNotice(`Открыта версия «${version.label}» от ${atDateTime(version.savedAt)}.`);
+  };
+
+  const deleteVersion = (version: PlanVersion): void => {
+    if (storage === null || !window.confirm(`Удалить версию «${version.label}»?`)) return;
+    const removed = removeVersion(storage, version.id);
+    if (!removed.ok) {
+      setVersionError(removed.issues.map((issue) => issue.message).join('; '));
+      return;
+    }
+    setVersions(removed.value);
+  };
+
   // Полоса сообщений существует, только когда в ней что-то есть (D-288).
   const hasMessages =
     state.status === 'loading' ||
@@ -721,7 +791,7 @@ export function FileControls({
           className="files__button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          title="Создать, открыть, демо-планы и экспорт"
+          title="Создать, открыть, демо-планы, версии и экспорт"
           onClick={() => {
             menuStart.current = 'first';
             setMenuOpen((open) => !open);
@@ -758,6 +828,16 @@ export function FileControls({
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              role="menuitem"
+              className="files__menu-item"
+              title="Сохранить состояние плана с названием и открыть его позже — в этом браузере"
+              data-testid="plan-versions"
+              onClick={openVersions}
+            >
+              Версии плана…
+            </button>
             <div role="group" aria-labelledby="files-menu-export">
               <span id="files-menu-export" className="files__menu-caption">Экспорт</span>
               {exportItems.map((item) => (
@@ -892,6 +972,63 @@ export function FileControls({
         </>
       ) : null}
     </div>
+    )}
+
+    {versions === null ? null : (
+      <FileDialog
+        title="Версии плана"
+        describedBy="plan-versions-body"
+        testId="plan-versions-dialog"
+        onClose={closeVersions}
+        actions={
+          <button type="button" className="files__button" onClick={closeVersions}>
+            Закрыть
+          </button>
+        }
+      >
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            saveVersion();
+          }}
+        >
+          <label>
+            Название версии{' '}
+            <input
+              type="text"
+              value={versionLabel}
+              maxLength={80}
+              placeholder="например, до перепланировки"
+              disabled={storage === null}
+              onChange={(event) => setVersionLabel(event.target.value)}
+            />
+          </label>{' '}
+          <button type="submit" className="files__button is-primary" disabled={storage === null}>
+            Сохранить версию
+          </button>
+        </form>
+        {versionError === null ? null : <p className="files__error" role="alert">{versionError}</p>}
+        {versions.length === 0 ? (
+          <p className="panel__note">Версий пока нет.</p>
+        ) : (
+          <ul className="file-dialog__list" data-testid="plan-versions-list">
+            {versions.map((version) => (
+              <li key={version.id}>
+                «{version.label}» — {version.name}, {atDateTime(version.savedAt)}{' '}
+                <button type="button" className="files__button" onClick={() => openVersion(version)}>
+                  Открыть
+                </button>{' '}
+                <button type="button" className="files__button" onClick={() => deleteVersion(version)}>
+                  Удалить
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="panel__note">
+          Версии хранятся в этом браузере, не в файле. Файл плана сохраняет кнопка «Сохранить».
+        </p>
+      </FileDialog>
     )}
 
     {offered === null ? null : (
