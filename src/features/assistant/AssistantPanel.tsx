@@ -39,6 +39,8 @@ const METRIC_LABELS: Record<Fact['metric'], string> = {
   'objects.added': 'Добавлено',
   'objects.removed': 'Удалено',
   'placement.distance': 'Расстояние',
+  'layout.passage': 'Самый узкий проход',
+  'layout.entrance': 'Среднее расстояние до входа',
 };
 
 const PHASE_LABELS: Record<Fact['phase'], string> = {

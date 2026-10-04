@@ -12,7 +12,7 @@
 
 import { z } from 'zod';
 import type { Recommendation } from '../../contracts/advice';
-import { AGENT_LIMITS, proposeEditsArgsSchema, type AgentEditProposal, type AgentPanel, type AgentStep, type AgentToolName, type AssistantAction } from '../../contracts/advice-chat';
+import { AGENT_LIMITS, layoutZoneArgsSchema, proposeEditsArgsSchema, type AgentEditProposal, type AgentPanel, type AgentStep, type AgentToolName, type AssistantAction } from '../../contracts/advice-chat';
 import type { Id, PlanDocument, Ref } from '../../contracts/model';
 import { buildInventory } from '../inventory';
 import { measurePlan } from '../metrics';
@@ -68,6 +68,7 @@ const argSchemas = {
   suggest_layer: z.object({ layerId: z.string().min(1) }),
   open_panel: z.object({ panel: z.enum(['metrics', 'validation', 'inventory']) }),
   propose_edits: proposeEditsArgsSchema,
+  layout_zone: layoutZoneArgsSchema,
 } satisfies Record<AgentToolName, z.ZodType>;
 
 /** JSON Schemas for the provider's `tools` field, in the same order as above. */
@@ -509,5 +510,10 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
         step: { tool: name, label, ok: true },
       };
     }
+
+    // #122: the contract is in place, the layout search comes next. Until
+    // then the tool is not offered to the model and refuses every call.
+    case 'layout_zone':
+      return fail(name, 'Раскладка зоны недоступна', 'Раскладка зоны пока недоступна.');
   }
 }

@@ -34,6 +34,8 @@ const METRIC_LABELS: Record<ChatMetric, string> = {
   'objects.added': 'Добавлено объектов',
   'objects.removed': 'Удалено объектов',
   'placement.distance': 'Расстояние',
+  'layout.passage': 'Самый узкий проход',
+  'layout.entrance': 'Среднее расстояние до входа',
   'validation.errors': 'Ошибки проверки',
   'validation.warnings': 'Предупреждения проверки',
   'zones.count': 'Количество зон',

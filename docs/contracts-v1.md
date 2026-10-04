@@ -320,6 +320,14 @@ Timeout внешнего API — 15 с, не более одного повто�
 `apply-edits` по щелчку человека применяет `commands` одним `batch`: один шаг отмены.
 Новый `id` из `add`, который хранилище уже списало (D-019), UI выпускает заново.
 
+Инструмент `layout_zone` (#122) принимает `zoneId` и необязательный список `typeIds`.
+Код перебирает раскладки объектов зоны и возвращает до трёх (`AGENT_LIMITS.layoutVariants`)
+`AgentEditProposal` из правок `move` и `rotate`. У варианта есть `title`, его пишет код.
+В `facts` варианта, кроме площадей, — `layout.passage` (самый узкий проход, м) и
+`layout.entrance` (среднее расстояние объектов зоны до входа, м). Модель только
+называет зону и объясняет разницу. Показ и применение — те же `preview-edits` и
+`apply-edits`.
+
 ## Контрактные fixtures и поведение UI
 
 F02 публикует `src/contracts/fixtures/`: `minimal.json`, `nested.json`, `rotated.json`,

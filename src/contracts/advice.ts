@@ -24,7 +24,11 @@ export type MetricCode =
   | 'equipment.max'
   | 'objects.added'
   | 'objects.removed'
-  | 'placement.distance';
+  | 'placement.distance'
+  /** #122: the narrowest clear gap between the zone's objects and its walls. */
+  | 'layout.passage'
+  /** #122: mean distance from the zone's objects to the nearest entrance. */
+  | 'layout.entrance';
 
 export type ReasonCode =
   | 'placement.available'
