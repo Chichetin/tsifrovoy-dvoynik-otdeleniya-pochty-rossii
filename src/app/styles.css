@@ -423,7 +423,12 @@ body {
 
 .shell__body {
   display: grid;
-  grid-template-columns: var(--side-left) 0.5rem minmax(0, 1fr) 0.5rem var(--side-right);
+  /* #105: in a narrow window the side columns give way, so the plan keeps at
+     least a third of the width: each column is at most its saved width and at
+     most a quarter / a third of the window. */
+  grid-template-columns:
+    minmax(0, min(var(--side-left), 26vw)) 0.5rem minmax(0, 1fr) 0.5rem
+    minmax(0, min(var(--side-right), 32vw));
   flex: 1;
   min-height: 0;
 }
