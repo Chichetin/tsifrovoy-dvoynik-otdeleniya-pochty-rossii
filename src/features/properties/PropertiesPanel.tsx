@@ -555,6 +555,15 @@ export function PropertiesPanel({
           />,
         )}
 
+        <label className="props__line">
+          <input type="checkbox" checked={object.locked === true}
+            onChange={(event) => commit('locked', { ...object, locked: event.target.checked })} />
+          {' '}Закрепить объект
+        </label>
+        {object.locked !== true ? null : (
+          <p className="props__hint">Объект закреплён: движение, поворот, размер и удаление защищены. Снимите замок, чтобы изменить геометрию.</p>
+        )}
+        <fieldset className="props__geometry" disabled={object.locked === true}>
         {field(
           'typeId',
           'Тип оборудования',
@@ -603,6 +612,8 @@ export function PropertiesPanel({
           height_m: next,
         }))}
 
+        </fieldset>
+
         {layerSelect(object.layerId, (layerId) => ({ ...object, layerId }))}
 
         <p className="props__line" data-testid="props-zone">
@@ -612,11 +623,12 @@ export function PropertiesPanel({
         {hasOwnShape(plan.catalog, object) ? (
           <div className="props__shape" data-testid="props-shape">
             <p className="props__line">
-              Форма: своя, вершин — {object.outline?.length}. Двойной щелчок по объекту на плане — правка вершин.
+              Форма: своя, вершин — {object.outline?.length}. {object.locked === true ? 'Для правки вершин снимите замок.' : 'Двойной щелчок по объекту на плане — правка вершин.'}
             </p>
             <button
               type="button"
               className="files__button"
+              disabled={object.locked === true}
               onClick={() => {
                 const rest = { ...object };
                 delete rest.outline;
@@ -659,7 +671,7 @@ export function PropertiesPanel({
           </div>
         ) : (
           <p className="props__hint" data-testid="props-shape">
-            Форма: как у типа. Двойной щелчок по объекту на плане — правка вершин.
+            Форма: как у типа. {object.locked === true ? 'Для правки вершин снимите замок.' : 'Двойной щелчок по объекту на плане — правка вершин.'}
           </p>
         )}
         {shapeSaved === null ? null : (

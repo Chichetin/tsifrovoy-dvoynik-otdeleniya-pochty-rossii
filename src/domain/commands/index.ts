@@ -55,6 +55,7 @@ const OUTER_WALL_THICKNESS_M = 0.25;
 export const COMMAND_ISSUE_CODES = {
   /** The layer holding the target rejects edits of its content. */
   LAYER_LOCKED: 'LAYER_LOCKED',
+  OBJECT_LOCKED: 'OBJECT_LOCKED',
   /** layer.delete needs a different, existing, unlocked layer to move content to. */
   MOVE_TARGET_INVALID: 'MOVE_TARGET_INVALID',
   /** A required attribute has no value and its type declares no default. */
@@ -403,6 +404,15 @@ function putObject(plan: PlanDocument, object: PlanDocument['objects'][number]):
   if (!target.ok) return target;
 
   const existing = plan.objects.find((item) => item.id === object.id);
+  if (existing?.locked === true && (
+    existing.typeId !== object.typeId ||
+    existing.position.some((value, index) => value !== object.position[index]) ||
+    existing.size_m.some((value, index) => value !== object.size_m[index]) ||
+    normalizeAngle(existing.rotation_deg) !== normalizeAngle(object.rotation_deg) ||
+    existing.base_m !== object.base_m || existing.height_m !== object.height_m ||
+    JSON.stringify(existing.outline) !== JSON.stringify(object.outline)
+  )) return objectLocked(existing);
+
   if (existing !== undefined && existing.layerId !== object.layerId) {
     const source = checkLayerEditable(plan, existing.layerId, ref);
     if (!source.ok) return source;
@@ -451,6 +461,7 @@ function shapedObject(
   previousType: PlanDocument['catalog']['objectTypes'][number] | undefined,
   type: PlanDocument['catalog']['objectTypes'][number],
 ): PlanDocument['objects'][number] {
+  if (object.locked === true) return object;
   if (object.outline === undefined) return withTypeOutline(object, type);
   if (previousType !== undefined && sameOutline(object.outline, typeOutline(previousType))) {
     return withTypeOutline(object, type);
@@ -459,11 +470,18 @@ function shapedObject(
   return outline === object.outline ? object : { ...object, outline };
 }
 
+function objectLocked(object: PlanDocument['objects'][number]): Result<never> {
+  return fail(COMMAND_ISSUE_CODES.OBJECT_LOCKED,
+    `Объект «${object.label}» закреплён. Снимите замок в «Свойствах».`,
+    [{ kind: 'object', id: object.id }]);
+}
+
 function deleteObject(plan: PlanDocument, id: Id): Result<PlanDocument> {
   const present = requireEntity(plan, id, 'object');
   if (!present.ok) return present;
 
   const removed = plan.objects.find((object) => object.id === id)!;
+  if (removed.locked === true) return objectLocked(removed);
   const editable = checkLayerEditable(plan, removed.layerId, { kind: 'object', id });
   if (!editable.ok) return editable;
 
