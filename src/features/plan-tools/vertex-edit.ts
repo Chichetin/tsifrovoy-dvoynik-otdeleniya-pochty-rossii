@@ -115,6 +115,16 @@ export function parentForRing(ring: Polygon, zones: Zone[]): Id | null {
 }
 
 /**
+ * Parent and type of a zone drawn as `ring`. A zone drawn inside another is a
+ * part of it and starts as its type: the default type next to a parent of
+ * another type would be a false finding the moment the zone is drawn (#17).
+ */
+export function newZoneBase(ring: Polygon, zones: Zone[], defaultTypeId: Id): { parentId: Id | null; typeId: Id } {
+  const parentId = parentForRing(ring, zones);
+  return { parentId, typeId: zones.find((zone) => zone.id === parentId)?.typeId ?? defaultTypeId };
+}
+
+/**
  * Начало выступа (D-232): куда ткнули в ребро — там появляется вершина, и
  * дальше её тянут. Возвращает кольцо с новой вершиной и её место в нём, либо
  * `null`, если ткнули у самого угла — там вставлять нечего, рядом уже есть

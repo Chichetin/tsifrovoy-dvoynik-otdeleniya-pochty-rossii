@@ -15,7 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { Catalog, Issue, PlanDocument } from '../src/contracts/model';
+import type { Catalog, Issue, PlanDocument, Zone } from '../src/contracts/model';
 import { parseCatalog } from '../src/contracts/schema';
 import { applyCommand } from '../src/domain/commands';
 import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
@@ -399,5 +399,27 @@ describe('силуэт постановки (#26)', () => {
     const object = type === undefined ? null : placedObject(locked, type, [3, 3]);
     if (object === null) return;
     expect(placementRefusal(locked, object) === null).toBe(createPlanStore(locked).getState().dispatch({ type: 'object.put', object }).ok);
+  });
+});
+
+describe('вложенная зона того же типа (#17)', () => {
+  test('минимум комплектования у пустой вложенной зоны того же типа не требуется, у вложенной другого типа и у отдельной — требуется', () => {
+    const rule = plan.catalog.rules.find((entry) => entry.kind === 'count' && entry.min !== null && entry.scope === 'inclusive');
+    if (rule === undefined || rule.kind !== 'count') throw new Error('нет правила минимума с вложенными зонами');
+    const parent = plan.zones.find((zone) => zone.typeId === rule.zoneTypeId);
+    if (parent === undefined) throw new Error('нет зоны типа правила');
+    const xs = parent.polygon.map((point) => point[0]);
+    const ys = parent.polygon.map((point) => point[1]);
+    const [x, y] = [Math.min(...xs), Math.min(...ys)];
+    const ring: [number, number][] = [[x + 0.05, y + 0.05], [x + 0.15, y + 0.05], [x + 0.15, y + 0.15], [x + 0.05, y + 0.15]];
+    const child: Zone = { ...parent, id: 'z_child', name: 'Вложенная', polygon: ring, parentId: parent.id };
+    const below = (candidate: Zone) =>
+      validatePlan({ ...plan, zones: [...plan.zones, candidate] }).filter(
+        (found) => found.code === VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN && found.refs.some((ref) => ref.id === 'z_child'),
+      );
+    expect(below(child)).toEqual([]);
+    expect(below({ ...child, parentId: null }).length).toBeGreaterThan(0);
+    const otherType = plan.catalog.zoneTypes.find((type) => type.id !== parent.typeId)!;
+    expect(below({ ...child, typeId: otherType.id }).every((found) => !found.refs.some((ref) => ref.id === 'z_child' && found.ruleIds?.includes(rule.id)))).toBe(true);
   });
 });
