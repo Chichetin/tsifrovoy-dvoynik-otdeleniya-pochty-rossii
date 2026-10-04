@@ -33,8 +33,18 @@ import { objectColorValue, type ObjectColorRepresentation } from '../../domain/o
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
 import { ObjectPositionFields } from './ObjectPositionFields';
 import { groupAttributeCommand, mixedAttributeKeys, sharedAttributeDefs } from './group-attributes';
+import { DISTRIBUTE_MIN, alignObjects, distributeObjects, putAll, type AlignEdge } from './group-align';
 
 type Errors = Record<string, string>;
+
+const ALIGN_BUTTONS: readonly (readonly [AlignEdge, string])[] = [
+  ['left', 'По левому краю'],
+  ['centerX', 'По центру'],
+  ['right', 'По правому краю'],
+  ['top', 'По верху'],
+  ['centerY', 'По середине'],
+  ['bottom', 'По низу'],
+];
 
 const noGesturePreview = () => null;
 const subscribeToNothing = (): (() => void) => () => {};
@@ -482,6 +492,31 @@ export function PropertiesPanel({
           <p className="props__line" data-testid="props-group-types">
             {[...typeCounts].map(([label, count]) => `${label} — ${count}`).join('; ')}
           </p>
+          {/* A refused batch is reported by the app («Правка отклонена»). */}
+          <div className="props__align" role="group" aria-label="Выравнивание" data-testid="props-align">
+            {ALIGN_BUTTONS.map(([edge, label]) => (
+              <button
+                key={edge}
+                type="button"
+                className="files__button"
+                onClick={() => onCommand(putAll(alignObjects(groupMembers, edge)))}
+              >
+                {label}
+              </button>
+            ))}
+            {([['x', 0], ['y', 1]] as const).map(([name, axis]) => (
+              <button
+                key={name}
+                type="button"
+                className="files__button"
+                disabled={groupMembers.length < DISTRIBUTE_MIN}
+                title={`Равные промежутки по ${name.toUpperCase()}, крайние остаются на месте; нужно не меньше ${DISTRIBUTE_MIN} объектов`}
+                onClick={() => onCommand(putAll(distributeObjects(groupMembers, axis)))}
+              >
+                Равные промежутки по {name.toUpperCase()}
+              </button>
+            ))}
+          </div>
           {defs.length === 0 ? (
             <p className="props__hint">
               У типов в группе нет общих атрибутов. Выберите объекты одного типа или один объект.

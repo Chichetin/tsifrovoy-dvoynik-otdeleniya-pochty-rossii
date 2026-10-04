@@ -2407,6 +2407,13 @@ span.inventory__num {
   margin: 0 0 8px;
 }
 
+.props__align {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+
 .props__hint {
   font-size: 12px;
   color: var(--muted);
