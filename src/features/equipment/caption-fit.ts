@@ -1,5 +1,5 @@
 /**
- * D-364: the plate of an object's caption is as wide as its name. A short name
+ * D-363: the plate of an object's caption is as wide as its name. A short name
  * gets a short plate, a long one wraps into two lines and gets the width of the
  * longer line — never more than the room the object leaves (`maxWidth`).
  * Text is measured with the same font Konva draws it with.
