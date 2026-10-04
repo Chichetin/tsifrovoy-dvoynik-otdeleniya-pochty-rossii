@@ -14,7 +14,7 @@ export type EquipmentHoverSummary = {
  * атрибуты, зона, размеры и находки проверки открываются по клику в
  * «Свойствах».
  */
-export const HOVER_HINT = 'Нажмите на сам предмет на плане — слева откроются «Свойства»';
+export const HOVER_HINT = 'Нажмите на сам предмет на плане — справа откроются «Свойства»';
 export const HOVER_TOOL_HINT = 'Для подробностей включите «Выбор» сверху и нажмите на сам предмет на плане';
 
 export function equipmentHoverHint(picking: boolean): string {

@@ -623,7 +623,7 @@ export function PropertiesPanel({
         {hasOwnShape(plan.catalog, object) ? (
           <div className="props__shape" data-testid="props-shape">
             <p className="props__line">
-              Форма: своя, вершин — {object.outline?.length}. {object.locked === true ? 'Для правки вершин снимите замок.' : 'Двойной щелчок по объекту на плане — правка вершин.'}
+              Форма: своя, вершин — {object.outline?.length}. {object.locked === true ? 'Для правки вершин снимите замок.' : 'Включите «Изменить форму» под карточкой, затем двойной щелчок по объекту на плане — правка вершин.'}
             </p>
             <button
               type="button"
@@ -671,7 +671,7 @@ export function PropertiesPanel({
           </div>
         ) : (
           <p className="props__hint" data-testid="props-shape">
-            Форма: как у типа. {object.locked === true ? 'Для правки вершин снимите замок.' : 'Двойной щелчок по объекту на плане — правка вершин.'}
+            Форма: как у типа. {object.locked === true ? 'Для правки вершин снимите замок.' : 'Включите «Изменить форму» под карточкой, затем двойной щелчок по объекту на плане — правка вершин.'}
           </p>
         )}
         {shapeSaved === null ? null : (

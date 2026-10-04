@@ -20,7 +20,7 @@ import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
-import { modelToScreen, screenToModel } from '../domain/geometry';
+import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
 import {
   mountScopeLayer,
@@ -71,7 +71,7 @@ import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
-import { ValidationPanel } from '../features/validation/ValidationPanel';
+import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
@@ -89,10 +89,10 @@ import {
   type LeftTab,
   type RightTab,
 } from './side-tabs';
+import { ObjectQuickActions } from './ObjectQuickActions';
 import { SideTabs } from './SideTabs';
 import { PlanTitle } from './PlanTitle';
 import { SettingsDialog } from './SettingsDialog';
-import { sameRef, showsPropsCard } from './props-column';
 import { HotkeysMapDialog } from './HotkeysMapDialog';
 import { QuickSearchDialog } from './QuickSearchDialog';
 import type { SearchItem } from './quick-search';
@@ -100,28 +100,37 @@ import { useHotkeysMapDialog } from './hotkeys-map';
 import './styles.css';
 
 const START_VIEWPORT: Viewport = { origin: [0, 0], scale: 48 };
-const PANEL_WIDTHS_KEY = 'posttech.panel-widths';
-const PANEL_HANDLE_PX = 8;
-const MIN_CANVAS_PX = 360;
-const PANEL_LIMITS = { left: [160, 440], right: [200, 500] } as const;
+// #105: panel widths are in rem — the interface scales with the root font size —
+// so the key is new: widths saved in px by the old key would read as 260 rem.
+const PANEL_WIDTHS_KEY = 'posttech.panel-widths.v2';
+const PANEL_HANDLE_REM = 0.5;
+const MIN_CANVAS_REM = 22.5;
+const PANEL_LIMITS = { left: [10, 27.5], right: [12.5, 31.25] } as const;
+const PANEL_STEP_REM = 1;
 type PanelSide = 'left' | 'right';
 type PanelWidths = { left: number; right: number };
 
+/** One rem in pixels: pointer and window sizes come in px, panel widths are in rem. */
+function remPx(): number {
+  return Number.parseFloat(window.getComputedStyle(window.document.documentElement).fontSize) || 16;
+}
+
 function clampPanelWidth(side: PanelSide, width: number, available: number, other: number): number {
   const [minimum, maximum] = PANEL_LIMITS[side];
-  const room = available - other - PANEL_HANDLE_PX * 2 - MIN_CANVAS_PX;
-  return Math.round(Math.max(minimum, Math.min(width, maximum, Math.max(minimum, room))));
+  const room = available - other - PANEL_HANDLE_REM * 2 - MIN_CANVAS_REM;
+  return Math.round(Math.max(minimum, Math.min(width, maximum, Math.max(minimum, room))) * 100) / 100;
 }
 
 function initialPanelWidths(): PanelWidths {
-  const fallback = { left: 260, right: 340 };
+  const fallback = { left: 16.25, right: 21.25 };
   try {
     const saved: unknown = JSON.parse(window.localStorage.getItem(PANEL_WIDTHS_KEY) ?? 'null');
     if (saved === null || typeof saved !== 'object') return fallback;
     const widths = saved as Partial<PanelWidths>;
     if (!Number.isFinite(widths.left) || !Number.isFinite(widths.right)) return fallback;
-    const left = clampPanelWidth('left', widths.left as number, window.innerWidth, widths.right as number);
-    const right = clampPanelWidth('right', widths.right as number, window.innerWidth, left);
+    const available = window.innerWidth / remPx();
+    const left = clampPanelWidth('left', widths.left as number, available, widths.right as number);
+    const right = clampPanelWidth('right', widths.right as number, available, left);
     return { left, right };
   } catch {
     return fallback;
@@ -223,8 +232,9 @@ export function App(): React.JSX.Element {
   const moveResize = (side: PanelSide, event: React.PointerEvent<HTMLDivElement>): void => {
     const start = resizeStart.current;
     if (start === null || start.side !== side) return;
-    const width = start.width + (side === 'left' ? event.clientX - start.x : start.x - event.clientX);
-    const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
+    const unit = remPx();
+    const width = start.width + (side === 'left' ? event.clientX - start.x : start.x - event.clientX) / unit;
+    const available = (event.currentTarget.parentElement?.clientWidth ?? window.innerWidth) / unit;
     setPanelWidths((current) => ({
       ...current,
       [side]: clampPanelWidth(side, width, available, current[side === 'left' ? 'right' : 'left']),
@@ -239,11 +249,11 @@ export function App(): React.JSX.Element {
   const resizeByKey = (side: PanelSide, event: React.KeyboardEvent<HTMLDivElement>): void => {
     const direction = side === 'left' ? 1 : -1;
     const [minimum, maximum] = PANEL_LIMITS[side];
-    const step = event.key === 'ArrowLeft' ? -16 * direction : event.key === 'ArrowRight' ? 16 * direction : 0;
+    const step = event.key === 'ArrowLeft' ? -PANEL_STEP_REM * direction : event.key === 'ArrowRight' ? PANEL_STEP_REM * direction : 0;
     if (step === 0 && event.key !== 'Home' && event.key !== 'End') return;
     event.preventDefault();
     const before = canvasBeforeResize();
-    const available = event.currentTarget.parentElement?.clientWidth ?? window.innerWidth;
+    const available = (event.currentTarget.parentElement?.clientWidth ?? window.innerWidth) / remPx();
     setPanelWidths((current) => ({
       ...current,
       [side]: clampPanelWidth(
@@ -277,6 +287,9 @@ export function App(): React.JSX.Element {
   const [preview, setPreview] = useState<Candidate | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
   const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
+  // #105: the object whose «Изменить форму» switch is on. It belongs to one
+  // selection: picking something else, or nothing, puts it back to «off».
+  const [reshapeFor, setReshapeFor] = useState<Id | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
   // A response belongs to the latest request, not merely to a plan revision.
   // A new plan starts at revision 0 too, so comparing revisions cannot reject
@@ -315,11 +328,11 @@ export function App(): React.JSX.Element {
   const showRightTab = useCallback((right: RightTab) => {
     setTabs((prev) => (prev.right === right ? prev : { ...prev, right }));
   }, []);
-  // The launcher is deliberately only an entry point: the right-column panel
-  // remains the one place where assistant state and future chat history live.
-  // It switches the column to the assistant tab — a hidden panel is not
-  // "opened" by scrolling to it. Since D-268 «Свойства» live on the left, so
-  // the selection stays: the assistant can be asked about what is selected.
+  // The header button «Ассистент» is deliberately only an entry point: the
+  // right-column panel remains the one place where assistant state and chat
+  // history live. It switches the column to the assistant tab. «Свойства» sit
+  // above the tabs, so the selection stays: the assistant can be asked about
+  // what is selected.
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
   const session: EditorSession = useMemo(
@@ -327,18 +340,22 @@ export function App(): React.JSX.Element {
     [tool, viewport, selection, selected, preview, focus, retired],
   );
 
-  // D-268: «Свойства» stand in the left column in place of its open tab. The
-  // one piece of state is the selection the card was sent away for (a click
-  // on «Библиотека»/«Слои», a fresh placement): for it the tab stays, and any
-  // new pick shows the card again.
-  const [propsHiddenFor, setPropsHiddenFor] = useState<Ref | null>(null);
-  const propsShown = showsPropsCard(selection, propsHiddenFor);
-  // `null` when already `null` is a bail-out: a repeated pick mid-gesture does
-  // not re-render the app.
-  const showPropsAgain = useCallback(() => setPropsHiddenFor(null), []);
-  const keepLeftTab = useCallback((ref: Ref | null) => {
-    setPropsHiddenFor((prev) => (sameRef(prev, ref) ? prev : ref));
-  }, []);
+  // #105: «Свойства» stand in the right column above its tabs, so the library
+  // on the left stays open while something is selected. A layer has no card of
+  // its own (its settings live in «Слои»).
+  const propsShown = selection !== null && selection.kind !== 'layer';
+
+  // #105: «Повернуть» and «Изменить форму» go with a single selected object.
+  if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
+    setReshapeFor(null);
+  }
+  const quickObject =
+    selection !== null && selection.kind === 'object' && selected.size <= 1
+      ? document.objects.find((entry) => entry.id === selection.id)
+      : undefined;
+  const quickLayer = quickObject === undefined ? undefined : document.layers.find((layer) => layer.id === quickObject.layerId);
+  const quickDisabled =
+    quickObject === undefined || quickObject.locked === true || quickLayer === undefined || !quickLayer.visible || quickLayer.locked;
 
   const select = useCallback(
     (ref: Ref | null) => {
@@ -349,27 +366,8 @@ export function App(): React.JSX.Element {
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
       store.getState().selectMany(ids);
-      showPropsAgain();
     },
-    [showPropsAgain, store],
-  );
-  // A tab click on the left while the card stands there brings the panel back
-  // and keeps the selection; so does a panel opened by the assistant.
-  const revealLeftTab = useCallback(
-    (left: LeftTab) => {
-      keepLeftTab(store.getState().selection);
-      showLeftTab(left);
-    },
-    [keepLeftTab, showLeftTab, store],
-  );
-  // A pick made inside the left column (a row of «Слои») must not cover the
-  // very panel it was made in.
-  const selectFromLeft = useCallback(
-    (ref: Ref | null) => {
-      select(ref);
-      keepLeftTab(ref);
-    },
-    [keepLeftTab, select],
+    [store],
   );
 
   const dispatch = useCallback(
@@ -405,24 +403,44 @@ export function App(): React.JSX.Element {
     [dispatch, select],
   );
 
+  // «Подтвердить» under a fix variant of «Проверка»: the shown ghost goes in as
+  // one command — the spot the search checked, with the size it checked — or
+  // the named object is deleted. A moved object keeps its id, name and
+  // attributes.
+  const applyFix = useCallback(
+    (application: FixApplication): Result<PlanDocument> => {
+      if (application.kind === 'delete') {
+        const result = dispatch({ type: 'object.delete', id: application.id });
+        if (result.ok) select(null);
+        return result;
+      }
+      const { candidate, movedId } = application;
+      const current = store.getState();
+      const moved = movedId === null ? undefined : current.document.objects.find((entry) => entry.id === movedId);
+      const object =
+        moved === undefined
+          ? candidateObjectForInsert(current.document, candidate, current.retired)
+          : {
+              ...moved,
+              position: candidate.object.position,
+              size_m: candidate.object.size_m,
+              rotation_deg: candidate.object.rotation_deg,
+              zoneId: candidate.object.zoneId,
+            };
+      const result = dispatchAndSelect({ type: 'object.put', object });
+      if (result.ok) setPreview(null);
+      return result;
+    },
+    [dispatch, dispatchAndSelect, select, store],
+  );
+
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
       setFocus({ ref, sequence: focusSequence.current });
       select(ref);
-      showPropsAgain();
     },
-    [select, showPropsAgain],
-  );
-
-  // A pick on the plan (2D or 3D) is a new pick: the card comes back to the
-  // left column even for the entity it was sent away for.
-  const selectOnPlan = useCallback(
-    (ref: Ref | null) => {
-      select(ref);
-      showPropsAgain();
-    },
-    [select, showPropsAgain],
+    [select],
   );
   // #25: quick search by Ctrl+K — focus returns where it was when it closes.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -445,16 +463,16 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, [searchOpen]);
 
-  // «×» drops the selection; the card goes and the column shows its tab
-  // again, so focus lands on that tab rather than on the removed button.
+  // «×» drops the selection; the card goes, so focus lands on the open tab of
+  // the same column rather than on the removed button.
   const closeProps = useCallback(() => {
     select(null);
-    window.document.getElementById(`side-left-tab-${tabs.left}`)?.focus();
-  }, [select, tabs.left]);
+    window.document.getElementById(`side-right-tab-${tabs.right}`)?.focus();
+  }, [select, tabs.right]);
 
   // A click on an issue marker (V02-marker-click) is a request for the list:
-  // the selection goes to the card on the left, «Проверка» comes to the front
-  // on the right.
+  // the selection goes to the card, «Проверка» comes to the front
+  // beneath it, both on the right.
   const focusFromMarker = useCallback(
     (ref: Ref) => {
       focusOn(ref);
@@ -495,10 +513,10 @@ export function App(): React.JSX.Element {
     const result = dispatchPlanCommand(command);
     if (result.ok && command.type === 'batch') {
       const zone = command.commands.find((step) => step.type === 'zone.put');
-      if (zone?.type === 'zone.put') selectOnPlan({ kind: 'zone', id: zone.zone.id });
+      if (zone?.type === 'zone.put') select({ kind: 'zone', id: zone.zone.id });
     }
     return result;
-  }, [dispatchPlanCommand, selectOnPlan]);
+  }, [dispatchPlanCommand, select]);
   const internalRoom = useInternalRoomController({ document, session, onCommand: dispatchInternalRoom }, view === '2d' && tool.kind === 'room.draw' && roomMode === 'internal', documentEpoch);
   const placingOpening = view === '2d' && tool.kind === 'opening.place';
   const applyOpeningCommand = useCallback((command: Command): Result<PlanDocument> => {
@@ -540,10 +558,6 @@ export function App(): React.JSX.Element {
       // through to the room selection layer after React re-renders.
       if (result.ok && tool.kind === 'object.place' && command.type === 'object.put') {
         placedType.current = tool.typeId;
-        // D-268: a placement from the library keeps the library open — the
-        // next item is usually placed right after. The new object's card
-        // opens with a click on it.
-        keepLeftTab({ kind: 'object', id: command.object.id });
         // D-275: a placement into a hidden group shows that group — otherwise
         // the new object is invisible and the next click places a duplicate.
         const scope = mountScopeLayer(store.getState().document.layers);
@@ -554,7 +568,7 @@ export function App(): React.JSX.Element {
       }
       return result;
     },
-    [dispatchAndSelect, keepLeftTab, store, tool],
+    [dispatchAndSelect, store, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
@@ -712,10 +726,10 @@ export function App(): React.JSX.Element {
   const openObjectMenu = useCallback(
     (id: Id, at: Point) => {
       menuReturnFocus.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null;
-      if (!(selected.has(id) && selected.size > 1)) selectOnPlan({ kind: 'object', id });
+      if (!(selected.has(id) && selected.size > 1)) select({ kind: 'object', id });
       setObjectMenu({ id, at });
     },
-    [selected, selectOnPlan],
+    [selected, select],
   );
   const runObjectMenu = useCallback(
     (action: ObjectMenuAction) => {
@@ -730,7 +744,7 @@ export function App(): React.JSX.Element {
         const copies = duplicateObjects(targets, takenIds(document, retired));
         if (copies.length > 0 && dispatch({ type: 'batch', commands: copies.map(put) }).ok) {
           if (copies.length > 1) selectMany(copies.map((entry) => entry.id));
-          else selectOnPlan({ kind: 'object', id: copies[0]!.id });
+          else select({ kind: 'object', id: copies[0]!.id });
         }
       } else if (action === 'delete') {
         dispatch({ type: 'batch', commands: targets.map((entry): Command => ({ type: 'object.delete', id: entry.id })) });
@@ -744,7 +758,7 @@ export function App(): React.JSX.Element {
         if (question !== undefined) askAgent(question);
       }
     },
-    [askAgent, closeObjectMenu, dispatch, document, focusOn, menuObject, retired, selected, selectMany, selectOnPlan, showRightTab],
+    [askAgent, closeObjectMenu, dispatch, document, focusOn, menuObject, retired, selected, selectMany, select, showRightTab],
   );
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
@@ -814,7 +828,7 @@ export function App(): React.JSX.Element {
             return;
           }
           if (!layer.visible) dispatch({ type: 'layer.put', layer: { ...layer, visible: true } });
-          revealLeftTab('layers');
+          showLeftTab('layers');
           setAgentActionStatus(`Слой «${layer.name}» включён.`);
           return;
         }
@@ -823,7 +837,7 @@ export function App(): React.JSX.Element {
           return;
       }
     },
-    [dispatch, dispatchAndSelect, document, focusOn, highlight, store, revealLeftTab, showRightTab],
+    [dispatch, dispatchAndSelect, document, focusOn, highlight, store, showLeftTab, showRightTab],
   );
 
   const clearChat = useCallback(() => {
@@ -895,7 +909,7 @@ export function App(): React.JSX.Element {
   return (
     <div
       className={`shell${planOnly ? ' shell--plan-only' : ''}`}
-      style={{ '--side-left': `${panelWidths.left}px`, '--side-right': `${panelWidths.right}px` } as React.CSSProperties}
+      style={{ '--side-left': `${panelWidths.left}rem`, '--side-right': `${panelWidths.right}rem` } as React.CSSProperties}
     >
       <header className="shell__bar">
         {/* D-350: the product name is a small caption, the plan name under it is
@@ -957,19 +971,29 @@ export function App(): React.JSX.Element {
             little slack left at 1280 px. D-261:
             aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
             code "Shift+Slash". */}
-        <button
-          type="button"
-          className="shell__quiet shell__help"
-          aria-label="Горячие клавиши"
-          aria-keyshortcuts="?"
-          title="Горячие клавиши (?)"
-          onClick={hotkeysMap.show}
-        >
-          <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
-            <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
-            <path d="M4 6.5h1M7.5 6.5h1M11 6.5h1M4 9.5h8" />
-          </svg>
-        </button>
+        <div className="shell__aux">
+          <button
+            type="button"
+            className="files__button shell__assistant"
+            title="Ассистент: где поставить, чего не хватает, что изменилось"
+            onClick={() => showRightTab('assistant')}
+          >
+            Ассистент
+          </button>
+          <button
+            type="button"
+            className="shell__quiet shell__help"
+            aria-label="Горячие клавиши"
+            aria-keyshortcuts="?"
+            title="Горячие клавиши (?)"
+            onClick={hotkeysMap.show}
+          >
+            <svg className="shell__icon" viewBox="0 0 16 16" aria-hidden="true">
+              <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
+              <path d="M4 6.5h1M7.5 6.5h1M11 6.5h1M4 9.5h8" />
+            </svg>
+          </button>
+        </div>
         <div className="shell__anchor" data-tour="files">
         <FileControls
           document={document}
@@ -1008,16 +1032,15 @@ export function App(): React.JSX.Element {
             idPrefix="side-left"
             tabs={LEFT_TABS}
             active={tabs.left}
-            onSelect={revealLeftTab}
-            collapsed={propsShown}
+            onSelect={showLeftTab}
             panels={{
               layers: (
                 <LayersPanel
                   document={document}
                   session={session}
                   onCommand={dispatch}
-                  onSelect={selectFromLeft}
-                  onFocus={(ref) => { focusOn(ref); keepLeftTab(ref); }}
+                  onSelect={select}
+                  onFocus={focusOn}
                   objectMounts={objectMounts}
                   pictograms={pictogramsView}
                 />
@@ -1031,56 +1054,7 @@ export function App(): React.JSX.Element {
               ),
             }}
           />
-          {/* D-268: «Свойства» stand in for the open left tab; «×» drops the
-              selection (the same as Escape on the canvas). D-272: the band
-              is the card's only title and its only heading — the card has
-              none of its own and stays the region «Свойства» by its
-              aria-label (it renders the same without the band). */}
-          {propsShown ? (
-            <div className="shell__props">
-              <div className="shell__props-band">
-                {/* A heading by role, not an <h2>: the band keeps its look without
-                    new styles, and a screen reader's heading list finds the
-                    card by it — the card has no heading of its own. */}
-                <span className="shell__props-caption" role="heading" aria-level={2}>
-                  Свойства
-                </span>
-                <button
-                  type="button"
-                  className="shell__props-close"
-                  aria-label="Снять выделение"
-                  title="Снять выделение (Esc)"
-                  onClick={closeProps}
-                >
-                  <svg viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="M4 4l8 8M12 4l-8 8" />
-                  </svg>
-                </button>
-              </div>
-              <div className="shell__props-body">
-                <PropertiesPanel
-                  document={document}
-                  session={session}
-                  onCommand={dispatch}
-                  gesturePreview={gesturePreview}
-                />
-              </div>
-            </div>
-          ) : null}
           <div className="shell__side-foot">
-            {/* D-268: the selection outlived its card (a tab click, a fresh
-                placement) — one click brings the card back. In the foot, so
-                the library under the pointer does not shift. */}
-            {selection !== null && selection.kind !== 'layer' && !propsShown ? (
-              <button
-                type="button"
-                className="shell__props-return"
-                title="Вернуть карточку «Свойства» выбранного на место вкладки"
-                onClick={showPropsAgain}
-              >
-                Свойства выбранного
-              </button>
-            ) : null}
             <button
               type="button"
               className="shell__tour"
@@ -1212,7 +1186,7 @@ export function App(): React.JSX.Element {
                 if (existing !== null) {
                   // A click here selects the object instead of placing a new one,
                   // so the silhouette that promises a placement is not shown (#26).
-                  if (event.phase === 'down') selectOnPlan({ kind: 'object', id: existing.id });
+                  if (event.phase === 'down') select({ kind: 'object', id: existing.id });
                   else placementGhost.publish(null);
                   return;
                 }
@@ -1233,7 +1207,7 @@ export function App(): React.JSX.Element {
               }
             }}
             onViewport={setViewport}
-            onSelect={selectOnPlan}
+            onSelect={select}
             overlay={
               <>
               {/* После оборудования — иначе объект, вставший на подпись, закрывает
@@ -1247,6 +1221,7 @@ export function App(): React.JSX.Element {
                 session={session}
                 onCommand={dispatch}
                 onEditingChange={setShapeEditingId}
+                reshapeFor={reshapeFor}
               />
               <InformationLayer document={document} session={session} />
               {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
@@ -1277,7 +1252,7 @@ export function App(): React.JSX.Element {
                 draftCursor={drawingRoom ? null : planTool.cursor}
                 rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
                 onCommand={dispatch}
-                onSelect={selectOnPlan}
+                onSelect={select}
               />
               <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             </Layer>
@@ -1286,11 +1261,12 @@ export function App(): React.JSX.Element {
               session={session}
               issues={issues}
               onCommand={dispatch}
-              onSelect={selectOnPlan}
+              onSelect={select}
               onSelectMany={selectMany}
               preview={preview}
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
+              reshapeFor={reshapeFor}
               pictograms={pictograms}
               captions={captions}
             />
@@ -1304,7 +1280,7 @@ export function App(): React.JSX.Element {
             />
           ) : null}
           {view === '3d' ? (
-            <View3D document={shownDocument} selection={selection} onSelect={selectOnPlan} />
+            <View3D document={shownDocument} selection={selection} onSelect={select} />
           ) : null}
         </main>
 
@@ -1326,6 +1302,56 @@ export function App(): React.JSX.Element {
         />
 
         <aside id="side-panel-right" className="shell__side shell__side--wide" data-tour="side-right">
+          {/* #105 (was D-268): «Свойства» stand above the right column's tabs;
+              «×» drops the selection (the same as Escape on the canvas). D-272: the band
+              is the card's only title and its only heading — the card has
+              none of its own and stays the region «Свойства» by its
+              aria-label (it renders the same without the band). */}
+          {propsShown ? (
+            <div className="shell__props">
+              <div className="shell__props-band">
+                {/* A heading by role, not an <h2>: the band keeps its look without
+                    new styles, and a screen reader's heading list finds the
+                    card by it — the card has no heading of its own. */}
+                <span className="shell__props-caption" role="heading" aria-level={2}>
+                  Свойства
+                </span>
+                <button
+                  type="button"
+                  className="shell__props-close"
+                  aria-label="Снять выделение"
+                  title="Снять выделение (Esc)"
+                  onClick={closeProps}
+                >
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M4 4l8 8M12 4l-8 8" />
+                  </svg>
+                </button>
+              </div>
+              {quickObject === undefined ? null : (
+                <ObjectQuickActions
+                  object={quickObject}
+                  disabled={quickDisabled}
+                  reshape={reshapeFor === quickObject.id}
+                  onReshape={(on) => setReshapeFor(on ? quickObject.id : null)}
+                  onRotate={(deltaDeg) => {
+                    dispatch({
+                      type: 'object.put',
+                      object: { ...quickObject, rotation_deg: normalizeAngle(quickObject.rotation_deg + deltaDeg) || 0 },
+                    });
+                  }}
+                />
+              )}
+              <div className="shell__props-body">
+                <PropertiesPanel
+                  document={document}
+                  session={session}
+                  onCommand={dispatch}
+                  gesturePreview={gesturePreview}
+                />
+              </div>
+            </div>
+          ) : null}
           <SideTabs
             label="Панели справа"
             idPrefix="side-right"
@@ -1370,7 +1396,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} />,
               inventory: (
                 <>
                   <RuleChecklist
@@ -1417,7 +1443,7 @@ export function App(): React.JSX.Element {
         document={document}
         onCommand={dispatch}
         session={session}
-        onSelect={selectFromLeft}
+        onSelect={select}
       />
     </div>
   );

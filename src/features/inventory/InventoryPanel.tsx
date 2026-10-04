@@ -66,20 +66,20 @@ export type InventoryPanelViewProps = InventoryPanelProps & { document?: PlanDoc
  * The summary lives in styles owned by another stream, so its two rules are
  * inline — the same way the library paints its colour swatch.
  */
-const LIST_STYLE = { margin: '0 0 8px', padding: 0, listStyle: 'none' } as const;
+const LIST_STYLE = { margin: '0 0 0.5rem', padding: 0, listStyle: 'none' } as const;
 
 const CHIP_STYLE = {
   display: 'flex',
   justifyContent: 'space-between',
-  gap: '8px',
+  gap: '0.5rem',
   width: '100%',
-  padding: '3px 6px',
+  padding: '0.1875rem 0.375rem',
   // Longhand on purpose: React warns when a shorthand `border` and the
   // `borderColor` of the selected state replace each other between renders.
   borderWidth: '1px',
   borderStyle: 'solid',
   borderColor: 'transparent',
-  borderRadius: '5px',
+  borderRadius: '0.3125rem',
   background: 'none',
   font: 'inherit',
   textAlign: 'left',
@@ -87,13 +87,6 @@ const CHIP_STYLE = {
 } as const;
 
 const CHIP_SELECTED_STYLE = { ...CHIP_STYLE, borderColor: 'var(--accent)', background: 'var(--ground)' };
-
-/**
- * The id goes under the name, not after it: the side panel is 315 px wide and
- * a name plus an id on one line pushed the table 138 px past its edge.
- * `anywhere` lets `ot_fire_sensor` break instead of widening the column.
- */
-const ID_STYLE = { display: 'block', fontSize: '12px', overflowWrap: 'anywhere' } as const;
 
 /** Fixed columns: the widest name must not decide the width of the panel. */
 const TABLE_STYLE = { tableLayout: 'fixed' } as const;
@@ -122,7 +115,7 @@ const STICKY_HEAD_STYLE = {
 const SORT_BUTTON_STYLE = {
   display: 'flex',
   justifyContent: 'space-between',
-  gap: '4px',
+  gap: '0.25rem',
   width: '100%',
   padding: 0,
   border: 'none',
@@ -133,7 +126,7 @@ const SORT_BUTTON_STYLE = {
   cursor: 'pointer',
 } as const;
 
-const EXPORT_ROW_STYLE = { display: 'flex', alignItems: 'center', gap: '8px', margin: '4px 0' } as const;
+const EXPORT_ROW_STYLE = { display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0.25rem 0' } as const;
 
 /**
  * Both groups — types and the object list — start collapsed at the same
@@ -193,13 +186,13 @@ function columnWidths(extra: number): number[] {
   return widths;
 }
 
-const COLUMN_PICKER_STYLE = { margin: '4px 0' } as const;
+const COLUMN_PICKER_STYLE = { margin: '0.25rem 0' } as const;
 const FIELDSET_STYLE = { border: 'none', margin: 0, padding: 0 } as const;
 const COLUMN_LIST_STYLE = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(10em, 1fr))',
-  gap: '2px 8px',
-  margin: '4px 0',
+  gap: '0.125rem 0.5rem',
+  margin: '0.25rem 0',
 } as const;
 
 /**
@@ -214,15 +207,6 @@ function downloadCsv(text: string, name: string): void {
   link.download = name;
   link.click();
   URL.revokeObjectURL(url);
-}
-
-/** The raw id after the name: secondary, but never hidden. */
-function RawId({ id }: { id: Id }): React.JSX.Element {
-  return (
-    <span className="table__muted" style={ID_STYLE}>
-      {id}
-    </span>
-  );
 }
 
 export function InventoryPanel({
@@ -399,7 +383,7 @@ export function InventoryPanel({
           <h3 className="panel__title">
             Объекты по типам <span className="panel__count">{types.length}</span>
           </h3>
-          <ul style={LIST_STYLE} data-testid="inventory-types" id="inventory-types-list">
+          <ul style={LIST_STYLE} data-testid="inventory-types" id="inventory-types-list" title="Нажмите на тип, чтобы отфильтровать перечень">
             {types.map((type, index) => {
               const selected = type.typeId === typeId;
               const hidden = typesOverflow && !typesExpanded && index >= COLLAPSE_LIMIT;
@@ -435,11 +419,11 @@ export function InventoryPanel({
               {typesExpanded ? 'Свернуть' : `Показать все (${types.length})`}
             </button>
           ) : null}
-          <p className="panel__note">
-            {absent === 0
-              ? 'Показаны типы справочника, у которых есть объекты. Строка типа фильтрует перечень.'
-              : `Строка типа фильтрует перечень. Ещё ${absent} ${typesWord(absent)} справочника без объектов.`}
-          </p>
+          {absent === 0 ? null : (
+            <p className="panel__note">
+              Ещё {absent} {typesWord(absent)} справочника без объектов.
+            </p>
+          )}
         </div>
       )}
 
@@ -584,9 +568,8 @@ export function InventoryPanel({
                         {row.label}
                       </button>
                     </td>
-                    <td>
+                    <td title={row.typeLabel === null ? undefined : row.typeId}>
                       {display(row.typeLabel, row.typeId)}
-                      {row.typeLabel === null ? null : <RawId id={row.typeId} />}
                     </td>
                     <td>
                       {row.zoneId === null ? (
@@ -595,10 +578,10 @@ export function InventoryPanel({
                         <button
                           type="button"
                           className="table__link"
+                          title={row.zoneName === null ? undefined : row.zoneId}
                           onClick={() => onFocus({ kind: 'zone', id: row.zoneId as string })}
                         >
                           {display(row.zoneName, row.zoneId)}
-                          {row.zoneName === null ? null : <RawId id={row.zoneId} />}
                         </button>
                       )}
                     </td>
@@ -719,13 +702,13 @@ export function InventoryPanel({
                     <button
                       type="button"
                       className="table__link"
+                      title={zone.name === null ? undefined : zone.zoneId}
                       aria-label={zone.parentName === null ? undefined : `${display(zone.name, zone.zoneId)}, внутри зоны ${zone.parentName}`}
                       style={zone.depth === 0 ? undefined : { marginInlineStart: `${zone.depth * 12}px` }}
                       onClick={() => onFocus({ kind: 'zone', id: zone.zoneId })}
                     >
                       {zone.depth === 0 ? null : <span aria-hidden="true" className="metrics__nested">└ </span>}
                       {display(zone.name, zone.zoneId)}
-                      {zone.name === null ? null : <RawId id={zone.zoneId} />}
                     </button>
                   </td>
                   <td className="inventory__num">{zone.direct}</td>

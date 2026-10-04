@@ -17,6 +17,7 @@ import type { Candidate } from '../../contracts/advice';
 import type { Equipment, Id, Issue, PlanDocument, Point, Rule } from '../../contracts/model';
 import { findPlacements } from '../../domain/advice';
 import { findObjectType, findZoneType } from '../../domain/catalog';
+import { objectsInZoneScope } from '../../domain/inventory';
 import { openingCentre } from '../../domain/geometry';
 import { formatShort } from '../../domain/number-format';
 import { PHYSICS_RULES } from '../../domain/physics';
@@ -177,6 +178,8 @@ export function explainFinding(plan: PlanDocument, issue: ValidationIssue): Find
 export type FixPlan =
   | { kind: 'add'; typeId: Id; zoneId: Id }
   | { kind: 'move'; object: Equipment; zoneId: Id | null; anchor: Point; toEntrance: boolean }
+  /** Over the maximum of a stocking rule: one object goes. */
+  | { kind: 'remove'; object: Equipment; retired: boolean }
   | { kind: 'none'; reason: string };
 
 /** Findings a new place for the object fixes. */
@@ -185,6 +188,7 @@ const MOVE_CODES: ReadonlySet<string> = new Set([
   VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,
   VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ROOM,
   VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE,
+  VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING,
 ]);
 
 function mentionCount(issues: readonly Issue[], id: Id): number {
@@ -210,6 +214,16 @@ export function planFix(plan: PlanDocument, issue: ValidationIssue, issues: read
     if (zone !== undefined) return { kind: 'add', typeId: rule.objectTypeId, zoneId: zone.id };
   }
 
+  // Of the objects the rule counts, the one marked «выведено из эксплуатации»
+  // goes first; without one, the last in the list.
+  if (rule?.kind === 'count' && issue.code === VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX) {
+    const zone = issue.refs.find((ref) => ref.kind === 'zone');
+    const counted = zone === undefined ? [] : objectsInZoneScope(plan, rule.objectTypeId, zone.id, rule.scope);
+    const retired = counted.find((object) => object.attributes.equipmentStatus === 'retired');
+    const doomed = retired ?? counted.at(-1);
+    if (doomed !== undefined) return { kind: 'remove', object: doomed, retired: retired !== undefined };
+  }
+
   if (rule?.kind === 'distance-to-entrance' && objects[0] !== undefined) {
     const openingRef = issue.refs.find((ref) => ref.kind === 'opening');
     const opening = plan.openings.find((entry) => entry.id === openingRef?.id);
@@ -230,7 +244,9 @@ export function planFix(plan: PlanDocument, issue: ValidationIssue, issues: read
 }
 
 export type FixResult =
-  | { ok: true; candidate: Candidate; fix: Exclude<FixPlan, { kind: 'none' }> }
+  | { ok: true; candidate: Candidate; fix: Extract<FixPlan, { kind: 'add' | 'move' }> }
+  /** A removal has no ghost: nothing new stands on the plan. */
+  | { ok: true; candidate: null; fix: Extract<FixPlan, { kind: 'remove' }> }
   | { ok: false; message: string };
 
 /**
@@ -239,6 +255,7 @@ export type FixResult =
  * block the new one, and the old findings do not count as "already there".
  */
 export function findFix(plan: PlanDocument, fix: Exclude<FixPlan, { kind: 'none' }>): FixResult {
+  if (fix.kind === 'remove') return { ok: true, candidate: null, fix };
   const found =
     fix.kind === 'add'
       ? findPlacements(plan, { scenario: 'place', typeId: fix.typeId, zoneId: fix.zoneId })

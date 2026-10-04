@@ -20,7 +20,7 @@ export const SCALE_LIMITS = { min: 4, max: 400 } as const;
 const FIT_PADDING_PX = 32;
 
 /** Fallback when a plan has no extent at all — a fresh, empty document. */
-const DEFAULT_SCALE = 48;
+export const DEFAULT_SCALE = 48;
 
 export type CanvasSize = { width: number; height: number };
 

@@ -59,7 +59,9 @@ export function PlanTitle({ name, dirty, onRename }: PlanTitleProps): React.JSX.
     if (onRename(outcome.name)) close(byEnter);
   };
 
+  // #105: the short text is painted next to the name; the tooltip says it in full.
   const state = dirty ? 'Есть несохранённые правки' : 'Сохранено в файл';
+  const stateShort = dirty ? 'Не сохранено' : 'Сохранено';
 
   return (
     <div className="shell__doc">
@@ -114,7 +116,7 @@ export function PlanTitle({ name, dirty, onRename }: PlanTitleProps): React.JSX.
       <span className={dirty ? 'shell__doc-state is-dirty' : 'shell__doc-state'} title={state}>
         <span aria-hidden="true">{dirty ? '●' : '✓'}</span>
         <span className="shell__doc-state-text" role="status">
-          {state}
+          {stateShort}
         </span>
       </span>
     </div>
