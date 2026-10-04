@@ -798,6 +798,20 @@ body {
   box-shadow: 0 6px 18px rgb(28 40 51 / 18%);
 }
 
+.files__menu [role="group"] {
+  display: flex;
+  flex-direction: column;
+}
+
+.files__menu-caption {
+  display: block;
+  margin-top: 4px;
+  padding: 6px 10px 2px;
+  border-top: 1px solid var(--color-line);
+  color: var(--color-muted);
+  font-size: var(--text-s);
+}
+
 .files__menu-item {
   padding: 7px 10px;
   border: none;
@@ -1067,12 +1081,12 @@ body {
 
   .shell__doc-name,
   .shell__doc-input {
-    max-width: 112px;
+    max-width: 200px;
     font-size: var(--text-s);
   }
 
   .shell__doc-input {
-    width: 112px;
+    width: 200px;
   }
 
   .files > .files__status {
@@ -1112,11 +1126,11 @@ body {
   /* D-260: the header hotkeys button costs one more grid column. */
   .shell__doc-name,
   .shell__doc-input {
-    max-width: 88px;
+    max-width: 160px;
   }
 
   .shell__doc-input {
-    width: 88px;
+    width: 160px;
   }
 }
 
@@ -2808,7 +2822,6 @@ span.inventory__num {
 }
 
 .onboarding__demo { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
-.shell__bar .files__button--demo { padding-inline: 4px; }
 .comparison { display: grid; gap: 10px; min-width: 0; container-type: inline-size; }
 .comparison__source { overflow-wrap: anywhere; margin: 0; }
 .comparison__actions { display: flex; flex-wrap: wrap; gap: 6px; }

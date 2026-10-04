@@ -29,7 +29,7 @@ export const test = base.extend({
 });
 
 /**
- * Выгрузка: JSON — кнопка «Сохранить план» (#6), картинки — меню «Экспорт»
+ * Выгрузка: JSON — кнопка «Сохранить план» (#6), картинки — меню «Файл → Экспорт»
  * (D-255). Помощник нужен многим спекам, поэтому он здесь, а не копией в каждой.
  */
 /**
@@ -53,7 +53,7 @@ export async function exportPlan(page: Page, item: 'JSON' | 'PNG' | 'SVG'): Prom
     await page.getByRole('button', { name: 'Сохранить план' }).click();
     return;
   }
-  await page.getByRole('button', { name: 'Экспорт' }).click();
+  await page.getByRole('button', { name: 'Файл' }).click();
   await page.getByRole('menuitem', { name: new RegExp(item) }).click();
 }
 
@@ -75,7 +75,8 @@ export async function expectUnsavedEdits(page: Page, unsaved: boolean): Promise<
     message = dialog.message();
     void dialog.dismiss();
   });
-  await page.getByRole('button', { name: 'Создать новый' }).click();
+  await page.getByRole('button', { name: 'Файл' }).click();
+  await page.getByRole('menuitem', { name: 'Создать новый' }).click();
   expect(message).toContain(
     unsaved ? 'Несохранённые правки будут потеряны.' : 'Текущий план будет заменён.',
   );

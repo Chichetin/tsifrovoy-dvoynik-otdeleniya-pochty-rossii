@@ -170,9 +170,6 @@ export function FileControls({
   const openSequence = useRef(0);
   const activeDemoFetch = useRef<AbortController | null>(null);
   const seenDemoRequest = useRef<number | null>(null);
-  const [demoMenuOpen, setDemoMenuOpen] = useState(false);
-  const demoTrigger = useRef<HTMLButtonElement>(null);
-  const demoMenu = useRef<HTMLDivElement>(null);
   /** Bumped by every export: a late PNG must not overwrite a later export's result. */
   const exportSequence = useRef(0);
   const currentDocument = useRef({ plan, revision });
@@ -203,8 +200,8 @@ export function FileControls({
   const [menuOpen, setMenuOpen] = useState(false);
   /** Which item gets focus when the menu opens: ArrowUp on the button starts from the end. */
   const menuStart = useRef<'first' | 'last'>('first');
-  const exportTrigger = useRef<HTMLButtonElement>(null);
-  const exportMenu = useRef<HTMLDivElement>(null);
+  const fileTrigger = useRef<HTMLButtonElement>(null);
+  const fileMenu = useRef<HTMLDivElement>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
   const [dropped, setDropped] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
@@ -340,8 +337,8 @@ export function FileControls({
 
   const open = (file: File): Promise<void> => openSource(() => file.text());
   const openDemo = useCallback((variant: DemoPlan): void => {
-    setDemoMenuOpen(false);
-    demoTrigger.current?.focus();
+    setMenuOpen(false);
+    fileTrigger.current?.focus();
     if (needsReplacementWarning(plan, dirty, revision) &&
         !window.confirm(replacementWarning('Открыть', dirty))) return;
     void openSource(() => {
@@ -356,18 +353,6 @@ export function FileControls({
     seenDemoRequest.current = demoRequest.id;
     openDemo(demoRequest.variant);
   }, [demoRequest, openDemo]);
-
-  useEffect(() => {
-    if (!demoMenuOpen) return;
-    demoMenu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
-    const outside = (event: PointerEvent): void => {
-      const target = event.target as Node | null;
-      if (demoMenu.current?.contains(target) || demoTrigger.current?.contains(target)) return;
-      setDemoMenuOpen(false);
-    };
-    window.document.addEventListener('pointerdown', outside);
-    return () => window.document.removeEventListener('pointerdown', outside);
-  }, [demoMenuOpen]);
 
   const restore = (draft: PlanDraft): void => {
     // Спрашиваем, когда в плане уже что-то есть: только что открытый файл по
@@ -556,18 +541,18 @@ export function FileControls({
 
   const closeMenu = (returnFocus: boolean): void => {
     setMenuOpen(false);
-    if (returnFocus) exportTrigger.current?.focus();
+    if (returnFocus) fileTrigger.current?.focus();
   };
 
   /** Открытое меню забирает фокус на первый пункт: дальше — стрелками. */
   useEffect(() => {
     if (!menuOpen) return;
-    const items = exportMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
+    const items = fileMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
     items?.[menuStart.current === 'last' ? items.length - 1 : 0]?.focus();
     const outside = (event: PointerEvent): void => {
       const target = event.target as Node | null;
-      if (exportMenu.current?.contains(target ?? null) === true) return;
-      if (exportTrigger.current?.contains(target ?? null) === true) return;
+      if (fileMenu.current?.contains(target ?? null) === true) return;
+      if (fileTrigger.current?.contains(target ?? null) === true) return;
       setMenuOpen(false);
     };
     window.document.addEventListener('pointerdown', outside);
@@ -576,7 +561,7 @@ export function FileControls({
 
   const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     const items = Array.from(
-      exportMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
+      fileMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [],
     );
     if (items.length === 0) return;
     const at = items.indexOf(window.document.activeElement as HTMLElement);
@@ -623,6 +608,35 @@ export function FileControls({
     return () => window.clearTimeout(timer);
   }, [state, notice, dropped, assumptions]);
 
+  const newPlan = (): void => {
+    closeMenu(false);
+    if (needsReplacementWarning(plan, dirty, revision) &&
+        !window.confirm(replacementWarning('Новый', dirty))) return;
+    openSequence.current += 1;
+    activeDemoFetch.current?.abort();
+    onNew();
+    if (storage !== null) clearDraft(storage);
+    // Чистый лист — тоже ответ на предложение: черновика больше нет.
+    setOffered(null);
+    setAnswered(true);
+    setDraftAt(null);
+    setAssumptions([]);
+    setDropped([]);
+    setNotice(null);
+    setErrorDetails([]);
+    setState({ status: 'idle' });
+  };
+
+  const openExisting = (): void => {
+    closeMenu(false);
+    if (needsReplacementWarning(plan, dirty, revision) &&
+        !window.confirm(replacementWarning('Открыть', dirty))) return;
+    openSequence.current += 1;
+    activeDemoFetch.current?.abort();
+    setState({ status: 'idle' });
+    input.current?.click();
+  };
+
   // Полоса сообщений существует, только когда в ней что-то есть (D-288).
   const hasMessages =
     state.status === 'loading' ||
@@ -635,80 +649,15 @@ export function FileControls({
   return (
     <>
     <div className="files" role="group" aria-label="Файл плана">
-      <button
-        type="button"
-        className="files__button"
-        onClick={() => {
-          if (needsReplacementWarning(plan, dirty, revision) &&
-              !window.confirm(replacementWarning('Новый', dirty))) return;
-          openSequence.current += 1;
-          activeDemoFetch.current?.abort();
-          onNew();
-          if (storage !== null) clearDraft(storage);
-          // Чистый лист — тоже ответ на предложение: черновика больше нет.
-          setOffered(null);
-          setAnswered(true);
-          setDraftAt(null);
-          setAssumptions([]);
-          setDropped([]);
-          setNotice(null);
-          setErrorDetails([]);
-          setState({ status: 'idle' });
-        }}
-      >
-        Создать новый
-      </button>
-
-      <button
-        type="button"
-        className="files__button"
-        onClick={() => {
-          if (needsReplacementWarning(plan, dirty, revision) &&
-              !window.confirm(replacementWarning('Открыть', dirty))) return;
-          openSequence.current += 1;
-          activeDemoFetch.current?.abort();
-          setState({ status: 'idle' });
-          input.current?.click();
-        }}
-      >
-        Открыть существующий
-      </button>
-
-      <div className="files__export">
-        <button ref={demoTrigger} type="button" className="files__button files__button--demo"
-          aria-haspopup="menu" aria-expanded={demoMenuOpen}
-          onClick={() => { setMenuOpen(false); setDemoMenuOpen((value) => !value); }}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-              event.preventDefault(); setMenuOpen(false); setDemoMenuOpen(true);
-            }
-          }}>Демо</button>
-        {demoMenuOpen ? <div ref={demoMenu} className="files__menu" role="menu" aria-label="Демо-планы"
-          onKeyDown={(event) => {
-            const items = Array.from(demoMenu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
-            const at = items.indexOf(window.document.activeElement as HTMLElement);
-            if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setDemoMenuOpen(false); demoTrigger.current?.focus(); }
-            else if (event.key === 'Tab') setDemoMenuOpen(false);
-            else if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-              event.preventDefault();
-              const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (at + (event.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length;
-              items[index]?.focus();
-            }
-          }}>
-          {DEMO_PLANS.map((item) => <button key={item.id} type="button" role="menuitem" className="files__menu-item" onClick={() => openDemo(item.id)}>{item.label}</button>)}
-        </div> : null}
-      </div>
-
       <div className="files__export">
         <button
-          ref={exportTrigger}
+          ref={fileTrigger}
           type="button"
           className="files__button"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
-          title="Скачать план: файл JSON, картинку или перечень CSV"
+          title="Создать, открыть, демо-планы и экспорт"
           onClick={() => {
-            setDemoMenuOpen(false);
             menuStart.current = 'first';
             setMenuOpen((open) => !open);
           }}
@@ -719,36 +668,53 @@ export function FileControls({
             setMenuOpen(true);
           }}
         >
-          Экспорт
+          Файл
         </button>
 
         {!menuOpen ? null : (
           <div
-            ref={exportMenu}
+            ref={fileMenu}
             className="files__menu"
             role="menu"
-            aria-label="Экспорт"
+            aria-label="Файл"
             onKeyDown={onMenuKeyDown}
           >
-            {exportItems.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                role="menuitem"
-                className="files__menu-item"
-                title={item.hint}
-                data-testid={`export-${item.key}`}
-                onClick={() => {
-                  closeMenu(true);
-                  if (item.key === 'json') save();
-                  else if (item.key === 'png') exportPng();
-                  else if (item.key === 'csv') exportCsv();
-                  else exportSvg();
-                }}
-              >
-                {item.label}
-              </button>
-            ))}
+            <button type="button" role="menuitem" className="files__menu-item" onClick={newPlan}>
+              Создать новый
+            </button>
+            <button type="button" role="menuitem" className="files__menu-item" onClick={openExisting}>
+              Открыть существующий
+            </button>
+            <div role="group" aria-labelledby="files-menu-demo">
+              <span id="files-menu-demo" className="files__menu-caption">Демо-планы</span>
+              {DEMO_PLANS.map((item) => (
+                <button key={item.id} type="button" role="menuitem" className="files__menu-item" onClick={() => openDemo(item.id)}>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            <div role="group" aria-labelledby="files-menu-export">
+              <span id="files-menu-export" className="files__menu-caption">Экспорт</span>
+              {exportItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="menuitem"
+                  className="files__menu-item"
+                  title={item.hint}
+                  data-testid={`export-${item.key}`}
+                  onClick={() => {
+                    closeMenu(true);
+                    if (item.key === 'json') save();
+                    else if (item.key === 'png') exportPng();
+                    else if (item.key === 'csv') exportCsv();
+                    else exportSvg();
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -762,7 +728,6 @@ export function FileControls({
         title="Скачать план файлом .json: зоны, оборудование, идентификаторы и атрибуты (Ctrl+S)"
         onClick={() => {
           setMenuOpen(false);
-          setDemoMenuOpen(false);
           save();
         }}
       >
