@@ -257,6 +257,98 @@
           ]
         },
         {
+          "id": "adv_ot_bench_5",
+          "object": {
+            "id": "adv_ot_bench_5",
+            "typeId": "ot_bench",
+            "label": "Скамья для ожидания",
+            "position": [
+              0.7,
+              2.6
+            ],
+            "size_m": [
+              1.6,
+              0.5
+            ],
+            "rotation_deg": 90,
+            "base_m": 0,
+            "height_m": 0.45,
+            "zoneId": "z_waiting",
+            "layerId": "l_base",
+            "attributes": {
+              "equipmentStatus": "unknown",
+              "seats": 3
+            }
+          },
+          "facts": [
+            {
+              "id": "adv_ot_bench_5.placement.distance",
+              "metric": "placement.distance",
+              "phase": "current",
+              "value": 1.615549,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "zone",
+                  "id": "z_waiting"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_5.area.free.current",
+              "metric": "area.free",
+              "phase": "current",
+              "value": 114.731426,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_5.area.free.after",
+              "metric": "area.free",
+              "phase": "after",
+              "value": 113.931426,
+              "unit": "m2",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_5.equipment.count.current",
+              "metric": "equipment.count",
+              "phase": "current",
+              "value": 3,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_5.equipment.count.after",
+              "metric": "equipment.count",
+              "phase": "after",
+              "value": 4,
+              "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            }
+          ]
+        },
+        {
           "id": "adv_ot_bench_2",
           "object": {
             "id": "adv_ot_bench_2",
@@ -335,98 +427,6 @@
             },
             {
               "id": "adv_ot_bench_2.equipment.count.after",
-              "metric": "equipment.count",
-              "phase": "after",
-              "value": 4,
-              "unit": "count",
-              "refs": [
-                {
-                  "kind": "room",
-                  "id": "room_main"
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "id": "adv_ot_bench_3",
-          "object": {
-            "id": "adv_ot_bench_3",
-            "typeId": "ot_bench",
-            "label": "Скамья для ожидания",
-            "position": [
-              0.8,
-              1.1
-            ],
-            "size_m": [
-              1.6,
-              0.5
-            ],
-            "rotation_deg": 90,
-            "base_m": 0,
-            "height_m": 0.45,
-            "zoneId": "z_waiting",
-            "layerId": "l_base",
-            "attributes": {
-              "equipmentStatus": "unknown",
-              "seats": 3
-            }
-          },
-          "facts": [
-            {
-              "id": "adv_ot_bench_3.placement.distance",
-              "metric": "placement.distance",
-              "phase": "current",
-              "value": 1.664332,
-              "unit": "m",
-              "refs": [
-                {
-                  "kind": "zone",
-                  "id": "z_waiting"
-                }
-              ]
-            },
-            {
-              "id": "adv_ot_bench_3.area.free.current",
-              "metric": "area.free",
-              "phase": "current",
-              "value": 114.731426,
-              "unit": "m2",
-              "refs": [
-                {
-                  "kind": "room",
-                  "id": "room_main"
-                }
-              ]
-            },
-            {
-              "id": "adv_ot_bench_3.area.free.after",
-              "metric": "area.free",
-              "phase": "after",
-              "value": 113.931426,
-              "unit": "m2",
-              "refs": [
-                {
-                  "kind": "room",
-                  "id": "room_main"
-                }
-              ]
-            },
-            {
-              "id": "adv_ot_bench_3.equipment.count.current",
-              "metric": "equipment.count",
-              "phase": "current",
-              "value": 3,
-              "unit": "count",
-              "refs": [
-                {
-                  "kind": "room",
-                  "id": "room_main"
-                }
-              ]
-            },
-            {
-              "id": "adv_ot_bench_3.equipment.count.after",
               "metric": "equipment.count",
               "phase": "after",
               "value": 4,
@@ -534,6 +534,71 @@
           ]
         },
         {
+          "id": "adv_ot_bench_5.placement.distance",
+          "metric": "placement.distance",
+          "phase": "current",
+          "value": 1.615549,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "zone",
+              "id": "z_waiting"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_5.area.free.current",
+          "metric": "area.free",
+          "phase": "current",
+          "value": 114.731426,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_5.area.free.after",
+          "metric": "area.free",
+          "phase": "after",
+          "value": 113.931426,
+          "unit": "m2",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_5.equipment.count.current",
+          "metric": "equipment.count",
+          "phase": "current",
+          "value": 3,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_5.equipment.count.after",
+          "metric": "equipment.count",
+          "phase": "after",
+          "value": 4,
+          "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
           "id": "adv_ot_bench_2.placement.distance",
           "metric": "placement.distance",
           "phase": "current",
@@ -587,71 +652,6 @@
         },
         {
           "id": "adv_ot_bench_2.equipment.count.after",
-          "metric": "equipment.count",
-          "phase": "after",
-          "value": 4,
-          "unit": "count",
-          "refs": [
-            {
-              "kind": "room",
-              "id": "room_main"
-            }
-          ]
-        },
-        {
-          "id": "adv_ot_bench_3.placement.distance",
-          "metric": "placement.distance",
-          "phase": "current",
-          "value": 1.664332,
-          "unit": "m",
-          "refs": [
-            {
-              "kind": "zone",
-              "id": "z_waiting"
-            }
-          ]
-        },
-        {
-          "id": "adv_ot_bench_3.area.free.current",
-          "metric": "area.free",
-          "phase": "current",
-          "value": 114.731426,
-          "unit": "m2",
-          "refs": [
-            {
-              "kind": "room",
-              "id": "room_main"
-            }
-          ]
-        },
-        {
-          "id": "adv_ot_bench_3.area.free.after",
-          "metric": "area.free",
-          "phase": "after",
-          "value": 113.931426,
-          "unit": "m2",
-          "refs": [
-            {
-              "kind": "room",
-              "id": "room_main"
-            }
-          ]
-        },
-        {
-          "id": "adv_ot_bench_3.equipment.count.current",
-          "metric": "equipment.count",
-          "phase": "current",
-          "value": 3,
-          "unit": "count",
-          "refs": [
-            {
-              "kind": "room",
-              "id": "room_main"
-            }
-          ]
-        },
-        {
-          "id": "adv_ot_bench_3.equipment.count.after",
           "metric": "equipment.count",
           "phase": "after",
           "value": 4,
