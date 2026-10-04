@@ -149,3 +149,32 @@ test('атрибут типа добавлен без ввода ключа и �
   const type = saved.catalog.objectTypes.find((t: { label: string }) => t.label === 'Весы почтовые Q13');
   expect(type.attributes.map((a: { key: string }) => a.key)).toEqual(['data_poverki']);
 });
+
+/** Файл, брошенный в окно: те же события, что шлёт браузер при перетаскивании из проводника (#37). */
+async function dropFile(page: import('@playwright/test').Page, name: string, content: string, type: string): Promise<void> {
+  await page.evaluate(
+    ([fileName, text, mime]) => {
+      const transfer = new DataTransfer();
+      transfer.items.add(new File([text], fileName, { type: mime }));
+      for (const kind of ['dragenter', 'dragover', 'drop']) {
+        document.body.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: transfer }));
+      }
+    },
+    [name, content, type] as const,
+  );
+}
+
+test('план, брошенный в окно, открывается; битый и не-JSON файл дают ошибку и не портят открытый (#37)', async ({ page }) => {
+  page.on('dialog', (dialog) => void dialog.accept());
+  await page.goto('/');
+  const rows = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
+
+  await dropFile(page, 'before.json', readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'), 'application/json');
+  await expect(rows).toHaveCount(53);
+
+  await dropFile(page, 'broken.json', '{"план": не json', 'application/json');
+  await expect(page.getByText('План не открыт')).toBeVisible();
+  await dropFile(page, 'picture.png', 'PNG', 'image/png');
+  await expect(page.getByText('нужен план в формате JSON')).toBeVisible();
+  await expect(rows).toHaveCount(53);
+});

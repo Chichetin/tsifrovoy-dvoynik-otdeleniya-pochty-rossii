@@ -336,6 +336,59 @@ export function FileControls({
   }, [plan, revision, read, accept, showIssueError]);
 
   const open = (file: File): Promise<void> => openSource(() => file.text());
+
+  // #37: a plan file dropped anywhere on the window opens like «Открыть
+  // существующий»: the same warning before a plan with content is replaced and
+  // the same refusal that leaves the open plan untouched. Only files count —
+  // a library type dragged onto the canvas carries text, not files.
+  const [dropActive, setDropActive] = useState(false);
+  const onDropFile = useRef<((file: File) => void) | null>(null);
+  useLayoutEffect(() => {
+    onDropFile.current = (file: File): void => {
+      if (!/\.json$/i.test(file.name) && file.type !== 'application/json') {
+        setErrorDetails([]);
+        setState({ status: 'error', message: `Файл «${file.name}» не открыт: нужен план в формате JSON.` });
+        return;
+      }
+      if (needsReplacementWarning(plan, dirty, revision) &&
+          !window.confirm(replacementWarning('Открыть', dirty))) return;
+      void open(file);
+    };
+  });
+  useEffect(() => {
+    const withFiles = (event: DragEvent): boolean => event.dataTransfer?.types.includes('Files') === true;
+    const enter = (event: DragEvent): void => {
+      if (!withFiles(event)) return;
+      event.preventDefault();
+      setDropActive(true);
+    };
+    const over = (event: DragEvent): void => {
+      if (!withFiles(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
+    };
+    // Leaving the window has no target to move to; moving between elements does.
+    const leave = (event: DragEvent): void => {
+      if (withFiles(event) && event.relatedTarget === null) setDropActive(false);
+    };
+    const drop = (event: DragEvent): void => {
+      if (!withFiles(event)) return;
+      event.preventDefault();
+      setDropActive(false);
+      const file = event.dataTransfer?.files[0];
+      if (file !== undefined) onDropFile.current?.(file);
+    };
+    window.addEventListener('dragenter', enter);
+    window.addEventListener('dragover', over);
+    window.addEventListener('dragleave', leave);
+    window.addEventListener('drop', drop);
+    return () => {
+      window.removeEventListener('dragenter', enter);
+      window.removeEventListener('dragover', over);
+      window.removeEventListener('dragleave', leave);
+      window.removeEventListener('drop', drop);
+    };
+  }, []);
   const openDemo = useCallback((variant: DemoPlan): void => {
     setMenuOpen(false);
     fileTrigger.current?.focus();
@@ -754,6 +807,11 @@ export function FileControls({
         Постоянная строка «черновик в браузере: …» висела над планом у всех и
         всегда; теперь пустая полоса не занимает ряд, а сообщение о загрузке,
         результате или отказе по-прежнему приходит сюда. */}
+    {dropActive ? (
+      <div className="files__drop" data-testid="drop-overlay" role="status">
+        Отпустите, чтобы открыть план
+      </div>
+    ) : null}
     {!hasMessages ? null : (
     <div className="files__messages">
       {state.status === 'loading' ? (
