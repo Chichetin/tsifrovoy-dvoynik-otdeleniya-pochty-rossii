@@ -438,6 +438,20 @@ describe('удаление выбранного (#121)', () => {
 });
 
 describe('силуэт постановки (#26)', () => {
+  test('настольная техника берёт поворот и высоту опоры, а на полу отклоняется (#107)', () => {
+    const desk = { ...plan.objects.find((object) => object.typeId === 'ot_workplace')!,
+      id: 'support', position: [3, 3] as [number, number], rotation_deg: 90, height_m: 0.9 };
+    const type = plan.catalog.objectTypes.find((entry) => entry.id === 'ot_printer')!;
+    const supported = { ...plan, objects: [desk] };
+    const placed = placedObject(supported, type, [3, 3])!;
+    expect(placed.rotation_deg).toBe(90);
+    expect(placed.base_m).toBe(0.9);
+    expect(placementRefusal(supported, placed)).toBeNull();
+    const floor = placedObject(supported, type, [5, 3])!;
+    expect(placementRefusal(supported, floor)).toContain('Поставьте на стол');
+    const hidden = { ...supported, layers: supported.layers.map((layer) => ({ ...layer, visible: false })) };
+    expect(placedObject(hidden, type, [3, 3])!.base_m).toBe(type.defaultBase_m);
+  });
   // Настенная камера физику не нарушает — принимается везде; рабочее место
   // встречает и свободные, и занятые места.
   test.each([['ot_workplace', [false, true]], ['ot_camera', [true]]])(

@@ -1559,7 +1559,7 @@
         0.5,
         0.45
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 90,
       "base_m": 0.75,
       "height_m": 0.4,
       "zoneId": "z_back",
@@ -1582,7 +1582,7 @@
         0.4,
         0.35
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 90,
       "base_m": 0.75,
       "height_m": 0.12,
       "zoneId": "z_back",
