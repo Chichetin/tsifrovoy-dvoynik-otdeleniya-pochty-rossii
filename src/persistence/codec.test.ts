@@ -18,6 +18,7 @@ import {
 } from '../contracts/model';
 import { decodePlan, encodePlan } from './codec';
 import { inventoryCsv, inventoryCsvRows, visibleAttributeColumns } from './inventory-csv';
+import { addVersion, readVersions, type VersionStorage } from './plan-versions';
 
 function fixtureText(name: string): string {
   return readFileSync(join(process.cwd(), 'src', 'contracts', 'fixtures', name), 'utf8');
@@ -494,5 +495,23 @@ describe('CSV инвентаризации', () => {
     const keys = (choice: Record<string, boolean>) =>
       visibleAttributeColumns(plan.catalog, ['ot_workplace'], choice).map((column) => column.key);
     expect(keys({ hasUps: false, lockCode: true })).toEqual(['lockCode']);
+  });
+});
+
+describe('именованные версии плана (#110)', () => {
+  test('сохранение версии → загрузка: документ тот же, новая версия первой', () => {
+    const items = new Map<string, string>();
+    const storage: VersionStorage = {
+      getItem: (key) => items.get(key) ?? null,
+      setItem: (key, value) => void items.set(key, value),
+    };
+    const plan = decodeFixture('nested.json');
+    expect(addVersion(storage, { label: 'до', name: plan.name, text: encodeOrThrow(plan) }, 1).ok).toBe(true);
+    expect(addVersion(storage, { label: ' после ', name: plan.name, text: '{}' }, 1).ok).toBe(true);
+
+    const [latest, earliest] = readVersions(storage);
+    expect([latest?.label, latest?.id, earliest?.id]).toEqual(['после', 'v2', 'v1']);
+    const reopened = decodePlan(earliest?.text ?? '');
+    expect(reopened.ok && reopened.value).toEqual(plan);
   });
 });
