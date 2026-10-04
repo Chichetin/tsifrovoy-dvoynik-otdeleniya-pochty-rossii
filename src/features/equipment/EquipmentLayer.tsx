@@ -79,10 +79,15 @@ const GAP_LABEL_WIDTH_PX = 128;
 const GAP_LABEL_HEIGHT_PX = 18;
 const HANDLE_FILL = '#FFFFFF';
 const ROTATE_FILL = '#E7F5FF';
+/** The rotation handle is larger than a resize handle and carries an arrow, so it reads as «turn» (#105). */
+const ROTATE_RADIUS_PX = 11;
+/** Lucide «rotate-cw» outline, 24 × 24 units; scaled into the handle. */
+const ROTATE_ICON = 'M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8M21 3v5h-5';
+const ROTATE_ICON_SCALE = 0.62;
 
 /** Handles keep a screen size: a 10 cm object is still grabbable at any zoom. */
 const HANDLE_RADIUS_PX = 6;
-const ROTATION_GAP_PX = 28;
+const ROTATION_GAP_PX = 32;
 const HOVER_WIDTH_PX = 320;
 const HOVER_GAP_PX = 14;
 /** Раскладка карточки наведения: отступ от края и просветы между блоками. */
@@ -248,11 +253,17 @@ export function EquipmentLayer({
   preview,
   onGesturePreview,
   hideHandlesFor = null,
+  reshapeFor = null,
   pictograms = true,
   captions = true,
 }: EquipmentLayerProps & {
   /** The object whose shape is being edited (D-290): its resize and rotation handles step aside. */
   hideHandlesFor?: Id | null;
+  /**
+   * The object whose «Изменить форму» switch is on (#105): only this one shows
+   * its resize handles. Every other selected object offers move and rotation.
+   */
+  reshapeFor?: Id | null;
   /**
    * Показывать условные значки типов. Состояние вида, не документа: выключение
    * оставляет цвет, форму и подписи — так план читают те, кому привычнее
@@ -918,7 +929,7 @@ export function EquipmentLayer({
           name="handle-rotate"
           x={x}
           y={y}
-          radius={HANDLE_RADIUS_PX + 1}
+          radius={ROTATE_RADIUS_PX}
           fill={ROTATE_FILL}
           stroke={SELECTED_STROKE}
           strokeWidth={1.5}
@@ -945,6 +956,21 @@ export function EquipmentLayer({
               rotationHandlePoint(object, gap_m),
             );
           }}
+        />
+        <Path
+          name="handle-rotate-icon"
+          x={x}
+          y={y}
+          offsetX={12}
+          offsetY={12}
+          scaleX={ROTATE_ICON_SCALE}
+          scaleY={ROTATE_ICON_SCALE}
+          data={ROTATE_ICON}
+          stroke={SELECTED_STROKE}
+          strokeWidth={2.4}
+          lineCap="round"
+          lineJoin="round"
+          listening={false}
         />
       </Fragment>
     );
@@ -1074,7 +1100,9 @@ export function EquipmentLayer({
             размер камеры или датчика нечем — их габариты не планировочное
             решение, а характеристика изделия. */}
         {/* D-290: in shape mode the object's vertices are the handles; resize
-            and rotation would overlap them and catch their presses. */}
+            and rotation would overlap them and catch their presses. #105: by
+            default a selected object only moves and turns; its resize handles
+            come with the «Изменить форму» switch of the properties card. */}
         {!picking ||
         isGroup ||
         selectedObject === null ||
@@ -1083,7 +1111,7 @@ export function EquipmentLayer({
         selectedObject.id === hideHandlesFor
           ? null
           : [
-              ...(selectedFixedSize || !selectedHasRoomForResizeHandles
+              ...(selectedFixedSize || !selectedHasRoomForResizeHandles || selectedObject.id !== reshapeFor
                 ? []
                 : RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle))),
               renderRotationHandle(selectedObject),

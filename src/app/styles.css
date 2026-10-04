@@ -1374,7 +1374,7 @@ body {
 
 /* #105 (replaces D-268, back to D-249's place): «Свойства» stand above the
    right column's tabs, so the library on the left stays while something is
-   selected. The card takes what its fields need, up to half the column, and
+   selected. The card takes what its fields need, up to 56 % of the column, and
    scrolls on its own. D-272: the band reads just «Свойства» and is the card's
    only heading (role="heading" on the caption); the card itself has no title.
    Accent-strong on accent-soft is 7.8:1. */
@@ -1383,8 +1383,8 @@ body {
   flex: 0 1 auto;
   flex-direction: column;
   min-height: 0;
-  /* The tabs under the card keep at least the lower half of the column. */
-  max-height: 50%;
+  /* The tabs under the card keep at least the lower 44 % of the column. */
+  max-height: 56%;
   margin: var(--space-2);
   border: 1px solid var(--color-accent);
   border-left-width: 4px;
@@ -1417,6 +1417,36 @@ body {
 
 .shell__props-body > .panel {
   margin-bottom: 0;
+}
+
+/* Turn and «Изменить форму» between the card's band and its scrolling fields (ObjectQuickActions). */
+.props-quick {
+  display: grid;
+  flex: none;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-line);
+}
+
+.props-quick__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.props-quick__label {
+  margin-right: auto;
+  font-size: var(--text-s);
+}
+
+.props-quick__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .shell__props-close {

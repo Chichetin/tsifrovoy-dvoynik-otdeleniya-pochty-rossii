@@ -20,7 +20,7 @@ import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
-import { modelToScreen, screenToModel } from '../domain/geometry';
+import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
 import {
   mountScopeLayer,
@@ -89,6 +89,7 @@ import {
   type LeftTab,
   type RightTab,
 } from './side-tabs';
+import { ObjectQuickActions } from './ObjectQuickActions';
 import { SideTabs } from './SideTabs';
 import { PlanTitle } from './PlanTitle';
 import { SettingsDialog } from './SettingsDialog';
@@ -286,6 +287,9 @@ export function App(): React.JSX.Element {
   const [preview, setPreview] = useState<Candidate | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
   const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
+  // #105: the object whose «Изменить форму» switch is on. It belongs to one
+  // selection: picking something else, or nothing, puts it back to «off».
+  const [reshapeFor, setReshapeFor] = useState<Id | null>(null);
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
   // A response belongs to the latest request, not merely to a plan revision.
   // A new plan starts at revision 0 too, so comparing revisions cannot reject
@@ -340,6 +344,18 @@ export function App(): React.JSX.Element {
   // on the left stays open while something is selected. A layer has no card of
   // its own (its settings live in «Слои»).
   const propsShown = selection !== null && selection.kind !== 'layer';
+
+  // #105: «Повернуть» and «Изменить форму» go with a single selected object.
+  if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
+    setReshapeFor(null);
+  }
+  const quickObject =
+    selection !== null && selection.kind === 'object' && selected.size <= 1
+      ? document.objects.find((entry) => entry.id === selection.id)
+      : undefined;
+  const quickLayer = quickObject === undefined ? undefined : document.layers.find((layer) => layer.id === quickObject.layerId);
+  const quickDisabled =
+    quickObject === undefined || quickObject.locked === true || quickLayer === undefined || !quickLayer.visible || quickLayer.locked;
 
   const select = useCallback(
     (ref: Ref | null) => {
@@ -1174,6 +1190,7 @@ export function App(): React.JSX.Element {
                 session={session}
                 onCommand={dispatch}
                 onEditingChange={setShapeEditingId}
+                reshapeFor={reshapeFor}
               />
               <InformationLayer document={document} session={session} />
               {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
@@ -1218,6 +1235,7 @@ export function App(): React.JSX.Element {
               preview={preview}
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
+              reshapeFor={reshapeFor}
               pictograms={pictograms}
               captions={captions}
             />
@@ -1279,6 +1297,20 @@ export function App(): React.JSX.Element {
                   </svg>
                 </button>
               </div>
+              {quickObject === undefined ? null : (
+                <ObjectQuickActions
+                  object={quickObject}
+                  disabled={quickDisabled}
+                  reshape={reshapeFor === quickObject.id}
+                  onReshape={(on) => setReshapeFor(on ? quickObject.id : null)}
+                  onRotate={(deltaDeg) => {
+                    dispatch({
+                      type: 'object.put',
+                      object: { ...quickObject, rotation_deg: normalizeAngle(quickObject.rotation_deg + deltaDeg) || 0 },
+                    });
+                  }}
+                />
+              )}
               <div className="shell__props-body">
                 <PropertiesPanel
                   document={document}

@@ -1,7 +1,8 @@
 /**
  * Object shape editing on the plan (D-279).
  *
- * A double click on an object under «Выбор» puts it into shape mode: its
+ * #105: only for the object whose «Изменить форму» switch is on (the switch
+ * is in the properties card). A double click on that object under «Выбор» puts it into shape mode: its
  * world footprint grows vertex handles, the same gestures as a zone's ring —
  * drag a vertex, click the middle of an edge to add one, double click (or
  * Ctrl + click) a vertex to remove it. Each finished gesture is one
@@ -61,6 +62,11 @@ export type ObjectShapeLayerProps = {
   onCommand: CommandSink;
   /** Which object is in shape mode, or null (D-290): the app hides that object's resize and rotation handles. */
   onEditingChange?: (id: Id | null) => void;
+  /**
+   * #105: the object whose «Изменить форму» switch is on. A double click opens
+   * the vertex mode only on this one; without the switch the click does nothing.
+   */
+  reshapeFor?: Id | null;
 };
 
 /** The object a double click landed on, by its group's name on the equipment layer. */
@@ -84,6 +90,7 @@ export function ObjectShapeLayer({
   session,
   onCommand,
   onEditingChange,
+  reshapeFor = null,
 }: ObjectShapeLayerProps): React.JSX.Element {
   const { viewport, selection, tool } = session;
   const [editingId, setEditingId] = useState<Id | null>(null);
@@ -97,7 +104,7 @@ export function ObjectShapeLayer({
     editingId !== null && selection?.kind === 'object' && selection.id === editingId && tool.kind === 'select'
       ? (plan.objects.find((item) => item.id === editingId) ?? null)
       : null;
-  const active = object !== null && editable(object);
+  const active = object !== null && editable(object) && object.id === reshapeFor;
 
   // The mode belongs to one selected object: picking something else, another
   // tool, a hidden or locked layer, or an undo that removed it ends it.
@@ -132,7 +139,7 @@ export function ObjectShapeLayer({
       if (groupNode?.isAncestorOf(event.target)) return;
       const id = objectIdUnder(event.target);
       const target = id === null ? undefined : plan.objects.find((item) => item.id === id);
-      if (target === undefined || !editable(target)) return;
+      if (target === undefined || !editable(target) || id !== reshapeFor) return;
       setEditingId(id);
       setNotice(SHAPE_EDIT_NOTICE);
     };
