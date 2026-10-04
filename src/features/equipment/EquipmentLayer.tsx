@@ -876,6 +876,9 @@ export function EquipmentLayer({
             name={`object-hit-${object.id}`}
             radius={hitRadius}
             fill="transparent"
+            // A selected zone or room has handles on the plan layer below; the
+            // enlarged hit area must not cover them (#149).
+            listening={selection?.kind !== 'zone' && selection?.kind !== 'room'}
             perfectDrawEnabled={false}
           />
         )}
