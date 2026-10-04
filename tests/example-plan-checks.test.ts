@@ -21,6 +21,13 @@ import { applyCommand } from '../src/domain/commands';
 import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
 import { importOrganizerExample, withTeamCatalog } from '../src/persistence/organizer-import';
 import { attributeKeyFromLabel, layersReading } from '../src/features/catalog-editor/catalog-edit';
+import {
+  groupAttributeCommand,
+  mixedAttributeKeys,
+  sharedAttributeDefs,
+} from '../src/features/properties/group-attributes';
+import { decodePlan, encodePlan } from '../src/persistence/codec';
+import { createPlanStore } from '../src/state/plan-store';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -289,5 +296,42 @@ describe('ключ атрибута из подписи (#13)', () => {
   test('ключ уникален в типе: занятый получает _2, _3', () => {
     expect(attributeKeyFromLabel('Дата поверки', ['data_poverki'])).toBe('data_poverki_2');
     expect(attributeKeyFromLabel('Дата поверки', ['data_poverki', 'data_poverki_2'])).toBe('data_poverki_3');
+  });
+});
+
+describe('правка атрибута у группы (#30)', () => {
+  test('статус двух касс: одна команда, одно undo, переживает сохранение и открытие', () => {
+    const store = createPlanStore(plan);
+    const ids = ['eq_cashier_1', 'eq_cashier_2'];
+    const members = () => store.getState().document.objects.filter((object) => ids.includes(object.id));
+    const status = (attributes: Record<string, unknown>) => String(attributes.equipmentStatus ?? '');
+    const defs = sharedAttributeDefs(plan.catalog, members());
+    expect(defs.map((def) => def.key)).toContain('equipmentStatus');
+
+    const [first] = members();
+    if (first === undefined) throw new Error('кассы нет в примере');
+    store.getState().dispatch({
+      type: 'object.put',
+      object: { ...first, attributes: { ...first.attributes, equipmentStatus: 'working' } },
+    });
+    store.getState().selectMany(ids);
+    expect(mixedAttributeKeys(members(), defs, (attributes) => status(attributes)).has('equipmentStatus')).toBe(true);
+
+    const before = store.getState().document;
+    expect(store.getState().dispatch(groupAttributeCommand(members(), 'equipmentStatus', 'repair')).ok).toBe(true);
+    expect(members().map((object) => object.attributes.equipmentStatus)).toEqual(['repair', 'repair']);
+    expect(store.getState().selected.size).toBe(2);
+
+    store.getState().undo();
+    expect(store.getState().document).toBe(before);
+    store.getState().redo();
+
+    const saved = encodePlan(store.getState().document);
+    if (!saved.ok) throw new Error('план не сохранился');
+    const reopened = decodePlan(saved.value);
+    if (!reopened.ok) throw new Error('план не открылся');
+    expect(
+      reopened.value.objects.filter((object) => ids.includes(object.id)).map((object) => object.attributes.equipmentStatus),
+    ).toEqual(['repair', 'repair']);
   });
 });
