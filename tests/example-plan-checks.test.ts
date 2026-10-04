@@ -21,6 +21,7 @@ import { applyCommand } from '../src/domain/commands';
 import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
 import { importOrganizerExample, withTeamCatalog } from '../src/persistence/organizer-import';
 import { attributeKeyFromLabel, layersReading } from '../src/features/catalog-editor/catalog-edit';
+import { groupIssuesBySubject } from '../src/features/validation/issue-highlight';
 import {
   groupAttributeCommand,
   mixedAttributeKeys,
@@ -154,6 +155,8 @@ describe('известные ошибки примера находятся', ()
     expect(message).not.toContain('d_main');
     expect(far[0]?.refs.map((ref) => ref.id)).toContain('d_main');
     expect(message).toContain('материалы организаторов');
+    // #14: план рисует тот же отрезок, что измерило правило.
+    expect(far[0]?.measure).toEqual({ from: [0.6, 0.6], to: [0.75, 7.5], distance_m: expect.closeTo(6.9, 2) });
   });
 
   test('правило организаторов — ошибка, правило команды — предупреждение', () => {
@@ -193,6 +196,17 @@ describe('одна проблема — одна находка (operator №19,
       expect(about.map((entry) => entry.code)).toContain(VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE);
       expect(about.map((entry) => entry.code)).not.toContain('ZONE_UNASSIGNED');
     }
+  });
+
+  test('находки одного объекта — одна группа в списке, как один маркер на плане (#14)', () => {
+    const groups = groupIssuesBySubject(issues);
+    const rack = groups.find((group) => group.ref?.id === 'eq_rack_2');
+    expect(rack?.issues.map((entry) => entry.code).sort()).toEqual(
+      issues.filter((entry) => entry.refs[0]?.id === 'eq_rack_2').map((entry) => entry.code).sort(),
+    );
+    expect(rack?.issues.length ?? 0).toBeGreaterThan(1);
+    expect(rack?.severity).toBe('error');
+    expect(groups.flatMap((group) => group.issues)).toHaveLength(issues.length);
   });
 
   test('пример как есть, без правил команды, — ровно 8 находок', () => {

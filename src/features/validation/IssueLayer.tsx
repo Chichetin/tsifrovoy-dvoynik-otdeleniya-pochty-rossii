@@ -20,16 +20,28 @@
  * Маркер — узел Konva с `name="issue-marker"`, `id` вида
  * `issue-marker:<kind>:<id>` и атрибутами `issueCount`, `severity`,
  * `focused`: DOM-атрибутов у фигур холста нет, e2e читает их через Konva.
+ *
+ * У выбранной находки правила расстояния (терминал далеко от входа) — пунктир
+ * от объекта до входа с подписью расстояния: `name="issue-measure"`, атрибут
+ * `distance` в метрах (#14).
  */
 
 import type Konva from 'konva';
-import { Circle, Group, Layer, Line, Text } from 'react-konva';
-import type { Issue, Ref, Viewport } from '../../contracts/model';
+import { Circle, Group, Label, Layer, Line, Tag, Text } from 'react-konva';
+import type { Ref, Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
-import { HIGHLIGHT_COLORS, highlightsFor, issueMarkers, markerAnchor } from './issue-highlight';
+import { formatLength } from '../../domain/number-format';
+import type { ValidationIssue } from '../../domain/validation';
+import {
+  HIGHLIGHT_COLORS,
+  highlightsFor,
+  issueMarkers,
+  markerAnchor,
+  measuresFor,
+} from './issue-highlight';
 
 export type IssueLayerProps = {
-  issues: Issue[];
+  issues: ValidationIssue[];
   /** Выделенная сущность — из списка или кликом на холсте; null гасит подсветку. */
   focus: Ref | null;
   viewport: Viewport;
@@ -56,6 +68,7 @@ const FOCUSED_MARKER_RADIUS = 13;
 export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLayerProps): React.JSX.Element {
   const highlights = highlightsFor(issues, focus);
   const markers = issueMarkers(issues, focus);
+  const measures = measuresFor(issues, focus);
   const clickable = onMarkerClick !== undefined;
   return (
     <Layer listening={clickable} name="issue-highlights">
@@ -68,6 +81,32 @@ export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLaye
               <Line points={points} closed fill={color} opacity={0.22} />
               <Line points={points} closed stroke={HALO} strokeWidth={6} />
               <Line points={points} closed stroke={color} strokeWidth={3} />
+            </Group>
+          );
+        })}
+        {/* #14: пунктир «объект → вход» с расстоянием, которое посчитало
+            правило. Подпись — у середины отрезка, на белой плашке. */}
+        {measures.map((measure, index) => {
+          const [x1, y1] = modelToScreen(measure.from, viewport);
+          const [x2, y2] = modelToScreen(measure.to, viewport);
+          const color = HIGHLIGHT_COLORS[measure.severity];
+          return (
+            <Group key={`measure-${index}`} name="issue-measure" distance={measure.distance_m}>
+              <Line points={[x1, y1, x2, y2]} stroke={HALO} strokeWidth={5} />
+              <Line points={[x1, y1, x2, y2]} stroke={color} strokeWidth={2} dash={[8, 6]} />
+              <Circle x={x1} y={y1} radius={4} fill={color} stroke={HALO} strokeWidth={1.5} />
+              <Circle x={x2} y={y2} radius={4} fill={color} stroke={HALO} strokeWidth={1.5} />
+              <Label x={(x1 + x2) / 2 + 6} y={(y1 + y2) / 2 - 6}>
+                <Tag fill={HALO} opacity={0.92} cornerRadius={2} stroke={color} strokeWidth={1} />
+                <Text
+                  name="issue-measure-caption"
+                  text={`до входа ${formatLength(measure.distance_m)}`}
+                  fontSize={12}
+                  fontStyle="bold"
+                  fill={color}
+                  padding={4}
+                />
+              </Label>
             </Group>
           );
         })}
