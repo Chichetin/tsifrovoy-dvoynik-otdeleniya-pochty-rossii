@@ -1090,6 +1090,7 @@ export function App(): React.JSX.Element {
           onExported={() => {
             store.getState().markExported(revision);
           }}
+          onShowValidation={() => showRightTab('validation')}
         />
         </div>
       </header>

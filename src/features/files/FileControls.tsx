@@ -73,6 +73,8 @@ export type FileControlsProps = {
   onEditBoundary?: () => void;
   /** Told the revision that has just been written out, for the dirty flag. */
   onExported: () => void;
+  /** Opens the validation tab; the save-blocked dialog points there instead of listing findings. */
+  onShowValidation?: () => void;
   /**
    * Where the draft lives. `undefined` means the browser's localStorage;
    * `null` switches the draft off, which is what a stand or a test wants.
@@ -88,9 +90,6 @@ export type FileControlsProps = {
  * этот срок; ошибка не уходит по времени никогда (см. `useEffect` ниже).
  */
 const NOTICE_LIFETIME_MS = 7_000;
-
-/** Сколько нарушений физики показать в окне отказа: остальное — во вкладке «Проверка». */
-const PHYSICS_SHOWN = 5;
 
 const RESTORE_WARNING =
   'План уже изменён с момента открытия страницы. Восстановить черновик и потерять эти правки?';
@@ -180,6 +179,7 @@ export function FileControls({
   onNew,
   onEditBoundary,
   onExported,
+  onShowValidation,
   storage: given,
   demoRequest = null,
 }: FileControlsProps): React.JSX.Element {
@@ -1089,9 +1089,12 @@ export function FileControls({
             <button
               type="button"
               className="files__button is-primary"
-              onClick={() => setBlocking(null)}
+              onClick={() => {
+                setBlocking(null);
+                onShowValidation?.();
+              }}
             >
-              Вернуться и исправить
+              Показать в «Проверке»
             </button>
             <button
               type="button"
@@ -1108,23 +1111,8 @@ export function FileControls({
         }
       >
         <p>
-          Файл не сохранён: в плане {blocking.length}{NBSP}
-          {blocking.length === 1 ? 'нарушение' : 'нарушения и больше'} правил физики — такого
-          отделения не бывает в натуре.
-        </p>
-        <ul className="file-dialog__list">
-          {blocking.slice(0, PHYSICS_SHOWN).map((entry, index) => (
-            <li key={`${entry.code}-${index}`}>{entry.message}</li>
-          ))}
-        </ul>
-        {blocking.length <= PHYSICS_SHOWN ? null : (
-          <p className="panel__note">
-            И ещё {blocking.length - PHYSICS_SHOWN}: весь список — во вкладке «Проверка».
-          </p>
-        )}
-        <p className="panel__note">
-          Сохранить с нарушениями всё
-          же можно: файл откроется и покажет их в проверке.
+          В плане {blocking.length}{NBSP}
+          {blocking.length === 1 ? 'нарушение' : 'нарушений'} физики. Сохранить всё равно?
         </p>
       </FileDialog>
     )}
