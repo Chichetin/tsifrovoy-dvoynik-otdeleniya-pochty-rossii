@@ -51,8 +51,10 @@ else
 fi
 
 say "3/4 Сборка и запуск"
-echo "Первая сборка занимает несколько минут."
-sudo -E PORT="${PORT}" docker compose up --build -d
+# #136: короткий SHA коммита — его покажут /api/health и «Настройки».
+BUILD_SHA="$(git rev-parse --short HEAD 2>/dev/null || true)"
+echo "Собираю коммит ${BUILD_SHA:-неизвестен}. Первая сборка занимает несколько минут."
+sudo -E PORT="${PORT}" BUILD_SHA="${BUILD_SHA}" docker compose up --build -d
 
 say "4/4 Проверка"
 deadline=$(( SECONDS + WAIT_SECONDS ))
@@ -72,6 +74,11 @@ if [ -z "${health}" ]; then
 fi
 
 echo "Ответ /api/health: ${health}"
+if [ -n "${BUILD_SHA}" ] && printf '%s' "${health}" | grep -q "\"build\":\"${BUILD_SHA}\""; then
+  echo "Сборка ${BUILD_SHA} подтверждена."
+else
+  echo "ВНИМАНИЕ: /api/health не назвал сборку ${BUILD_SHA:-?} — проверьте, тот ли контейнер запущен."
+fi
 case "${health}" in
   *'"configured":true'*) echo "Модель настроена." ;;
   *) echo "Модель не настроена — ассистент работает без неё." ;;

@@ -8,7 +8,11 @@
 
 services:
   app:
-    build: .
+    build:
+      context: .
+      # #136: SHA сборки для /api/health и «Настроек»; его задаёт scripts/deploy-vm.sh.
+      args:
+        BUILD_SHA: ${BUILD_SHA:-}
     image: ops-digital-twin:local
     container_name: ops-digital-twin
     env_file:
