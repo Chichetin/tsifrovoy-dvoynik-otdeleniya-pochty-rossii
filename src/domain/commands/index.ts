@@ -225,6 +225,9 @@ function checkNumbers(ref: Ref, checks: { ok: boolean; field: string }[]): Resul
   );
 }
 
+/** Object coordinate limit, metres. */
+const MAX_COORD_M = 1000;
+
 function finitePoint(point: Point): boolean {
   return Number.isFinite(point[0]) && Number.isFinite(point[1]);
 }
@@ -418,6 +421,16 @@ function putObject(plan: PlanDocument, object: PlanDocument['objects'][number]):
   if (existing !== undefined && existing.layerId !== object.layerId) {
     const source = checkLayerEditable(plan, existing.layerId, ref);
     if (!source.ok) return source;
+  }
+
+  // A far object ruins «Вписать»; an already-far object (old file) stays editable in place.
+  const moved = existing === undefined || existing.position.some((value, index) => value !== object.position[index]);
+  if (moved && finitePoint(object.position) && object.position.some((value) => Math.abs(value) > MAX_COORD_M)) {
+    return fail(
+      CONTRACT_ISSUE_CODES.SCHEMA_INVALID,
+      `Координата вне допустимого диапазона: допустимо от −${MAX_COORD_M} до ${MAX_COORD_M} м.`,
+      [ref],
+    );
   }
 
   const numbers = checkNumbers(ref, [
