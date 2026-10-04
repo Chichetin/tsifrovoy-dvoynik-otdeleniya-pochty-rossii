@@ -30,6 +30,7 @@ import { attributeBoundsError, attributeRange, findObjectType, findZoneType } fr
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
+import { WALK_ATTRIBUTE_LABELS, WALK_MARK_KEY, WALK_MARK_LABELS, walkMarkOf } from '../../domain/inventory';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
 import { ObjectPositionFields } from './ObjectPositionFields';
 import { groupAttributeCommand, mixedAttributeKeys, sharedAttributeDefs } from './group-attributes';
@@ -324,18 +325,35 @@ export function PropertiesPanel({
   /** Атрибуты, которых нет в справочнике: показать, но не править вслепую. */
   const extraAttributes = (defs: AttributeDef[], attributes: Attributes): React.JSX.Element | null => {
     const known = new Set(defs.map((def) => def.key));
-    const extra = Object.entries(attributes).filter(([key]) => !known.has(key));
-    if (extra.length === 0) return null;
+    // #124: marks of the inventory walk are read-only here and named in Russian.
+    const walk = Object.entries(attributes).filter(([key]) => !known.has(key) && key in WALK_ATTRIBUTE_LABELS);
+    const extra = Object.entries(attributes).filter(([key]) => !known.has(key) && !(key in WALK_ATTRIBUTE_LABELS));
+    if (extra.length === 0 && walk.length === 0) return null;
+    const walkMark = walkMarkOf({ attributes });
     return (
       <div className="props__extra">
-        <p className="props__hint">Атрибуты вне справочника: правятся типом, не карточкой</p>
-        <ul>
-          {extra.map(([key, value]) => (
-            <li key={key}>
-              {key}: {value === null ? '—' : String(value)}
-            </li>
-          ))}
-        </ul>
+        {walk.length === 0 ? null : (
+          <ul data-testid="props-walk">
+            {walk.map(([key, value]) => (
+              <li key={key}>
+                {WALK_ATTRIBUTE_LABELS[key]}:{' '}
+                {key === WALK_MARK_KEY && walkMark !== null ? WALK_MARK_LABELS[walkMark] : value === null ? '—' : String(value)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {extra.length === 0 ? null : (
+          <>
+            <p className="props__hint">Атрибуты вне справочника: правятся типом, не карточкой</p>
+            <ul>
+              {extra.map(([key, value]) => (
+                <li key={key}>
+                  {key}: {value === null ? '—' : String(value)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     );
   };

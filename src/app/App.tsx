@@ -443,6 +443,7 @@ export function App(): React.JSX.Element {
 
   // #124: route of the inventory walk — screen state; the marks live in the plan.
   const [walk, setWalk] = useState<WalkState | null>(null);
+  const activeWalk = useMemo(() => walkOf(walk, document), [walk, document]);
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -1310,8 +1311,8 @@ export function App(): React.JSX.Element {
                   должен уходить под объект или под имя зоны. В план она ничего не
                   кладёт (D-256). */}
               <MeasureLayer viewport={viewport} />
-              {walkOf(walk, document) === null ? null : (
-                <WalkRouteLayer document={document} viewport={viewport} route={walk?.route ?? []} currentId={walk?.currentId ?? null} />
+              {activeWalk === null ? null : (
+                <WalkRouteLayer document={document} viewport={viewport} route={activeWalk.route} currentId={activeWalk.currentId} />
               )}
               {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                   тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
@@ -1497,7 +1498,7 @@ export function App(): React.JSX.Element {
                       askAgent(question);
                     }}
                   />
-                  <InventoryWalk document={document} walk={walk} onWalkChange={setWalk} onCommand={dispatch} onFocus={focusOn} />
+                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={focusOn} selectedId={selection?.kind === 'object' ? selection.id : null} />
                   <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
                 </>
               ),

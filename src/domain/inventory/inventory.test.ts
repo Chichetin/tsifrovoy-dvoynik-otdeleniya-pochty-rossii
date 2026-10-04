@@ -231,9 +231,13 @@ describe('правка плана сразу видна в перечне', () =
 
 describe('обход для инвентаризации', () => {
   test('маршрут проходит каждый объект ровно один раз', () => {
-    const plan = loadPlan('nested.json');
+    const path = join(process.cwd(), 'demo', 'before.json');
+    const parsed = parsePlanDocument(JSON.parse(readFileSync(path, 'utf8')) as unknown);
+    if (!parsed.ok) throw new Error(parsed.issues.map((issue) => issue.code).join(', '));
+    const plan = parsed.value;
     const route = walkRoute(plan);
 
+    expect(plan.objects.length).toBeGreaterThan(50);
     expect(route).toHaveLength(plan.objects.length);
     expect([...route].sort()).toEqual(plan.objects.map((object) => object.id).sort());
   });

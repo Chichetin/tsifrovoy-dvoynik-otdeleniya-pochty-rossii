@@ -12,7 +12,6 @@
 
 import type { AttributeType, Attributes, Catalog, Id, PlanDocument } from '../contracts/model';
 import { INVENTORY_NUMBER_KEY, inventoryNumberOf } from '../domain/commands';
-import { WALK_MARK_LABELS, walkFoundNumberOf, walkMarkOf } from '../domain/inventory';
 import { planIndex } from '../domain/plan-index';
 
 export type AttributeColumn = { key: string; label: string; type: AttributeType };
@@ -207,35 +206,30 @@ export const WALK_ACT_COLUMNS = [
   'id зоны',
 ] as const;
 
-/** Mark text for an object the walk has not reached. */
-export const WALK_UNCHECKED_LABEL = 'не проверен';
+/** One line of the act: the mark already worded by the caller (domain `walkActEntries`). */
+export type WalkActLine = { id: Id; mark: string; foundNumber: string | null };
 
 /**
- * The discrepancy report: every object whose mark is not «на месте», and every
- * object the walk has not reached, in the order of `route` (objects outside it
- * follow in document order). Same separator, BOM and quoting as the inventory.
+ * The discrepancy report of the walk: one line per entry, in the given order.
+ * Which objects are discrepancies is decided by the caller; this function only
+ * names them from the plan. Same separator, BOM and quoting as the inventory.
  */
-export function walkActCsv(plan: PlanDocument, route: readonly Id[] = []): string {
+export function walkActCsv(plan: PlanDocument, lines: readonly WalkActLine[]): string {
   const index = planIndex(plan);
-  const position = new Map(route.map((id, order) => [id, order]));
-  const ordered = plan.objects
-    .map((object, order) => ({ object, key: position.get(object.id) ?? route.length + order }))
-    .sort((a, b) => a.key - b.key)
-    .map((entry) => entry.object);
-  const body = ordered
-    .filter((object) => walkMarkOf(object) !== 'present')
-    .map((object) => {
-      const mark = walkMarkOf(object);
-      return [
-        object.label,
-        object.id,
-        inventoryNumberOf(object) ?? '',
-        mark === null ? WALK_UNCHECKED_LABEL : WALK_MARK_LABELS[mark],
-        mark === 'other-number' ? (walkFoundNumberOf(object) ?? '') : '',
-        object.zoneId === null ? 'вне зон' : (index.zoneName(object.zoneId) ?? object.zoneId),
-        object.zoneId ?? '',
-      ];
-    });
+  const objects = new Map(plan.objects.map((object) => [object.id, object]));
+  const body = lines.flatMap((line) => {
+    const object = objects.get(line.id);
+    if (object === undefined) return [];
+    return [[
+      object.label,
+      object.id,
+      inventoryNumberOf(object) ?? '',
+      line.mark,
+      line.foundNumber ?? '',
+      object.zoneId === null ? 'вне зон' : (index.zoneName(object.zoneId) ?? object.zoneId),
+      object.zoneId ?? '',
+    ]];
+  });
   return CSV_BOM + toCsv([[...WALK_ACT_COLUMNS], ...body]);
 }
 
