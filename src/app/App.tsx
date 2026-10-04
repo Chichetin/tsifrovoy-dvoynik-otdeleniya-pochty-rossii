@@ -1168,6 +1168,7 @@ export function App(): React.JSX.Element {
 
         <main
           className="shell__canvas"
+          data-view={view}
           ref={canvasRef}
           // The silhouette follows the pointer: outside the canvas there is none (#26).
           onPointerLeave={() => placementGhost.publish(null)}

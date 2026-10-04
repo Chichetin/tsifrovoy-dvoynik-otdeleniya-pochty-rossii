@@ -25,7 +25,7 @@
  * restores the context the whole stage is built again from the same scene.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ACESFilmicToneMapping,
   CanvasTexture,
@@ -252,6 +252,34 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     current.render();
   };
 
+  // «Вписать»: back to the default overview, also from the visitor's view.
+  const sceneRef = useRef(scene);
+  useEffect(() => {
+    sceneRef.current = scene;
+  }, [scene]);
+  const fitView = useCallback((): void => {
+    const current = stage.current;
+    if (!current) return;
+    visitorRef.current = false;
+    setVisitorMode(false);
+    current.controls.enabled = true;
+    frame(current, sceneRef.current);
+    current.render();
+  }, []);
+
+  // By key code, so the Russian layout works too.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.code !== 'KeyF' || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      event.preventDefault();
+      fitView();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fitView]);
+
   const savePicture = (): void => {
     const current = stage.current;
     if (!current) return;
@@ -301,6 +329,9 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
           </button>
           <button type="button" className="files__button" onClick={leaveVisitor} disabled={!visitorMode}>
             Обзор
+          </button>
+          <button type="button" className="files__button" onClick={fitView} title="Вернуть обзор по умолчанию (клавиша F)">
+            Вписать
           </button>
           <button type="button" className="files__button" onClick={savePicture}>
             Скачать картинку 3D
@@ -531,6 +562,9 @@ function frame(stage: Stage, scene: Scene): void {
   // Direction: back and up, 0.8 along -Y to 0.6 up — a three-quarter view.
   stage.camera.position.set(cx, cy - distance * 0.8, distance * 0.6);
   stage.controls.target.set(cx, cy, 0);
+  // The wheel cannot take the plan out of the frame (#157): at most three room diagonals away.
+  stage.controls.minDistance = 2;
+  stage.controls.maxDistance = Math.max(Math.hypot(width, depth) * 3, distance * 1.5);
   stage.controls.update();
 
   // The sun keeps its angle and follows the room; its shadow box covers the

@@ -549,6 +549,11 @@ body {
   inset: 0;
 }
 
+/* In 3D the 2D scale panel is under the canvas and does nothing (#157). */
+.shell__canvas[data-view='3d'] .editor-canvas__hud {
+  display: none;
+}
+
 /* Накладки холста собраны в один угол: свободный угол плана дороже
    симметрии, кликом в занятый угол объект не поставишь. */
 .editor-canvas__hud {
