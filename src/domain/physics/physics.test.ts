@@ -1,5 +1,5 @@
 /**
- * D-286: правила физики. Проверяется и сам набор (четыре правила, каждое со
+ * D-286: правила физики. Проверяется и сам набор (шесть правил, каждое со
  * своим кодом), и два его применения — находки об одном объекте и отказ
  * команде, которая создаёт новое нарушение.
  */
@@ -52,10 +52,10 @@ function codes(plan: PlanDocument, object: Equipment): string[] {
 }
 
 describe('набор правил', () => {
-  test('четыре правила, у каждого свой код', () => {
-    expect(PHYSICS_RULES).toHaveLength(4);
-    expect(new Set(PHYSICS_RULES.map((rule) => rule.code)).size).toBe(4);
-    expect(new Set(PHYSICS_RULES.map((rule) => rule.id)).size).toBe(4);
+  test('шесть правил, у каждого свой код', () => {
+    expect(PHYSICS_RULES).toHaveLength(6);
+    expect(new Set(PHYSICS_RULES.map((rule) => rule.code)).size).toBe(6);
+    expect(new Set(PHYSICS_RULES.map((rule) => rule.id)).size).toBe(6);
   });
 
   test('коды правил — это коды находок проверки плана', () => {
@@ -156,7 +156,8 @@ describe('отказ команде', () => {
     const before = withObjects(plan, stuck);
     expect(objectPhysicsIssues(before, stuck)).not.toEqual([]);
 
-    const movedAlongWall = { ...stuck, position: [5, 8] } as Equipment;
+    // x = 8,5: дальше 0,9 м от проёма входа (x 4…5,2), он не загорожен.
+    const movedAlongWall = { ...stuck, position: [8.5, 8] } as Equipment;
     const after = { ...before, objects: [plan.objects[0]!, movedAlongWall] };
     expect(physicsRejection(before, after, ['eq_stuck'])).toBeNull();
 

@@ -19,7 +19,7 @@ function controls(overrides: Partial<FileControlsProps> = {}) {
   return { props, rerender: (next: Partial<FileControlsProps>) => view.rerender(<FileControls {...props} {...next} />) };
 }
 function choose(label = 'Исходный демо-план') {
-  fireEvent.click(screen.getByRole('button', { name: /^Демо$/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
   fireEvent.click(screen.getByRole('menuitem', { name: label }));
 }
 function deferred() {

@@ -222,6 +222,8 @@ export function FileControls({
   const fileMenu = useRef<HTMLDivElement>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
   const [dropped, setDropped] = useState<string[]>([]);
+  // #138: значения атрибутов вне границ типа — план открыт, число исправляют в «Свойствах».
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
     given === undefined ? browserStorage() : given,
   );
@@ -300,6 +302,7 @@ export function FileControls({
     onReplace(opened.plan, origin);
     setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
     setDropped(opened.dropped);
+    setWarnings(opened.warnings);
     setNotice(
       opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
     );
@@ -682,15 +685,16 @@ export function FileControls({
    */
   useEffect(() => {
     if (state.status !== 'done') return;
-    if (notice === null && dropped.length === 0 && assumptions.length === 0) return;
+    if (notice === null && dropped.length === 0 && assumptions.length === 0 && warnings.length === 0) return;
     const timer = window.setTimeout(() => {
       setState({ status: 'idle' });
       setNotice(null);
       setDropped([]);
       setAssumptions([]);
+      setWarnings([]);
     }, NOTICE_LIFETIME_MS);
     return () => window.clearTimeout(timer);
-  }, [state, notice, dropped, assumptions]);
+  }, [state, notice, dropped, assumptions, warnings]);
 
   const newPlan = (): void => {
     closeMenu(false);
@@ -706,6 +710,7 @@ export function FileControls({
     setDraftAt(null);
     setAssumptions([]);
     setDropped([]);
+    setWarnings([]);
     setNotice(null);
     setErrorDetails([]);
     setState({ status: 'idle' });
@@ -786,6 +791,7 @@ export function FileControls({
     (state.status === 'done' && notice !== null) ||
     draftError !== null ||
     dropped.length > 0 ||
+    warnings.length > 0 ||
     assumptions.length > 0;
 
   return (
@@ -948,6 +954,17 @@ export function FileControls({
             ))}
           </ul>
           <p className="panel__note">Своё поле лучше положить в «extensions»: этот блок файл переносит целиком.</p>
+        </details>
+      )}
+
+      {warnings.length === 0 ? null : (
+        <details className="files__status" data-testid="attribute-warnings">
+          <summary>Значения вне границ ({warnings.length}) — исправьте в «Свойствах»</summary>
+          <ul>
+            {warnings.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
         </details>
       )}
 

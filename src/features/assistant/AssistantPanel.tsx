@@ -16,7 +16,7 @@ import { useMemo, useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
-import { hideNamedIds, renderExplanation } from '../../domain/advice';
+import { hideNamedIds, placementZonePath, renderExplanation } from '../../domain/advice';
 import { AgentChat } from './AgentChat';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
@@ -87,11 +87,11 @@ function equipmentSubject(
  * Где окажется вариант: название зоны из плана (D-320); id остаётся доступен
  * рядом, в раскрытии «ID зон и объектов» карточки (D-323).
  */
-function candidateZone(index: PlanIndex, candidate: Candidate): string {
-  const zoneId = candidate.object.zoneId;
-  if (zoneId === null) return 'вне зон';
-  const name = index.zoneName(zoneId);
-  return name === null ? `зона ${zoneId}` : `зона «${name}»`;
+function candidateZone(plan: PlanDocument, index: PlanIndex, candidate: Candidate): string {
+  const path = placementZonePath(plan, candidate.object);
+  if (path.length === 0) return 'вне зон';
+  const names = path.map((zoneId) => index.zoneName(zoneId) ?? zoneId);
+  return `зона «${names.join(' → ')}»`;
 }
 
 /**
@@ -360,7 +360,7 @@ export function AssistantPanel({
                           {candidate.object.rotation_deg}°
                         </span>
                         <span className="advice__zone" data-testid="candidate-zone">
-                          {candidateZone(names, candidate)}
+                          {candidateZone(plan, names, candidate)}
                         </span>
                         <span className="advice__forecast">
                           {candidate.facts
