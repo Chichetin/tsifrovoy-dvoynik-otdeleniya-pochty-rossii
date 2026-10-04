@@ -41,6 +41,27 @@ import { readPlanFile } from '../src/persistence/format';
 
 const DEMO_DIR = join(process.cwd(), 'demo');
 
+test('настенное оборудование демо смотрит от стены внутрь комнаты', () => {
+  for (const name of ['before.json', 'after.json']) {
+    const plan = JSON.parse(readFileSync(join(DEMO_DIR, name), 'utf8')) as PlanDocument;
+    const mounts = {
+      eq_5: 'w_south', eq_24: 'w_west', eq_37: 'w_east', eq_38: 'w_hall_back',
+      eq_47: 'w_north', eq_48: 'w_north', eq_49: 'w_east', eq_52: 'w_staff',
+    };
+    for (const [id, wallId] of Object.entries(mounts)) {
+      const object = plan.objects.find((entry) => entry.id === id)!;
+      const wall = plan.walls.find((entry) => entry.id === wallId)!;
+      const wallPoint = wall.from[0] === wall.to[0]
+        ? [wall.from[0], object.position[1]] : [object.position[0], wall.from[1]];
+      const dx = object.position[0] - wallPoint[0]!;
+      const dy = object.position[1] - wallPoint[1]!;
+      const angle = object.rotation_deg * Math.PI / 180;
+      const inward = (Math.sin(angle) * dx + Math.cos(angle) * dy) / Math.hypot(dx, dy);
+      expect(inward, `${name}: ${id}`).toBeGreaterThan(0.99);
+    }
+  }
+});
+
 test('дверь служебной зоны демо не захватывает примыкание перегородки хранения', () => {
   for (const name of ['before.json', 'after.json']) {
     const plan = JSON.parse(readFileSync(join(DEMO_DIR, name), 'utf8')) as PlanDocument;
@@ -122,6 +143,8 @@ describe('комплект демо-проекта', () => {
     // therefore pins every id, number and effect row in both modes.
     const build = rebuildFromFile(recommendationFile);
     expect(demoFile('before.json')).toBe(build.beforeText);
+    expect(readFileSync(join(process.cwd(), 'public/demo/before.json'), 'utf8')).toBe(build.beforeText);
+    expect(readFileSync(join(process.cwd(), 'public/demo/after.json'), 'utf8')).toBe(build.afterText);
     expect(demoFile('after.json')).toBe(build.afterText);
     expect(demoFile('recommendation.json')).toBe(build.recommendationText);
     // The mode paragraph of effect.md is generated from the same file.
