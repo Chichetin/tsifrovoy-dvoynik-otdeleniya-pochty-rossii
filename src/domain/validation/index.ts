@@ -16,6 +16,7 @@
 
 import {
   type Catalog,
+  type CountRule,
   type Equipment,
   type Id,
   type Issue,
@@ -573,24 +574,46 @@ function nestedInSameType(plan: PlanDocument, zone: Zone): boolean {
   return false;
 }
 
-function countRuleIssues(
-  plan: PlanDocument,
-  rule: Extract<Rule, { kind: 'count' }>,
-): ValidationIssue[] {
+/** One stocking rule met in one zone: what it asks and what the plan holds. */
+export type RuleCount = {
+  rule: CountRule;
+  zone: Zone;
+  /** Counted by the inventory, so the check, the checklist and the assistant agree. */
+  count: number;
+  /**
+   * The outer zone already counts what its nested zones hold (`inclusive`): a
+   * minimum asked again of a nested zone of the same type is a false finding
+   * (#17). A maximum, and a rule on the zone's own floor (`direct`), still apply.
+   */
+  minApplies: boolean;
+};
+
+/** Every zone of the rule's type with its count. */
+function ruleCountsFor(plan: PlanDocument, rule: CountRule): RuleCount[] {
+  return plan.zones
+    .filter((zone) => zone.typeId === rule.zoneTypeId)
+    .map((zone) => ({
+      rule,
+      zone,
+      count: countInZoneScope(plan, rule.objectTypeId, zone.id, rule.scope),
+      minApplies: rule.scope !== 'inclusive' || !nestedInSameType(plan, zone),
+    }));
+}
+
+/** Every stocking rule against every zone it concerns — what the checklist shows. */
+export function ruleCounts(plan: PlanDocument): RuleCount[] {
+  return plan.catalog.rules.flatMap((rule) => (rule.kind === 'count' ? ruleCountsFor(plan, rule) : []));
+}
+
+/** Whether the rule is met in that zone: the same test the findings use. */
+export function ruleMet({ rule, count, minApplies }: RuleCount): boolean {
+  return !(rule.min !== null && count < rule.min && minApplies) && !(rule.max !== null && count > rule.max);
+}
+
+function countRuleIssues(plan: PlanDocument, rule: CountRule): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
-  for (const zone of plan.zones) {
-    if (zone.typeId !== rule.zoneTypeId) continue;
-    // The outer zone already counts what its nested zones hold (`inclusive`):
-    // a minimum asked again of an empty nested zone of the same type is a
-    // false finding (#17). A maximum, and a rule on the zone's own floor
-    // (`direct`), still apply.
-    const minApplies = rule.scope !== 'inclusive' || !nestedInSameType(plan, zone);
-
-    // Считает инвентаризация: у проверки и у рекомендации ассистента должно
-    // получаться одно и то же число.
-    const count = countInZoneScope(plan, rule.objectTypeId, zone.id, rule.scope);
-
+  for (const { zone, count, minApplies } of ruleCountsFor(plan, rule)) {
     const where = rule.scope === 'direct' ? 'без вложенных зон' : 'вместе с вложенными зонами';
     if (rule.min !== null && count < rule.min && minApplies) {
       issues.push(

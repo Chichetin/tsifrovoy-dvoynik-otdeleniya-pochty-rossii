@@ -31,6 +31,7 @@ import { findFix, planFix } from '../src/features/validation/finding-why';
 import { decodePlan, encodePlan } from '../src/persistence/codec';
 import { createPlanStore } from '../src/state/plan-store';
 import { placedObject, placementRefusal } from '../src/features/equipment/placement-ghost';
+import { checklistItems } from '../src/features/inventory/rule-checklist';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -421,5 +422,24 @@ describe('вложенная зона того же типа (#17)', () => {
     expect(below({ ...child, parentId: null }).length).toBeGreaterThan(0);
     const otherType = plan.catalog.zoneTypes.find((type) => type.id !== parent.typeId)!;
     expect(below({ ...child, typeId: otherType.id }).every((found) => !found.refs.some((ref) => ref.id === 'z_child' && found.ruleIds?.includes(rule.id)))).toBe(true);
+  });
+});
+
+describe('чек-лист комплектности (#31)', () => {
+  test('красная строка есть ровно там, где проверка плана выдаёт находку по тому же правилу и зоне; числа — из инвентаризации', () => {
+    const items = checklistItems(plan);
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      const rule = item.key.split(':')[0]!;
+      const found = issues.some(
+        (entry) =>
+          (entry.code === VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN || entry.code === VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX) &&
+          entry.refs.some((ref) => ref.kind === 'zone' && ref.id === item.zoneId) &&
+          (entry as { ruleIds?: string[] }).ruleIds?.includes(rule) === true,
+      );
+      expect(item.met, item.key).toBe(!found);
+    }
+    // В примере есть и выполненные, и невыполненные строки: проверка не пустая.
+    expect(new Set(items.map((item) => item.met))).toEqual(new Set([true, false]));
   });
 });

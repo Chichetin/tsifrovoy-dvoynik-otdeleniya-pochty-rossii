@@ -50,6 +50,7 @@ import { InventoryPanel } from '../features/inventory/InventoryPanel';
 import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
+import { RuleChecklist } from '../features/inventory/RuleChecklist';
 import { LibraryPanel } from '../features/library/LibraryPanel';
 import { Onboarding } from '../features/onboarding/Onboarding';
 import { browserStorage as tourStorage, rememberTour, shouldShowTour, type TourOutcome } from '../features/onboarding/tour';
@@ -1265,7 +1266,18 @@ export function App(): React.JSX.Element {
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
               validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} />,
-              inventory: <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />,
+              inventory: (
+                <>
+                  <RuleChecklist
+                    document={document}
+                    onAsk={(question) => {
+                      showRightTab('assistant');
+                      askAgent(question);
+                    }}
+                  />
+                  <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
+                </>
+              ),
             }}
           />
         </aside>
