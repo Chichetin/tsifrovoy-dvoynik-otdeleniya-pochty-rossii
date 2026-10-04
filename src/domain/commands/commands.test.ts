@@ -941,11 +941,12 @@ describe('applyCommand: план и помещение', () => {
     expect(raised.room.ceilingHeight_m).toBe(3.4);
     expect(raised.walls.find((w) => w.id === 'w_outer')?.height_m).toBe(3.4);
     expect(raised.walls.find((w) => w.id === 'w_inner')?.height_m).toBe(2.2);
-    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 10.5, 1000]) {
       expect(codes(applyCommand(plan, { type: 'room.setCeiling', ceilingHeight_m: bad }))).toContain(
         COMMAND_ISSUE_CODES.CEILING_INVALID,
       );
     }
+    expect(expectOk(applyCommand(plan, { type: 'room.setCeiling', ceilingHeight_m: 10 })).room.ceilingHeight_m).toBe(10);
   });
 });
 

@@ -50,11 +50,12 @@ describe('шаги обучения', () => {
 
   test('идут по сценарию проверяющего: открыть → изменить → проверить → сохранить и открыть заново', () => {
     const [open, edit, check, save] = TOUR_STEPS;
-    expect(open?.text).toContain('«Открыть существующий»');
-    expect(open?.text).toContain('«Создать новый»');
+    expect(open?.text).toContain('«Файл → Демо-планы»');
+    expect(open?.text).toContain('«Файл → Создать новый»');
     expect(edit?.targets).toContain('tools');
     expect(check?.text).toContain('Ассистент');
-    expect(save?.text).toContain('«Экспорт → JSON»');
+    expect(save?.text).toContain('«Сохранить план»');
+    expect(save?.text).toContain('Файл → Открыть существующий');
     expect(save?.targets).toEqual(['files']);
   });
 

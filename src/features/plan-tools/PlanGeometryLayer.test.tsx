@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { cleanup, fireEvent, render } from '@testing-library/react';
 import type Konva from 'konva';
 import { createRef } from 'react';
-import { Stage } from 'react-konva';
+import { Layer, Stage } from 'react-konva';
 import { afterAll, afterEach, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
@@ -57,6 +57,7 @@ function drawnShapes(plan: PlanDocument, selection: Ref | null): Konva.Shape[] {
   };
   render(
     <Stage ref={stage} width={800} height={600}>
+<Layer>
       <PlanGeometryLayer
         document={plan}
         session={session}
@@ -64,6 +65,7 @@ function drawnShapes(plan: PlanDocument, selection: Ref | null): Konva.Shape[] {
         onCommand={() => ({ ok: true, value: plan })}
         onSelect={() => undefined}
       />
+</Layer>
     </Stage>,
   );
   if (stage.current === null) throw new Error('Stage не смонтировался');
@@ -114,6 +116,7 @@ function renderLayer(
   });
   const view = render(
     <Stage ref={stage} width={800} height={600}>
+<Layer>
       <PlanGeometryLayer
         document={plan}
         session={session(opts)}
@@ -121,6 +124,7 @@ function renderLayer(
         onCommand={() => ({ ok: true, value: plan })}
         onSelect={onSelect}
       />
+</Layer>
     </Stage>,
   );
   return {
@@ -129,6 +133,7 @@ function renderLayer(
       const merged = { ...opts, ...next };
       view.rerender(
         <Stage ref={stage} width={800} height={600}>
+<Layer>
           <PlanGeometryLayer
             document={plan}
             session={session(merged)}
@@ -136,6 +141,7 @@ function renderLayer(
             onCommand={() => ({ ok: true, value: plan })}
             onSelect={onSelect}
           />
+</Layer>
         </Stage>,
       );
     },

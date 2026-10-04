@@ -32,7 +32,9 @@ describe('вставка варианта ассистента', () => {
     });
     const object = candidateObjectForInsert(current.document, repeated, current.retired);
     expect(object.id).not.toBe(first.object.id);
-    expect({ ...object, id: repeated.object.id }).toEqual(repeated.object);
+    // The inserted object also gets an inventory number (#68).
+    expect({ ...object, id: repeated.object.id, attributes: repeated.object.attributes }).toEqual(repeated.object);
+    expect(typeof object.attributes['inventoryNumber']).toBe('string');
     expect(current.dispatch({ type: 'object.put', object }).ok).toBe(true);
     store.getState().undo();
     expect(store.getState().document.objects.some((item) => item.id === object.id)).toBe(false);
@@ -59,7 +61,8 @@ describe('вставка варианта ассистента', () => {
   test('свободный ID варианта сохраняется; чужой объект не перезаписывается', () => {
     const candidate = suggestion(initial);
     const object = candidateObjectForInsert(initial, candidate, new Set());
-    expect(object).toEqual(candidate.object);
+    expect({ ...object, attributes: candidate.object.attributes }).toEqual(candidate.object);
+    expect(typeof object.attributes['inventoryNumber']).toBe('string');
     const store = createPlanStore(initial);
     expect(store.getState().dispatch({ type: 'object.put', object }).ok).toBe(true);
     expect(store.getState().document.objects).toHaveLength(initial.objects.length + 1);

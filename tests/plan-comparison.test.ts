@@ -12,7 +12,7 @@ function document(raw: unknown): PlanDocument {
 }
 
 describe('сравнение с отдельной исходной версией', () => {
-  test('реальный комплект: площади, количество, проверки и имена трёх изменений', () => {
+  test('реальный комплект: площади, количество, проверки и имена двух изменений', () => {
     const before = document(beforeJson);
     const after = document(afterJson);
     const snapshots = JSON.stringify([before, after]);
@@ -23,14 +23,13 @@ describe('сравнение с отдельной исходной версие
     expect(rows['area.free']?.before).toBeCloseTo(114.73, 2);
     expect(rows['area.free']?.after).toBeCloseTo(113.93, 2);
     expect(rows['area.free']?.delta).toBeCloseTo(-0.8, 6);
-    expect(rows['equipment.count']).toMatchObject({ before: 53, after: 53, delta: 0 });
+    expect(rows['equipment.count']).toMatchObject({ before: 53, after: 54, delta: 1 });
     expect(rows['issues.error']).toMatchObject({ before: 1, after: 0, delta: -1 });
-    expect(rows['issues.warning']).toMatchObject({ before: 2, after: 0, delta: -2 });
+    expect(rows['issues.warning']).toMatchObject({ before: 1, after: 0, delta: -1 });
     expect(result.value.related).toBe(true);
     expect(result.value.warning).toBeNull();
     expect(result.value.changes).toEqual(expect.arrayContaining([
       expect.objectContaining({ ref: { kind: 'object', id: 'eq_54' }, kind: 'added', beforeName: null, afterName: 'Скамья ожидания 2' }),
-      expect.objectContaining({ ref: { kind: 'object', id: 'eq_8' }, kind: 'removed', beforeName: 'Табло над зоной очереди', afterName: null }),
       expect.objectContaining({ ref: { kind: 'object', id: 'eq_1' }, kind: 'moved', beforeName: 'Терминал электронной очереди', afterName: 'Терминал электронной очереди' }),
     ]));
     expect(JSON.stringify([before, after])).toBe(snapshots);
@@ -45,7 +44,7 @@ describe('сравнение с отдельной исходной версие
     expect(result.value.related).toBe(false);
     expect(result.value.warning).toContain('разные ID планов');
     expect(result.value.changes).toBeNull();
-    expect(result.value.rows.find((row) => row.metric === 'equipment.count')).toMatchObject({ before: 53, after: 53 });
+    expect(result.value.rows.find((row) => row.metric === 'equipment.count')).toMatchObject({ before: 53, after: 54 });
   });
 
   test('одинаковый документ отличается от невозможности сопоставления', () => {

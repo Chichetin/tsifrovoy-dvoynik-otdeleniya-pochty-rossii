@@ -275,6 +275,17 @@ describe('проверка справочника ловит ошибки ред
     expect(codes).toContain(CATALOG_ISSUE_CODES.DUPLICATE_ATTRIBUTE_KEY);
   });
 
+  test('значение по умолчанию вне границ атрибута (#138)', () => {
+    const bad: ObjectType = {
+      ...catalog.objectTypes[0]!,
+      id: 'ot_bad_bounds',
+      attributes: [{ key: 'load', label: 'Загрузка', type: 'number', required: false, default: 150, min: 0, max: 100 }],
+    };
+    expect(codesOf({ ...catalog, objectTypes: [...catalog.objectTypes, bad] })).toContain(
+      CATALOG_ISSUE_CODES.DEFAULT_OUT_OF_BOUNDS,
+    );
+  });
+
   test('правило без границ и с перевёрнутыми границами', () => {
     const countRule = catalog.rules.find((rule) => rule.kind === 'count')!;
     const empty = { ...catalog, rules: [{ ...countRule, min: null, max: null }] };
