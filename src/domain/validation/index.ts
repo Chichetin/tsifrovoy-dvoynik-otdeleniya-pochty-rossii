@@ -458,7 +458,7 @@ export function objectOpeningIssues(plan: PlanDocument, object: Equipment): Issu
 export const WORK_SURFACE_M = 0.75;
 
 /** Desk equipment by its type: off the floor exactly at the work surface. */
-function isDeskEquipment(catalog: Catalog, object: Equipment): boolean {
+export function isDeskEquipment(catalog: Catalog, object: Equipment): boolean {
   const type = findObjectType(catalog, object.typeId);
   if (type === null || type.occupiesFloor) return false;
   return Math.abs(type.defaultBase_m - WORK_SURFACE_M) <= TOLERANCE.coordinate_m;
@@ -481,7 +481,7 @@ export function objectSupportIssues(plan: PlanDocument, object: Equipment): Issu
     issue(
       VALIDATION_ISSUE_CODES.OBJECT_UNSUPPORTED,
       'error',
-      `Объект «${object.label}» висит на высоте ${formatLength(object.base_m)}: под ним нет стола, на котором он целиком помещается.`,
+      `Объект «${object.label}» висит на высоте ${formatLength(object.base_m)}: под ним нет стола, на котором он целиком помещается. Поставьте на стол.`,
       [{ kind: 'object', id: object.id }],
       shape,
     ),

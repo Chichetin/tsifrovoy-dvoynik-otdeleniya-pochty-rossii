@@ -1,18 +1,19 @@
 /**
  * #59: 3D timing on a running app — from the "3D" click to the frame where
  * every object stands as its model, then the frame rate while the camera
- * orbits. Median of the runs. Only plans whose types all have models finish
+ * orbits (animation callbacks, not GPU draw calls). Median of the runs. Only plans whose types all have models finish
  * by the count; the demo plans and the benchmark plans do.
  *
  * Run: DEV_PORT=5174 npm run dev, then
  *      npx tsx scripts/measure-3d.ts <plan.json | 100 | 500 | 1000> [runs]
  * APP_URL picks another address (default http://127.0.0.1:5174/). The browser
- * gets the machine's GPU (`--enable-gpu --use-angle=gl`); the frame rate is
- * capped by the display at about 60.
+ * uses the browser's normal graphics backend; the frame rate is
+ * limited by the browser and display refresh rate.
  */
 
 import { readFileSync } from 'node:fs';
 import { chromium } from '@playwright/test';
+import { resolveChannel } from '../playwright.config';
 import { generateBenchmark } from './generate-benchmark';
 
 const [target = '1000', runs = '3'] = process.argv.slice(2);
@@ -25,7 +26,7 @@ type Run = { sceneMs: number; fps: number; models: number };
 const results: Run[] = [];
 
 for (let run = 0; run < Number(runs); run += 1) {
-  const browser = await chromium.launch({ args: ['--enable-gpu', '--use-angle=gl'] });
+  const browser = await chromium.launch({ channel: resolveChannel(process.env.PW_CHANNEL) });
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   await context.addInitScript(() => window.localStorage.setItem('ops-twin.onboarding.v1', 'done'));
   const page = await context.newPage();
@@ -71,7 +72,13 @@ for (let run = 0; run < Number(runs); run += 1) {
   const orbit = Date.now();
   await page.mouse.move(cx, cy);
   await page.mouse.down();
-  for (let i = 0; i < 180; i += 1) await page.mouse.move(cx + 300 * Math.sin(i / 20), cy + 40 * Math.sin(i / 13));
+  // Measure actual frames over a fixed interval. A fixed number of input
+  // events made slow renderers spend minutes on this step alone.
+  let moves = 0;
+  while (Date.now() - orbit < 4000) {
+    await page.mouse.move(cx + 300 * Math.sin(moves / 20), cy + 40 * Math.sin(moves / 13));
+    moves += 1;
+  }
   await page.mouse.up();
   const seconds = (Date.now() - orbit) / 1000;
   const frames = Number(await page.evaluate('(cancelAnimationFrame(window.raf3d), window.frames3d)'));
