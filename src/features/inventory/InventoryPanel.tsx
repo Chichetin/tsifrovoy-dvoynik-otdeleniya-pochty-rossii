@@ -298,6 +298,9 @@ export function InventoryPanel({
     () => (plan === undefined ? [] : attributeColumns(plan.catalog)),
     [plan],
   );
+  // The whole plan shows no attribute column until one is picked: five columns
+  // do not fit the right column, and a word is cut mid-way (#130). A filter by
+  // one type still shows all attributes of that type.
   const attributes = useMemo(
     () =>
       plan === undefined
@@ -305,9 +308,9 @@ export function InventoryPanel({
         : visibleAttributeColumns(
             plan.catalog,
             typeId !== null ? [typeId] : types.map((type) => type.typeId),
-            choice,
+            typeId !== null ? choice : { ...Object.fromEntries(allAttributes.map((column) => [column.key, false])), ...choice },
           ),
-    [plan, typeId, types, choice],
+    [plan, typeId, types, choice, allAttributes],
   );
   const columns: { column: SortColumn; title: string }[] = [
     ...COLUMNS,
