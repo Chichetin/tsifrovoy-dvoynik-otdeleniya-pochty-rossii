@@ -211,15 +211,14 @@ describe('FileControls: замена текущего плана', () => {
     expect(onNew).not.toHaveBeenCalled();
   });
 
-  test('сохранённый, но непустой план не заменяется файлом без согласия', () => {
+  // #141: a saved plan loses nothing — it is replaced without the question.
+  test('сохранённый непустой план заменяется файлом без вопроса', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderControls({ storage: null, document: filled, dirty: false, revision: 1 });
 
     fireEvent.click(menuItem('Открыть существующий'));
 
-    expect(confirm).toHaveBeenCalledWith(
-      'Текущий план будет заменён. Открыть другой файл?',
-    );
+    expect(confirm).not.toHaveBeenCalled();
   });
 
   test('код ошибки файла не попадает в основное сообщение, но остаётся в раскрытии', async () => {

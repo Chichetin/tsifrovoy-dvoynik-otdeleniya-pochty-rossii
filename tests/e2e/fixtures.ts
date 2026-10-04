@@ -92,26 +92,15 @@ export async function exportPlan(page: Page, item: 'JSON' | 'PNG' | 'SVG'): Prom
 }
 
 /**
- * Шапка больше не показывает текст статуса сохранения (D-270): `dirty` внутри
- * `FileControls` по-прежнему решает, каким предупреждением встретить «Создать
- * новый» — этим и проверяем состояние вместо снятой надписи. Работает только
- * когда в плане уже есть зоны или объекты (`hasContent`), иначе предупреждение
- * не появляется вовсе независимо от `dirty` — на пустом плане не вызывать.
- * Диалог отклоняется, планом это не двигает; снимает все слушатели `dialog`
- * перед вызовом — спека с общим `page.on('dialog', accept)` в `beforeEach`
- * иначе получила бы два ответа на один диалог. `beforeEach` ставит такой
- * слушатель заново для каждого теста, так что снятие не задевает соседние.
+ * Есть ли несохранённые правки — по индикатору в шапке (`.shell__doc-state`):
+ * его подсказка «Есть несохранённые правки» или «Сохранено в файл» видна при
+ * любой ширине окна. Планом проверка не двигает и диалогов не открывает.
  */
 export async function expectUnsavedEdits(page: Page, unsaved: boolean): Promise<void> {
-  page.removeAllListeners('dialog');
-  let message = '';
-  page.once('dialog', (dialog) => {
-    message = dialog.message();
-    void dialog.dismiss();
-  });
-  await page.getByRole('button', { name: 'Файл' }).click();
-  await page.getByRole('menuitem', { name: 'Создать новый' }).click();
-  expect(message).toContain(
-    unsaved ? 'Несохранённые правки будут потеряны.' : 'Текущий план будет заменён.',
+  // #141: a saved plan is replaced without a question, so the dialog no longer
+  // tells «saved» apart — the header indicator does, and the plan stays put.
+  await expect(page.locator('.shell__doc-state')).toHaveAttribute(
+    'title',
+    unsaved ? 'Есть несохранённые правки' : 'Сохранено в файл',
   );
 }
