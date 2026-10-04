@@ -121,6 +121,15 @@ const attributeDefSchema = z.object({
   type: z.enum(['string', 'number', 'boolean']),
   required: z.boolean(),
   default: z.union([z.string(), finiteNumber, z.boolean()]).optional(),
+  min: finiteNumber.optional(),
+  max: finiteNumber.optional(),
+}).superRefine((def, ctx) => {
+  if ((def.min !== undefined || def.max !== undefined) && def.type !== 'number') {
+    ctx.addIssue({ code: 'custom', message: 'min/max are allowed only for type number' });
+  }
+  if (def.min !== undefined && def.max !== undefined && def.min > def.max) {
+    ctx.addIssue({ code: 'custom', message: 'min must not exceed max' });
+  }
 });
 
 const objectTypeSchema = z.object({

@@ -157,8 +157,14 @@ function canonicalAttributeDef(def: AttributeDef): Json {
     label: def.label,
     type: def.type,
     required: def.required,
-  } satisfies Omit<Record<keyof AttributeDef, Json>, 'default'>;
-  return def.default === undefined ? base : { ...base, default: def.default };
+  } satisfies Omit<Record<keyof AttributeDef, Json>, 'default' | 'min' | 'max'>;
+  // Optional keys stay absent when unset, so old files keep their bytes.
+  return {
+    ...base,
+    ...(def.default === undefined ? {} : { default: def.default }),
+    ...(def.min === undefined ? {} : { min: def.min }),
+    ...(def.max === undefined ? {} : { max: def.max }),
+  };
 }
 
 function canonicalLayer(layer: Layer): Json {

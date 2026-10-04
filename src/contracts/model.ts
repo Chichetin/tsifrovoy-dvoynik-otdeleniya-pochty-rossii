@@ -110,6 +110,9 @@ export type AttributeDef = {
   type: AttributeType;
   required: boolean;
   default?: string | number | boolean;
+  /** Inclusive bounds for type 'number'. Absent means unbounded. */
+  min?: number;
+  max?: number;
 };
 
 export type ObjectSymbol = 'rect' | 'circle' | 'triangle';
