@@ -8,7 +8,7 @@
 
 import type { Equipment, Id, ObjectType, PlanDocument, Point } from '../../contracts/model';
 import { applyCommand, newObject } from '../../domain/commands';
-import { editRejection } from '../../domain/physics';
+import { editRejection, objectPhysicsIssues } from '../../domain/physics';
 import { snapPosition } from './transform';
 import { isWallMounted, wallMountPlacement } from './wall-mount';
 
@@ -38,15 +38,30 @@ export function placedObject(
   );
 }
 
-/** Why the store would refuse to put `object` on the plan; null when it would accept. */
-export function placementRefusal(plan: PlanDocument, object: Equipment, retired: Iterable<Id> = []): string | null {
+/**
+ * The answer for one object: `refusal` — why the store would not take it;
+ * `warning` — it is taken, but the check will find a violation at once (outside
+ * the room, in a wall) and the file will not leave the editor without a second
+ * confirmation. Both null — a clean place.
+ */
+export type PlacementVerdict = { refusal: string | null; warning: string | null };
+
+export function placementVerdict(plan: PlanDocument, object: Equipment, retired: Iterable<Id> = []): PlacementVerdict {
   const command = { type: 'object.put', object } as const;
   const after = applyCommand(plan, command, retired);
-  if (!after.ok) return after.issues[0]?.message ?? 'Правка отклонена.';
-  return editRejection(plan, after.value, command, retired)?.message ?? null;
+  if (!after.ok) return { refusal: after.issues[0]?.message ?? 'Правка отклонена.', warning: null };
+  const refused = editRejection(plan, after.value, command, retired);
+  if (refused !== null) return { refusal: refused.message, warning: null };
+  const placed = after.value.objects.find((entry) => entry.id === object.id);
+  return { refusal: null, warning: placed === undefined ? null : (objectPhysicsIssues(after.value, placed)[0]?.message ?? null) };
 }
 
-export type PlacementGhost = { object: Equipment; refusal: string | null };
+/** Why the store would refuse to put `object` on the plan; null when it would accept. */
+export function placementRefusal(plan: PlanDocument, object: Equipment, retired: Iterable<Id> = []): string | null {
+  return placementVerdict(plan, object, retired).refusal;
+}
+
+export type PlacementGhost = PlacementVerdict & { object: Equipment };
 
 /**
  * The silhouette moves at pointer rate, so it lives in a store of its own:
@@ -67,6 +82,7 @@ export const placementGhost = {
       (ghost !== null &&
         next !== null &&
         ghost.refusal === next.refusal &&
+        ghost.warning === next.warning &&
         ghost.object.position[0] === next.object.position[0] &&
         ghost.object.position[1] === next.object.position[1] &&
         ghost.object.rotation_deg === next.object.rotation_deg &&

@@ -20,7 +20,11 @@ export type ChecklistItem = {
   limit: string;
   met: boolean;
   organizerRule: boolean;
-  /** A ready question for the assistant about an unmet line. */
+  /**
+   * A ready question for the assistant about an unmet line, in the words its
+   * router sends to the equipment check («не хватает», «лишнее»). «Изменить»
+   * would send it to the comparison of the plan with its original.
+   */
   question: string;
 };
 
@@ -43,7 +47,10 @@ export function checklistItems(plan: PlanDocument): ChecklistItem[] {
       limit,
       met: ruleMet(entry),
       organizerRule: rule.source === 'organizer-material',
-      question: `В зоне «${zone.name}» ${count} шт. «${typeLabel}» при требовании ${limit}. Что изменить в плане, чтобы правило выполнялось?`,
+      question:
+        rule.max !== null && count > rule.max
+          ? `Что лишнее по оборудованию в зоне «${zone.name}» (${zone.id})?`
+          : `Чего не хватает по оборудованию в зоне «${zone.name}» (${zone.id})?`,
     };
   });
 }

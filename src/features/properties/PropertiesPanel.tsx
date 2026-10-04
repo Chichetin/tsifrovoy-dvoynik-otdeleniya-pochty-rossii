@@ -524,7 +524,7 @@ export function PropertiesPanel({
           ) : (
             <>
               <p className="props__hint">
-                Общие атрибуты. Правка меняет все {groupMembers.length} объектов одним шагом «Отменить».
+                Общие атрибуты. Правка меняет всю группу ({groupMembers.length}) одним шагом «Отменить».
               </p>
               {attributeFields(
                 defs,

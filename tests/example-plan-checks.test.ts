@@ -30,8 +30,9 @@ import {
 import { findFix, planFix } from '../src/features/validation/finding-why';
 import { decodePlan, encodePlan } from '../src/persistence/codec';
 import { createPlanStore } from '../src/state/plan-store';
-import { placedObject, placementRefusal } from '../src/features/equipment/placement-ghost';
+import { placedObject, placementRefusal, placementVerdict } from '../src/features/equipment/placement-ghost';
 import { checklistItems } from '../src/features/inventory/rule-checklist';
+import { routeAgentQuery } from '../src/domain/advice/agent-fallback';
 
 function readJson(...path: string[]): unknown {
   return JSON.parse(readFileSync(join(process.cwd(), ...path), 'utf8')) as unknown;
@@ -394,6 +395,18 @@ describe('силуэт постановки (#26)', () => {
     },
   );
 
+  test('вне помещения хранилище берёт объект, но силуэт предупреждает: будет находка', () => {
+    const type = plan.catalog.objectTypes.find((entry) => entry.id === 'ot_workplace');
+    if (type === undefined) throw new Error('нет типа ot_workplace');
+    const farAway: [number, number] = [Math.max(...plan.room.boundary.map((point) => point[0])) + 6, 3];
+    const object = placedObject(plan, type, farAway);
+    if (object === null) throw new Error('постановка не дала объекта');
+    const verdict = placementVerdict(plan, object);
+    expect(verdict.refusal).toBeNull();
+    expect(verdict.warning).not.toBeNull();
+    expect(createPlanStore(plan).getState().dispatch({ type: 'object.put', object }).ok).toBe(true);
+  });
+
   test('слой заперт — отказ в силуэте и в хранилище', () => {
     const type = plan.catalog.objectTypes.find((entry) => entry.id === 'ot_workplace');
     const locked = { ...plan, layers: plan.layers.map((layer) => ({ ...layer, locked: true })) };
@@ -438,6 +451,10 @@ describe('чек-лист комплектности (#31)', () => {
           (entry as { ruleIds?: string[] }).ruleIds?.includes(rule) === true,
       );
       expect(item.met, item.key).toBe(!found);
+    }
+    // Вопрос красной строки уходит в проверку комплектования зоны, а не в сравнение с исходным планом.
+    for (const item of items.filter((entry) => !entry.met)) {
+      expect(routeAgentQuery(plan, item.question, true)[0], item.key).toEqual({ name: 'check_equipment', args: { zoneId: item.zoneId } });
     }
     // В примере есть и выполненные, и невыполненные строки: проверка не пустая.
     expect(new Set(items.map((item) => item.met))).toEqual(new Set([true, false]));

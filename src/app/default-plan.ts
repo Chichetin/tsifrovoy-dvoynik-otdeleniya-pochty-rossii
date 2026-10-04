@@ -83,6 +83,9 @@ export function openStartPlan(): PlanDocument {
   return decoded.value;
 }
 
+/** The id of the start plan: an untouched one is nobody's work, replacing it asks nothing. */
+export const START_PLAN_ID = openStartPlan().id;
+
 /** An empty branch: four walls, one entrance, layers, nothing placed yet. */
 export function createEmptyPlan(): PlanDocument {
   const { width, height, ceiling } = NEW_ROOM;

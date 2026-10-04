@@ -11,17 +11,21 @@ const EDGE_PX = 8;
  */
 export function ObjectContextMenu({
   object,
+  count = 1,
   at,
   onAction,
   onClose,
 }: {
   object: Equipment;
+  /** More than one: the actions act on the picked group, and the title says so. */
+  count?: number;
   /** Window coordinates of the click, or of the object for the keyboard. */
   at: Point;
   onAction: (action: ObjectMenuAction) => void;
   onClose: () => void;
 }): React.JSX.Element {
   const menu = useRef<HTMLDivElement>(null);
+  const title = count > 1 ? `Выбрано объектов: ${count}` : object.label;
 
   // The menu opens at the pointer but never leaves the window.
   useLayoutEffect(() => {
@@ -68,13 +72,13 @@ export function ObjectContextMenu({
       ref={menu}
       className="object-menu"
       role="menu"
-      aria-label={`Действия: ${object.label}`}
+      aria-label={`Действия: ${title}`}
       data-testid="object-menu"
       onKeyDown={move}
       onContextMenu={(event) => event.preventDefault()}
     >
       <p className="object-menu__title" aria-hidden="true">
-        {object.label}
+        {title}
       </p>
       {OBJECT_MENU_ITEMS.map((item) => (
         <button

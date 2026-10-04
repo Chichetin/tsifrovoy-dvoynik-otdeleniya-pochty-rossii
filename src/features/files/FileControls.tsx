@@ -60,6 +60,8 @@ export type FileControlsProps = {
   dirty: boolean;
   /** A fresh, untouched plan starts at revision 0 even though it is not exported. */
   revision: number;
+  /** The start sample, with nothing edited since the app opened: replacing it loses no work. */
+  untouchedSample?: boolean;
   /** Reads a file of either supported format; see `persistence/format.ts`. */
   read: (text: string) => Result<OpenedPlan>;
   encode: (plan: PlanDocument) => Result<string>;
@@ -106,7 +108,10 @@ function hasContent(plan: PlanDocument): boolean {
   return plan.zones.length > 0 || plan.objects.length > 0;
 }
 
-function needsReplacementWarning(plan: PlanDocument, dirty: boolean, revision: number): boolean {
+function needsReplacementWarning(plan: PlanDocument, dirty: boolean, revision: number, untouchedSample: boolean): boolean {
+  // The sample the app opens with, still untouched, is nobody's work: the first
+  // «Открыть демо» of the tour must not ask whether to lose it.
+  if (untouchedSample) return false;
   return hasContent(plan) || (dirty && revision > 0);
 }
 
@@ -158,6 +163,7 @@ export function FileControls({
   document: plan,
   dirty,
   revision,
+  untouchedSample = false,
   read,
   encode,
   onReplace,
@@ -350,7 +356,7 @@ export function FileControls({
         setState({ status: 'error', message: `Файл «${file.name}» не открыт: нужен план в формате JSON.` });
         return;
       }
-      if (needsReplacementWarning(plan, dirty, revision) &&
+      if (needsReplacementWarning(plan, dirty, revision, untouchedSample) &&
           !window.confirm(replacementWarning('Открыть', dirty))) return;
       void open(file);
     };
@@ -392,14 +398,14 @@ export function FileControls({
   const openDemo = useCallback((variant: DemoPlan): void => {
     setMenuOpen(false);
     fileTrigger.current?.focus();
-    if (needsReplacementWarning(plan, dirty, revision) &&
+    if (needsReplacementWarning(plan, dirty, revision, untouchedSample) &&
         !window.confirm(replacementWarning('Открыть', dirty))) return;
     void openSource(() => {
       const controller = new AbortController();
       activeDemoFetch.current = controller;
       return readDemoText(variant, { signal: controller.signal });
     }, true);
-  }, [plan, dirty, revision, openSource]);
+  }, [plan, dirty, revision, untouchedSample, openSource]);
 
   useEffect(() => {
     if (demoRequest === null || demoRequest.id === seenDemoRequest.current) return;
@@ -477,6 +483,12 @@ export function FileControls({
     }
 
     handToBrowser(new Blob([encoded.value], { type: 'application/json' }), fileName(plan));
+    // The file now holds this plan: the browser draft, kept against a closed tab,
+    // would offer it back as «not saved» after the next reload. The first edit
+    // after the save writes a new draft.
+    writer.current?.cancel();
+    if (storage !== null) clearDraft(storage);
+    setDraftAt(null);
     onExported();
     setErrorDetails([]);
     setNotice(`Файл ${fileName(plan)} передан браузеру на скачивание.`);
@@ -663,7 +675,7 @@ export function FileControls({
 
   const newPlan = (): void => {
     closeMenu(false);
-    if (needsReplacementWarning(plan, dirty, revision) &&
+    if (needsReplacementWarning(plan, dirty, revision, untouchedSample) &&
         !window.confirm(replacementWarning('Новый', dirty))) return;
     openSequence.current += 1;
     activeDemoFetch.current?.abort();
@@ -682,7 +694,7 @@ export function FileControls({
 
   const openExisting = (): void => {
     closeMenu(false);
-    if (needsReplacementWarning(plan, dirty, revision) &&
+    if (needsReplacementWarning(plan, dirty, revision, untouchedSample) &&
         !window.confirm(replacementWarning('Открыть', dirty))) return;
     openSequence.current += 1;
     activeDemoFetch.current?.abort();
