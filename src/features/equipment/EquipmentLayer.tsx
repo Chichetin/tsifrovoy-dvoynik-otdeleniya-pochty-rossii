@@ -23,6 +23,7 @@ import { activeObjectColor, objectColorValue } from '../../domain/object-color';
 import {
   SNAP,
   dragObstacles,
+  guideObjects,
   footprint,
   modelToScreen,
   objectGaps,
@@ -630,12 +631,13 @@ export function EquipmentLayer({
     const node = event.target;
     // Locked members of a group stay put, so they remain something to snap to.
     const moving = isGroup && group.has(id) ? new Set<Id>(movable.map((member) => member.id)) : new Set<Id>([id]);
+    const neighbours = guideObjects(plan, moving);
     guard.begin({
       node,
       origin: { x: node.x(), y: node.y() },
       grab,
-      guides: objectGuides(plan, moving),
-      obstacles: dragObstacles(plan, moving),
+      guides: objectGuides(plan, moving, neighbours),
+      obstacles: dragObstacles(plan, moving, neighbours),
     });
     // Grabbing a member keeps the group and makes that member the primary —
     // the card follows the hand; anything else is a single pick.

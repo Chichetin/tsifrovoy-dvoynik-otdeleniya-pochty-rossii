@@ -106,7 +106,7 @@ export type {
  * aligned with furniture, not with a smoke sensor or a camera (D-211).
  * `exclude` — the objects being moved: a thing must not snap to itself.
  */
-function guideObjects(plan: PlanDocument, exclude: ReadonlySet<Id>): Equipment[] {
+export function guideObjects(plan: PlanDocument, exclude: ReadonlySet<Id>): Equipment[] {
   const hidden = new Set(plan.layers.filter((layer) => !layer.visible).map((layer) => layer.id));
   const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
   return plan.objects.filter((object) => {
@@ -121,8 +121,14 @@ function guideObjects(plan: PlanDocument, exclude: ReadonlySet<Id>): Equipment[]
  * the zones' vertices, the walls' faces (the rectangle of their thickness, not
  * the centreline — «flush to the wall» must not put the object inside it), and
  * the edges and the centre lines of every `guideObjects` neighbour's box.
+ * A gesture passes `neighbours` once, so the plan is walked once for guides
+ * and obstacles together.
  */
-export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): SnapGuides {
+export function objectGuides(
+  plan: PlanDocument,
+  exclude: ReadonlySet<Id>,
+  neighbours: readonly Equipment[] = guideObjects(plan, exclude),
+): SnapGuides {
   const xs = new Set<number>();
   const ys = new Set<number>();
   const add = (point: Point): void => {
@@ -136,7 +142,7 @@ export function objectGuides(plan: PlanDocument, exclude: ReadonlySet<Id>): Snap
   for (const vertex of plan.room.boundary) if (!onWallAxis(vertex)) add(vertex);
   for (const zone of plan.zones) for (const vertex of zone.polygon) if (!onWallAxis(vertex)) add(vertex);
   for (const wall of plan.walls) for (const vertex of wallPolygon(wall, plan.walls, plan.openings)) add(vertex);
-  for (const object of guideObjects(plan, exclude)) {
+  for (const object of neighbours) {
     const box = boundingBox(footprint(object));
     xs.add(box.minX);
     xs.add(box.maxX);
@@ -161,14 +167,20 @@ export type DragObstacles = { walls: Obstacle[]; objects: Obstacle[] };
  * Obstacles of a plan for moving an object: each wall's footprint (its faces,
  * as for the guides) and each `guideObjects` neighbour's footprint. Built at
  * the start of a gesture, so a move only measures and never rebuilds rings.
+ * A wall is one solid ring: a door or window opening is not cut out of it, so
+ * the gap to a door is the gap to the wall around it.
  */
-export function dragObstacles(plan: PlanDocument, exclude: ReadonlySet<Id>): DragObstacles {
+export function dragObstacles(
+  plan: PlanDocument,
+  exclude: ReadonlySet<Id>,
+  neighbours: readonly Equipment[] = guideObjects(plan, exclude),
+): DragObstacles {
   const obstacle = (id: Id, ring: Polygon): Obstacle => ({ id, ring, box: boundingBox(ring) });
   return {
     walls: plan.walls
       .map((wall) => obstacle(wall.id, wallPolygon(wall, plan.walls, plan.openings)))
       .filter((wall) => wall.ring.length >= 3),
-    objects: guideObjects(plan, exclude).map((object) => obstacle(object.id, footprint(object))),
+    objects: neighbours.map((object) => obstacle(object.id, footprint(object))),
   };
 }
 
@@ -188,10 +200,15 @@ export function nearestGap(shape: Polygon, obstacles: readonly Obstacle[]): Gap 
   return best;
 }
 
-/** Distances of a moved object to the nearest wall and the nearest neighbour. */
+/**
+ * Distances of a moved object to the nearest wall and the nearest neighbour.
+ * Shapes that overlap are zero apart and the points the gap would run between
+ * are arbitrary, so there is no gap to show then.
+ */
 export function objectGaps(object: Equipment, obstacles: DragObstacles): { wall: Gap | null; object: Gap | null } {
   const shape = footprint(object);
-  return { wall: nearestGap(shape, obstacles.walls), object: nearestGap(shape, obstacles.objects) };
+  const apart = (gap: Gap | null): Gap | null => (gap !== null && gap.distance > 0 ? gap : null);
+  return { wall: apart(nearestGap(shape, obstacles.walls)), object: apart(nearestGap(shape, obstacles.objects)) };
 }
 
 /**
