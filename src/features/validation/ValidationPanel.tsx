@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Candidate } from '../../contracts/advice';
-import type { Issue, PlanDocument, Ref } from '../../contracts/model';
+import type { Id, Issue, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { FocusRequest, ValidationPanelProps } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import { PHYSICS_RULES } from '../../domain/physics';
@@ -32,6 +32,12 @@ export type ValidationPanelViewProps = Omit<ValidationPanelProps, 'issues'> & {
   focus?: FocusRequest | null;
   /** #33: shows the fix variant on the plan as a ghost; `null` hides it. */
   onPreview?: (candidate: Candidate | null) => void;
+  /**
+   * «Подтвердить» под вариантом исправления: ставит показанный вариант на
+   * план одной командой. `movedId` — объект, который переставляют; `null` —
+   * вариант добавляет новый объект.
+   */
+  onApplyFix?: (candidate: Candidate, movedId: Id | null) => Result<PlanDocument>;
 };
 
 type FixState = { key: string; plan: PlanDocument } & (
@@ -68,10 +74,13 @@ export function ValidationPanel({
   onFocus,
   focus,
   onPreview,
+  onApplyFix,
 }: ValidationPanelViewProps): React.JSX.Element {
-  const [showTechnical, setShowTechnical] = useState(false);
   const [openWhy, setOpenWhy] = useState<ReadonlySet<string>>(() => new Set());
   const [fixState, setFix] = useState<FixState | null>(null);
+  // The row of a fixed finding is gone from the list, so the result of
+  // «Подтвердить» is said here, above the list.
+  const [applied, setApplied] = useState<string | null>(null);
 
   // Every click, hide and edit starts a new sequence: a search that finishes
   // late for an older plan or an older click shows nothing.
@@ -131,6 +140,26 @@ export function ValidationPanel({
     ghostShown.current = false;
     onPreview?.(null);
   };
+  const applyFix = (result: Extract<FixResult, { ok: true }>): void => {
+    if (onApplyFix === undefined) return;
+    const { candidate, fix: planned } = result;
+    const movedId = planned.kind === 'move' ? planned.object.id : null;
+    const outcome = onApplyFix(candidate, movedId);
+    if (!outcome.ok) {
+      setApplied(`Не применено: ${outcome.issues.map((issue) => issue.message).join('; ')}`);
+      return;
+    }
+    hideFix();
+    if (planned.kind === 'add') {
+      setApplied(`Применено: «${candidate.object.label}» добавлен на план. Отменить — Ctrl+Z.`);
+      return;
+    }
+    const [width, depth] = candidate.object.size_m;
+    const resized = width !== planned.object.size_m[0] || depth !== planned.object.size_m[1];
+    setApplied(
+      `Применено: «${planned.object.label}» переставлен${resized ? `, размер по справочнику ${formatNumber(width)} × ${formatNumber(depth)} м` : ''}. Отменить — Ctrl+Z.`,
+    );
+  };
   // One index per document (D-202): names come from the plan itself, so a
   // rename in the card renames the finding; an id with nothing behind it
   // stays raw.
@@ -182,6 +211,7 @@ export function ValidationPanel({
             canPreview={onPreview !== undefined}
             onShowFix={() => showFix(key, issue)}
             onHideFix={hideFix}
+            onApplyFix={onApplyFix === undefined ? undefined : applyFix}
           />
         )}
       </>
@@ -197,18 +227,14 @@ export function ValidationPanel({
         </span>
       </h2>
 
+      {applied === null ? null : (
+        <p className="panel__note" role="status" data-testid="issue-fix-applied">{applied}</p>
+      )}
+
       {issues.length === 0 ? (
         <p className="panel__empty">Нарушений не найдено</p>
       ) : (
         <>
-          <label className="issues__technical-toggle">
-            <input
-              type="checkbox"
-              checked={showTechnical}
-              onChange={(event) => setShowTechnical(event.currentTarget.checked)}
-            />
-            <span>Показать технические детали</span>
-          </label>
           <ul className="issues">
             {groups.map((group, index) => {
               const isMatch = focus != null && groupMentions(group, focus.ref);
@@ -260,11 +286,6 @@ export function ValidationPanel({
                     </p>
                   )}
                   {group.issues.length === 1 && first !== undefined ? why(first, `issue-why-${index}`) : null}
-                  {showTechnical
-                    ? group.issues.map((issue, line) => (
-                        <TechnicalDetails key={`${issue.code}-${line}`} issue={issue} />
-                      ))
-                    : null}
                 </li>
               );
             })}
@@ -319,6 +340,7 @@ function FindingWhyDetails({
   canPreview,
   onShowFix,
   onHideFix,
+  onApplyFix,
 }: {
   id: string;
   plan: PlanDocument;
@@ -328,10 +350,12 @@ function FindingWhyDetails({
   canPreview: boolean;
   onShowFix: () => void;
   onHideFix: () => void;
+  onApplyFix: ((result: Extract<FixResult, { ok: true }>) => void) | undefined;
 }): React.JSX.Element {
   const why = explainFinding(plan, issue);
   const planned = planFix(plan, issue, issues);
-  const shown = fix?.status === 'done' && fix.result.ok;
+  const ready = fix?.status === 'done' && fix.result.ok ? fix.result : null;
+  const shown = ready !== null;
   return (
     <div className="issues__technical" id={id} data-testid="issue-why-details">
       <p className="panel__note">
@@ -365,6 +389,16 @@ function FindingWhyDetails({
             >
               {shown ? 'Скрыть вариант' : 'Показать вариант исправления'}
             </button>
+            {ready === null || onApplyFix === undefined ? null : (
+              <button
+                type="button"
+                className="files__button is-primary"
+                data-testid="issue-fix-apply"
+                onClick={() => onApplyFix(ready)}
+              >
+                Подтвердить
+              </button>
+            )}
           </p>
           <p className="panel__note" role="status" data-testid="issue-fix-status">
             {fix === null ? null : fixText(plan, fix)}
@@ -386,40 +420,5 @@ function fixText(plan: PlanDocument, fix: FixState): string {
     result.fix.kind === 'add'
       ? `Добавить «${object.label}»`
       : `Переставить «${result.fix.object.label}»${result.fix.toEntrance ? ' ближе к входу' : ''}`;
-  return `${action}: ${where}. Вариант показан на плане полупрозрачно, план не изменён. Размер — по типу из справочника. Расчёт без LLM.`;
-}
-
-function TechnicalDetails({ issue }: { issue: ValidationIssue }): React.JSX.Element {
-  return (
-    <dl className="issues__technical" aria-label="Технические детали находки" translate="no">
-      <div>
-        <dt>Код</dt>
-        <dd><code>{issue.code}</code></dd>
-      </div>
-      {issue.refs.length === 0 ? null : (
-        <div>
-          <dt>Ссылки</dt>
-          <dd>
-            {issue.refs.map((ref) => (
-              <code key={`${ref.kind}-${ref.id}`}>{ref.kind}:{ref.id}</code>
-            ))}
-          </dd>
-        </div>
-      )}
-      {issue.ruleIds === undefined || issue.ruleIds.length === 0 ? null : (
-        <div>
-          <dt>Правила</dt>
-          <dd>
-            {issue.ruleIds.map((ruleId) => <code key={ruleId}>{ruleId}</code>)}
-          </dd>
-        </div>
-      )}
-      {issue.path === undefined ? null : (
-        <div>
-          <dt>Путь</dt>
-          <dd><code>{issue.path}</code></dd>
-        </div>
-      )}
-    </dl>
-  );
+  return `${action}: ${where}. Вариант показан на плане полупрозрачно, план не изменён: «Подтвердить» ставит его. Размер — по типу из справочника. Расчёт без LLM.`;
 }

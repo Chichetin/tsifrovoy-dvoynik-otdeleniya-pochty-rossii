@@ -403,6 +403,30 @@ export function App(): React.JSX.Element {
     [dispatch, select],
   );
 
+  // «Подтвердить» under a fix variant of «Проверка»: the shown ghost goes in as
+  // one command — the spot the search checked, with the size it checked. A
+  // moved object keeps its id, name and attributes.
+  const applyFix = useCallback(
+    (candidate: Candidate, movedId: Id | null): Result<PlanDocument> => {
+      const current = store.getState();
+      const moved = movedId === null ? undefined : current.document.objects.find((entry) => entry.id === movedId);
+      const object =
+        moved === undefined
+          ? candidateObjectForInsert(current.document, candidate, current.retired)
+          : {
+              ...moved,
+              position: candidate.object.position,
+              size_m: candidate.object.size_m,
+              rotation_deg: candidate.object.rotation_deg,
+              zoneId: candidate.object.zoneId,
+            };
+      const result = dispatchAndSelect({ type: 'object.put', object });
+      if (result.ok) setPreview(null);
+      return result;
+    },
+    [dispatchAndSelect, store],
+  );
+
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -1365,7 +1389,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} />,
               inventory: (
                 <>
                   <RuleChecklist

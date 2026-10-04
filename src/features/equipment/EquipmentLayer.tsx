@@ -381,8 +381,14 @@ export function EquipmentLayer({
       setMarquee({ from: start.from, to, width: stage.width(), height: stage.height(), shift: start.shift });
     };
     const onUp = (): void => {
+      const started = press.current;
       press.current = null;
-      if (marquee === null) return;
+      if (marquee === null) {
+        // A plain click on empty floor drops the selection. Shift keeps it; a
+        // zone or a wall under the pointer selects itself right after this.
+        if (started !== null && !started.shift) onSelect(null);
+        return;
+      }
       setMarquee(null);
       // Hidden and locked layers are out of reach for a group edit, so their
       // objects do not get caught: the person would see a count that the
