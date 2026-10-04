@@ -598,6 +598,12 @@ export function EquipmentLayer({
       hideHover();
       return;
     }
+    // The picked object is named in «Свойства»; a card with «click to open
+    // Свойства» over it only hides the plan.
+    if (selectedObject?.id === object.id || group.has(object.id)) {
+      hideHover();
+      return;
+    }
     const stage = event.target.getStage();
     const pointer = stage?.getPointerPosition();
     const card = hoverCard;

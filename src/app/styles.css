@@ -1633,6 +1633,13 @@ body {
   text-align: left;
 }
 
+/* A long word breaks inside its column instead of running into the next one
+   (the inventory in a narrow right column, #129). */
+.table td,
+.table td .table__link {
+  overflow-wrap: anywhere;
+}
+
 .table th {
   color: var(--muted);
   font-weight: 500;
@@ -1830,6 +1837,11 @@ span.inventory__num {
 .assistant__field select,
 .assistant__field input,
 .assistant__field textarea {
+  /* A grid item will not shrink below its longest option; the select was wider
+     than the panel and made it scroll sideways (#129). */
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   padding: 0.3125rem 0.375rem;
   border: 1px solid var(--line);
   border-radius: 0.25rem;
