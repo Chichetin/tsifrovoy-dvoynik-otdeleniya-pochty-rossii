@@ -279,7 +279,7 @@ export function InventoryPanel({
   const zones = useMemo(() => zoneSummary(inventory, naming), [inventory, naming]);
   // Тот же день, что у проверки плана: фильтр и находки «ТО» не расходятся.
   const today = useMemo(() => localToday(), []);
-  const rows = useMemo(() => objectRows(inventory, naming, today), [inventory, naming, today]);
+  const rows = useMemo(() => objectRows(inventory, naming, today, plan?.catalog), [inventory, naming, today, plan?.catalog]);
   const found = useMemo(
     () => filterObjectRows(rows, { query: search, typeId, maintenanceDue: maintenanceOnly }),
     [rows, search, typeId, maintenanceOnly],
