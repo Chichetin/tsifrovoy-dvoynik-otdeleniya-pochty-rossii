@@ -12,10 +12,11 @@ import type { Id, Issue, PlanDocument, Ref, Result } from '../../contracts/model
 import type { FocusRequest, ValidationPanelProps } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import { PHYSICS_RULES } from '../../domain/physics';
-import type { ValidationIssue } from '../../domain/validation';
+import { type ValidationIssue, planHealth } from '../../domain/validation';
 import { formatLength, formatNumber } from '../../domain/number-format';
 import { explainFinding, findFix, planFix, type FixResult } from './finding-why';
 import { type IssueGroup, groupIssuesBySubject } from './issue-highlight';
+import { HealthBreakdown } from './HealthScore';
 
 /**
  * The document is optional: without it the list keeps working and names each
@@ -34,6 +35,8 @@ export type ValidationPanelViewProps = Omit<ValidationPanelProps, 'issues'> & {
   onPreview?: (candidate: Candidate | null) => void;
   /** «Подтвердить» под вариантом исправления: одна команда, одна отмена. */
   onApplyFix?: (application: FixApplication) => Result<PlanDocument>;
+  /** #125: a click on the header score; each new number opens the breakdown and focuses it. */
+  healthRequest?: number;
 };
 
 /**
@@ -79,7 +82,17 @@ export function ValidationPanel({
   focus,
   onPreview,
   onApplyFix,
+  healthRequest,
 }: ValidationPanelViewProps): React.JSX.Element {
+  const health = useMemo(() => planHealth(issues), [issues]);
+  const healthRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    if (healthRequest === undefined || healthRequest === 0) return;
+    // The details element stays uncontrolled: the person may close it again.
+    if (healthRef.current !== null) healthRef.current.open = true;
+    healthRef.current?.scrollIntoView({ block: 'nearest' });
+    healthRef.current?.querySelector('summary')?.focus();
+  }, [healthRequest]);
   const [openWhy, setOpenWhy] = useState<ReadonlySet<string>>(() => new Set());
   const [fixState, setFix] = useState<FixState | null>(null);
   // The row of a fixed finding is gone from the list, so the result of
@@ -241,6 +254,14 @@ export function ValidationPanel({
           {issues.length}
         </span>
       </h2>
+
+      <HealthBreakdown
+        ref={healthRef}
+        health={health}
+        plan={plan}
+        names={names}
+        onFocus={onFocus}
+      />
 
       {applied === null ? null : (
         <p className="panel__note" role="status" data-testid="issue-fix-applied">{applied}</p>

@@ -60,6 +60,15 @@ export {
   localToday,
   maintenanceStatus,
 } from './maintenance';
+export {
+  HEALTH_MAX,
+  SEVERITY_PENALTY,
+  type HealthLine,
+  type PlanHealth,
+  healthLineRefs,
+  issuePenalty,
+  planHealth,
+} from './health';
 
 /**
  * The segment a distance rule measured: from the object's centre to the

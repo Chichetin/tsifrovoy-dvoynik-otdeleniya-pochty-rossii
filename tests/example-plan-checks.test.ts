@@ -18,7 +18,7 @@ import { describe, expect, test } from 'vitest';
 import type { Catalog, Issue, PlanDocument, Zone } from '../src/contracts/model';
 import { parseCatalog } from '../src/contracts/schema';
 import { applyCommand } from '../src/domain/commands';
-import { VALIDATION_ISSUE_CODES, validatePlan } from '../src/domain/validation';
+import { SEVERITY_PENALTY, VALIDATION_ISSUE_CODES, planHealth, validatePlan } from '../src/domain/validation';
 import { importOrganizerExample, withTeamCatalog } from '../src/persistence/organizer-import';
 import { attributeKeyFromLabel, layersReading } from '../src/features/catalog-editor/catalog-edit';
 import { groupIssuesBySubject } from '../src/features/validation/issue-highlight';
@@ -272,6 +272,14 @@ describe('исправление снимает ровно свой код', () 
 
     expect(idsOf(validatePlan(fixed.value), VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE))
       .toEqual([]);
+    // #125: one finding takes off its weight; the breakdown adds up to 100 − score.
+    const tooFar = issues.filter((entry) => entry.code === VALIDATION_ISSUE_CODES.RULE_TOO_FAR_FROM_ENTRANCE);
+    const one = planHealth(tooFar);
+    expect(one.score).toBe(100 - SEVERITY_PENALTY.error);
+    expect(one.lines.map((line) => [line.ruleIds, line.penalty])).toEqual([[['rule_queue_terminal_entrance'], SEVERITY_PENALTY.error]]);
+    const all = planHealth(issues);
+    expect(all.lines.reduce((sum, line) => sum + line.penalty, 0)).toBe(all.penalty);
+    expect(all.score).toBe(Math.max(0, 100 - all.penalty));
   });
 });
 
