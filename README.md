@@ -553,6 +553,7 @@ LLM_PROVIDER=… LLM_ENDPOINT=… LLM_MODEL=… LLM_API_KEY=… npm test -- serv
 - `fastify` и `@fastify/static` — сервер и раздача сборки, `zod` — схемы ответа и запроса,
   `polyclip-ts` — булевы операции над полигонами в расчёте площадей.
 - Браузер ассистента ключа не видит: страница обращается к `/api/advice` своего сервера.
+- Голосовой ввод в чате ассистента — распознавание речи браузером (Web Speech API; в Chrome — сервис Google). Работает по HTTPS или на `localhost`; без поддержки в браузере кнопки нет.
 - 3D-модели (`public/models/*.glb`) собраны скриптом `scripts/models/build.py` в
   Blender 5.2. Blender нужен только для пересборки моделей, не для запуска. Стеллаж,
   коробки-посылки и камера — модели [Poly Haven](https://polyhaven.com) (CC0),

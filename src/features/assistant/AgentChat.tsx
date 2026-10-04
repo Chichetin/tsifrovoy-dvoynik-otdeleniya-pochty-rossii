@@ -15,6 +15,7 @@ import { QUOTED_ID_PATTERN } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
 import { stopAgent } from './agent-client';
+import { VoiceInput } from './VoiceInput';
 
 const PANEL_NAMES = { metrics: 'Площади', validation: 'Проверка', inventory: 'Инвентаризация' } as const;
 
@@ -397,6 +398,11 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
               Новый диалог
             </button>
           )}
+          <VoiceInput
+            onText={(text) =>
+              setQuestion((current) => (current.trim() === '' ? text : `${current.trimEnd()} ${text}`).slice(0, LIMITS.maxQueryChars))
+            }
+          />
           <span className="agent__hint">Enter — отправить, Shift+Enter — перенос</span>
         </div>
       </form>
