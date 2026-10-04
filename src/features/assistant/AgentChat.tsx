@@ -96,10 +96,13 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
         ?.candidates.find((entry) => entry.id === action.candidateId);
       return `Применить: ${candidate?.object.label ?? 'вариант'}`;
     }
+    // #122: a layout variant is named by its number, plain edits by the old words.
     case 'preview-edits':
-      return 'Показать правки';
-    case 'apply-edits':
-      return 'Применить правки';
+    case 'apply-edits': {
+      const variant = answer.proposals.find((entry) => entry.id === action.proposalId)?.title?.split(':')[0]?.toLowerCase();
+      const verb = action.kind === 'preview-edits' ? 'Показать' : 'Применить';
+      return variant === undefined ? `${verb} правки` : `${verb} ${variant}`;
+    }
     case 'show-layer':
       return `Включить слой «${names.layerName(action.layerId) ?? action.layerId}»`;
     case 'open-panel':
@@ -211,7 +214,7 @@ function EditList({ answer, names }: { answer: AgentAnswer; names: PlanIndex }):
       {answer.proposals.map((proposal) => (
         <div key={proposal.id} className="agent__edits">
           <p className="agent__mode">
-            Правки {proposal.id}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
+            {proposal.title ?? `Правки ${proposal.id}`}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
           </p>
           <ul className="agent__steps" aria-label={`Правки ${proposal.id}: было → стало`}>
             {proposal.changes.map((change) => (

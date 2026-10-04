@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { Explanation, Recommendation } from '../../contracts/advice';
 import { REASON_CODE_SPECS } from '../../contracts/advice-semantics';
+import { applyCommand } from '../commands';
 import { acceptFactChoice, acceptToolResult, calculateAdvice, createAgentSession } from './index';
 import {
   EXPLANATION_ISSUE_CODES,
@@ -465,5 +466,22 @@ describe('#126: правки модели проверяет код', () => {
     const [proposal] = session.state.proposals;
     expect(proposal?.rejected.map((entry) => entry.reason)).toEqual(['Объекта «eq_nope» нет в плане.']);
     expect(proposal?.commands.map((command) => command.type === 'object.put' && command.object.id)).toEqual(['eq_9']);
+  });
+});
+
+describe('#122: раскладку зоны считает код', () => {
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+
+  test('каждый вариант применяется одним batch без новых ошибок, «было» у вариантов общее', () => {
+    const session = createAgentSession(demo, null, 'Разложи зону ожидания', 1);
+    acceptToolResult(session, 'layout_zone', JSON.stringify({ zoneId: 'z_waiting' }));
+    const variants = session.state.proposals;
+    expect(variants.length).toBeGreaterThan(0);
+    const passageBefore = new Set(variants.map((variant) => variant.facts.find((fact) => fact.metric === 'layout.passage' && fact.phase === 'before')?.value));
+    expect(passageBefore.size).toBe(1);
+    for (const variant of variants) {
+      expect(applyCommand(demo, { type: 'batch', commands: variant.commands }).ok).toBe(true);
+      expect(variant.findings.errors.after).toBeLessThanOrEqual(variant.findings.errors.before);
+    }
   });
 });

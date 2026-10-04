@@ -260,6 +260,9 @@ const CAMERA_COVERAGE =
 /** «Камера хранения» — a storage room. */
 const STORAGE_ROOM = /камер[а-я]* хранени/;
 
+/** #122: a request to lay a zone out anew. */
+const LAYOUT_VERB = /(?:^|[^а-я])(разложи|расставь|переставь|раскладк)/;
+
 /** #126: an imperative verb makes a clause an edit; «где поставить» stays a question about a place. */
 const EDIT_VERB = /(?:^|[^а-я])(раздвинь|сдвинь|передвинь|подвинь|перемести|поверни|разверни|удали|убери|добавь|поставь)(?:[^а-я]|$)/;
 const DIRECTIONS: Record<string, [number, number]> = { влево: [-1, 0], вправо: [1, 0], вверх: [0, 1], вниз: [0, -1] };
@@ -327,6 +330,11 @@ function editCalls(plan: PlanDocument, text: string): AgentToolCall[] {
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
+  // #122: «разложи / расставь зону ожидания» — the layout of a named zone.
+  if (LAYOUT_VERB.test(text)) {
+    const zoneId = matchZone(plan, words(text));
+    if (zoneId !== null) return [{ name: 'layout_zone', args: { zoneId }, note: 'Раскладку посчитал код: сравните варианты на плане.' }];
+  }
   const edits = editCalls(plan, text);
   if (edits.length > 0) return edits;
   const queryWords = words(text);
@@ -515,7 +523,23 @@ export function composeFallbackText(
     parts.push('Нарушений правил комплектования нет.');
   }
   for (const proposal of state.proposals) {
-    const free = (phase: string): number | undefined => proposal.facts.find((fact) => fact.metric === 'area.free' && fact.phase === phase)?.value;
+    const metric = (code: string, phase: string): number | undefined => proposal.facts.find((fact) => fact.metric === code && fact.phase === phase)?.value;
+    // #122: a layout variant reads by its own numbers; the area does not change.
+    if (proposal.title !== undefined) {
+      const pair = (code: string, name: string): string => {
+        const was = metric(code, 'before');
+        const now = metric(code, 'after');
+        return was === undefined || now === undefined ? '' : `${name}: ${formatShort(was, 2)} → ${formatShort(now, 2)} м.`;
+      };
+      parts.push([
+        `${proposal.title}. Сдвинуто объектов: ${proposal.changes.length}.`,
+        pair('layout.passage', 'Самый узкий проход'),
+        pair('layout.entrance', 'Среднее расстояние до входа'),
+        `Ошибок проверки: ${proposal.findings.errors.before} → ${proposal.findings.errors.after}.`,
+      ].filter(Boolean).join(' '));
+      continue;
+    }
+    const free = (phase: string): number | undefined => metric('area.free', phase);
     const before = free('before');
     const after = free('after');
     const { errors } = proposal.findings;

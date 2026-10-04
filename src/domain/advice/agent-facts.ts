@@ -165,9 +165,16 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
   // #126: the effect of an edit proposal — calculated on a copy of the plan.
   for (const proposal of state.proposals) {
     if (proposal.commands.length === 0) continue;
-    const refs: Ref[] = [{ kind: 'room', id: state.plan.room.id }];
-    const scope = `${subject(state, refs)}; с предложенными правками ${proposal.id}`;
-    for (const fact of proposal.facts) facts.push({ ...fact, id: JSON.stringify([proposal.id, fact.id]), refs, scope });
+    // #122: a layout variant only moves objects — its area facts repeat the
+    // plan, so only its passage and entrance go to the model, under its title.
+    const layout = proposal.title !== undefined;
+    const zone = layout ? proposal.facts.find((fact) => fact.metric.startsWith('layout.'))?.refs[0] : undefined;
+    const refs: Ref[] = zone === undefined ? [{ kind: 'room', id: state.plan.room.id }] : [zone];
+    const scope = layout ? `${subject(state, refs)}; ${proposal.title}` : `${subject(state, refs)}; с предложенными правками ${proposal.id}`;
+    for (const fact of proposal.facts) {
+      if (layout && !fact.metric.startsWith('layout.')) continue;
+      facts.push({ ...fact, id: JSON.stringify([proposal.id, fact.id]), refs, scope });
+    }
     for (const phase of ['before', 'after'] as const) {
       facts.push({ id: JSON.stringify([proposal.id, `errors.${phase}`]), metric: 'validation.errors', phase, value: proposal.findings.errors[phase], unit: 'count', refs, scope });
     }
