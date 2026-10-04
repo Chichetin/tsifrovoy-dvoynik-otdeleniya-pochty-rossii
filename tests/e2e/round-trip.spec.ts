@@ -82,7 +82,7 @@ test('инвентарный номер новой скамьи выдан пр�
 
   // Та же точка свободного пола, что в demo.spec.ts: (120, 456) — модель (2,2; 2).
   await showTab(page, 'Библиотека');
-  await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
+  await page.locator('.library__item', { hasText: 'Скамья для ожидания' }).first().click();
   await page.getByTestId('editor-canvas').click({ position: { x: 120, y: 456 } });
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
   await expect(inventory).toHaveCount(54);

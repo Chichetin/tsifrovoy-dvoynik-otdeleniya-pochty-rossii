@@ -505,6 +505,15 @@ body {
   top: 12px;
 }
 
+/* Under the «show only the plan» button; D-362. */
+.shell__captions-toggle {
+  top: calc(var(--strip-row) + 52px);
+}
+
+.shell--plan-only .shell__captions-toggle {
+  top: 52px;
+}
+
 .shell__plan-only-toggle:hover,
 .shell__plan-only-toggle[aria-pressed='true'] {
   background: var(--color-accent-soft);
