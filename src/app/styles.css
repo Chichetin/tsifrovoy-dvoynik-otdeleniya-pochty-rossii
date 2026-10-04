@@ -2512,6 +2512,16 @@ span.inventory__num {
   height: 100%;
 }
 
+.view3d__tools {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+}
+
 .view3d__status {
   margin: 16px;
   padding: 12px;
