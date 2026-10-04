@@ -868,13 +868,16 @@ export function EquipmentLayer({
           </Group>
         )}
         {hasCaption ? null : (
-          <EquipmentPictogram
-            kind={pictograms ? planPictogram(object.typeId) : null}
-            width={current.size_m[0] * viewport.scale}
-            height={current.size_m[1] * viewport.scale}
-            opacity={ghost ? 0.45 : 0.9}
-            backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
-          />
+          // The sign stays upright whatever the object's rotation, like the lock.
+          <Group rotation={-current.rotation_deg} listening={false}>
+            <EquipmentPictogram
+              kind={pictograms ? planPictogram(object.typeId) : null}
+              width={current.size_m[0] * viewport.scale}
+              height={current.size_m[1] * viewport.scale}
+              opacity={ghost ? 0.45 : 0.9}
+              backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
+            />
+          </Group>
         )}
       </Group>
     );
