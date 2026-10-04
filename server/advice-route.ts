@@ -149,7 +149,24 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
     ...(options.build == null ? {} : { build: options.build }),
   }));
 
-  app.post('/api/advice', async (request: FastifyRequest, reply: FastifyReply) => {
+  // The limit is an onRequest hook: it runs before the body is read or parsed,
+  // so a big or broken body costs nothing once the quota is spent.
+  const limit = async (_request: FastifyRequest, reply: FastifyReply) => {
+    if (!allow()) {
+      return reply.code(429).send({
+        issues: [
+          {
+            code: LLM_ISSUE_CODES.LLM_HTTP_ERROR,
+            severity: 'error',
+            message: 'Превышен лимит обращений к ассистенту на этом сервере. Повторите позже.',
+            refs: [],
+          },
+        ],
+      });
+    }
+  };
+
+  app.post('/api/advice', { onRequest: limit }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = bodySchema.safeParse(request.body);
     if (!body.success) {
       return badRequest(reply, [
@@ -197,19 +214,6 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
         'Расчёту нечего объяснять: рекомендаций нет.',
       );
     }
-    if (!allow()) {
-      return reply.code(429).send({
-        issues: [
-          {
-            code: LLM_ISSUE_CODES.LLM_HTTP_ERROR,
-            severity: 'error',
-            message: 'Превышен лимит обращений к ассистенту на этом сервере. Повторите позже.',
-            refs: [],
-          },
-        ],
-      });
-    }
-
     const answer = await options.llm({
       system: SYSTEM_PROMPT,
       user: userPrompt(recommendations, body.data.query),
