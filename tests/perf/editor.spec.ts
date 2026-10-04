@@ -49,6 +49,13 @@ function median(values: number[]): number {
 
 type Probe = { q02: Promise<number> };
 
+/**
+ * Waits after open, filter, clear and reopen. On the dev build 1000 rows take
+ * 3–10 s, more on a loaded machine, so the 5 s default expect timeout failed
+ * a correct page (#82). The spec measures these times; budgets are separate.
+ */
+const step = expect.configure({ timeout: 60_000 });
+
 /** A broken interaction probe must fail quickly, not consume the 10-minute test timeout. */
 const INTERACTION_PROBE_TIMEOUT_MS = 10_000;
 
@@ -77,11 +84,11 @@ for (const config of CASES) {
         // not the old table that already has the expected number of rows.
         page.once('dialog', (dialog) => void dialog.accept());
         await page.getByRole('button', { name: 'Создать новый' }).click();
-        await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+        await step(page.getByText('Оборудование ещё не размещено')).toBeVisible();
         const warmStarted = performance.now();
         await page.getByTestId('plan-file-input').setInputFiles(file);
-        await expect(rows).toHaveCount(config.objects);
-        await expect(page.getByTestId('room-free')).toContainText('м²');
+        await step(rows).toHaveCount(config.objects);
+        await step(page.getByTestId('room-free')).toContainText('м²');
         const warmOpenMs = performance.now() - warmStarted;
 
         const rowButton = await rows.first().locator('button').first().elementHandle();
@@ -122,7 +129,7 @@ for (const config of CASES) {
         const selectStarted = performance.now();
         await rowButton.click();
         const selectMs = await page.evaluate(() => (window as unknown as Probe).q02);
-        await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'eq_0');
+        await step(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'eq_0');
         const selectWallMs = performance.now() - selectStarted;
 
         // Zoom redraws every shape of every layer: the cost a thousand objects
@@ -146,14 +153,19 @@ for (const config of CASES) {
         }
         const zoomMs = median(zoomSteps);
 
+        // The query is a type of the plan itself: a hard-coded id went stale when
+        // the catalog renamed it, the filter found nothing and the step measured
+        // an empty table (#82).
+        const query = plan.objects[0]!.typeId;
+        const matching = plan.objects.filter((object) => object.typeId.includes(query)).length;
         const search = page.getByLabel('Поиск по перечню');
         const filterStarted = performance.now();
-        await search.fill('ot_window');
-        await expect(rows).toHaveCount(plan.objects.filter((object) => object.typeId === 'ot_window').length);
+        await search.fill(query);
+        await step(rows).toHaveCount(matching);
         const filterMs = performance.now() - filterStarted;
         const clearFilterStarted = performance.now();
         await search.fill('');
-        await expect(rows).toHaveCount(config.objects);
+        await step(rows).toHaveCount(config.objects);
         const clearFilterMs = performance.now() - clearFilterStarted;
 
         const validateMs = SERVER === 'preview' ? null : await page.evaluate(async (document) => {
@@ -178,9 +190,9 @@ for (const config of CASES) {
         // the plan is never cleared, so the reopen below measures nothing.
         page.once('dialog', (dialog) => void dialog.accept());
         await page.getByRole('button', { name: 'Создать новый' }).click();
-        await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+        await step(page.getByText('Оборудование ещё не размещено')).toBeVisible();
         await page.getByTestId('plan-file-input').setInputFiles(saved);
-        await expect(rows).toHaveCount(config.objects);
+        await step(rows).toHaveCount(config.objects);
         const saveReopenMs = performance.now() - saveStarted;
         const heapBytes = await page.evaluate(() => {
           const memory = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory;
