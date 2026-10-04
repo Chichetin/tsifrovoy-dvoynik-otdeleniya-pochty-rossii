@@ -265,6 +265,8 @@ const LAYOUT_VERB = /(?:^|[^а-я])(разложи|расставь|перест
 
 /** #126: an imperative verb makes a clause an edit; «где поставить» stays a question about a place. */
 const EDIT_VERB = /(?:^|[^а-я])(раздвинь|сдвинь|передвинь|подвинь|перемести|поверни|разверни|удали|убери|добавь|поставь)(?:[^а-я]|$)/;
+/** #150: a question about a place — the only reading that turns a type name into a search. */
+const PLACE_INTENT = /постав|добав|размест|установ|повес|помест|куда|где|мест[оау]|влез|вместит|нужн/;
 const DIRECTIONS: Record<string, [number, number]> = { влево: [-1, 0], вправо: [1, 0], вверх: [0, 1], вниз: [0, -1] };
 
 /** The label that shares the longest word starts with the clause: «окно» finds «Кассовое окно». */
@@ -366,12 +368,27 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (cameras !== null && !STORAGE_ROOM.test(text) && CAMERA_COVERAGE.test(text)) {
     return placeRoute(plan, cameras.typeId, zoneId);
   }
-  if (typeId !== null) return placeRoute(plan, typeId, zoneId);
+  if (typeId !== null && PLACE_INTENT.test(text)) return placeRoute(plan, typeId, zoneId);
   if (zoneId !== null) {
     return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
   }
-  return [{ name: 'plan_overview', args: {} }];
+  // #150: no scenario fits — no calls; the answer says so and lists what the calculation can do.
+  return [];
 }
+
+/** #150: the honest answer to a question no scenario fits. The plan is not touched, no place is offered. */
+const NOT_UNDERSTOOD = [
+  'Не понял вопрос без модели. Расчёт умеет:',
+  '— найти место: «Где поставить ещё одно кассовое окно?»;',
+  '— проверить комплектование: «Чего не хватает или что лишнее?»;',
+  '— показать эффект изменений: «Как мои изменения повлияли на свободную площадь?»;',
+  '— проверить план: «Какие ошибки в плане?»;',
+  '— описать зону: «Что находится в зоне ожидания?»;',
+  '— разложить зону: «Разложи зону ожидания»;',
+  '— внести правку: «Сдвинь стеллажи вправо на 1 м», «Добавь окно в зале»;',
+  '— покрытие камер: «Где слепые пятна у камер?».',
+  'План не изменён, место не предлагалось.',
+].join('\n\n');
 
 /**
  * After the calls: the best placement variant is offered, as the model would.
@@ -552,7 +569,7 @@ export function composeFallbackText(
   if (state.actions.some((action) => action.kind === 'apply-candidate')) {
     parts.push('Вариант показан на плане полупрозрачно — его можно применить кнопкой ниже.');
   }
-  return parts.length === 0 ? 'Расчёт не нашёл, что ответить на этот вопрос. Уточните, о какой зоне или оборудовании речь.' : parts.join('\n\n');
+  return parts.length === 0 ? NOT_UNDERSTOOD : parts.join('\n\n');
 }
 
 /**
