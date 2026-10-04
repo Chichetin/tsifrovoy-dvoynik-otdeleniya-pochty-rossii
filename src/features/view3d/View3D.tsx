@@ -17,6 +17,7 @@
 import { Component, lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import type { View3DProps } from '../../contracts/ui';
 import { buildScene } from './scene';
+import { visitorPose } from './visitor';
 import { hasWebgl } from './webgl';
 import { canvasRecoveryUrl } from './module-recovery';
 import { planFileName } from '../../persistence/plan-svg';
@@ -44,6 +45,7 @@ const newCanvas = (retry = false) => lazy(async () => {
 
 export function View3D({ document, selection, onSelect }: View3DProps): React.JSX.Element {
   const scene = useMemo(() => buildScene(document), [document]);
+  const visitor = useMemo(() => visitorPose(document), [document]);
   // Probed once per session, not per mount: every probe costs a GPU context.
   const [webgl] = useState(hasWebgl);
   const [{ Canvas, attempt }, setLoad] = useState(() => ({ Canvas: newCanvas(), attempt: 0 }));
@@ -76,7 +78,7 @@ export function View3D({ document, selection, onSelect }: View3DProps): React.JS
                 </p>
               }
             >
-              <Canvas scene={scene} selection={selection} onSelect={onSelect} fileName={pictureName} />
+              <Canvas scene={scene} visitor={visitor} selection={selection} onSelect={onSelect} fileName={pictureName} />
             </Suspense>
           </LoadFailure>
         ) : (
