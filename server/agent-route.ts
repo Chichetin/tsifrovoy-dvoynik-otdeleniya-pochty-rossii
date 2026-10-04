@@ -19,7 +19,12 @@ export type AgentRouteOptions = {
   chat: LlmChat | null;
   rateLimit: { max: number; windowMs: number };
   deadlineMs: number;
+  /** #137: one model call's timeout; the page waits this long plus a margin. Null — no model. */
+  llmTimeoutMs?: number | null;
 };
+
+/** The header that names `llmTimeoutMs` on the agent's stream. */
+export const LLM_TIMEOUT_HEADER = 'x-llm-timeout-ms';
 
 export function registerAgentRoute(app: FastifyInstance, options: AgentRouteOptions): void {
   const allow = createLimiter(options.rateLimit);
@@ -50,7 +55,11 @@ export function registerAgentRoute(app: FastifyInstance, options: AgentRouteOpti
     }
 
     reply.hijack();
-    reply.raw.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-cache' });
+    reply.raw.writeHead(200, {
+      'content-type': 'application/x-ndjson; charset=utf-8',
+      'cache-control': 'no-cache',
+      ...(options.llmTimeoutMs == null ? {} : { [LLM_TIMEOUT_HEADER]: String(options.llmTimeoutMs) }),
+    });
     const send = (event: AgentStreamEvent): void => {
       reply.raw.write(`${JSON.stringify(event)}\n`);
     };
