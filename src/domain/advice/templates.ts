@@ -18,12 +18,9 @@ import type {
   Recommendation,
 } from '../../contracts/advice';
 import { REASON_CODE_SPECS } from '../../contracts/advice-semantics';
+import { formatNumber } from '../number-format';
 import { defaultExplanation } from './explanation';
 
-/** Русская запись числа: разделитель дробной части — запятая. */
-function formatNumber(value: number, fractionDigits: number): string {
-  return value.toFixed(fractionDigits).replace('.', ',');
-}
 
 function formatFact(fact: Fact): string {
   if (fact.unit === 'count') return String(fact.value);
