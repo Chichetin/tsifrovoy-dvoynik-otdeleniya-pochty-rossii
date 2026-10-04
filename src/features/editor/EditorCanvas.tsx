@@ -83,6 +83,7 @@ export function EditorCanvas({
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const panning = useRef<Point | null>(null);
+  const [spaceHeld, setSpaceHeld] = useState(false);
   // Browsers may not deliver pointermove for a middle-button drag after the
   // canvas captures the pointer. Keep a DOM mouse fallback for that button.
   const middleMousePanning = useRef<Point | null>(null);
@@ -354,6 +355,69 @@ export function EditorCanvas({
     [onPointer, session.tool, session.viewport],
   );
 
+  // Capture before Konva: Space must pan even over an object or a vertex,
+  // without starting its selection, drag or drawing gesture.
+  useEffect(() => {
+    let held = false;
+    let from: Point | null = null;
+    const reset = (): void => {
+      held = false;
+      from = null;
+      setSpaceHeld(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.code === 'Escape') { reset(); return; }
+      if (event.code !== 'Space' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      if (event.target instanceof Element && event.target.closest('button, a, summary, [role="button"], [aria-modal="true"]') !== null) return;
+      event.preventDefault();
+      held = true;
+      setSpaceHeld(true);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.code !== 'Space') return;
+      held = false;
+      setSpaceHeld(false);
+      // Keep the active drag until pointer-up, even if Space is released first.
+    };
+    const onDown = (event: PointerEvent): void => {
+      if (!held || event.button !== 0 || !(event.target instanceof Node) || !host.current?.contains(event.target)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      userInteracted.current = true;
+      from = [event.clientX, event.clientY];
+    };
+    const onMove = (event: PointerEvent): void => {
+      if (from === null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      from = [event.clientX, event.clientY];
+    };
+    const onUp = (event: PointerEvent): void => {
+      if (from === null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      from = null;
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', reset);
+    window.addEventListener('blur', reset);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', reset);
+      window.removeEventListener('blur', reset);
+    };
+  }, [applyViewport]);
+
   useEffect(() => {
     const element = host.current;
     if (element === null) return;
@@ -484,6 +548,9 @@ export function EditorCanvas({
   return (
     <div
       className="editor-canvas"
+      tabIndex={0}
+      aria-label="План отделения"
+      style={spaceHeld ? { cursor: 'grab' } : undefined}
       ref={host}
       data-testid="editor-canvas"
       onDragOver={handleDragOver}
