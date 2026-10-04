@@ -590,7 +590,7 @@
       "typeId": "ot_media_panel",
       "label": "Медиапанель у входа",
       "position": [
-        6.6,
+        8.45,
         0.25
       ],
       "size_m": [
@@ -1621,7 +1621,7 @@
       "typeId": "ot_goods_rack",
       "label": "Стеллаж товаров служебной зоны",
       "position": [
-        13,
+        11.6,
         5.8
       ],
       "size_m": [
@@ -1846,7 +1846,7 @@
       "typeId": "ot_parcel_rack",
       "label": "Стеллаж посылок 1",
       "position": [
-        10.6,
+        10.3,
         6.7
       ],
       "size_m": [
@@ -1869,7 +1869,7 @@
       "typeId": "ot_parcel_rack",
       "label": "Стеллаж посылок 2",
       "position": [
-        12.2,
+        11.6,
         6.7
       ],
       "size_m": [
