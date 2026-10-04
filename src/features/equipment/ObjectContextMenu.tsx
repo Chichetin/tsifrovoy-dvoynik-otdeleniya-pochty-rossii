@@ -46,6 +46,9 @@ export function ObjectContextMenu({
   }, [onClose]);
 
   const move = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+    // Arrows, R, Delete and Ctrl+D belong to the menu while it is open: the plan
+    // behind it listens on the window and would move or delete the object.
+    event.stopPropagation();
     if (event.key === 'Escape' || event.key === 'Tab') {
       event.preventDefault();
       onClose();

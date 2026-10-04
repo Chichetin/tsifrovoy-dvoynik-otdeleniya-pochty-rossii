@@ -404,11 +404,12 @@ export function EditorCanvas({
   // takes the capture phase, which runs ahead of every bubbling one — and
   // ahead of a modal window's own capture listener, registered later: Escape
   // pressed inside an `aria-modal` window closes that window, not the
-  // selection behind it (D-351).
+  // selection behind it (D-351); pressed in an object's menu it closes the
+  // menu (#24).
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape' || isTypingTarget(event.target)) return;
-      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"], [role="menu"]') !== null) return;
       if (Konva.isDragging()) return;
       onPointer({ phase: 'cancel', point: [0, 0], shift: false, alt: false, button: 0 });
       onSelect(null);

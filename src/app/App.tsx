@@ -16,7 +16,7 @@ import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
 import type { Command, DocumentOrigin } from '../contracts/commands';
-import type { Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
+import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
 import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
@@ -32,6 +32,7 @@ import {
 import { validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
+import { selectionQuestions } from '../features/assistant/AgentChat';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { requestAdvice } from '../features/assistant/advice-client';
@@ -41,7 +42,7 @@ import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStat
 import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
 import { placementGhost } from '../features/equipment/placement-ghost';
 import { ObjectContextMenu } from '../features/equipment/ObjectContextMenu';
-import { objectAtPoint, objectQuestion, type ObjectMenuAction } from '../features/equipment/object-menu';
+import type { ObjectMenuAction } from '../features/equipment/object-menu';
 import { duplicateObjects, rotateObjects } from '../features/equipment/selection-edit';
 import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { planExtent } from '../features/editor/focus';
@@ -694,8 +695,10 @@ export function App(): React.JSX.Element {
   );
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
-  // for the selected one. The actions are the commands the keys already run.
+  // for the selected one. The actions are the commands the keys already run;
+  // on a member of a picked group they act on the whole group, like the keys.
   const [objectMenu, setObjectMenu] = useState<{ id: Id; at: Point } | null>(null);
+  const menuObject = objectMenu === null ? undefined : document.objects.find((entry) => entry.id === objectMenu.id);
   const menuReturnFocus = useRef<HTMLElement | null>(null);
   const rightPress = useRef<Point | null>(null);
   const closeObjectMenu = useCallback(() => {
@@ -703,47 +706,55 @@ export function App(): React.JSX.Element {
     menuReturnFocus.current?.focus();
     menuReturnFocus.current = null;
   }, []);
+  // Undo, or any edit, can take the object away from under an open menu: it
+  // closes, and a redo does not bring it back.
+  if (objectMenu !== null && menuObject === undefined) setObjectMenu(null);
   const openObjectMenu = useCallback(
     (id: Id, at: Point) => {
       menuReturnFocus.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null;
-      selectOnPlan({ kind: 'object', id });
+      if (!(selected.has(id) && selected.size > 1)) selectOnPlan({ kind: 'object', id });
       setObjectMenu({ id, at });
     },
-    [selectOnPlan],
+    [selected, selectOnPlan],
   );
   const runObjectMenu = useCallback(
     (action: ObjectMenuAction) => {
-      const object = document.objects.find((entry) => entry.id === objectMenu?.id);
+      const object = menuObject;
       closeObjectMenu();
       if (object === undefined) return;
+      const targets = selected.has(object.id) && selected.size > 1 ? document.objects.filter((entry) => selected.has(entry.id)) : [object];
+      const put = (entry: Equipment): Command => ({ type: 'object.put', object: entry });
       if (action === 'rotate') {
-        const [turned] = rotateObjects([object], ROTATION_SNAP_DEG);
-        if (turned !== undefined) dispatch({ type: 'object.put', object: turned });
+        dispatch({ type: 'batch', commands: rotateObjects(targets, ROTATION_SNAP_DEG).map(put) });
       } else if (action === 'duplicate') {
-        const copies = duplicateObjects([object], takenIds(document, retired));
-        const copy = copies[0];
-        if (copy !== undefined && dispatch({ type: 'batch', commands: copies.map((entry) => ({ type: 'object.put', object: entry })) }).ok) {
-          selectOnPlan({ kind: 'object', id: copy.id });
+        const copies = duplicateObjects(targets, takenIds(document, retired));
+        if (copies.length > 0 && dispatch({ type: 'batch', commands: copies.map(put) }).ok) {
+          if (copies.length > 1) selectMany(copies.map((entry) => entry.id));
+          else selectOnPlan({ kind: 'object', id: copies[0]!.id });
         }
       } else if (action === 'delete') {
-        dispatch({ type: 'object.delete', id: object.id });
+        dispatch({ type: 'batch', commands: targets.map((entry): Command => ({ type: 'object.delete', id: entry.id })) });
       } else if (action === 'inventory') {
         showRightTab('inventory');
         focusOn({ kind: 'object', id: object.id });
       } else {
         showRightTab('assistant');
-        askAgent(objectQuestion(object));
+        // The assistant's own question for an object: it answers from the calculation.
+        const [question] = selectionQuestions(document, { kind: 'object', id: object.id });
+        if (question !== undefined) askAgent(question);
       }
     },
-    [askAgent, closeObjectMenu, dispatch, document, focusOn, objectMenu?.id, retired, selectOnPlan, showRightTab],
+    [askAgent, closeObjectMenu, dispatch, document, focusOn, menuObject, retired, selected, selectMany, selectOnPlan, showRightTab],
   );
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'ContextMenu' && !(event.shiftKey && event.key === 'F10')) return;
-      if (isTypingTarget(event.target) || view !== '2d' || selection?.kind !== 'object') return;
+      if (objectMenu !== null || isTypingTarget(event.target) || view !== '2d' || selection?.kind !== 'object') return;
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return;
       const object = document.objects.find((entry) => entry.id === selection.id);
       const canvas = window.document.querySelector('[data-testid="editor-canvas"]');
-      if (object === undefined || canvas === null) return;
+      // An object on a hidden layer is not on the screen: no keys act on it either.
+      if (object === undefined || canvas === null || document.layers.find((layer) => layer.id === object.layerId)?.visible !== true) return;
       event.preventDefault();
       const bounds = canvas.getBoundingClientRect();
       const [x, y] = modelToScreen(object.position, viewport);
@@ -751,7 +762,7 @@ export function App(): React.JSX.Element {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [document, openObjectMenu, selection, view, viewport]);
+  }, [document, objectMenu, openObjectMenu, selection, view, viewport]);
 
   const runAgentAction = useCallback(
     (action: AssistantAction, answer: AgentAnswer) => {
@@ -1116,11 +1127,13 @@ export function App(): React.JSX.Element {
             if (event.button !== 2 || from === null || view !== '2d') return;
             if (Math.hypot(event.clientX - from[0], event.clientY - from[1]) > 4) return;
             if (tool.kind !== 'select' && tool.kind !== 'pan') return;
+            // Only the plan itself: the buttons and the status line lie over it.
             const canvas = event.currentTarget.querySelector('[data-testid="editor-canvas"]');
-            if (canvas === null) return;
+            if (canvas === null || !canvas.contains(event.target as Node)) return;
             const bounds = canvas.getBoundingClientRect();
-            const object = objectAtPoint(
+            const object = findPlacementPick(
               shownDocument,
+              null,
               screenToModel([event.clientX - bounds.left, event.clientY - bounds.top], viewport),
               viewport.scale,
             );
@@ -1374,12 +1387,9 @@ export function App(): React.JSX.Element {
         setDemoRequest((previous) => ({ id: (previous?.id ?? 0) + 1, variant }));
       }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
-      {(() => {
-        const object = objectMenu === null ? undefined : document.objects.find((entry) => entry.id === objectMenu.id);
-        return objectMenu === null || object === undefined ? null : (
-          <ObjectContextMenu object={object} at={objectMenu.at} onAction={runObjectMenu} onClose={closeObjectMenu} />
-        );
-      })()}
+      {menuObject === undefined || objectMenu === null ? null : (
+        <ObjectContextMenu object={menuObject} at={objectMenu.at} onAction={runObjectMenu} onClose={closeObjectMenu} />
+      )}
       {/* Mounted only while open: every opening starts with an empty query. */}
       {!searchOpen ? null : <QuickSearchDialog
         plan={document}
