@@ -48,6 +48,15 @@ import {
 } from '../geometry';
 import { NBSP, formatLength, formatShort } from '../number-format';
 import { RELATION_ISSUE_CODES, relationIssues } from '../relations';
+import { MAINTENANCE_WARNING_DAYS, localToday, maintenanceStatus } from './maintenance';
+
+export {
+  MAINTENANCE_DATE_KEY,
+  MAINTENANCE_WARNING_DAYS,
+  type MaintenanceStatus,
+  localToday,
+  maintenanceStatus,
+} from './maintenance';
 
 /** UI metadata kept outside the persisted, shared Issue contract. */
 export type ValidationIssue = Issue & { ruleIds?: Id[] };
@@ -84,6 +93,12 @@ export const VALIDATION_ISSUE_CODES = {
   RULE_TOO_FAR_FROM_ENTRANCE: 'RULE_TOO_FAR_FROM_ENTRANCE',
   /** A distance rule cannot be checked because the plan has no entrance. */
   RULE_ENTRANCE_MISSING: 'RULE_ENTRANCE_MISSING',
+  /** The next maintenance date of an object has passed. */
+  MAINTENANCE_OVERDUE: 'MAINTENANCE_OVERDUE',
+  /** The next maintenance date is today or within the warning window. */
+  MAINTENANCE_DUE_SOON: 'MAINTENANCE_DUE_SOON',
+  /** The next maintenance attribute holds text that is not a date. */
+  MAINTENANCE_DATE_INVALID: 'MAINTENANCE_DATE_INVALID',
 } as const;
 
 function issue(
@@ -131,7 +146,7 @@ function openingName(opening: Opening): string {
  * references into nothing, a version from the future — is refused earlier, by
  * the schema; what is left here is a plan that loads and is still wrong.
  */
-export function validatePlan(plan: PlanDocument): ValidationIssue[] {
+export function validatePlan(plan: PlanDocument, today: string = localToday()): ValidationIssue[] {
   const unusable = unusableGeometry(plan);
   // Containment, collisions and areas are meaningless on a self-intersecting
   // polygon, so the first thing to fix is reported alone.
@@ -146,6 +161,7 @@ export function validatePlan(plan: PlanDocument): ValidationIssue[] {
     ...ceilingIssues(plan),
     ...inventoryNumberIssues(plan),
     ...missingInventoryNumberIssues(plan),
+    ...maintenanceIssues(plan, today),
     ...ruleIssues(plan),
     ...withoutRepeats(relationIssues(plan), placement),
   ];
@@ -489,6 +505,35 @@ function ceilingIssues(plan: PlanDocument): Issue[] {
         footprint(object),
       ),
     );
+  }
+  return issues;
+}
+
+/**
+ * #29: the next maintenance date (`MAINTENANCE_DATE_KEY`) against `today`
+ * («YYYY-MM-DD»). A team rule, so a warning: a date passed — overdue; today
+ * or within 14 days — due soon; not a date — the message quotes the text.
+ */
+function maintenanceIssues(plan: PlanDocument, today: string): Issue[] {
+  const note = `Правило команды: предупреждение за ${MAINTENANCE_WARNING_DAYS}${NBSP}дн. до даты «Следующее ТО», не норматив Почты.`;
+  const issues: Issue[] = [];
+  for (const object of plan.objects) {
+    const status = maintenanceStatus(object, today);
+    if (status === null) continue;
+    let code: string;
+    let message: string;
+    if (status.kind === 'overdue') {
+      code = VALIDATION_ISSUE_CODES.MAINTENANCE_OVERDUE;
+      message = `ТО объекта «${object.label}» просрочено: срок ${status.date}, прошло ${status.days}${NBSP}дн. ${note}`;
+    } else if (status.kind === 'due-soon') {
+      code = VALIDATION_ISSUE_CODES.MAINTENANCE_DUE_SOON;
+      const when = status.days === 0 ? 'сегодня' : `через ${status.days}${NBSP}дн.`;
+      message = `ТО объекта «${object.label}» ${when}: срок ${status.date}. ${note}`;
+    } else {
+      code = VALIDATION_ISSUE_CODES.MAINTENANCE_DATE_INVALID;
+      message = `У объекта «${object.label}» в поле «Следующее ТО» не дата: «${status.text}». Впишите дату как 2026-10-18 или 18.10.2026.`;
+    }
+    issues.push(issue(code, 'warning', message, [{ kind: 'object', id: object.id }], footprint(object)));
   }
   return issues;
 }

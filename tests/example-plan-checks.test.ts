@@ -247,6 +247,38 @@ describe('исправление снимает ровно свой код', () 
   });
 });
 
+describe('срок ТО (#29)', () => {
+  const kiosk = plan.objects.find((object) => object.id === 'eq_kiosk');
+  if (kiosk === undefined) throw new Error('нет eq_kiosk');
+  const codesFor = (date: string, today = '2026-10-04'): string[] => {
+    const next = applyCommand(plan, {
+      type: 'object.put',
+      object: { ...kiosk, attributes: { ...kiosk.attributes, nextMaintenanceDate: date } },
+    });
+    if (!next.ok) throw new Error('правка не применилась');
+    return validatePlan(next.value, today)
+      .filter((entry) => entry.code.startsWith('MAINTENANCE_'))
+      .map((entry) => entry.code);
+  };
+
+  test('тип терминала очереди несёт атрибут из справочника, пример без дат молчит', () => {
+    const type = plan.catalog.objectTypes.find((entry) => entry.id === kiosk.typeId);
+    expect(type?.attributes.some((attribute) => attribute.key === 'nextMaintenanceDate')).toBe(true);
+    expect(type?.provenance).toContain('синтетическая');
+    expect(issues.filter((entry) => entry.code.startsWith('MAINTENANCE_'))).toEqual([]);
+  });
+
+  test('границы: 15 дн. — тихо, 14 и 0 дн. — скоро, вчера — просрочено', () => {
+    expect(codesFor('2026-10-19')).toEqual([]);
+    expect(codesFor('2026-10-18')).toEqual([VALIDATION_ISSUE_CODES.MAINTENANCE_DUE_SOON]);
+    expect(codesFor('04.10.2026')).toEqual([VALIDATION_ISSUE_CODES.MAINTENANCE_DUE_SOON]);
+    expect(codesFor('2026-10-03')).toEqual([VALIDATION_ISSUE_CODES.MAINTENANCE_OVERDUE]);
+    expect(codesFor('31.02.2026')).toEqual([VALIDATION_ISSUE_CODES.MAINTENANCE_DATE_INVALID]);
+    // Тот же срок через год после «сегодня» — снова просрочен: день — параметр, не часы.
+    expect(codesFor('2026-10-19', '2027-10-04')).toEqual([VALIDATION_ISSUE_CODES.MAINTENANCE_OVERDUE]);
+  });
+});
+
 describe('ключ атрибута из подписи (#13)', () => {
   test('транслитерация: «Дата поверки» → data_poverki', () => {
     expect(attributeKeyFromLabel('Дата поверки', [])).toBe('data_poverki');

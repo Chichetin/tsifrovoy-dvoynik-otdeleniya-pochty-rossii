@@ -14,6 +14,7 @@
 
 import type { Attributes, Equipment, Id, Inventory } from '../../contracts/model';
 import type { PlanIndex } from '../../domain/plan-index';
+import { type MaintenanceStatus, maintenanceStatus } from '../../domain/validation';
 import { attributeText } from '../../persistence/inventory-csv';
 
 /** Human names for ids taken from the plan; `null` means "no such id there". */
@@ -40,11 +41,19 @@ export type ObjectRow = {
   zoneName: string | null;
   /** The object's own attributes: the catalog columns read them by key. */
   attributes: Attributes;
+  /** Next maintenance (#29): overdue, due within 14 days, or not a date; `null` — nothing to do. */
+  maintenance: MaintenanceStatus | null;
   /** Lowercased haystack for the filter: ids, names and attribute values. */
   haystack: string;
 };
 
-export type InventoryFilter = { query: string; typeId: Id | null };
+/** `maintenanceDue` keeps only rows whose maintenance is overdue or due soon. */
+export type InventoryFilter = { query: string; typeId: Id | null; maintenanceDue?: boolean };
+
+/** Overdue or due within the warning window: what the «ТО» filter keeps. */
+export function maintenanceDue(row: ObjectRow): boolean {
+  return row.maintenance !== null && row.maintenance.kind !== 'invalid';
+}
 
 /**
  * The attribute that holds the inventory number. It is an ordinary catalog
@@ -115,7 +124,8 @@ export function zoneSummary(inventory: Inventory, naming: Naming): ZoneSummaryRo
   }));
 }
 
-export function objectRows(inventory: Inventory, naming: Naming): ObjectRow[] {
+/** `today` is «YYYY-MM-DD», the same day the plan check uses. */
+export function objectRows(inventory: Inventory, naming: Naming, today: string): ObjectRow[] {
   return inventory.rows.map((object) => {
     const typeLabel = naming.objectTypeLabel(object.typeId);
     const zoneName = object.zoneId === null ? null : naming.zoneName(object.zoneId);
@@ -128,6 +138,7 @@ export function objectRows(inventory: Inventory, naming: Naming): ObjectRow[] {
       zoneId: object.zoneId,
       zoneName,
       attributes: object.attributes,
+      maintenance: maintenanceStatus(object, today),
       haystack: haystackOf(object, typeLabel, zoneName),
     };
   });
@@ -158,6 +169,7 @@ export function filterObjectRows(rows: ObjectRow[], filter: InventoryFilter): Ob
   const terms = filter.query.toLowerCase().split(/\s+/).filter((term) => term !== '');
   return rows.filter((row) => {
     if (filter.typeId !== null && row.typeId !== filter.typeId) return false;
+    if (filter.maintenanceDue === true && !maintenanceDue(row)) return false;
     return terms.every((term) => row.haystack.includes(term));
   });
 }
