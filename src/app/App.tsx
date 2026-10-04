@@ -90,6 +90,8 @@ import {
   type RightTab,
 } from './side-tabs';
 import { ObjectQuickActions } from './ObjectQuickActions';
+import { SelectionDelete } from './SelectionDelete';
+import { selectionDeletion } from './selection-delete';
 import { SideTabs } from './SideTabs';
 import { PlanTitle } from './PlanTitle';
 import { SettingsDialog } from './SettingsDialog';
@@ -357,6 +359,9 @@ export function App(): React.JSX.Element {
   const quickDisabled =
     quickObject === undefined || quickObject.locked === true || quickLayer === undefined || !quickLayer.visible || quickLayer.locked;
 
+  // #121: «Удалить» with its name and its consequence, for any selected thing.
+  const deletion = selectionDeletion(selection, selected, document);
+
   const select = useCallback(
     (ref: Ref | null) => {
       store.getState().select(ref);
@@ -469,6 +474,11 @@ export function App(): React.JSX.Element {
     select(null);
     window.document.getElementById(`side-right-tab-${tabs.right}`)?.focus();
   }, [select, tabs.right]);
+
+  // #121: the button of the card sends the command the key would send.
+  const deleteSelection = useCallback(() => {
+    if (deletion?.command != null && dispatch(deletion.command).ok) select(null);
+  }, [deletion, dispatch, select]);
 
   // A click on an issue marker (V02-marker-click) is a request for the list:
   // the selection goes to the card, «Проверка» comes to the front
@@ -1328,7 +1338,13 @@ export function App(): React.JSX.Element {
                   </svg>
                 </button>
               </div>
-              {quickObject === undefined ? null : (
+              {quickObject === undefined ? (
+                deletion === null ? null : (
+                  <section className="props-quick" aria-label="Удаление">
+                    <SelectionDelete deletion={deletion} onDelete={deleteSelection} />
+                  </section>
+                )
+              ) : (
                 <ObjectQuickActions
                   object={quickObject}
                   disabled={quickDisabled}
@@ -1340,7 +1356,9 @@ export function App(): React.JSX.Element {
                       object: { ...quickObject, rotation_deg: normalizeAngle(quickObject.rotation_deg + deltaDeg) || 0 },
                     });
                   }}
-                />
+                >
+                  {deletion === null ? null : <SelectionDelete deletion={deletion} onDelete={deleteSelection} />}
+                </ObjectQuickActions>
               )}
               <div className="shell__props-body">
                 <PropertiesPanel

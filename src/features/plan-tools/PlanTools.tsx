@@ -20,7 +20,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import type { Ref } from '../../contracts/model';
 import type { PlanToolsProps, ToolKind } from '../../contracts/ui';
-import { deleteIntent } from './delete-key';
 import { setNotice, useNotice } from './notice';
 
 /**
@@ -141,11 +140,9 @@ export function PlanTools({
   document: plan,
   session,
   onTool,
-  onCommand,
   drawingActive = false,
 }: PlanToolsProps & { drawingActive?: boolean }): React.JSX.Element {
   const notice = useNotice();
-  const intent = deleteIntent(session.selection, plan);
   const tool = session.tool;
   const toolbar = useRef<HTMLDivElement>(null);
   const shapeType =
@@ -185,27 +182,6 @@ export function PlanTools({
           ) : null}
         </Fragment>
       ))}
-
-      {/* D-254: icon + aria-label, not text — «Удалить перегородку» was the
-          widest button in the row and overflowed the header at 1280/1440 px
-          (operator's report, red main). The full name stays the accessible
-          name (other e2e look it up by it), the icon and title carry it for
-          sighted users. */}
-      {intent?.kind !== 'delete' ? null : (
-        <button
-          type="button"
-          className="toolbar__button toolbar__button--icon"
-          title={`Удалить ${intent.label} — то же делают клавиши Delete и Backspace`}
-          aria-label={`Удалить ${intent.label}`}
-          onClick={() => onCommand(intent.command)}
-        >
-          <svg className="toolbar__icon" viewBox="0 0 16 16" aria-hidden="true">
-            <path d="M3 4.5h10" />
-            <path d="M6.25 4.5V3.2a1 1 0 0 1 1-1h1.5a1 1 0 0 1 1 1V4.5" />
-            <path d="M4.5 4.5 5.1 13a1 1 0 0 0 1 .9h3.8a1 1 0 0 0 1-.9l.6-8.5" />
-          </svg>
-        </button>
-      )}
 
       {/* Hints live in a plaque over the canvas, not in the header row: a long
           line there wrapped the header and moved the plan (operator №16). */}

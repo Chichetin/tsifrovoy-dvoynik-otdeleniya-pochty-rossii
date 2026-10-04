@@ -10,6 +10,7 @@
  * handles appear, and a double click on the object opens the vertex mode.
  */
 
+import type { ReactNode } from 'react';
 import type { Equipment } from '../contracts/model';
 
 export type ObjectQuickActionsProps = {
@@ -20,6 +21,8 @@ export type ObjectQuickActionsProps = {
   onReshape: (on: boolean) => void;
   /** Positive is clockwise (D-010). */
   onRotate: (deltaDeg: number) => void;
+  /** More actions of the same card, below the switch (#121: «Удалить»). */
+  children?: ReactNode;
 };
 
 export function ObjectQuickActions({
@@ -28,9 +31,10 @@ export function ObjectQuickActions({
   reshape,
   onReshape,
   onRotate,
+  children,
 }: ObjectQuickActionsProps): React.JSX.Element {
   return (
-    <section className="props-quick" aria-label="Поворот и форма" data-testid="object-quick-actions" data-entity-id={object.id}>
+    <section className="props-quick" aria-label="Действия с объектом" data-testid="object-quick-actions" data-entity-id={object.id}>
       <div className="props-quick__row">
         <span className="props-quick__label">Повернуть</span>
         <button
@@ -71,6 +75,7 @@ export function ObjectQuickActions({
           Тяните за точки на рамке — меняется размер. Двойной щелчок по объекту — правка вершин.
         </p>
       ) : null}
+      {children}
     </section>
   );
 }
