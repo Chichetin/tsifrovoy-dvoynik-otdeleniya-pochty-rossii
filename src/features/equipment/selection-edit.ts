@@ -151,6 +151,7 @@ function copyObjects(source: readonly Equipment[], taken: ReadonlySet<Id>, [dx, 
         : { ...object.attributes };
     return {
       ...object,
+      ...(object.locked === true ? { locked: false } : {}),
       id,
       position: snapPosition([object.position[0] + dx, object.position[1] + dy]),
       zoneId: null,

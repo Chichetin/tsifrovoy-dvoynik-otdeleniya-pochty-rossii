@@ -33,7 +33,7 @@ export function ObjectContextMenu({
     if (element === null) return;
     element.style.left = `${Math.max(EDGE_PX, Math.min(at[0], window.innerWidth - element.offsetWidth - EDGE_PX))}px`;
     element.style.top = `${Math.max(EDGE_PX, Math.min(at[1], window.innerHeight - element.offsetHeight - EDGE_PX))}px`;
-    element.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    element.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
   }, [at]);
 
   useEffect(() => {
@@ -58,7 +58,7 @@ export function ObjectContextMenu({
       onClose();
       return;
     }
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)') ?? [])];
     const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
     const target =
       event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : step === 0 ? null : (items.indexOf(window.document.activeElement as HTMLElement) + step + items.length) % items.length;
@@ -87,6 +87,9 @@ export function ObjectContextMenu({
           role="menuitem"
           className="object-menu__item"
           data-testid={`object-menu-${item.action}`}
+          disabled={object.locked === true && (item.action === 'rotate' || item.action === 'delete')}
+          title={object.locked === true && (item.action === 'rotate' || item.action === 'delete')
+            ? 'Снимите замок объекта в свойствах' : undefined}
           onClick={() => onAction(item.action)}
         >
           <span>{item.label}</span>
