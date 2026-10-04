@@ -426,7 +426,7 @@ export const usePlanToolController = ({
       }
       if (event.phase === 'move') {
         showTarget(event);
-        if (RING_TOOLS.has(kind) && draft !== null) setCursor(settle(event));
+        if ((RING_TOOLS.has(kind) || kind === 'wall.draw') && draft !== null) setCursor(settle(event));
         if (kind === 'measure') measure(event);
         return;
       }

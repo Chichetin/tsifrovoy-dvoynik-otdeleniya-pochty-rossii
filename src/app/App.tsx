@@ -36,6 +36,7 @@ import { useComparisonSource } from '../features/assistant/use-comparison-source
 import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
 import { historyHotkey } from '../features/editor/hotkeys';
@@ -1081,6 +1082,7 @@ export function App(): React.JSX.Element {
             document={document}
             session={session}
             onPointer={(event) => {
+              if (event.phase !== 'cancel') publishCanvasCursor(event.point);
               if (placingOpening) openingTool.handlePointer(event);
               else if (drawingRoom) internalRoom.handlePointer(event);
               else planTool.handlePointer(event);
@@ -1171,6 +1173,14 @@ export function App(): React.JSX.Element {
               captions={captions}
             />
           </EditorCanvas>
+          {view === '2d' ? (
+            <CanvasStatus
+              document={shownDocument}
+              session={session}
+              draft={drawingRoom ? null : planTool.draft}
+              draftCursor={drawingRoom ? null : planTool.cursor}
+            />
+          ) : null}
           {view === '3d' ? (
             <View3D document={shownDocument} selection={selection} onSelect={selectOnPlan} />
           ) : null}
