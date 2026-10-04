@@ -228,12 +228,18 @@ case "$cmd" in
     ;;
   create)
     title="${1:?заголовок}" labels="${2:-}" body="${3:?файл описания}"
-    gl POST "$api/issues" --data-urlencode "title=$title" --data-urlencode "labels=$labels" \
-      --data-urlencode "description@$body" | jq -r '"#\(.iid) \(.web_url)"'
+    # JSON, не форма: на этом GitLab кириллица в urlencoded-форме даёт 400 (#84).
+    jq -n --arg title "$title" --arg labels "$labels" --rawfile description "$body" \
+      '{title: $title, labels: $labels, description: $description}' |
+      gl POST "$api/issues" -H 'Content-Type: application/json' --data-binary @- |
+      jq -r '"#\(.iid) \(.web_url)"'
     ;;
   comment)
     n="${1:?номер задачи}" body="${2:?файл или -}"
-    gl POST "$api/issues/$n/notes" --data-urlencode "body@$body" | jq -r '"комментарий \(.id) к #'"$n"'"'
+    if [ "$body" = - ]; then text="$(cat)"; else text="$(cat -- "$body")"; fi
+    jq -n --arg body "$text" '{body: $body}' |
+      gl POST "$api/issues/$n/notes" -H 'Content-Type: application/json' --data-binary @- |
+      jq -r '"комментарий \(.id) к #'"$n"'"'
     ;;
   label)
     n="${1:?номер задачи}" add="${2:?метки через запятую}"
