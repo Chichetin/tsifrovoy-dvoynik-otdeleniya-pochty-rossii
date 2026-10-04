@@ -32,7 +32,9 @@ import { validatePlan } from '../validation';
 import {
   PLACEMENT_ISSUE_CODES,
   PLACEMENT_SEARCH,
+  centreZoneId,
   findPlacements,
+  placementZonePath,
   separationFor,
   spreadApart,
   zoneFit,
@@ -910,6 +912,18 @@ describe('A-fit: минимум — не запрет, расстановка п
 
     // Камера на демо не сужается до служебной зоны.
     expect(zoneFit(demo, 'ot_camera', null).mode).toBe('off-floor');
+  });
+
+  test('демо: окно с центром во вложенной зоне ожидания не предлагается, подпись — по зоне центра (#140)', () => {
+    const demo = demoBefore();
+    const allowed = zoneFit(demo, 'ot_cashier_window', null).zoneIds ?? [];
+    const candidates = values(demo, 'ot_cashier_window', null);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) {
+      const centre = centreZoneId(demo, candidate.object.position);
+      expect(centre === null || allowed.includes(centre), `${candidate.id} в ${centre}`).toBe(true);
+      expect(placementZonePath(demo, candidate.object).at(-1)).toBe(centre ?? undefined);
+    }
   });
 
   test('правило с min 0 в настоящем справочнике: допустимо, не предупреждает, задаёт уместную зону', () => {
