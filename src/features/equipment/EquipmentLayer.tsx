@@ -103,7 +103,7 @@ const HOVER_RULE_GAP_PX = 9;
 type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
 
 /** Shortest lines from the moved object to the nearest wall and neighbour, in world metres. */
-type Gaps = { wall: Gap | null; object: Gap | null; axes: (Gap | null)[] };
+type Gaps = { wall: Gap | null; object: Gap | null; axes: (Gap | null)[]; width: number; height: number };
 
 /**
  * The object as the pointer is currently shaping it; null outside a gesture.
@@ -764,10 +764,12 @@ export function EquipmentLayer({
       }
       // The drop needs only the position: the distances leave with the gesture.
       const obstacles = phase === 'move' ? started?.obstacles : undefined;
+      const stage = node.getStage();
       const measured = (position: Point): Gaps | undefined =>
-        obstacles === undefined ? undefined : {
+        obstacles === undefined || stage === null ? undefined : {
           ...objectGaps({ ...object, position }, obstacles),
           axes: wallAxisGaps({ ...object, position }, obstacles.walls),
+          width: stage.width(), height: stage.height(),
         };
       const guides = started?.guides;
       if (started?.snapOff === true || guides === undefined) {
@@ -777,7 +779,6 @@ export function EquipmentLayer({
       // Already settled by the domain: a guide axis keeps the guide's own
       // millimetres, rounding it to the centimetre would push it into the wall.
       const snapped = snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale);
-      const stage = node.getStage();
       const lines: SnapLines | undefined =
         stage === null || (snapped.snap.x === null && snapped.snap.y === null)
           ? undefined
@@ -1185,6 +1186,15 @@ export function EquipmentLayer({
                 kind === 'object' &&
                 Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
                 Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
+              // A distant wall can be outside the view. Keep the number visible
+              // on the same dimension line without changing the measured gap.
+              const halfWidth = GAP_LABEL_WIDTH_PX / 2 + 4;
+              const halfHeight = GAP_LABEL_HEIGHT_PX / 2 + 4;
+              const labelX = Math.max(halfWidth, Math.min(
+                gesture.gaps!.width - halfWidth, (x1 + x2) / 2));
+              const labelY = Math.max(halfHeight, Math.min(
+                gesture.gaps!.height - halfHeight,
+                (y1 + y2) / 2 + (crowded ? GAP_LABEL_HEIGHT_PX + 2 : 0)));
               return (
                 <Fragment key={`gap-${kind}`}>
                   <Line
@@ -1204,8 +1214,8 @@ export function EquipmentLayer({
                   })}
                   <Group
                     name={`gap-label-${kind}`}
-                    x={(x1 + x2) / 2}
-                    y={(y1 + y2) / 2 + (crowded ? GAP_LABEL_HEIGHT_PX + 2 : 0)}
+                    x={labelX}
+                    y={labelY}
                     offsetX={GAP_LABEL_WIDTH_PX / 2}
                     offsetY={GAP_LABEL_HEIGHT_PX / 2}
                     listening={false}
