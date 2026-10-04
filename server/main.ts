@@ -46,10 +46,15 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
   const staticDir = config.staticDir ?? resolve(process.cwd(), 'dist');
   if (existsSync(staticDir)) {
     await app.register(fastifyStatic, { root: staticDir });
-    // SPA: любой не-API путь отдаёт index.html, маршрутизация — в браузере.
+    // SPA: путь без расширения отдаёт index.html, маршрутизация — в браузере.
+    // Путь с расширением (/x.png) — файл; нет файла — честный 404.
     app.setNotFoundHandler((request, reply) => {
       if (request.url.startsWith('/api/')) {
         return reply.code(404).send({ issues: [] });
+      }
+      const path = request.url.split('?')[0] ?? '';
+      if (/\.[^/]+$/.test(path)) {
+        return reply.code(404).type('text/plain; charset=utf-8').send('Не найдено');
       }
       return reply.sendFile('index.html');
     });
