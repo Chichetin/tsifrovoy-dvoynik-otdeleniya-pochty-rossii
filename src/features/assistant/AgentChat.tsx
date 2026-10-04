@@ -14,6 +14,7 @@ import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
 import { QUOTED_ID_PATTERN } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
+import { stopAgent } from './agent-client';
 
 const PANEL_NAMES = { metrics: 'Площади', validation: 'Проверка', inventory: 'Инвентаризация' } as const;
 
@@ -378,11 +379,23 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
           />
         </label>
         <div className="agent__form-row">
-          <button type="submit" className="files__button is-primary" disabled={working || question.trim() === ''}>
-            {working ? 'Работаю…' : 'Отправить'}
-          </button>
+          {/* #137: a running request can always be ended — by «Остановить» or by «Новый диалог». */}
+          {working ? (
+            <button type="button" className="files__button is-primary" onClick={stopAgent}>Остановить</button>
+          ) : (
+            <button type="submit" className="files__button is-primary" disabled={question.trim() === ''}>Отправить</button>
+          )}
           {exchanges.length === 0 ? null : (
-            <button type="button" className="files__button" disabled={working} onClick={onClear}>Новый диалог</button>
+            <button
+              type="button"
+              className="files__button"
+              onClick={() => {
+                stopAgent();
+                onClear();
+              }}
+            >
+              Новый диалог
+            </button>
           )}
           <span className="agent__hint">Enter — отправить, Shift+Enter — перенос</span>
         </div>

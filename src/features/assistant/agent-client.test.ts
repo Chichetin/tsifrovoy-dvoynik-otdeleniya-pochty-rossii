@@ -6,7 +6,7 @@ import { describe, expect, test } from 'vitest';
 import { AGENT_LIMITS, type AgentAnswer, type AgentStep } from '../../contracts/advice-chat';
 import minimal from '../../contracts/fixtures/minimal.json';
 import { parsePlanDocument } from '../../contracts/schema';
-import { requestAgent, turnsOf } from './agent-client';
+import { requestAgent, stopAgent, turnsOf } from './agent-client';
 
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
@@ -62,6 +62,25 @@ describe('requestAgent', () => {
     const issues = [{ code: 'REQUEST_INVALID', severity: 'error', message: 'Неверный запрос.', refs: [] }];
     const result = await requestAgent(input, () => undefined, async () => Response.json({ issues }, { status: 400 }));
     expect(result).toEqual({ ok: false, issues });
+  });
+
+  test('#137: «Остановить» и таймаут страницы завершают зависший поток расчётом, а не вечной загрузкой', async () => {
+    const hung: typeof fetch = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"type":"step","step":{"tool":"plan_overview","label":"x","ok":true}}\n'));
+          },
+        }),
+        { status: 200 },
+      );
+    const stopped = requestAgent(input, () => undefined, hung);
+    setTimeout(stopAgent, 10);
+    const result = await stopped;
+    expect(result.ok && result.value.mode).toBe('fallback');
+    expect(result.ok && result.value.fallbackReason).toContain('Запрос остановлен');
+    const late = await requestAgent(input, () => undefined, hung, 20);
+    expect(late.ok && late.value.fallbackReason).toContain('не ответил');
   });
 
   test('поток оборвался без ответа — ошибка, а не пустота', async () => {

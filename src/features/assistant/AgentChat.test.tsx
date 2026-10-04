@@ -61,14 +61,15 @@ describe('чат агента', () => {
     expect((screen.getByRole('button', { name: 'Отправить' }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  test('пока агент работает: живые шаги, aria-busy, отправка заблокирована', () => {
+  test('пока агент работает: живые шаги, aria-busy, вместо отправки — «Остановить» (#137)', () => {
     const { container } = renderChat([
       { id: 'a', question: 'Где окно?', revision: 0, steps: [{ tool: 'plan_overview', label: 'Сводка плана', ok: true }], answer: null, error: null },
     ]);
     expect(container.querySelector('.agent')?.getAttribute('aria-busy')).toBe('true');
     expect(screen.getByText('Сводка плана')).toBeDefined();
     expect(screen.getByRole('status').textContent).toContain('работает');
-    expect((screen.getByRole('button', { name: 'Работаю…' }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole('button', { name: 'Отправить' })).toBeNull();
+    expect((screen.getByRole('button', { name: 'Остановить' }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   test('ответ: зона в тексте — кнопка с её названием, а не голым id (#10)', () => {
