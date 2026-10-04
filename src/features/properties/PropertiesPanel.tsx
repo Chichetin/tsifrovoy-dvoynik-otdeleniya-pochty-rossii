@@ -32,6 +32,7 @@ import { formatArea, formatLength, formatNumber } from '../../domain/number-form
 import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
 import { ObjectPositionFields } from './ObjectPositionFields';
+import { groupAttributeCommand, mixedAttributeKeys, sharedAttributeDefs } from './group-attributes';
 
 type Errors = Record<string, string>;
 
@@ -118,8 +119,12 @@ export function PropertiesPanel({
 
   // Drafts and errors belong to the card they were typed into: a refused name
   // for the plan must not show up in the name field of the zone clicked next.
+  // A group card is a card of its own: the same primary with other members
+  // must not inherit a draft typed for the previous group.
   const selectionKey =
-    session.selection === null ? '' : `${session.selection.kind}:${session.selection.id}`;
+    session.selection === null
+      ? ''
+      : `${session.selection.kind}:${session.selection.id}:${[...(session.selected ?? [])].sort().join(',')}`;
   const [draftsFor, setDraftsFor] = useState(selectionKey);
   const [shapeSaved, setShapeSaved] = useState<string | null>(null);
   if (draftsFor !== selectionKey) {
@@ -213,14 +218,17 @@ export function PropertiesPanel({
   const attributeFields = (
     defs: AttributeDef[],
     attributes: Attributes,
-    apply: (next: Attributes) => Zone | Equipment,
+    apply: (key: string, value: Attributes[string]) => Command,
     colorChoices: Map<string, ObjectColorRepresentation> = new Map(),
+    mixed: ReadonlySet<string> = new Set(),
   ): React.JSX.Element[] =>
     defs.map((def) => {
       const name = `attributes.${def.key}`;
       const label = def.required ? `${def.label} *` : def.label;
-      const set = (value: Attributes[string]): Zone | Equipment =>
-        apply({ ...attributes, [def.key]: value });
+      const set = (value: Attributes[string]): Command => apply(def.key, value);
+      // Члены группы расходятся: поле пустое и говорит «разные», правка задаёт
+      // одно значение всем.
+      const isMixed = mixed.has(def.key);
 
       if (def.type === 'boolean') {
         return field(
@@ -229,9 +237,13 @@ export function PropertiesPanel({
           <input
             type="checkbox"
             aria-label={label}
-            checked={attributes[def.key] === true}
-            onChange={(event) => commit(name, set(event.target.checked))}
+            checked={!isMixed && attributes[def.key] === true}
+            ref={(element) => {
+              if (element !== null) element.indeterminate = isMixed;
+            }}
+            onChange={(event) => commitCommand(name, set(event.target.checked))}
           />,
+          isMixed ? 'разные' : undefined,
         );
       }
       if (def.type === 'number') {
@@ -241,13 +253,14 @@ export function PropertiesPanel({
           <input
             type="number"
             aria-label={label}
-            value={shown(name, attributeValue(attributes, def))}
+            value={shown(name, isMixed ? '' : attributeValue(attributes, def))}
+            placeholder={isMixed ? 'разные' : undefined}
             onChange={(event) => {
               const raw = event.target.value;
               // Пустое поле — очистка значения (null), а не ноль. Нечисло не
               // уходит в команду вовсе: NaN прошёл бы проверку типа атрибута.
               const parsed = parseNumber(raw);
-              commit(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
+              commitCommand(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
             }}
           />,
         );
@@ -259,9 +272,10 @@ export function PropertiesPanel({
           label,
           <select
             aria-label={label}
-            value={objectColorValue(choices,attributes).value}
-            onChange={(event) => commit(name, set(event.target.value))}
+            value={isMixed ? '' : objectColorValue(choices,attributes).value}
+            onChange={(event) => commitCommand(name, set(event.target.value))}
           >
+            {isMixed ? <option value="" disabled>разные</option> : null}
             {choices.values.map((choice) => (
               <option key={choice.value} value={choice.value}>{choice.label}</option>
             ))}
@@ -274,9 +288,10 @@ export function PropertiesPanel({
         <input
           type="text"
           aria-label={label}
-          value={shown(name, attributeValue(attributes, def))}
+          value={shown(name, isMixed ? '' : attributeValue(attributes, def))}
+          placeholder={isMixed ? 'разные' : undefined}
           onChange={(event) =>
-            commit(name, set(event.target.value === '' ? null : event.target.value), event.target.value)
+            commitCommand(name, set(event.target.value === '' ? null : event.target.value), event.target.value)
           }
         />,
       );
@@ -423,7 +438,8 @@ export function PropertiesPanel({
 
         {type === null
           ? null
-          : attributeFields(type.attributes, zone.attributes, (attributes) => ({ ...zone, attributes }))}
+          : attributeFields(type.attributes, zone.attributes, (key, value) =>
+              commandFor({ ...zone, attributes: { ...zone.attributes, [key]: value } }))}
         {type === null ? null : extraAttributes(type.attributes, zone.attributes)}
       </section>
     );
@@ -436,14 +452,60 @@ export function PropertiesPanel({
     // — всей группы, чтобы было видно, на что подействуют стрелки и Delete.
     const groupMembers = plan.objects.filter((item) => session.selected?.has(item.id) ?? false);
     const groupArea = groupMembers.reduce((sum, item) => sum + footprintArea(item), 0);
-    return (
-      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={object.id}>
-        {groupMembers.length > 1 ? (
+    const colorChoices = new Map(plan.catalog.layerTypes.flatMap((layerType) =>
+      layerType.representation.kind === 'object-color'
+        ? [[layerType.representation.attribute, layerType.representation]] as const
+        : []));
+
+    // #30: группа правит общие атрибуты всех сразу — одна правка, одна
+    // команда, один шаг «Отменить». Поля одного объекта здесь не показаны:
+    // иначе часть полей меняла бы один объект, а часть — всех.
+    if (groupMembers.length > 1) {
+      const defs = sharedAttributeDefs(plan.catalog, groupMembers);
+      const mixed = mixedAttributeKeys(groupMembers, defs, (attributes, def) => {
+        const choices = colorChoices.get(def.key);
+        if (def.type === 'string' && choices !== undefined) return objectColorValue(choices, attributes).value;
+        if (def.type === 'boolean') return String(attributes[def.key] === true);
+        return attributeValue(attributes, def);
+      });
+      const typeCounts = new Map<string, number>();
+      for (const member of groupMembers) {
+        const label = findObjectType(plan.catalog, member.typeId)?.label ?? member.typeId;
+        typeCounts.set(label, (typeCounts.get(label) ?? 0) + 1);
+      }
+      return (
+        <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={object.id}>
           <p className="props__hint" data-testid="props-group">
             Выбрано объектов: {groupMembers.length}, суммарно {formatArea(groupArea)}. Стрелки, Delete,
-            Ctrl+C и перетаскивание действуют на всю группу; карточка показывает главный.
+            Ctrl+C и перетаскивание действуют на всю группу.
           </p>
-        ) : null}
+          <p className="props__line" data-testid="props-group-types">
+            {[...typeCounts].map(([label, count]) => `${label} — ${count}`).join('; ')}
+          </p>
+          {defs.length === 0 ? (
+            <p className="props__hint">
+              У типов в группе нет общих атрибутов. Выберите объекты одного типа или один объект.
+            </p>
+          ) : (
+            <>
+              <p className="props__hint">
+                Общие атрибуты. Правка меняет все {groupMembers.length} объектов одним шагом «Отменить».
+              </p>
+              {attributeFields(
+                defs,
+                object.attributes,
+                (key, value) => groupAttributeCommand(groupMembers, key, value),
+                colorChoices,
+                mixed,
+              )}
+            </>
+          )}
+        </section>
+      );
+    }
+
+    return (
+      <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={object.id}>
 
         {field(
           'label',
@@ -576,11 +638,8 @@ export function PropertiesPanel({
           : attributeFields(
               type.attributes,
               object.attributes,
-              (attributes) => ({ ...object, attributes }),
-              new Map(plan.catalog.layerTypes.flatMap((layerType) =>
-                layerType.representation.kind === 'object-color'
-                  ? [[layerType.representation.attribute, layerType.representation]] as const
-                  : [])),
+              (key, value) => commandFor({ ...object, attributes: { ...object.attributes, [key]: value } }),
+              colorChoices,
             )}
         {type === null ? null : extraAttributes(type.attributes, object.attributes)}
       </section>
