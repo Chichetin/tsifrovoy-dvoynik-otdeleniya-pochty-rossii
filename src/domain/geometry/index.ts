@@ -404,6 +404,15 @@ export function objectHitsWall(
 }
 
 /**
+ * Floor in front of an opening: its span along the wall, `depth_m` out on both
+ * sides, the wall's own thickness between them. Empty for a zero-length wall.
+ */
+export function openingClearance(opening: Opening, wall: Wall, depth_m: number): Polygon {
+  if (wallLength(wall) <= TOLERANCE.coordinate_m) return [];
+  return wallSpanPolygon(wall, opening.offset_m, opening.offset_m + opening.width_m, wall.thickness_m + 2 * depth_m);
+}
+
+/**
  * Middle of an opening, measured along its wall from the wall's `from` end.
  * Distance to the entrance is a rule in two places — the check that reports a
  * violation and the search that must not offer one — and both must measure it

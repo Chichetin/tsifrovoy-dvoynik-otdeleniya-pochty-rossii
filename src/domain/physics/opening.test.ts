@@ -150,3 +150,15 @@ it('уменьшение общей суммы не разрешает усил�
  const right={...plain,id:'right',offset_m:3.5,width_m:2};
  expect(introducesOpeningOverlap({...before,offset_m:1.7,width_m:2.5},before,[left,right])).toBe(true);
 });
+
+it('предмет перед дверью отклоняется, камера над проёмом — нет',()=>{
+ const p=fixture();const o=p.objects[0]!;o.position=[1,2];
+ const check=(object:typeof o)=>{
+  const put:Command={type:'object.put',object};
+  const after=applyCommand(p,put);
+  if(!after.ok)throw new Error('put must apply before the gate');
+  return editRejection(p,after.value,put)?.code??null;
+ };
+ expect(check({...o,position:[3,0.8]})).toBe('OBJECT_BLOCKS_OPENING');
+ expect(check({...o,position:[3,0.8],base_m:2.2,height_m:0.3})).toBeNull();
+});

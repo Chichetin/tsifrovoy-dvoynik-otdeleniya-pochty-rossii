@@ -46,6 +46,7 @@ import {
   objectHitsWall,
   objectInterval,
   openingCentre,
+  openingClearance,
   segmentLength,
 } from '../geometry';
 import { NBSP, formatLength, formatShort } from '../number-format';
@@ -87,6 +88,8 @@ export const VALIDATION_ISSUE_CODES = {
   OBJECT_COLLISION: 'OBJECT_COLLISION',
   /** An object runs into a solid part of a wall. */
   OBJECT_HITS_WALL: 'OBJECT_HITS_WALL',
+  /** An object stands in the free floor in front of a door or the entrance. */
+  OBJECT_BLOCKS_OPENING: 'OBJECT_BLOCKS_OPENING',
   /** An object's top rises above the ceiling of its own room. */
   OBJECT_ABOVE_CEILING: 'OBJECT_ABOVE_CEILING',
   /** Two objects carry the same non-empty inventory number. */
@@ -166,6 +169,7 @@ export function validatePlan(plan: PlanDocument, today: string = localToday()): 
     ...placement,
     ...collisionIssues(plan),
     ...wallIssues(plan),
+    ...plan.objects.flatMap((object) => objectOpeningIssues(plan, object)),
     ...ceilingIssues(plan),
     ...inventoryNumberIssues(plan),
     ...missingInventoryNumberIssues(plan),
@@ -395,6 +399,41 @@ function collisionIssues(plan: PlanDocument): Issue[] {
         ),
       );
     }
+  }
+  return issues;
+}
+
+/** Team rule: floor this deep in front of a door or the entrance stays free, on both sides of the wall. */
+export const OPENING_CLEARANCE_M = 0.9;
+
+/**
+ * A physical object in the clearance of a door or the entrance. Height counts:
+ * a camera above the lintel blocks nothing. A window is not a passage.
+ */
+export function objectOpeningIssues(plan: PlanDocument, object: Equipment): Issue[] {
+  if (!isPhysical(plan.catalog, object)) return [];
+  const shape = footprint(object);
+  const interval = objectInterval(object);
+  const issues: Issue[] = [];
+  for (const opening of plan.openings) {
+    if (opening.kind === 'window') continue;
+    if (!intervalsOverlap(interval, { base_m: opening.sill_m, top_m: opening.sill_m + opening.height_m })) continue;
+    const wall = plan.walls.find((entry) => entry.id === opening.wallId);
+    if (wall === undefined) continue;
+    const clearance = openingClearance(opening, wall, OPENING_CLEARANCE_M);
+    if (clearance.length === 0 || !intersects(shape, clearance)) continue;
+    issues.push(
+      issue(
+        VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING,
+        'error',
+        `Объект «${object.label}» загораживает проём ${openingName(opening)}: с обеих сторон нужно ${formatLength(OPENING_CLEARANCE_M)} свободного пола.`,
+        [
+          { kind: 'object', id: object.id },
+          { kind: 'opening', id: opening.id },
+        ],
+        clearance,
+      ),
+    );
   }
   return issues;
 }

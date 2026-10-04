@@ -3,7 +3,7 @@
  * могут держать физически, в отличие от правил комплектования, которые
  * говорят лишь, чего не хватает.
  *
- * Правил четыре, и все они уже считаются проверкой плана
+ * Правил пять, и все они уже считаются проверкой плана
  * (`domain/validation`) — здесь выделено их подмножество и добавлены два
  * применения, которых у проверки нет:
  *
@@ -37,7 +37,7 @@ import {
   objectInterval,
 } from '../geometry';
 import { formatLength } from '../number-format';
-import { VALIDATION_ISSUE_CODES, isPhysical } from '../validation';
+import { OPENING_CLEARANCE_M, VALIDATION_ISSUE_CODES, isPhysical, objectOpeningIssues } from '../validation';
 import { openingDeleteRejection, openingRejection } from './opening';
 
 export { introducesOpeningOverlap, openingDeleteRejection, openingRejection, openingsOverlap } from './opening';
@@ -79,6 +79,12 @@ export const PHYSICS_RULES: readonly PhysicsRule[] = [
     code: VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL,
     title: 'Оборудование не проходит сквозь стены',
     detail: 'Сквозь стену и перегородку объект идёт только там, где на его высоте есть проём.',
+  },
+  {
+    id: 'phys_doorway',
+    code: VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING,
+    title: 'Дверь и вход не загорожены',
+    detail: `С обеих сторон двери и входа ${formatLength(OPENING_CLEARANCE_M)} пола свободны на высоте проёма. Глубина — правило команды.`,
   },
 ];
 
@@ -181,15 +187,17 @@ export function objectPhysicsIssues(plan: PlanDocument, object: Equipment): Issu
     }
   }
 
+  issues.push(...objectOpeningIssues(plan, object));
   return issues;
 }
 
 /**
  * Чем жест ограничен на месте, а чем — только при сохранении (D-286).
  *
- * Жест останавливают два правила из четырёх: чужой объём и потолок. Это
- * ровно те два случая, ради которых граница и заводилась («стул на столе»,
- * «вывеска выше потолка»), и они ни с чем не спорят.
+ * Жест останавливают три правила из пяти: чужой объём, потолок и проём
+ * (#104). Первые два — те случаи, ради которых граница и заводилась («стул
+ * на столе», «вывеска выше потолка»); проём с настенным оборудованием тоже
+ * не спорит: полоса не шире проёма, а рядом с ним стена.
  *
  * Стены и границу помещения жест не сторожит намеренно. Настенное
  * оборудование стоит вплотную к стене (`features/equipment/wall-mount.ts`):
@@ -201,6 +209,7 @@ export function objectPhysicsIssues(plan: PlanDocument, object: Equipment): Issu
 const GESTURE_GATED: ReadonlySet<string> = new Set([
   VALIDATION_ISSUE_CODES.OBJECT_COLLISION,
   VALIDATION_ISSUE_CODES.OBJECT_ABOVE_CEILING,
+  VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING,
 ]);
 
 /** Нарушение узнаётся по правилу и участникам, а не по тексту сообщения. */

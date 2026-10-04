@@ -212,10 +212,11 @@ describe('одна проблема — одна находка (operator №19,
     expect(groups.flatMap((group) => group.issues)).toHaveLength(issues.length);
   });
 
-  test('пример как есть, без правил команды, — ровно 8 находок', () => {
+  test('пример как есть, без правил команды, — ровно 11 находок', () => {
     // Три коллизии, три стены (два стеллажа и ПВЗ через наружную стену),
-    // два стеллажа вне своей зоны. До D-157 к ним добавлялись два повтора
-    // ZONE_UNASSIGNED о тех же стеллажах — 10 строк о 8 проблемах.
+    // два стеллажа вне своей зоны, три прохода (банкомат и скамья у входа,
+    // рабочее место у служебной двери, D-365). До D-157 к ним добавлялись два
+    // повтора ZONE_UNASSIGNED о тех же стеллажах.
     const imported = importOrganizerExample(readJson('example_plan.json'));
     if (!imported.ok) throw new Error('пример не импортировался');
     const codes = validatePlan(imported.value).map((entry) => entry.code).sort();
@@ -224,6 +225,7 @@ describe('одна проблема — одна находка (operator №19,
         ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_COLLISION),
         ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_HITS_WALL),
         ...Array<string>(2).fill(VALIDATION_ISSUE_CODES.OBJECT_OUTSIDE_ZONE),
+        ...Array<string>(3).fill(VALIDATION_ISSUE_CODES.OBJECT_BLOCKS_OPENING),
       ].sort(),
     );
   });
