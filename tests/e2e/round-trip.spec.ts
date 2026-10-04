@@ -115,7 +115,7 @@ test('инвентарный номер новой скамьи выдан пр�
 
   // «Экспорт → CSV» несёт столбец атрибута из справочника и новую скамью (#12).
   const csvStarted = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Экспорт' }).click();
+  await page.getByRole('button', { name: 'Файл' }).click();
   await page.getByRole('menuitem', { name: /CSV/ }).click();
   const csvFile = await (await csvStarted).path();
   const [header, ...lines] = readFileSync(csvFile as string, 'utf8').replace(/^\uFEFF/, '').split('\r\n');
