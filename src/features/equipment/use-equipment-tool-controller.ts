@@ -20,10 +20,13 @@ export const useEquipmentToolController: UsePlanToolController = ({
 }): ToolController => {
   const tool = session.tool;
 
-  // A silhouette left from the last arming must not flash before the first move.
+  // The verdict belongs to one type on one plan: another type, another plan or
+  // an edit (a layer unlocked, an undo) makes the silhouette stale, and it
+  // comes back with the next pointer move.
+  const armedType = tool.kind === 'object.place' ? tool.typeId : null;
   useEffect(() => {
-    if (tool.kind !== 'object.place') placementGhost.publish(null);
-  }, [tool.kind]);
+    placementGhost.publish(null);
+  }, [armedType, plan]);
 
   const handlePointer = useCallback(
     (event: WorldPointer): void => {

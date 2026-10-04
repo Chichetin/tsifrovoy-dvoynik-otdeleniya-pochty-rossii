@@ -370,22 +370,34 @@ describe('вариант исправления находки (#33)', () => {
 });
 
 describe('силуэт постановки (#26)', () => {
-  test('цвет силуэта совпадает с ответом хранилища при отпускании — на сетке точек по всему плану', () => {
-    const type = plan.catalog.objectTypes.find((entry) => entry.id === 'ot_workplace');
-    if (type === undefined) throw new Error('нет типа ot_workplace');
-    const xs = plan.room.boundary.map((point) => point[0]);
-    const ys = plan.room.boundary.map((point) => point[1]);
-    const seen = new Set<boolean>();
-    for (let x = Math.min(...xs) - 1; x <= Math.max(...xs) + 1; x += 1.3) {
-      for (let y = Math.min(...ys) - 1; y <= Math.max(...ys) + 1; y += 1.3) {
-        const object = placedObject(plan, type, [x, y]);
-        if (object === null) throw new Error('постановка не дала объекта');
-        const accepted = createPlanStore(plan).getState().dispatch({ type: 'object.put', object }).ok;
-        expect(placementRefusal(plan, object) === null, `точка ${x}, ${y}`).toBe(accepted);
-        seen.add(accepted);
+  // Настенная камера физику не нарушает — принимается везде; рабочее место
+  // встречает и свободные, и занятые места.
+  test.each([['ot_workplace', [false, true]], ['ot_camera', [true]]])(
+    'цвет силуэта типа %s совпадает с ответом хранилища при отпускании — на сетке точек по плану',
+    (typeId, outcomes) => {
+      const type = plan.catalog.objectTypes.find((entry) => entry.id === typeId);
+      if (type === undefined) throw new Error(`нет типа ${typeId}`);
+      const xs = plan.room.boundary.map((point) => point[0]);
+      const ys = plan.room.boundary.map((point) => point[1]);
+      const seen = new Set<boolean>();
+      for (let x = Math.min(...xs) - 1; x <= Math.max(...xs) + 1; x += 1.3) {
+        for (let y = Math.min(...ys) - 1; y <= Math.max(...ys) + 1; y += 1.3) {
+          const object = placedObject(plan, type, [x, y]);
+          if (object === null) throw new Error('постановка не дала объекта');
+          const accepted = createPlanStore(plan).getState().dispatch({ type: 'object.put', object }).ok;
+          expect(placementRefusal(plan, object) === null, `точка ${x}, ${y}`).toBe(accepted);
+          seen.add(accepted);
+        }
       }
-    }
-    // Сетка задевает и свободные места, и занятые или внешние: проверка не пустая.
-    expect([...seen].sort()).toEqual([false, true]);
+      expect([...seen].sort()).toEqual(outcomes);
+    },
+  );
+
+  test('слой заперт — отказ в силуэте и в хранилище', () => {
+    const type = plan.catalog.objectTypes.find((entry) => entry.id === 'ot_workplace');
+    const locked = { ...plan, layers: plan.layers.map((layer) => ({ ...layer, locked: true })) };
+    const object = type === undefined ? null : placedObject(locked, type, [3, 3]);
+    if (object === null) return;
+    expect(placementRefusal(locked, object) === null).toBe(createPlanStore(locked).getState().dispatch({ type: 'object.put', object }).ok);
   });
 });
