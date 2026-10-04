@@ -26,6 +26,7 @@ import {
   type Ref,
   type Rule,
   type Severity,
+  type Zone,
   TOLERANCE,
 } from '../../contracts/model';
 import { findObjectType } from '../catalog';
@@ -559,6 +560,19 @@ function ruleIssues(plan: PlanDocument): ValidationIssue[] {
   return issues;
 }
 
+/** A zone inside a zone of its own type is a part of that zone, not a zone to stock on its own. */
+function nestedInSameType(plan: PlanDocument, zone: Zone): boolean {
+  let parentId = zone.parentId;
+  // The chain is bounded by the zone count: a closed one is reported elsewhere.
+  for (let step = 0; parentId !== null && step < plan.zones.length; step += 1) {
+    const parent = plan.zones.find((entry) => entry.id === parentId);
+    if (parent === undefined) return false;
+    if (parent.typeId === zone.typeId) return true;
+    parentId = parent.parentId;
+  }
+  return false;
+}
+
 function countRuleIssues(
   plan: PlanDocument,
   rule: Extract<Rule, { kind: 'count' }>,
@@ -567,13 +581,18 @@ function countRuleIssues(
 
   for (const zone of plan.zones) {
     if (zone.typeId !== rule.zoneTypeId) continue;
+    // The outer zone already counts what its nested zones hold (`inclusive`):
+    // a minimum asked again of an empty nested zone of the same type is a
+    // false finding (#17). A maximum, and a rule on the zone's own floor
+    // (`direct`), still apply.
+    const minApplies = rule.scope !== 'inclusive' || !nestedInSameType(plan, zone);
 
     // Считает инвентаризация: у проверки и у рекомендации ассистента должно
     // получаться одно и то же число.
     const count = countInZoneScope(plan, rule.objectTypeId, zone.id, rule.scope);
 
     const where = rule.scope === 'direct' ? 'без вложенных зон' : 'вместе с вложенными зонами';
-    if (rule.min !== null && count < rule.min) {
+    if (rule.min !== null && count < rule.min && minApplies) {
       issues.push(
         issue(
           VALIDATION_ISSUE_CODES.RULE_COUNT_BELOW_MIN,

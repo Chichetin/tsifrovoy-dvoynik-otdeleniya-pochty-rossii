@@ -35,7 +35,7 @@ import {
 import { objectFromRing } from './object-shape';
 import { setSnapHint } from './snap-marker';
 import { isTextTarget } from './text-target';
-import { canCommitRing, parentForRing, roundPoint } from './vertex-edit';
+import { canCommitRing, newZoneBase, roundPoint } from './vertex-edit';
 import { createWall } from './wall-draft';
 
 /** How close to the first vertex a click has to be to close the ring, in metres. */
@@ -214,16 +214,17 @@ export const usePlanToolController = ({
         const zoneType = plan.catalog.zoneTypes[0];
         if (layer === undefined || zoneType === undefined) return false;
         const id = nextFreeId('z_', taken);
+        // Вложенность берётся из геометрии: зона, нарисованная внутри другой,
+        // принадлежит ей и берёт её тип. Дальше родителя правят карточкой.
+        const { parentId, typeId } = newZoneBase(ring, plan.zones, zoneType.id);
         const result = onCommand({
           type: 'zone.put',
           zone: {
             id,
-            typeId: zoneType.id,
+            typeId,
             name: `Зона ${plan.zones.length + 1}`,
             polygon: ring,
-            // Вложенность берётся из геометрии: зона, нарисованная внутри
-            // другой, принадлежит ей. Дальше родителя правят карточкой.
-            parentId: parentForRing(ring, plan.zones),
+            parentId,
             layerId: layer.id,
             attributes: {},
           },
