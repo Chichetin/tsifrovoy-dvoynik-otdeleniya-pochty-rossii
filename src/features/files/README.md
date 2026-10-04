@@ -6,4 +6,4 @@
 
 ## Граница модуля
 
-Потребляет contracts и persistence. replaceDocument/markExported получает callback; не сериализует сцену холста.
+Потребляет contracts и persistence. replaceDocument/markExported получает callback; не сериализует сцену холста. Команда «Изменить внешний контур отделения» вызывает onEditBoundary из App; сама геометрию не меняет.

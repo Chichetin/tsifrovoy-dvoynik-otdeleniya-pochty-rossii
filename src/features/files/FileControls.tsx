@@ -69,6 +69,8 @@ export type FileControlsProps = {
   /** `origin` отличает файл от восстановленного черновика: черновик не сохранён. */
   onReplace: (plan: PlanDocument, origin: DocumentOrigin) => void;
   onNew: () => void;
+  /** Separate command: redraw the department boundary, not an internal room. */
+  onEditBoundary?: () => void;
   /** Told the revision that has just been written out, for the dirty flag. */
   onExported: () => void;
   /**
@@ -176,6 +178,7 @@ export function FileControls({
   encode,
   onReplace,
   onNew,
+  onEditBoundary,
   onExported,
   storage: given,
   demoRequest = null,
@@ -820,6 +823,14 @@ export function FileControls({
             <button type="button" role="menuitem" className="files__menu-item" onClick={openExisting}>
               Открыть существующий
             </button>
+            {onEditBoundary === undefined ? null : (
+              <button type="button" role="menuitem" className="files__menu-item" onClick={() => {
+                closeMenu(true);
+                onEditBoundary();
+              }}>
+                Изменить внешний контур отделения…
+              </button>
+            )}
             <div role="group" aria-labelledby="files-menu-demo">
               <span id="files-menu-demo" className="files__menu-caption">Демо-планы</span>
               {DEMO_PLANS.map((item) => (

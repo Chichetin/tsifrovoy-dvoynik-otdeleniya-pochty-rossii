@@ -35,7 +35,7 @@ import { calculateAdvice, routeAgentQuery, verifyExplanation } from '../src/doma
 import { countInZoneScope } from '../src/domain/inventory';
 import { measurePlan } from '../src/domain/metrics';
 import { reconcileZones } from '../src/domain/relations';
-import { validatePlan } from '../src/domain/validation';
+import { planHealth, validatePlan } from '../src/domain/validation';
 import { encodePlan } from '../src/persistence/codec';
 import { readPlanFile } from '../src/persistence/format';
 
@@ -85,9 +85,10 @@ test('вопрос о составе зоны ведёт к зоне, даже �
   expect(routeAgentQuery(plan, 'Покажи весь план', false)[0]?.name).toBe('plan_overview');
 });
 
-test('стартовый план-шоурум открывается без замечаний, зоны объектов — из геометрии (#73)', () => {
+test('стартовый план совпадает с исходным демо из ZIP и показывает находки (#111)', () => {
   const plan = openStartPlan();
-  expect(validatePlan(plan)).toEqual([]);
+  expect(plan).toEqual(JSON.parse(readFileSync(join(DEMO_DIR, 'before.json'), 'utf8')));
+  expect(validatePlan(plan).length).toBeGreaterThan(0);
   const reconciled = reconcileZones(plan);
   expect(reconciled.ok && reconciled.value.objects.map((object) => object.zoneId)).toEqual(
     plan.objects.map((object) => object.zoneId),
@@ -202,6 +203,8 @@ describe('комплект демо-проекта', () => {
     ).toEqual(['RULE_COUNT_BELOW_MIN']);
     // The changed plan is clean: that is the point of the recommendation.
     expect(validatePlan(after)).toEqual([]);
+    // #125: the score in the header says the same — «after» is higher.
+    expect(planHealth(issues).score).toBeLessThan(planHealth(validatePlan(after)).score);
   });
 
   test('рекомендация в файле повторяется расчётом на before.json', SLOW_CALCULATION, () => {

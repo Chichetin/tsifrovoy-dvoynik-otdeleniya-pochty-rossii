@@ -6,9 +6,12 @@
  * means «refused» before the button is released.
  */
 
-import type { Equipment, Id, ObjectType, PlanDocument, Point } from '../../contracts/model';
+import { TOLERANCE, type Equipment, type Id, type ObjectType, type PlanDocument, type Point } from '../../contracts/model';
+import { findObjectType } from '../../domain/catalog';
 import { applyCommand, newObject } from '../../domain/commands';
+import { contains, footprint, locatePoint } from '../../domain/geometry';
 import { editRejection, objectPhysicsIssues } from '../../domain/physics';
+import { isDeskEquipment, WORK_SURFACE_M } from '../../domain/validation';
 import { snapPosition } from './transform';
 import { isWallMounted, wallMountPlacement } from './wall-mount';
 
@@ -30,12 +33,30 @@ export function placedObject(
     : null;
   // Id, layer, catalog defaults and the next inventory number (D-310) come from
   // one rule for every new object.
-  return newObject(
+  const object = newObject(
     plan,
     type,
     { position: placement?.position ?? snapPosition(point), rotation_deg: placement?.rotation_deg ?? 0 },
     retired,
   );
+  if (object === null || !isDeskEquipment(plan.catalog, object)) return object;
+  const visible = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+  // The catalog's work-surface height identifies tables without hard-coded
+  // type ids. Their actual height may have been edited in the properties card.
+  for (const support of plan.objects.toReversed()) {
+    const supportType = findObjectType(plan.catalog, support.typeId);
+    if (!visible.has(support.layerId) || supportType?.physical !== true || !supportType.occupiesFloor ||
+        Math.abs(supportType.defaultHeight_m - WORK_SURFACE_M) > TOLERANCE.coordinate_m) continue;
+    const surface = footprint(support);
+    if (locatePoint(point, surface) === 'outside') continue;
+    const mounted = { ...object, rotation_deg: support.rotation_deg, base_m: support.base_m + support.height_m };
+    if (contains(surface, footprint(mounted))) return mounted;
+    // A click near a table edge still means that table. Centre the device if
+    // it fits there; a too-small/custom surface stays refused by the same check.
+    const centred = { ...mounted, position: support.position };
+    if (contains(surface, footprint(centred))) return centred;
+  }
+  return object;
 }
 
 /**
