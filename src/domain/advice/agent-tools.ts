@@ -12,12 +12,13 @@
 
 import { z } from 'zod';
 import type { Recommendation } from '../../contracts/advice';
-import { proposeEditsArgsSchema, type AgentPanel, type AgentStep, type AgentToolName, type AssistantAction } from '../../contracts/advice-chat';
+import { AGENT_LIMITS, proposeEditsArgsSchema, type AgentEditProposal, type AgentPanel, type AgentStep, type AgentToolName, type AssistantAction } from '../../contracts/advice-chat';
 import type { Id, PlanDocument, Ref } from '../../contracts/model';
 import { buildInventory } from '../inventory';
 import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
+import { checkAgentEdits } from './agent-edits';
 import { cameraCoverage } from './camera-coverage';
 import { calculateAdvice } from './index';
 
@@ -30,13 +31,15 @@ export type AgentToolState = {
   /** Placement's requested type remains known even when no candidate fits. */
   placementTypes: Map<Id, Id>;
   actions: AssistantAction[];
+  /** #126: checked edit proposals of this exchange, accepted or not. */
+  proposals: AgentEditProposal[];
   refs: Ref[];
 };
 
 export type AgentToolOutcome = { output: unknown; step: AgentStep };
 
 export function createAgentToolState(plan: PlanDocument, before: PlanDocument | null): AgentToolState {
-  return { plan, before, names: planIndex(plan), recommendations: new Map(), placementTypes: new Map(), actions: [], refs: [] };
+  return { plan, before, names: planIndex(plan), recommendations: new Map(), placementTypes: new Map(), actions: [], proposals: [], refs: [] };
 }
 
 const PANEL_LABELS: Record<AgentPanel, string> = {
@@ -144,6 +147,35 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
       type: 'object',
       properties: { panel: { type: 'string', enum: ['metrics', 'validation', 'inventory'] } },
       required: ['panel'],
+    },
+  },
+  {
+    name: 'propose_edits',
+    description:
+      'Предложить правки плана, когда человек просит переместить, повернуть, добавить или удалить оборудование. Правки: move — сдвиг объекта id на dx_m, dy_m метров (X вправо, Y вверх); rotate — поворот объекта id на by_deg градусов по часовой; add — новый объект типа typeId в зоне zoneId, position_m — желаемая точка (место выберет расчёт; без зоны и точки расчёт сам выберет зону); delete — удалить объект id. Id бери из list_objects или zone_details. Код проверяет каждую правку по порядку (id, физика, проверка плана) и отклоняет неверные с причиной. План не меняется: правки видны призраками, применит их человек.',
+    parameters: {
+      type: 'object',
+      properties: {
+        edits: {
+          type: 'array',
+          maxItems: AGENT_LIMITS.maxEdits,
+          items: {
+            type: 'object',
+            properties: {
+              op: { type: 'string', enum: ['move', 'rotate', 'add', 'delete'] },
+              id: { type: 'string' },
+              dx_m: { type: 'number' },
+              dy_m: { type: 'number' },
+              by_deg: { type: 'number' },
+              typeId: { type: 'string' },
+              zoneId: { type: ['string', 'null'] },
+              position_m: { type: ['array', 'null'], items: { type: 'number' }, minItems: 2, maxItems: 2 },
+            },
+            required: ['op'],
+          },
+        },
+      },
+      required: ['edits'],
     },
   },
 ];
@@ -443,9 +475,39 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       return { output: { ok: true }, step: { tool: name, label: `Панель «${PANEL_LABELS[panel]}»`, ok: true } };
     }
 
-    // #126: the contract is in place, the check of edits comes next. Until
-    // then the tool is not offered to the model and refuses every call.
-    case 'propose_edits':
-      return fail(name, 'Правка плана недоступна', 'Правка плана текстом пока недоступна.');
+    case 'propose_edits': {
+      const { edits } = argSchemas.propose_edits.parse(rawArgs);
+      const proposal = checkAgentEdits(plan, edits, `edits_${state.proposals.length + 1}`);
+      // Kept even when nothing passed: the person sees every refusal and its reason.
+      state.proposals.push(proposal);
+      for (const change of proposal.changes) {
+        if (change.before !== null) addRef(state, { kind: 'object', id: change.id });
+        const zoneId = change.after?.zoneId ?? change.before?.zoneId ?? null;
+        if (zoneId !== null) addRef(state, { kind: 'zone', id: zoneId });
+      }
+      const label = `Правки плана: принято ${proposal.changes.length}, отклонено ${proposal.rejected.length}`;
+      const rejected = proposal.rejected.map((entry) => ({ edit: entry.edit, reason: entry.reason }));
+      if (proposal.commands.length === 0) {
+        return { output: { error: 'Ни одна правка не прошла проверку.', rejected }, step: { tool: name, label, ok: false } };
+      }
+      addAction(state, { kind: 'preview-edits', proposalId: proposal.id });
+      addAction(state, { kind: 'apply-edits', proposalId: proposal.id });
+      return {
+        output: {
+          proposalId: proposal.id,
+          accepted: proposal.changes.map((change) => ({
+            op: change.op,
+            id: change.id,
+            label: change.label,
+            before: change.before,
+            after: change.after,
+          })),
+          rejected,
+          findings: proposal.findings,
+          note: 'Правки показаны на плане призраками. Применит их человек кнопкой «Применить правки», отмена — Ctrl+Z.',
+        },
+        step: { tool: name, label, ok: true },
+      };
+    }
   }
 }

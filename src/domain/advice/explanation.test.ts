@@ -454,3 +454,16 @@ describe('#69: ход агента без сети — модель выбира
     expect(choice.kind === 'answer' && choice.answer.text).toContain(first.text);
   });
 });
+
+describe('#126: правки модели проверяет код', () => {
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+
+  test('несуществующий id отброшен с причиной, верная правка осталась', () => {
+    const session = createAgentSession(demo, null, 'Подвинь скамью', 1);
+    const edits = [{ op: 'delete', id: 'eq_nope' }, { op: 'move', id: 'eq_9', dx_m: 0.5, dy_m: 0 }];
+    acceptToolResult(session, 'propose_edits', JSON.stringify({ edits }));
+    const [proposal] = session.state.proposals;
+    expect(proposal?.rejected.map((entry) => entry.reason)).toEqual(['Объекта «eq_nope» нет в плане.']);
+    expect(proposal?.commands.map((command) => command.type === 'object.put' && command.object.id)).toEqual(['eq_9']);
+  });
+});

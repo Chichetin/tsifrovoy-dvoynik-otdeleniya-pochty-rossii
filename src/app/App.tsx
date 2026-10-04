@@ -17,7 +17,7 @@ import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advi
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
-import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
+import type { AssistantPanelRequest, EditorSession, EditsPreview, RequestState, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
@@ -30,7 +30,7 @@ import {
   type ObjectMount,
 } from '../domain/object-mount';
 import { planHealth, validatePlan } from '../domain/validation';
-import { candidateObjectForInsert } from '../domain/advice';
+import { candidateObjectForInsert, proposalCommands } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
@@ -142,6 +142,14 @@ function initialPanelWidths(): PanelWidths {
 
 function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
   return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
+}
+
+/** #126: what the plan shows before «Применить правки»: objects as they would stand, ids to delete. */
+function editGhostsOf(commands: readonly Command[]): EditsPreview {
+  return {
+    put: commands.flatMap((command) => (command.type === 'object.put' ? [command.object] : [])),
+    removed: commands.flatMap((command) => (command.type === 'object.delete' ? [command.id] : [])),
+  };
 }
 
 export function App(): React.JSX.Element {
@@ -288,6 +296,8 @@ export function App(): React.JSX.Element {
 
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
+  // #126: ghosts of the agent's edits, for the plan revision they were built on.
+  const [editGhosts, setEditGhosts] = useState<{ revision: number; preview: EditsPreview } | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
   const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
   // #105: the object whose «Изменить форму» switch is on. It belongs to one
@@ -338,9 +348,11 @@ export function App(): React.JSX.Element {
   // what is selected.
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
+  // Any edit after the answer makes the ghosts stale: they leave the plan.
+  const previewEdits = editGhosts !== null && editGhosts.revision === contentRevision ? editGhosts.preview : null;
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, selected, preview, focus, retired }),
-    [tool, viewport, selection, selected, preview, focus, retired],
+    () => ({ tool, viewport, selection, selected, preview, previewEdits, focus, retired }),
+    [tool, viewport, selection, selected, preview, previewEdits, focus, retired],
   );
 
   // #105: «Свойства» stand in the right column above its tabs, so the library
@@ -711,7 +723,12 @@ export function App(): React.JSX.Element {
         // plan, otherwise a ring round the first entity of the answer.
         const offered = answer.actions.find((action) => action.kind === 'preview-candidate');
         const candidate = offered === undefined ? null : candidateOf(answer, offered.recommendationId, offered.candidateId);
-        if (candidate !== null) {
+        const edits = answer.actions.find((action) => action.kind === 'preview-edits');
+        const proposal = edits === undefined ? undefined : answer.proposals.find((entry) => entry.id === edits.proposalId);
+        if (proposal !== undefined) {
+          const current = store.getState();
+          setEditGhosts({ revision: answer.revision, preview: editGhostsOf(proposalCommands(current.document, proposal, current.retired)) });
+        } else if (candidate !== null) {
           setPreview(candidate);
           if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
         } else if (answer.refs[0] !== undefined) {
@@ -719,7 +736,7 @@ export function App(): React.JSX.Element {
         }
       });
     },
-    [baseline, contentRevision, document, exchanges, highlight],
+    [baseline, contentRevision, document, exchanges, highlight, store],
   );
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
@@ -849,11 +866,33 @@ export function App(): React.JSX.Element {
         case 'open-panel':
           showRightTab(action.panel);
           return;
-        // #126: no tool offers edit proposals yet.
         case 'preview-edits':
-        case 'apply-edits':
-          setAgentActionStatus('Правка плана текстом пока недоступна.');
+        case 'apply-edits': {
+          const proposal = answer.proposals.find((entry) => entry.id === action.proposalId);
+          if (proposal === undefined || proposal.commands.length === 0) {
+            setAgentActionStatus('Правки не найдены в ответе — спросите заново.');
+            return;
+          }
+          // Preview and apply mint the same ids: a retired id is replaced in both (D-019).
+          const current = store.getState();
+          const commands = proposalCommands(current.document, proposal, current.retired);
+          if (action.kind === 'preview-edits') {
+            setPreview(null);
+            setEditGhosts({ revision: answer.revision, preview: editGhostsOf(commands) });
+            setAgentActionStatus('Правки показаны на плане полупрозрачно, удаляемое обведено красным.');
+            return;
+          }
+          // Like «Подтвердить» in «Проверка» (#105): one command, one undo step.
+          const result = dispatch({ type: 'batch', commands });
+          setEditGhosts(null);
+          const added = editGhostsOf(commands).put.filter((object) => !current.document.objects.some((entry) => entry.id === object.id));
+          setAgentActionStatus(
+            result.ok
+              ? `Применено правок: ${commands.length}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Отменить — Ctrl+Z.`
+              : `Не применено, план не изменён: ${result.issues.map((issue) => issue.message).join('; ')}`,
+          );
           return;
+        }
       }
     },
     [dispatch, dispatchAndSelect, document, focusOn, highlight, store, showLeftTab, showRightTab],
@@ -864,6 +903,7 @@ export function App(): React.JSX.Element {
     setExchanges([]);
     setAgentActionStatus(null);
     setPreview(null);
+    setEditGhosts(null);
   }, []);
 
   // A recommendation belongs to the plan it was computed for: after «Открыть»
@@ -876,6 +916,7 @@ export function App(): React.JSX.Element {
     setAdvice(null);
     setAdviceState({ status: 'idle' });
     setPreview(null);
+    setEditGhosts(null);
     agentSequence.current += 1;
     setExchanges([]);
     setAgentActionStatus(null);
@@ -1300,6 +1341,7 @@ export function App(): React.JSX.Element {
               onSelect={select}
               onSelectMany={selectMany}
               preview={preview}
+              previewEdits={previewEdits}
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
               reshapeFor={reshapeFor}

@@ -22,7 +22,7 @@ export function finishAgentAnswer(
     text,
     steps,
     recommendations: [...state.recommendations.values()],
-    proposals: [],
+    proposals: state.proposals,
     actions: state.actions,
     refs: state.refs,
     ...(fallbackReason === undefined ? {} : { fallbackReason }),
