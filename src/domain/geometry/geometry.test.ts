@@ -596,4 +596,10 @@ describe('умные направляющие и расстояния при п�
     expect(gaps.object?.distance).toBeCloseTo(7.75 - 5.25, CLOSE);
     expect(dragObstacles(plan([turned], true), new Set()).objects).toHaveLength(0);
   });
+
+  test('наложение на соседа — зазора нет, линию «0 м» не рисуем', () => {
+    const over = equipment({ id: 'eq_over', position: [5, 5.2] });
+    const gaps = objectGaps(over, dragObstacles(plan([turned, over]), new Set(['eq_over'])));
+    expect(gaps.object).toBeNull();
+  });
 });
