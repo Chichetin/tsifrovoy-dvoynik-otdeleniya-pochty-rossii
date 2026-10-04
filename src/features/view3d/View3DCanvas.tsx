@@ -301,6 +301,8 @@ function createStage(container: HTMLDivElement): Stage {
 
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = false;
+  // The camera stays above the floor: from below, the plan is a grey slab (#108).
+  controls.maxPolarAngle = Math.PI / 2 - 0.05;
   const render = () => {
     fadeWalls(group, camera.position, controls.target);
     renderer.render(world, camera);
