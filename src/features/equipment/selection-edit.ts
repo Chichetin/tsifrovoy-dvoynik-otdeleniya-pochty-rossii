@@ -14,7 +14,7 @@
 
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import { nextFreeId } from '../../domain/commands';
-import { footprint, intersects, normalizeAngle } from '../../domain/geometry';
+import { boundingBox, footprint, intersects, normalizeAngle } from '../../domain/geometry';
 import { ROTATION_SNAP_DEG, snapPosition } from './transform';
 
 /**
@@ -117,7 +117,26 @@ export function pasteObjects(
   taken: ReadonlySet<Id>,
   step = 1,
 ): Equipment[] {
-  return copyObjects(source, taken, [PASTE_OFFSET_M[0] * step, PASTE_OFFSET_M[1] * step]);
+  const [dx, dy] = copyOffset(source);
+  return copyObjects(source, taken, [dx * step, dy * step]);
+}
+
+/** Зазор между набором и его копией по X, когда сдвига `PASTE_OFFSET_M` не хватает. */
+const COPY_GAP_M = 0.1;
+
+/**
+ * Смещение копии набора: `PASTE_OFFSET_M`, а если набор больше этого сдвига и
+ * по X, и по Y, — по X на его ширину плюс зазор. Копия кассового окна
+ * (1,6 × 0,9 м), сдвинутая на 0,5 м, легла бы на оригинал, и физика отказала
+ * бы в правке (#89). Малый или тонкий набор остаётся при прежнем сдвиге.
+ */
+export function copyOffset(source: readonly Equipment[]): Point {
+  if (source.length === 0) return PASTE_OFFSET_M;
+  const boxes = source.map((object) => boundingBox(footprint(object)));
+  const width = Math.max(...boxes.map((box) => box.maxX)) - Math.min(...boxes.map((box) => box.minX));
+  const depth = Math.max(...boxes.map((box) => box.maxY)) - Math.min(...boxes.map((box) => box.minY));
+  const overlaps = width > PASTE_OFFSET_M[0] && depth > Math.abs(PASTE_OFFSET_M[1]);
+  return overlaps ? [width + COPY_GAP_M, PASTE_OFFSET_M[1]] : PASTE_OFFSET_M;
 }
 
 function copyObjects(source: readonly Equipment[], taken: ReadonlySet<Id>, [dx, dy]: Point): Equipment[] {
@@ -143,14 +162,14 @@ function copyObjects(source: readonly Equipment[], taken: ReadonlySet<Id>, [dx, 
 /**
  * Копии набора для `Ctrl+D` — своя команда, не второе имя для `Ctrl+C`/
  * `Ctrl+V`: без буфера, всегда от текущего выделения. Смещение по умолчанию —
- * `PASTE_OFFSET_M`; после сдвига копии вызывающий передаёт `repeatOffset`, и
+ * `copyOffset`; после сдвига копии вызывающий передаёт `repeatOffset`, и
  * ряд стульев набирается повторными нажатиями. `inventoryNumber` у копии
  * пуст, как и при вставке (D-243, D-266).
  */
 export function duplicateObjects(
   source: readonly Equipment[],
   taken: ReadonlySet<Id>,
-  offset: Point = PASTE_OFFSET_M,
+  offset: Point = copyOffset(source),
 ): Equipment[] {
   return copyObjects(source, taken, offset);
 }
