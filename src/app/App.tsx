@@ -926,6 +926,8 @@ export function App(): React.JSX.Element {
         plan.catalog.version === ORGANIZER_CATALOG_VERSION ? withTeamCatalog(plan, catalog) : null;
       const document = merged?.ok ? merged.value : plan;
       store.getState().replaceDocument(document, origin);
+      // Another plan opens with the selection tool, as a new plan does.
+      setTool({ kind: 'select' });
       // Loading shows every layer again (plan-store); the groups follow.
       setHiddenMounts(new Set());
       // A refused merge is not a silent success: the plan opens as it came,
@@ -1127,6 +1129,7 @@ export function App(): React.JSX.Element {
               ),
               library: (
                 <LibraryPanel
+                  key={documentEpoch}
                   catalog={document.catalog}
                   activeTypeId={tool.kind === 'object.place' || tool.kind === 'shape.draw' ? tool.typeId : null}
                   onTool={setTool}
