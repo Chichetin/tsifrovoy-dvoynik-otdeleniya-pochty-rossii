@@ -35,7 +35,6 @@ import type { AxisSnap, Gap } from '../../domain/geometry';
 import { formatLength } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
-import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
 import {
   arrowDelta,
   duplicateObjects,
@@ -693,8 +692,6 @@ export function EquipmentLayer({
   const render = (object: Equipment, ghost: boolean): React.JSX.Element => {
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
-    const hasCaption = objectLabel(current, viewport,
-      pictograms && planPictogram(object.typeId) !== null ? CAPTION_ICON_SPACE_PX : 0) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
@@ -803,15 +800,13 @@ export function EquipmentLayer({
           stroke="#343A40"
           strokeWidth={1}
         />
-        {hasCaption ? null : (
-          <EquipmentPictogram
-            kind={pictograms ? planPictogram(object.typeId) : null}
-            width={current.size_m[0] * viewport.scale}
-            height={current.size_m[1] * viewport.scale}
-            opacity={ghost ? 0.45 : 0.9}
-            backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
-          />
-        )}
+        <EquipmentPictogram
+          kind={pictograms ? planPictogram(object.typeId) : null}
+          width={current.size_m[0] * viewport.scale}
+          height={current.size_m[1] * viewport.scale}
+          opacity={ghost ? 0.45 : 0.9}
+          backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
+        />
       </Group>
     );
   };
@@ -939,85 +934,6 @@ export function EquipmentLayer({
           .map((object) => render(object, false))}
 
         {previewObject === null ? null : render(previewObject, true)}
-
-        {/* Captions sit above every shape and never catch the pointer: the plan
-            is read by a manager who should not have to click to learn what a
-            rectangle is. Objects too small on screen stay uncaptioned. */}
-        {plan.objects
-          .filter((object) => visibleLayers.has(object.layerId))
-          .map((object) => {
-            const kind = pictograms ? planPictogram(object.typeId) : null;
-            const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
-            const label = objectLabel(shown(object), viewport, iconSpace);
-            if (label === null) return null;
-            // The symbol and the name share one badge. A separate floating
-            // marker used to cover the caption on the busy demo plan.
-            const height = Math.max(label.lines * LABEL_LINE_PX + 2, iconSpace === 0 ? 0 : 22);
-            return (
-              <Group
-                key={`label-${object.id}`}
-                name={`label-${object.id}`}
-                // Поворот — вокруг центра объекта, поэтому точка задаётся
-                // центром, а смещение уводит бирку в её левый верхний угол.
-                // Так неповёрнутая подпись стоит ровно там же, где стояла.
-                x={label.x}
-                y={label.y}
-                offsetX={label.width / 2}
-                offsetY={height / 2}
-                rotation={label.rotation}
-                listening={false}
-              >
-                <Rect
-                  width={label.width}
-                  height={height}
-                  fill="#FFFFFF"
-                  opacity={0.94}
-                  cornerRadius={3}
-                  listening={false}
-                  perfectDrawEnabled={false}
-                />
-                {kind === null ? null : (
-                  <Group name={`plan-pictogram-caption-${object.id}`} x={10} y={height / 2} listening={false}>
-                    <Rect
-                      x={-8}
-                      y={-8}
-                      width={16}
-                      height={16}
-                      fill="#E8F2F8"
-                      cornerRadius={3}
-                      listening={false}
-                    />
-                    <EquipmentPictogram
-                      kind={kind}
-                      width={20}
-                      height={20}
-                      opacity={1}
-                      color="#17567A"
-                    />
-                  </Group>
-                )}
-                <Text
-                  x={iconSpace}
-                  width={label.width - iconSpace}
-                  height={height}
-                  text={label.text}
-                  fontSize={label.fontSize}
-                  lineHeight={LABEL_LINE_PX / label.fontSize}
-                  fontFamily="system-ui, sans-serif"
-                  fill="#212529"
-                  align="center"
-                  verticalAlign="middle"
-                  // Always by word (D-216): a one-line caption too long for
-                  // its box loses whole words to the ellipsis, never a
-                  // half-word — «Стеллаж…», not «Стелл…».
-                  wrap="word"
-                  ellipsis
-                  padding={1}
-                />
-              </Group>
-            );
-          })}
-
       </Layer>
 
       <Layer name="equipment-selection" ref={layerRef}>
