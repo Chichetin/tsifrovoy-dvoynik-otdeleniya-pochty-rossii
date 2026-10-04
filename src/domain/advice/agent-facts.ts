@@ -156,8 +156,10 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
         candidate === undefined ? '' : `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`,
       ].filter(Boolean).join('; ');
       // Candidate fact IDs are local to their search, not globally unique.
-      const metricLabel = fact.metric !== 'placement.distance' ? undefined
-        : recommendation.scenario === 'compare' ? 'Суммарное перемещение сохранившихся объектов между снимками'
+      const metricLabel = recommendation.scenario === 'compare' && fact.metric === 'layout.entrance'
+        ? 'Расстояние от центра объекта до входа по правилу distance-to-entrance'
+        : fact.metric !== 'placement.distance' ? undefined
+        : recommendation.scenario === 'compare' ? 'Перемещено объектов, м (сумма): суммарное перемещение сохранившихся объектов между снимками'
           : 'Расстояние от центра кандидата до середины ограничивающего прямоугольника выбранной зоны или помещения';
       facts.push({ ...fact, id: JSON.stringify([recommendation.id, fact.id]), sourceFactId: fact.id, refs: fact.refs.map((ref) => ({ ...ref })), scope, recommendationId: recommendation.id, ...(candidate === undefined ? {} : { candidateId: candidate.id }), ...(metricLabel === undefined ? {} : { metricLabel }) });
     }
