@@ -42,3 +42,13 @@ it('копия крупного объекта не ложится на ориг
   const second = { ...chair, id: 'eq_2', position: [4, 4] as [number, number] };
   expect(copyOffset([chair, second])[0]).toBeCloseTo(2.5 + 0.1);
 });
+
+it('копия не наследует отметку обхода инвентаризации (#163)', () => {
+  const marked: Equipment = {
+    ...chair,
+    attributes: { inventoryCheck: 'other-number', inventoryFoundNumber: '42', note: 'x' },
+  };
+  for (const copy of [duplicateObjects([marked], new Set([marked.id]))[0]!, pasteObjects([marked], new Set([marked.id]))[0]!]) {
+    expect(copy.attributes).toEqual({ note: 'x' });
+  }
+});
