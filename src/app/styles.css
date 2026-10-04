@@ -2578,21 +2578,32 @@ span.inventory__num {
 }
 
 .shell__tour {
-  display: block;
-  margin: 12px 0 0;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-m);
+  background: var(--color-accent);
+  color: #fff;
   font: inherit;
-  font-size: 13px;
-  text-decoration: underline dotted;
+  font-size: var(--text-s);
+  font-weight: 600;
   cursor: pointer;
 }
 
 .shell__tour:hover,
 .shell__tour:focus-visible {
-  color: var(--accent);
+  background: var(--color-accent-strong);
+  border-color: var(--color-accent-strong);
+}
+
+.shell__tour svg {
+  flex: none;
 }
 
 .onboarding {

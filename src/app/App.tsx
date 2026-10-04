@@ -1087,6 +1087,9 @@ export function App(): React.JSX.Element {
               title="Четыре шага: открыть план, изменить, проверить, сохранить"
               onClick={() => setTourOpen(true)}
             >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M12 5v15M12 5C9 3 5 3 3 4v14c3-1 6 0 9 2 3-2 6-3 9-2V4c-2-1-6-1-9 1Z" />
+              </svg>
               Обучение
             </button>
           </div>
