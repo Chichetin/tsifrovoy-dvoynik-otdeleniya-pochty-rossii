@@ -12,6 +12,7 @@
 
 import type { AttributeType, Attributes, Catalog, Id, PlanDocument } from '../contracts/model';
 import { INVENTORY_NUMBER_KEY, inventoryNumberOf } from '../domain/commands';
+import { WALK_MARK_LABELS, walkFoundNumberOf, walkMarkOf } from '../domain/inventory';
 import { planIndex } from '../domain/plan-index';
 
 export type AttributeColumn = { key: string; label: string; type: AttributeType };
@@ -193,6 +194,54 @@ export function inventoryCsvFileName(plan: PlanDocument | undefined): string {
     .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-|-$/g, '');
   return `${stem === '' ? 'plan' : stem}-инвентаризация.csv`;
+}
+
+/** Columns of the discrepancy report of the walk (#124). */
+export const WALK_ACT_COLUMNS = [
+  'Объект',
+  'id объекта',
+  'Инв. №',
+  'Отметка',
+  'Найденный номер',
+  'Зона',
+  'id зоны',
+] as const;
+
+/** Mark text for an object the walk has not reached. */
+export const WALK_UNCHECKED_LABEL = 'не проверен';
+
+/**
+ * The discrepancy report: every object whose mark is not «на месте», and every
+ * object the walk has not reached, in the order of `route` (objects outside it
+ * follow in document order). Same separator, BOM and quoting as the inventory.
+ */
+export function walkActCsv(plan: PlanDocument, route: readonly Id[] = []): string {
+  const index = planIndex(plan);
+  const position = new Map(route.map((id, order) => [id, order]));
+  const ordered = plan.objects
+    .map((object, order) => ({ object, key: position.get(object.id) ?? route.length + order }))
+    .sort((a, b) => a.key - b.key)
+    .map((entry) => entry.object);
+  const body = ordered
+    .filter((object) => walkMarkOf(object) !== 'present')
+    .map((object) => {
+      const mark = walkMarkOf(object);
+      return [
+        object.label,
+        object.id,
+        inventoryNumberOf(object) ?? '',
+        mark === null ? WALK_UNCHECKED_LABEL : WALK_MARK_LABELS[mark],
+        mark === 'other-number' ? (walkFoundNumberOf(object) ?? '') : '',
+        object.zoneId === null ? 'вне зон' : (index.zoneName(object.zoneId) ?? object.zoneId),
+        object.zoneId ?? '',
+      ];
+    });
+  return CSV_BOM + toCsv([[...WALK_ACT_COLUMNS], ...body]);
+}
+
+/** `Демо-ОПС` → `Демо-ОПС-акт-расхождений.csv`. */
+export function walkActFileName(plan: PlanDocument | undefined): string {
+  return inventoryCsvFileName(plan).replace(/-инвентаризация\.csv$/u, '-акт-расхождений.csv');
 }
 
 const CHOICE_STORAGE_KEY = 'posttech:inventory-attribute-columns';

@@ -13,7 +13,7 @@ import type { Command } from '../../contracts/commands';
 import type { Equipment, Id, PlanDocument, Zone } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import { applyCommand } from '../commands';
-import { buildInventory } from './index';
+import { buildInventory, walkRoute } from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -226,5 +226,15 @@ describe('правка плана сразу видна в перечне', () =
   test('перечень пересчитывается, а не хранится: два вызова на одном плане совпадают', () => {
     const plan = loadPlan('nested.json');
     expect(buildInventory(plan)).toEqual(buildInventory(plan));
+  });
+});
+
+describe('обход для инвентаризации', () => {
+  test('маршрут проходит каждый объект ровно один раз', () => {
+    const plan = loadPlan('nested.json');
+    const route = walkRoute(plan);
+
+    expect(route).toHaveLength(plan.objects.length);
+    expect([...route].sort()).toEqual(plan.objects.map((object) => object.id).sort());
   });
 });
