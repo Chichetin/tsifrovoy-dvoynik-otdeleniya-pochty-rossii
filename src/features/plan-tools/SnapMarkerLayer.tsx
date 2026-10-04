@@ -12,10 +12,9 @@
  * Konva-слоя заставляет сцену перерисовать все слои (D-177). Своё состояние
  * маркер не держит — его кадр приходит каналом `snap-marker.ts`.
  *
- * Известное ограничение: размера холста у слоя нет (читать его в рендере
- * запрещает правило React о ссылках, а держать в состоянии — правило о
- * setState в эффекте), поэтому подпись всегда лежит справа снизу от точки и у
- * самого правого края холста обрезается.
+ * Размера холста у слоя нет, поэтому подпись ставится справа снизу от точки, а
+ * ref-колбэк после монтирования сдвигает её влево, если она вышла за правый
+ * край сцены (#146).
  */
 
 import { Circle, Group, Label, Line, Tag, Text } from 'react-konva';
@@ -98,6 +97,12 @@ export function SnapMarkerLayer({ viewport }: { viewport: Viewport }): React.JSX
             x={x + CAPTION_GAP_PX}
             y={y + CAPTION_GAP_PX}
             listening={false}
+            ref={(node) => {
+              const stageWidth = node?.getStage()?.width();
+              if (node === null || stageWidth === undefined) return;
+              const overflow = node.x() + node.width() - (stageWidth - CAPTION_GAP_PX);
+              if (overflow > 0) node.x(Math.max(CAPTION_GAP_PX, node.x() - overflow));
+            }}
           >
             {/* Непрозрачная плашка — та же техника контраста, что у подписи
                 объекта (D-216): подпись читается и поверх зоны, и поверх стены. */}

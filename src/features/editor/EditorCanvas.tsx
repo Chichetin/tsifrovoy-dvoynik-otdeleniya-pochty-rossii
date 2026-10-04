@@ -486,6 +486,8 @@ export function EditorCanvas({
       className="editor-canvas"
       ref={host}
       data-testid="editor-canvas"
+      tabIndex={0}
+      aria-label="План помещения"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       data-visible={

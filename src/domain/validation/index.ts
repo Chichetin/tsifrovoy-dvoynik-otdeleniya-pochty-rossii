@@ -66,6 +66,7 @@ export {
   type HealthLine,
   type PlanHealth,
   healthLineRefs,
+  isEmptyPlan,
   issuePenalty,
   planHealth,
 } from './health';
