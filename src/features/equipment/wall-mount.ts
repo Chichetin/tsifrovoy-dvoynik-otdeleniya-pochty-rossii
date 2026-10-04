@@ -22,7 +22,7 @@ import type { Id, ObjectType, Point, Polygon, Wall } from '../../contracts/model
 import { TOLERANCE } from '../../contracts/model';
 import { locatePoint, projectOnSegment } from '../../domain/geometry';
 import { WORK_SURFACE_M } from '../../domain/validation';
-import { rotationFromPointer, snapPosition } from './transform';
+import { rotationFromPointer, snapPosition, snapPositionToward } from './transform';
 
 /**
  * Крепится к стене: не занимает пол и поднято выше рабочей поверхности.
@@ -103,8 +103,12 @@ export function wallMountPlacement(
   // Единичная нормаль стены; знак выбирается ниже.
   const normal: Point = [dy / length, -dx / length];
   const offset_m = wall.thickness_m / 2 + size_m[1] / 2;
+  // Округление — от стены: к ближнему сантиметру прибор заходил бы в неё на 5 мм (#119).
   const centre = (sign: number): Point =>
-    snapPosition([foot[0] + sign * normal[0] * offset_m, foot[1] + sign * normal[1] * offset_m]);
+    snapPositionToward(
+      [foot[0] + sign * normal[0] * offset_m, foot[1] + sign * normal[1] * offset_m],
+      [sign * normal[0], sign * normal[1]],
+    );
 
   // Сторона клика. Клик точно по оси стены стороны не задаёт — он достаётся
   // «плюсу», а проверка ниже всё равно уводит объект внутрь помещения, если
