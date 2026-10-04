@@ -53,6 +53,7 @@ import {
   loadColumnChoice,
   visibleAttributeColumns,
 } from '../../persistence/inventory-csv';
+import { limitRefusal } from './limit-message';
 import { FileDialog } from './FileDialog';
 import { DEMO_PLANS, readDemoText, type DemoPlan } from './demo-plan';
 
@@ -353,7 +354,10 @@ export function FileControls({
       // Документ не сменился: допущения прежнего файла уже неверны для сообщения
       // об отказе, а список полей вне формата относится к оставшемуся плану.
       setAssumptions([]);
-      showIssueError('План не открыт: файл не соответствует поддерживаемому формату.', opened.issues);
+      showIssueError(
+        limitRefusal(text, opened.issues) ?? 'План не открыт: файл не соответствует поддерживаемому формату.',
+        opened.issues,
+      );
       return;
     }
     accept(opened.value, 'file');
