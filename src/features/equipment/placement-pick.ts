@@ -17,9 +17,10 @@ function distanceToObject(point: Point, object: Equipment): number {
   return distance;
 }
 
+/** The visible object a pointer at `point` means; `typeId` narrows it to one type, `null` takes any. */
 export function findPlacementPick(
   plan: PlanDocument,
-  typeId: string,
+  typeId: string | null,
   point: Point,
   scale: number,
 ): Equipment | null {
@@ -29,7 +30,7 @@ export function findPlacementPick(
   let nearest: Equipment | null = null;
   let nearestDistance = Number.POSITIVE_INFINITY;
   for (const object of plan.objects) {
-    if (object.typeId !== typeId || !visible.has(object.layerId)) continue;
+    if ((typeId !== null && object.typeId !== typeId) || !visible.has(object.layerId)) continue;
     const distance = distanceToObject(point, object);
     // `<=` makes the later, visually upper object win an exact tie.
     if (distance > tolerance_m || distance > nearestDistance) continue;

@@ -762,6 +762,8 @@ export function EquipmentLayer({
         onPointerClick={
           picking
             ? (event) => {
+                // The right button opens the object's menu and keeps the group (#24).
+                if (event.evt.button !== 0) return;
                 // Shift+click adds to or removes from the group; a plain click
                 // picks this object alone.
                 if (event.evt.shiftKey && onSelectMany !== undefined) {
