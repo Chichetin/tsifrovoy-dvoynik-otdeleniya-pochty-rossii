@@ -35,6 +35,7 @@ import type { AxisSnap, Gap } from '../../domain/geometry';
 import { formatLength } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
+import { fitCaption } from './caption-fit';
 import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
 import {
   arrowDelta,
@@ -955,7 +956,8 @@ export function EquipmentLayer({
             if (label === null) return null;
             // The symbol and the name share one badge. A separate floating
             // marker used to cover the caption on the busy demo plan.
-            const height = Math.max(label.lines * LABEL_LINE_PX + 2, iconSpace === 0 ? 0 : 22);
+            const fit = fitCaption(label.text, label.fontSize, iconSpace, label.width, label.lines);
+            const height = Math.max(fit.lines * LABEL_LINE_PX + 4, iconSpace === 0 ? 0 : 22);
             return (
               <Group
                 key={`label-${object.id}`}
@@ -965,20 +967,20 @@ export function EquipmentLayer({
                 // Так неповёрнутая подпись стоит ровно там же, где стояла.
                 x={label.x}
                 y={label.y}
-                offsetX={label.width / 2}
+                offsetX={fit.width / 2}
                 offsetY={height / 2}
                 rotation={label.rotation}
                 listening={false}
               >
                 {/* D-363: a dark glass tag, the icon on the type's own colour. */}
                 <Rect
-                  width={label.width}
+                  width={fit.width}
                   height={height}
                   fill="#17232E"
                   opacity={0.88}
                   stroke="#FFFFFF"
                   strokeWidth={0.75}
-                  cornerRadius={6}
+                  cornerRadius={Math.min(6, height / 2)}
                   listening={false}
                   perfectDrawEnabled={false}
                 />
@@ -1004,7 +1006,7 @@ export function EquipmentLayer({
                 )}
                 <Text
                   x={iconSpace}
-                  width={label.width - iconSpace}
+                  width={fit.width - iconSpace}
                   height={height}
                   text={label.text}
                   fontSize={label.fontSize}
