@@ -458,6 +458,8 @@ export function App(): React.JSX.Element {
   // Значки типов на плане: состояние вида. Выключение оставляет цвет, форму и
   // подписи и ничего не пишет в документ, поэтому отмена его не видит.
   const [pictograms, setPictograms] = useState(true);
+  // D-362: names on objects are off until asked for; the icon in the shape says what it is.
+  const [captions, setCaptions] = useState(false);
   const pictogramsView = useMemo(
     () => ({ shown: pictograms, onToggle: () => setPictograms((shown) => !shown) }),
     [pictograms],
@@ -1040,6 +1042,20 @@ export function App(): React.JSX.Element {
               {planOnly ? <path d="M3 21 21 3" /> : null}
             </svg>
           </button>
+          <button
+            type="button"
+            className="shell__plan-only-toggle shell__captions-toggle"
+            aria-label="Подписи объектов"
+            title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
+            aria-pressed={captions}
+            onClick={() => setCaptions((shown) => !shown)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7V5h16v2" />
+              <path d="M12 5v14" />
+              <path d="M9 19h6" />
+            </svg>
+          </button>
           {/* The refusal floats over the canvas: a row above it would push the
               plan down under the pointer that just made the gesture. */}
           {shownError === null ? null : (
@@ -1118,6 +1134,7 @@ export function App(): React.JSX.Element {
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
               pictograms={pictograms}
+              captions={captions}
             />
             {/* После оборудования — иначе объект, вставший на подпись, закрывает
                 название зоны целиком; полупрозрачность не даёт подписи закрыть

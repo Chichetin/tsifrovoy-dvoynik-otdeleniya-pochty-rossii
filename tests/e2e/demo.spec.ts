@@ -128,12 +128,12 @@ test.describe('демо-комплект из ZIP', () => {
     // рядом с местом из рекомендации: на холсте 664 × 671 масштаб «Вписать» —
     // 40 px/м, модель (2,2; 2) — это (120, 456). X/Y применяются вместе.
     await showTab(page, 'Библиотека');
-    await page.locator('.library__item', { hasText: 'Скамья / кресла для ожидания' }).first().click();
+    await page.locator('.library__item', { hasText: 'Скамья для ожидания' }).first().click();
     await page.getByTestId('editor-canvas').click({ position: { x: 120, y: 456 } });
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await expect(inventoryRows(page)).toHaveCount(54);
 
-    await selectByLabel(page, 'Скамья / кресла для ожидания');
+    await selectByLabel(page, 'Скамья для ожидания');
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_54');
     await card(page).getByLabel('X, м').fill('2.2');
     await card(page).getByLabel('Y, м').fill('2');
