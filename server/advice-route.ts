@@ -35,6 +35,8 @@ export type AdviceRouteOptions = {
    */
   llmProvider: string | null;
   rateLimit: { max: number; windowMs: number };
+  /** #136: the build SHA for /api/health; null — the field is left out. */
+  build?: string | null;
 };
 
 const requestSchema = z.discriminatedUnion('scenario', [
@@ -144,6 +146,7 @@ export function registerAdviceRoutes(app: FastifyInstance, options: AdviceRouteO
       options.llm === null || options.llmProvider === null
         ? { configured: false }
         : { configured: true, provider: options.llmProvider },
+    ...(options.build == null ? {} : { build: options.build }),
   }));
 
   app.post('/api/advice', async (request: FastifyRequest, reply: FastifyReply) => {

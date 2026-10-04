@@ -32,7 +32,7 @@ docker compose up --build -d
 
 ```bash
 docker compose ps                        # STATUS должен стать "Up ... (healthy)"
-curl http://127.0.0.1:8080/api/health    # {"status":"ok","llm":{"configured":false}} — с ключом: {"configured":true,"provider":"…"}
+curl http://127.0.0.1:8080/api/health    # {"status":"ok","llm":{"configured":false},"build":"<SHA>"} — с ключом: {"configured":true,"provider":"…"}; build — SHA сборки (deploy-vm.sh)
 ```
 
 Редактор открывается в браузере по адресу <http://127.0.0.1:8080> (на удалённой машине —

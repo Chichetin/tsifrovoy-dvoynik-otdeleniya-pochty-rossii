@@ -30,6 +30,8 @@ export type ServerConfig = {
   staticDir: string | null;
   llm: LlmConfig | null;
   rateLimit: { max: number; windowMs: number };
+  /** #136: short git SHA of the build (BUILD_SHA), or null when unknown. */
+  build: string | null;
 };
 
 export type Env = Record<string, string | undefined>;
@@ -75,6 +77,7 @@ export function readConfig(env: Env): ServerConfig {
       max: positiveInt(env.ADVICE_RATE_LIMIT, 30),
       windowMs: positiveInt(env.ADVICE_RATE_WINDOW_MS, 60_000),
     },
+    build: text(env.BUILD_SHA),
   };
 }
 
