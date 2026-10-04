@@ -172,21 +172,8 @@ export function App(): React.JSX.Element {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
   const [planOnly, setPlanOnly] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  const viewportBeforePlanOnly = useRef<Viewport | null>(null);
-  const togglePlanOnly = useCallback((): void => {
-    if (!planOnly) viewportBeforePlanOnly.current = viewport;
-    setPlanOnly(!planOnly);
-    // Presentation mode uses the whole canvas; returning restores the exact
-    // working view the person had before hiding the editor.
-    window.requestAnimationFrame(() => {
-      if (planOnly) {
-        if (viewportBeforePlanOnly.current !== null) setViewport(viewportBeforePlanOnly.current);
-        return;
-      }
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect !== undefined) setViewport(fitToExtent(planExtent(document), { width: rect.width, height: rect.height }));
-    });
-  }, [document, planOnly, viewport]);
+  // Only hides or shows the interface; the viewport and canvas size stay as they are.
+  const togglePlanOnly = useCallback((): void => setPlanOnly((value) => !value), []);
   useEffect(() => {
     if (!planOnly) return;
     const onEscape = (event: KeyboardEvent): void => {

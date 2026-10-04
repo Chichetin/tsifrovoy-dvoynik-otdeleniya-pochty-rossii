@@ -20,7 +20,7 @@ import {
   createAgentSession,
   sessionFallback,
 } from '../src/domain/advice';
-import type { LlmChat, LlmMessage } from './llm-client';
+import { LLM_ISSUE_CODES, type LlmChat, type LlmMessage } from './llm-client';
 
 export type AgentRun = {
   chat: LlmChat;
@@ -76,6 +76,8 @@ export async function runAgent(run: AgentRun): Promise<AgentAnswer> {
     if (now() > deadline) return fallback('Модель не уложилась во время ответа — показан расчёт без LLM.');
     const answer = await run.chat({ messages, tools: AGENT_TOOL_SPECS });
     if (!answer.ok) {
+      // #137: a timeout already reads as a sentence for a person, «Модель не ответила за 60 с».
+      if (answer.issues[0]?.code === LLM_ISSUE_CODES.LLM_TIMEOUT) return fallback(`${answer.issues[0].message} Показан расчёт без LLM.`);
       return fallback(`Модель недоступна: ${answer.issues[0]?.message ?? 'нет ответа'} Показан расчёт без LLM.`);
     }
 

@@ -41,7 +41,7 @@ function scripted(turns: (LlmTurn | 'fail')[]): { chat: LlmChat; seen: LlmMessag
     seen.push(structuredClone(messages));
     const next = turns.shift();
     if (next === undefined || next === 'fail') {
-      return { ok: false, issues: [{ code: 'LLM_TIMEOUT', severity: 'error', message: 'нет ответа.', refs: [] }] };
+      return { ok: false, issues: [{ code: 'LLM_UNREACHABLE', severity: 'error', message: 'нет ответа.', refs: [] }] };
     }
     return { ok: true, value: next };
   };

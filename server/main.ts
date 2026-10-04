@@ -39,6 +39,7 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
     rateLimit: config.rateLimit,
     // One exchange is a few model calls; three provider timeouts bound it.
     deadlineMs: (config.llm?.timeoutMs ?? 0) * 3,
+    llmTimeoutMs: config.llm?.timeoutMs ?? null,
   });
 
   const staticDir = config.staticDir ?? resolve(process.cwd(), 'dist');
