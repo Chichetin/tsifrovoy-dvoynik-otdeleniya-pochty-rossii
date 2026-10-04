@@ -313,7 +313,8 @@ F02 публикует `src/contracts/fixtures/`: `minimal.json`, `nested.json`,
 
 Общие UI-props в `src/contracts/ui.ts`: `{document, revision, selection, onSelect,
 onCommand}` с типами выше; панели без редактирования получают только нужные поля.
-`EditorCanvas` принимает `children` — слои фигур от app-композиции. Его pointer-события
+`EditorCanvas` принимает `children` — слои фигур от app-композиции — и необязательный
+`overlay` — группы Konva над ними в одном слое с кольцом фокуса. Его pointer-события
 отдают мировую Point; UI инструментов не пересчитывает Y самостоятельно.
 Preview рекомендаций: `EquipmentLayer` дополнительно принимает
 `preview: Candidate | null`; отображает его отдельно без изменения документа.
@@ -351,7 +352,7 @@ type EditorSession = {
 };
 // Tool changes and focus requests are coordinated by src/app, not persisted.
 // EditorCanvas props: document, session, onPointer(WorldPointer),
-// onViewport(Viewport), onSelect(Ref|null), children: ReactNode.
+// onViewport(Viewport), onSelect(Ref|null), children: ReactNode, overlay?: ReactNode.
 // PlanTools: document, session, onTool(Tool), onCommand(Command).
 // PlanGeometryLayer: document, session, draft: Point[]|null,
 // onCommand(Command), onSelect(Ref|null).

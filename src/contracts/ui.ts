@@ -102,6 +102,8 @@ export type EditorCanvasProps = {
   onSelect: SelectSink;
   /** Shape layers supplied by the app composition. */
   children: ReactNode;
+  /** Konva groups drawn above `children` in one layer with the focus ring. */
+  overlay?: ReactNode;
 };
 
 export type PlanToolsProps = {
