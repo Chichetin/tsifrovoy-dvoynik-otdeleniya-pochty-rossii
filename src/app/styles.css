@@ -2516,14 +2516,17 @@ span.inventory__num {
   height: 100%;
 }
 
+/* The round buttons «only the plan» and «captions» stand in the same corner
+   (right 0.75rem, 2.125rem wide); the download button stays left of them, so in
+   «only the plan» mode, where the header is gone, they do not overlap. */
 .view3d__tools {
   position: absolute;
   top: 0.75rem;
-  right: 0.75rem;
+  right: calc(0.75rem + 2.125rem + 0.5rem);
   display: grid;
   justify-items: end;
   gap: 0.5rem;
-  max-width: calc(100% - 1.5rem);
+  max-width: calc(100% - 4.5rem);
 }
 
 .view3d__status {
