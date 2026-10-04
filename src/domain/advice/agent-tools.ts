@@ -19,6 +19,7 @@ import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
 import { checkAgentEdits } from './agent-edits';
+import { layoutZone } from './layout';
 import { cameraCoverage } from './camera-coverage';
 import { calculateAdvice } from './index';
 
@@ -148,6 +149,19 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
       type: 'object',
       properties: { panel: { type: 'string', enum: ['metrics', 'validation', 'inventory'] } },
       required: ['panel'],
+    },
+  },
+  {
+    name: 'layout_zone',
+    description:
+      'Разложить зону заново, когда человек просит разложить, расставить или переставить оборудование зоны. Код перебирает раскладки свободно стоящих объектов зоны и возвращает до трёх проверенных вариантов: вдоль стен, ближе ко входу, шире проходы — с числами было → стало (самый узкий проход, среднее расстояние до входа, находки проверки). typeIds — только эти типы; без них — все подвижные объекты зоны. План не меняется: варианты видны призраками, применит человек. Объясни разницу вариантов по их фактам.',
+    parameters: {
+      type: 'object',
+      properties: {
+        zoneId: { type: 'string' },
+        typeIds: { type: ['array', 'null'], items: { type: 'string' } },
+      },
+      required: ['zoneId'],
     },
   },
   {
@@ -511,9 +525,37 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       };
     }
 
-    // #122: the contract is in place, the layout search comes next. Until
-    // then the tool is not offered to the model and refuses every call.
-    case 'layout_zone':
-      return fail(name, 'Раскладка зоны недоступна', 'Раскладка зоны пока недоступна.');
+    case 'layout_zone': {
+      const { zoneId, typeIds } = argSchemas.layout_zone.parse(rawArgs);
+      const zoneName = state.names.zoneName(zoneId);
+      if (zoneName === null || zoneName === undefined) return fail(name, 'Раскладка зоны', `Зоны «${zoneId}» нет в плане.`);
+      const variants = layoutZone(plan, zoneId, typeIds, `layout${state.proposals.length + 1}`);
+      addRef(state, { kind: 'zone', id: zoneId });
+      const label = `Раскладка зоны «${zoneName}»: вариантов ${variants.length}`;
+      if (variants.length === 0) {
+        return fail(name, label, 'Раскладка без новых нарушений не найдена: в зоне нет свободно стоящих объектов или им некуда встать.');
+      }
+      for (const variant of variants) {
+        state.proposals.push(variant);
+        addAction(state, { kind: 'preview-edits', proposalId: variant.id });
+        addAction(state, { kind: 'apply-edits', proposalId: variant.id });
+      }
+      const value = (variant: AgentEditProposal, metric: string, phase: string): number | null =>
+        variant.facts.find((fact) => fact.metric === metric && fact.phase === phase)?.value ?? null;
+      return {
+        output: {
+          variants: variants.map((variant) => ({
+            proposalId: variant.id,
+            title: variant.title,
+            moved: variant.changes.map((change) => change.id),
+            narrowestPassage_m: { before: value(variant, 'layout.passage', 'before'), after: value(variant, 'layout.passage', 'after') },
+            meanToEntrance_m: { before: value(variant, 'layout.entrance', 'before'), after: value(variant, 'layout.entrance', 'after') },
+            findings: variant.findings,
+          })),
+          note: 'Варианты показаны на плане призраками. Применит человек кнопкой «Применить вариант N», отмена — Ctrl+Z.',
+        },
+        step: { tool: name, label, ok: true },
+      };
+    }
   }
 }

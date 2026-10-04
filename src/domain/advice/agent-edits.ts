@@ -25,7 +25,7 @@ import { findPlacements, issueKey } from './placement';
 
 const cm = (value: number): number => Math.round(value * 100) / 100;
 
-function pose(object: Equipment): AgentEditPose {
+export function pose(object: Equipment): AgentEditPose {
   return { position: [cm(object.position[0]), cm(object.position[1])], rotation_deg: object.rotation_deg, zoneId: object.zoneId };
 }
 
@@ -54,15 +54,15 @@ function editStep(plan: PlanDocument, edit: AgentEdit, retired: readonly Id[]): 
   return { command: { type: 'object.put', object }, put: object, before: existing };
 }
 
-const errorKeys = (issues: readonly Issue[]): Set<string> =>
+export const errorKeys = (issues: readonly Issue[]): Set<string> =>
   new Set(issues.filter((issue) => issue.severity === 'error').map(issueKey));
 
-function count(issues: readonly Issue[], errors: boolean): number {
+export function count(issues: readonly Issue[], errors: boolean): number {
   return issues.filter((issue) => (issue.severity === 'error') === errors).length;
 }
 
 /** Free and occupied area before → after, objects added and removed: all by code. */
-function effectFacts(id: Id, before: PlanDocument, after: PlanDocument, added: number, removed: number): Fact[] {
+export function effectFacts(id: Id, before: PlanDocument, after: PlanDocument, added: number, removed: number): Fact[] {
   const refs: Ref[] = [{ kind: 'room', id: before.room.id }];
   const facts: Fact[] = [];
   const was = measurePlan(before);
