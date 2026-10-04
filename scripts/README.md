@@ -20,6 +20,7 @@
 - `measure-3d.ts` — время от нажатия «3D» до сцены с моделями и кадры в секунду при
   вращении камеры (#59): `npx tsx scripts/measure-3d.ts <план|100|500|1000> [прогонов]`
   на запущенном приложении (`APP_URL`, по умолчанию `http://127.0.0.1:5174/`).
+  `PW_CHANNEL=msedge` или `chrome` выбирает установленный браузер, как в e2e.
 - `models/build.py` — 3D-модели типов в `public/models/<имя>.glb` (#59, D-357).
   Запуск: `~/.local/opt/blender-5.2.2-linux-x64/blender -b -P scripts/models/build.py --
   [имя …] [--preview <папка>]`. Размеры берёт из `data/catalog/object-types.json`,
