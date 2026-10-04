@@ -22,6 +22,8 @@ export const AGENT_LIMITS = {
   maxTextChars: 2_000,
   /** Edits in one propose_edits call. */
   maxEdits: 12,
+  /** #122: variants one layout_zone call returns. */
+  layoutVariants: 3,
 } as const;
 
 export const AGENT_READ_TOOLS = [
@@ -34,7 +36,7 @@ export const AGENT_READ_TOOLS = [
   'compare_with_original',
 ] as const;
 
-export const AGENT_UI_TOOLS = ['show_on_plan', 'suggest_candidate', 'suggest_layer', 'open_panel', 'propose_edits'] as const;
+export const AGENT_UI_TOOLS = ['show_on_plan', 'suggest_candidate', 'suggest_layer', 'open_panel', 'propose_edits', 'layout_zone'] as const;
 
 export type AgentToolName = (typeof AGENT_READ_TOOLS)[number] | (typeof AGENT_UI_TOOLS)[number];
 
@@ -72,6 +74,17 @@ export type AgentEdit = z.infer<typeof agentEditSchema>;
 /** Arguments of `propose_edits`. */
 export const proposeEditsArgsSchema = z.object({ edits: z.array(agentEditSchema).min(1).max(AGENT_LIMITS.maxEdits) });
 
+/**
+ * #122: arguments of `layout_zone`. Code rearranges the objects of the zone
+ * (or only the listed types) by search and returns up to
+ * `AGENT_LIMITS.layoutVariants` proposals of move and rotate edits. The model
+ * only names the zone and explains the difference between the variants.
+ */
+export const layoutZoneArgsSchema = z.object({
+  zoneId: z.string().min(1),
+  typeIds: z.array(z.string().min(1)).min(1).nullish().transform((value) => value ?? null),
+});
+
 /** Where an object stands on one side of an edit. */
 export type AgentEditPose = { position: Point; rotation_deg: number; zoneId: Id | null };
 
@@ -100,6 +113,8 @@ export type AgentEditFindings = { before: number; after: number };
  */
 export type AgentEditProposal = {
   id: Id;
+  /** #122: a layout variant's name, written by code («Вариант 1: вдоль стен»). */
+  title?: string;
   /**
    * Accepted edits as editor commands, in order. Applied as one `batch` — one
    * undo step. A new object's id is minted against the plan; the UI re-mints
@@ -112,7 +127,8 @@ export type AgentEditProposal = {
   /**
    * Effect of all accepted edits, calculated by code on a copy of the plan:
    * `area.free`, `area.occupied`, `objects.added`, `objects.removed` with
-   * phases before, after and delta.
+   * phases before, after and delta. A layout variant (#122) adds
+   * `layout.passage` and `layout.entrance`.
    */
   facts: Fact[];
   /** Validation errors and warnings before → after all accepted edits. */
