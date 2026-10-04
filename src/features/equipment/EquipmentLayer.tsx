@@ -970,24 +970,27 @@ export function EquipmentLayer({
                 rotation={label.rotation}
                 listening={false}
               >
+                {/* D-363: a dark glass tag, the icon on the type's own colour. */}
                 <Rect
                   width={label.width}
                   height={height}
-                  fill="#FFFFFF"
-                  opacity={0.94}
-                  cornerRadius={3}
+                  fill="#17232E"
+                  opacity={0.88}
+                  stroke="#FFFFFF"
+                  strokeWidth={0.75}
+                  cornerRadius={6}
                   listening={false}
                   perfectDrawEnabled={false}
                 />
                 {kind === null ? null : (
-                  <Group name={`plan-pictogram-caption-${object.id}`} x={10} y={height / 2} listening={false}>
+                  <Group name={`plan-pictogram-caption-${object.id}`} x={11} y={height / 2} listening={false}>
                     <Rect
-                      x={-8}
-                      y={-8}
-                      width={16}
-                      height={16}
-                      fill="#E8F2F8"
-                      cornerRadius={3}
+                      x={-9}
+                      y={-9}
+                      width={18}
+                      height={18}
+                      fill={findObjectType(plan.catalog, object.typeId)?.color ?? FALLBACK_COLOR}
+                      cornerRadius={5}
                       listening={false}
                     />
                     <EquipmentPictogram
@@ -995,7 +998,7 @@ export function EquipmentLayer({
                       width={20}
                       height={20}
                       opacity={1}
-                      color="#17567A"
+                      color="#FFFFFF"
                     />
                   </Group>
                 )}
@@ -1007,7 +1010,7 @@ export function EquipmentLayer({
                   fontSize={label.fontSize}
                   lineHeight={LABEL_LINE_PX / label.fontSize}
                   fontFamily="system-ui, sans-serif"
-                  fill="#212529"
+                  fill="#FFFFFF"
                   align="center"
                   verticalAlign="middle"
                   // Always by word (D-216): a one-line caption too long for
