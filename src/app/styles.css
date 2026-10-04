@@ -231,26 +231,18 @@ body {
 }
 
 .shell__doc-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
   color: var(--color-success);
-  font-size: var(--text-s);
+  font-size: var(--text-xs);
   line-height: 1;
   cursor: default;
 }
 
 .shell__doc-state.is-dirty {
   color: var(--color-warning);
-}
-
-.shell__doc-state-text {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
 }
 
 /* D-350: the «Настройки» button sits right after the plan name — settings of
@@ -292,10 +284,13 @@ body {
 }
 
 /* D-260: the hotkeys map button sits between history and files, «Экспорт»
-   stays last. */
-.shell__bar > .shell__help {
+   stays last. #105: «Ассистент» stands beside it in the same grid column. */
+.shell__bar > .shell__aux {
+  display: flex;
   grid-row: 1;
   grid-column: 6;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .shell__quiet.shell__help {
@@ -592,6 +587,13 @@ body {
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+.editor-canvas__zoom {
+  min-width: 28px;
+  padding-inline: 0;
+  font-size: 15px;
+  line-height: 1;
 }
 
 .editor-canvas__fit:hover {
@@ -1241,10 +1243,10 @@ body {
   margin-bottom: var(--space-5);
 }
 
-/* D-249: a side column's tabs (WAI-ARIA tabs, `SideTabs.tsx`). The row
-   wraps instead of scrolling sideways: five Russian titles do not fit in
-   340px on one line, and a hidden tab behind a horizontal scroll is a tab
-   nobody finds. */
+/* D-249: a side column's tabs (WAI-ARIA tabs, `SideTabs.tsx`). #105: two equal
+   columns instead of a wrapping row — four Russian titles do not fit in 340px
+   on one line (measured: 374px of tabs), a ragged 3 + 1 looked like a defect,
+   and a hidden tab behind a horizontal scroll is a tab nobody finds. */
 .side-tabs {
   display: flex;
   flex: 1 1 auto;
@@ -1253,9 +1255,9 @@ body {
 }
 
 .side-tabs__list {
-  display: flex;
+  display: grid;
   flex: none;
-  flex-wrap: wrap;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-1);
   padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--color-line);
@@ -1265,6 +1267,7 @@ body {
 .side-tabs__tab {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-1);
   min-height: var(--control-h);
   padding: 0 var(--space-2);
@@ -1343,22 +1346,19 @@ body {
   border: 0;
 }
 
-/* D-268 (replaces D-249's card above the right tabs): «Свойства» stand in
-   the left column in place of its open tab. The tab row stays above with no
-   tab selected; the card fills the rest and scrolls on its own. The accent
-   frame and the band say the card is standing in for a panel, not a panel
-   of its own. D-272: the band reads just «Свойства» and is the card's only
-   heading (role="heading" on the caption); the card itself has no title.
+/* #105 (replaces D-268, back to D-249's place): «Свойства» stand above the
+   right column's tabs, so the library on the left stays while something is
+   selected. The card takes what its fields need, up to half the column, and
+   scrolls on its own. D-272: the band reads just «Свойства» and is the card's
+   only heading (role="heading" on the caption); the card itself has no title.
    Accent-strong on accent-soft is 7.8:1. */
-.side-tabs.is-collapsed {
-  flex: 0 0 auto;
-}
-
 .shell__props {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   flex-direction: column;
   min-height: 0;
+  /* The tabs under the card keep at least the lower half of the column. */
+  max-height: 50%;
   margin: var(--space-2);
   border: 1px solid var(--color-accent);
   border-left-width: 4px;
@@ -1391,28 +1391,6 @@ body {
 
 .shell__props-body > .panel {
   margin-bottom: 0;
-}
-
-/* Same look as a selected tab: it stands for the card that stepped aside. */
-.shell__props-return {
-  display: block;
-  width: 100%;
-  min-height: var(--control-h);
-  margin-top: var(--space-2);
-  padding: 0 var(--space-2);
-  border: 1px solid var(--color-accent);
-  border-radius: var(--radius-m);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-strong);
-  font: inherit;
-  font-size: var(--text-s);
-  font-weight: 600;
-  text-align: left;
-  cursor: pointer;
-}
-
-.shell__props-return:hover {
-  background: var(--color-surface);
 }
 
 .shell__props-close {
@@ -3178,6 +3156,16 @@ span.inventory__num {
 
 .rule-checklist__ask:hover {
   background: var(--color-surface);
+}
+
+.rule-checklist__met > summary {
+  color: var(--color-success);
+  font-size: var(--text-s);
+  cursor: pointer;
+}
+
+.rule-checklist__met > .rule-checklist__list {
+  margin-top: var(--space-1);
 }
 
 .rule-checklist__sr {

@@ -30,6 +30,7 @@ import {
   visibleExtent,
   wheelIntent,
   wheelPan,
+  zoomAt,
   zoomByWheel,
 } from './viewport';
 
@@ -38,6 +39,9 @@ const AXIS_COLOR = '#CED4DA';
 const BACKGROUND = '#FFFFFF';
 const FOCUS_STROKE = '#E8590C';
 const FOCUS_FILL = 'rgba(232, 89, 12, 0.12)';
+
+/** One press of «+» or «−»: about one wheel notch (×1.28 at `deltaY` 100). */
+const ZOOM_STEP = 1.25;
 
 /** How long the ring stays on the found object, in milliseconds. */
 const HIGHLIGHT_MS = 1600;
@@ -150,6 +154,16 @@ export function EditorCanvas({
     if (size.width === 0 || size.height === 0) return;
     onViewport(fitToExtent(planExtent(plan), size));
   }, [onViewport, plan, size]);
+
+  /** Кнопки «+» и «−»: масштаб вокруг центра холста, как колесо вокруг курсора. */
+  const zoomStep = useCallback(
+    (factor: number): void => {
+      if (size.width === 0 || size.height === 0) return;
+      userInteracted.current = true;
+      onViewport(zoomAt(session.viewport, [size.width / 2, size.height / 2], factor));
+    },
+    [onViewport, session.viewport, size],
+  );
 
   // Каждый новый документ открывается вписанным — открытый файл, «Новый»,
   // восстановленный черновик и пример организаторов одинаково. Дальше вид
@@ -524,6 +538,26 @@ export function EditorCanvas({
           <p className="editor-canvas__scale" data-testid="canvas-scale">
             Сетка {grid.step_m} м · {Math.round(session.viewport.scale)} px/м
           </p>
+          <button
+            type="button"
+            className="editor-canvas__fit editor-canvas__zoom"
+            data-testid="canvas-zoom-out"
+            aria-label="Уменьшить"
+            title="Уменьшить масштаб"
+            onClick={() => zoomStep(1 / ZOOM_STEP)}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="editor-canvas__fit editor-canvas__zoom"
+            data-testid="canvas-zoom-in"
+            aria-label="Увеличить"
+            title="Увеличить масштаб"
+            onClick={() => zoomStep(ZOOM_STEP)}
+          >
+            +
+          </button>
           <button
             type="button"
             className="editor-canvas__fit"

@@ -31,7 +31,7 @@ export type SideTabs = { left: LeftTab; right: RightTab };
  * What a new browser sees: the working tab of each column, not the first one.
  * The library is where equipment is placed from; the inventory is the plan's
  * overview right after «Открыть». The assistant has its own entry point (the
- * floating launcher switches to its tab), layers are an occasional task.
+ * header button switches to its tab), layers are an occasional task.
  */
 export const DEFAULT_SIDE_TABS: SideTabs = { left: 'library', right: 'inventory' };
 

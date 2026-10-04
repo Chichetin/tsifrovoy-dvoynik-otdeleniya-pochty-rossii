@@ -80,8 +80,8 @@ test.describe('демо-комплект из ZIP', () => {
     // Зоны на месте, вместе с вложенными. Перечень свёрнут по умолчанию —
     // большинство зон стоят не среди первых трёх строк, список раскрываем.
     await expandInventoryRows(page);
-    for (const zone of ['z_client', 'z_waiting', 'z_queue', 'z_entrance', 'z_back']) {
-      await expect(page.locator('.table__link', { hasText: zone }).first()).toBeVisible();
+    for (const zone of ['Клиентский зал', 'Зона ожидания', 'Зона очереди', 'Входная группа', 'Служебная зона']) {
+      await expect(page.getByLabel('Инвентаризация').locator('.table__link', { hasText: zone }).first()).toBeVisible();
     }
 
     // Карточка объекта показывает его id, зону и атрибут из справочника.
