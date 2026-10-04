@@ -326,6 +326,21 @@ describe('A04: тексты объяснений', () => {
     expect(text).not.toContain('{');
   });
 
+  test('число в тексте записано так же, как в карточке варианта: 0,575 → 0,58, а не 0,57 (#94)', () => {
+    const advice = placement();
+    const candidate = advice.candidates[0];
+    if (candidate === undefined) throw new Error('нет варианта');
+    const moved: Recommendation = {
+      ...advice,
+      candidates: [{ ...candidate, object: { ...candidate.object, position: [3.835, 0.575] } }],
+    };
+
+    const text = fallbackExplanation(moved);
+
+    expect(text).toContain('0,58');
+    expect(text).not.toContain('0,57');
+  });
+
   test('сравнение: знак разницы ставит шаблон, а не модель', () => {
     const before = plan();
     const after = plan([object('eq_desk_1', [3, 3])]);
