@@ -1007,7 +1007,7 @@
         0.08,
         0.02
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 90,
       "base_m": 0.3,
       "height_m": 0.08,
       "zoneId": "z_client",
@@ -1030,7 +1030,7 @@
         0.15,
         0.15
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 225,
       "base_m": 2.6,
       "height_m": 0.15,
       "zoneId": "z_client",
@@ -1068,7 +1068,7 @@
         0.15,
         0.15
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 45,
       "base_m": 2.6,
       "height_m": 0.15,
       "zoneId": "z_waiting",
@@ -1628,7 +1628,7 @@
         0.6,
         0.25
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 270,
       "base_m": 0.8,
       "height_m": 0.9,
       "zoneId": "z_back",
@@ -1650,7 +1650,7 @@
         0.3,
         0.1
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 90,
       "base_m": 1.4,
       "height_m": 0.4,
       "zoneId": "z_back",
@@ -1672,7 +1672,7 @@
         0.15,
         0.15
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 315,
       "base_m": 2.6,
       "height_m": 0.15,
       "zoneId": "z_back",
@@ -1922,7 +1922,7 @@
         0.15,
         0.15
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 270,
       "base_m": 2.6,
       "height_m": 0.15,
       "zoneId": "z_storage",
@@ -2080,7 +2080,7 @@
         0.8,
         0.6
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 2.4,
       "height_m": 0.4,
       "zoneId": "z_utility",
@@ -2102,7 +2102,7 @@
         0.45,
         0.45
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 180,
       "base_m": 1.2,
       "height_m": 0.9,
       "zoneId": "z_utility",
@@ -2222,7 +2222,7 @@
         0.6,
         0.25
       ],
-      "rotation_deg": 0,
+      "rotation_deg": 270,
       "base_m": 0.8,
       "height_m": 0.9,
       "zoneId": "z_utility",

@@ -250,9 +250,9 @@ export const OBJECTS: ObjectSource[] = [
   { id: 'eq_21', typeId: 'ot_pos_terminal', label: 'Кассовый терминал окна 3', position: [5.9, 6.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-021' } },
   { id: 'eq_22', typeId: 'ot_scales', label: 'Весы на линии обслуживания', position: [1.05, 6.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-022', maxWeightKg: 30 } },
   { id: 'eq_23', typeId: 'ot_label_printer', label: 'Принтер этикеток окна 2', position: [3.05, 6.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-023' } },
-  { id: 'eq_24', typeId: 'ot_socket', label: 'Розетка RJ-45 клиентского зала', position: [0.35, 4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-024', kind: 'RJ-45' } },
-  { id: 'eq_25', typeId: 'ot_camera', label: 'Камера зала (вход)', position: [8.7, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-025', viewAngleDeg: 90, viewRangeM: 8 } },
-  { id: 'eq_26', typeId: 'ot_camera', label: 'Камера зоны ожидания', position: [0.5, 0.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-026', viewAngleDeg: 100, viewRangeM: 6 } },
+  { id: 'eq_24', typeId: 'ot_socket', label: 'Розетка RJ-45 клиентского зала', position: [0.35, 4], rotation_deg: 90, attributes: { inventoryNumber: 'ИНВ-ДЕМО-024', kind: 'RJ-45' } },
+  { id: 'eq_25', typeId: 'ot_camera', label: 'Камера зала (вход)', position: [8.7, 6.7], rotation_deg: 225, attributes: { inventoryNumber: 'ИНВ-ДЕМО-025', viewAngleDeg: 90, viewRangeM: 8 } },
+  { id: 'eq_26', typeId: 'ot_camera', label: 'Камера зоны ожидания', position: [0.5, 0.5], rotation_deg: 45, attributes: { inventoryNumber: 'ИНВ-ДЕМО-026', viewAngleDeg: 100, viewRangeM: 6 } },
   { id: 'eq_27', typeId: 'ot_fire_sensor', label: 'Датчик пожарной сигнализации зала', position: [4.5, 4.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-027' } },
 
   // Служебная зона.
@@ -265,9 +265,9 @@ export const OBJECTS: ObjectSource[] = [
   { id: 'eq_34', typeId: 'ot_scales', label: 'Весы приёма посылок', position: [10.2, 0.75], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-034', maxWeightKg: 50 } },
   { id: 'eq_35', typeId: 'ot_parcel_rack', label: 'Стеллаж приёма посылок', position: [13, 0.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-035', shelves: 5 } },
   { id: 'eq_36', typeId: 'ot_goods_rack', label: 'Стеллаж товаров служебной зоны', position: [13, 5.8], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-036', shelves: 4 } },
-  { id: 'eq_37', typeId: 'ot_switchboard', label: 'Электрощит служебной зоны', position: [14.5, 5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-037' } },
-  { id: 'eq_38', typeId: 'ot_alarm_panel', label: 'Панель охранной сигнализации', position: [9.8, 0.6], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-038' } },
-  { id: 'eq_39', typeId: 'ot_camera', label: 'Камера служебной зоны', position: [14.5, 0.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-039', viewAngleDeg: 90, viewRangeM: 7 } },
+  { id: 'eq_37', typeId: 'ot_switchboard', label: 'Электрощит служебной зоны', position: [14.5, 5], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-037' } },
+  { id: 'eq_38', typeId: 'ot_alarm_panel', label: 'Панель охранной сигнализации', position: [9.8, 0.6], rotation_deg: 90, attributes: { inventoryNumber: 'ИНВ-ДЕМО-038' } },
+  { id: 'eq_39', typeId: 'ot_camera', label: 'Камера служебной зоны', position: [14.5, 0.4], rotation_deg: 315, attributes: { inventoryNumber: 'ИНВ-ДЕМО-039', viewAngleDeg: 90, viewRangeM: 7 } },
   { id: 'eq_40', typeId: 'ot_fire_sensor', label: 'Датчик пожарной сигнализации служебной зоны', position: [12, 3], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-040' } },
 
   // Хранение и посылки.
@@ -275,13 +275,13 @@ export const OBJECTS: ObjectSource[] = [
   { id: 'eq_42', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 2', position: [12.2, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-042', shelves: 5 } },
   { id: 'eq_43', typeId: 'ot_parcel_rack', label: 'Стеллаж посылок 3', position: [13.8, 6.7], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-043', shelves: 5 } },
   { id: 'eq_44', typeId: 'ot_goods_rack', label: 'Стеллаж хранения бланков', position: [10.5, 8.2], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-044', shelves: 4 } },
-  { id: 'eq_45', typeId: 'ot_camera', label: 'Камера хранения', position: [14.6, 8.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-045', viewAngleDeg: 90, viewRangeM: 6 } },
+  { id: 'eq_45', typeId: 'ot_camera', label: 'Камера хранения', position: [14.6, 8.4], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-045', viewAngleDeg: 90, viewRangeM: 6 } },
   { id: 'eq_46', typeId: 'ot_fire_sensor', label: 'Датчик пожарной сигнализации хранения', position: [12, 7.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-046' } },
 
   // Инженерное помещение.
-  { id: 'eq_47', typeId: 'ot_hvac', label: 'Вентиляционная установка', position: [12, 9.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-047' } },
-  { id: 'eq_48', typeId: 'ot_water_heater', label: 'Водонагреватель', position: [10.4, 9.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-048' } },
-  { id: 'eq_49', typeId: 'ot_switchboard', label: 'Вводной электрощит', position: [14.4, 9.4], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-049' } },
+  { id: 'eq_47', typeId: 'ot_hvac', label: 'Вентиляционная установка', position: [12, 9.5], rotation_deg: 180, attributes: { inventoryNumber: 'ИНВ-ДЕМО-047' } },
+  { id: 'eq_48', typeId: 'ot_water_heater', label: 'Водонагреватель', position: [10.4, 9.5], rotation_deg: 180, attributes: { inventoryNumber: 'ИНВ-ДЕМО-048' } },
+  { id: 'eq_49', typeId: 'ot_switchboard', label: 'Вводной электрощит', position: [14.4, 9.4], rotation_deg: 270, attributes: { inventoryNumber: 'ИНВ-ДЕМО-049' } },
 
   // Комната персонала.
   { id: 'eq_50', typeId: 'ot_bench', label: 'Диван комнаты персонала', position: [7.5, 9.5], rotation_deg: 0, attributes: { inventoryNumber: 'ИНВ-ДЕМО-050', seats: 3 } },
