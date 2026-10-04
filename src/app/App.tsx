@@ -37,6 +37,8 @@ import { requestAdvice } from '../features/assistant/advice-client';
 import { requestAgent, turnsOf } from '../features/assistant/agent-client';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
+import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
+import { placementGhost } from '../features/equipment/placement-ghost';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
 import { historyHotkey } from '../features/editor/hotkeys';
@@ -1029,7 +1031,15 @@ export function App(): React.JSX.Element {
           onKeyDown={(event) => resizeByKey('left', event)}
         />
 
-        <main className="shell__canvas" ref={canvasRef}>
+        <main
+          className="shell__canvas"
+          ref={canvasRef}
+          // The silhouette follows the pointer: outside the canvas there is none (#26).
+          onPointerLeave={() => placementGhost.publish(null)}
+          onDragLeave={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) placementGhost.publish(null);
+          }}
+        >
           <button
             type="button"
             className="shell__plan-only-toggle"
@@ -1086,7 +1096,7 @@ export function App(): React.JSX.Element {
               if (placingOpening) openingTool.handlePointer(event);
               else if (drawingRoom) internalRoom.handlePointer(event);
               else planTool.handlePointer(event);
-              if (event.phase === 'down' && tool.kind === 'object.place') {
+              if ((event.phase === 'down' || event.phase === 'move') && tool.kind === 'object.place') {
                 const existing = findPlacementPick(
                   shownDocument,
                   tool.typeId,
@@ -1094,7 +1104,10 @@ export function App(): React.JSX.Element {
                   viewport.scale,
                 );
                 if (existing !== null) {
-                  selectOnPlan({ kind: 'object', id: existing.id });
+                  // A click here selects the object instead of placing a new one,
+                  // so the silhouette that promises a placement is not shown (#26).
+                  if (event.phase === 'down') selectOnPlan({ kind: 'object', id: existing.id });
+                  else placementGhost.publish(null);
                   return;
                 }
               }
@@ -1130,6 +1143,9 @@ export function App(): React.JSX.Element {
                 onEditingChange={setShapeEditingId}
               />
               <InformationLayer document={document} session={session} />
+              {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
+                  откажет, причина рядом (#26). Над объектами, под линейкой. */}
+              <PlacementGhostLayer active={tool.kind === 'object.place'} viewport={viewport} />
               {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
                   должен уходить под объект или под имя зоны. В план она ничего не
                   кладёт (D-256). */}
