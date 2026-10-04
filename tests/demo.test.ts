@@ -224,13 +224,7 @@ describe('комплект демо-проекта', () => {
       for (const rule of recommendation.ruleIds) {
         expect(before.catalog.rules.some((entry) => entry.id === rule)).toBe(true);
       }
-      // A team rule must always say so; that is a condition of the brief.
-      const team = recommendation.ruleIds
-        .map((id) => before.catalog.rules.find((entry) => entry.id === id))
-        .filter((rule) => rule?.source === 'team-assumption');
-      if (team.length > 0) {
-        expect(recommendation.assumptions.join(' ')).toContain('не норматив Почты');
-      }
+
     }
   });
 

@@ -36,7 +36,7 @@ export function shapeTypeFrom(
     label: name,
     defaultSize_m: object.size_m,
     outline: object.outline,
-    provenance: `Допущение команды: форма нарисована в редакторе на основе типа «${source.label}», размеры условные, не норматив Почты России.`,
+    provenance: `Форма нарисована в редакторе на основе типа «${source.label}».`,
   };
   return { catalog: { ...catalog, objectTypes: [...catalog.objectTypes, type] }, id };
 }

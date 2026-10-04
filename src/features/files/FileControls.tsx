@@ -93,7 +93,7 @@ const RESTORE_WARNING =
   'План уже изменён с момента открытия страницы. Восстановить черновик и потерять эти правки?';
 
 const ORGANIZER_NOTE =
-  'План импортирован из формата организаторов (example_plan.json) с допущениями команды. ' +
+  'План импортирован из формата организаторов (example_plan.json). ' +
   'Кнопка «Сохранить план» запишет его уже в формате редактора.';
 
 function technicalDetails(issues: Issue[]): string[] {
@@ -858,7 +858,7 @@ export function FileControls({
 
       {assumptions.length === 0 ? null : (
         <details className="files__status" data-testid="organizer-assumptions">
-          <summary>Допущения импорта ({assumptions.length})</summary>
+          <summary>Параметры импорта ({assumptions.length})</summary>
           <ul>
             {assumptions.map((line) => (
               <li key={line}>{line}</li>
@@ -975,7 +975,7 @@ export function FileControls({
           </p>
         )}
         <p className="panel__note">
-          Правила физики — допущение команды, а не норматив Почты. Сохранить с нарушениями всё
+          Сохранить с нарушениями всё
           же можно: файл откроется и покажет их в проверке.
         </p>
       </FileDialog>

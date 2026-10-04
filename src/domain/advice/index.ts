@@ -71,7 +71,7 @@ function ruleNotes(plan: PlanDocument, typeId: Id): string[] {
   return rulesForObjectType(plan.catalog, typeId).map((rule) =>
     rule.source === 'organizer-material'
       ? `${rule.rationale} (материалы организаторов, ${rule.id})`
-      : `${rule.rationale} (допущение команды, не норматив Почты России, ${rule.id})`,
+      : `${rule.rationale} (правило ${rule.id})`,
   );
 }
 
@@ -100,8 +100,7 @@ function zoneFitNotes(
       ? 'в плане таких объектов пока нет'
       : `в плане такие объекты уже стоят в зонах ${zoneTypeLabels(plan, fit.placedZoneTypeIds)}`;
   const basis =
-    `Уместные зоны — по правилам команды (${rules}) и по текущей расстановке: ${placed}. ` +
-    `Это правило команды, не норматив Почты России.`;
+    `Уместные зоны — по правилам команды (${rules}) и по текущей расстановке: ${placed}. `;
   const types = zoneTypeLabels(plan, fit.zoneTypeIds);
 
   if (fit.mode === 'no-rule') {
@@ -247,7 +246,7 @@ function placementAdvice(
           `Размеры и высота взяты из справочника: ${type?.label ?? request.typeId}, ${type?.provenance ?? 'источник не указан'}.`,
           searchNote(request.anchor !== undefined),
           request.anchor === undefined
-            ? 'Допущение команды, не норматив Почты России: при прочих равных место у стены лучше места посреди зала — середина нужна людям для прохода.'
+            ? 'При прочих равных место у стены лучше места посреди зала — середина нужна людям для прохода.'
             : 'Точку указали вручную: варианты ранжируются по близости к ней, а не к стене.',
           ...ruleNotes(plan, request.typeId),
           ...fitNotes.assumptions,

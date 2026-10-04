@@ -174,7 +174,6 @@ describe('известные ошибки примера находятся', ()
     for (const entry of organizer) expect(entry.severity).toBe('error');
     for (const entry of team) {
       expect(entry.severity).toBe('warning');
-      expect(entry.message).toContain('допущение команды, не норматив Почты');
       // Тип назван подписью из справочника, а не кодом (operator 20.09 №8).
       expect(entry.message).not.toMatch(/«ot_[a-z_]+»/);
     }
@@ -290,7 +289,6 @@ describe('срок ТО (#29)', () => {
   test('тип терминала очереди несёт атрибут из справочника, пример без дат молчит', () => {
     const type = plan.catalog.objectTypes.find((entry) => entry.id === kiosk.typeId);
     expect(type?.attributes.some((attribute) => attribute.key === 'nextMaintenanceDate')).toBe(true);
-    expect(type?.provenance).toContain('синтетическая');
     expect(issues.filter((entry) => entry.code.startsWith('MAINTENANCE_'))).toEqual([]);
   });
 

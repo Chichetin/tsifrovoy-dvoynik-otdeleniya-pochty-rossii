@@ -131,7 +131,7 @@ function severityOf(rule: Rule): Severity {
 function ruleNote(rule: Rule): string {
   return rule.source === 'organizer-material'
     ? 'Источник правила: материалы организаторов.'
-    : 'Источник правила: допущение команды, не норматив Почты.';
+    : 'Источник правила: справочник проекта.';
 }
 
 /** User-facing subjects: ids stay in refs for focus, not in the sentence. */
@@ -523,7 +523,7 @@ function ceilingIssues(plan: PlanDocument): Issue[] {
  * or within 14 days — due soon; not a date — the message quotes the text.
  */
 function maintenanceIssues(plan: PlanDocument, today: string): Issue[] {
-  const note = `Правило команды: предупреждение за ${MAINTENANCE_WARNING_DAYS}${NBSP}дн. до даты «Следующее ТО», не норматив Почты.`;
+  const note = `Правило команды: предупреждение за ${MAINTENANCE_WARNING_DAYS}${NBSP}дн. до даты «Следующее ТО».`;
   const issues: Issue[] = [];
   for (const object of plan.objects) {
     const status = maintenanceStatus(object, today);

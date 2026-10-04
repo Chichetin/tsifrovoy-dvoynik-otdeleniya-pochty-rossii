@@ -26,7 +26,7 @@ function countRules(plan: PlanDocument, zone: Zone): CountRule[] {
 function sourceNote(rule: Rule): string {
   return rule.source === 'organizer-material'
     ? `Источник правила: материалы организаторов (${rule.id}).`
-    : `Источник правила: допущение команды, не норматив Почты России (${rule.id}).`;
+    : `Источник правила: справочник проекта (${rule.id}).`;
 }
 
 /** The objects the rule counted, so the user can look at them on the plan. */

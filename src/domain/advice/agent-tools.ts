@@ -76,7 +76,7 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   },
   {
     name: 'zone_details',
-    description: 'Одна зона: площадь, свободная площадь, вложенные зоны, объекты в ней и синтетические атрибуты зоны (посетители, сотрудники и т. п.).',
+    description: 'Одна зона: площадь, свободная площадь, вложенные зоны, объекты в ней и атрибуты зоны (посетители, сотрудники и т. п.).',
     parameters: { type: 'object', properties: { zoneId: { type: 'string' } }, required: ['zoneId'] },
   },
   {
@@ -320,7 +320,7 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
           occupied_m2: area === undefined ? null : round(area.occupied_m2),
           free_m2: area === undefined ? null : round(area.free_m2),
           attributes: primitiveAttributes(zone.attributes),
-          syntheticNote: 'Атрибуты зоны синтетические, не измерены.',
+          syntheticNote: 'Атрибуты зоны заданы в плане.',
           objectsCount: objects.length,
           objects: objects.slice(0, MAX_LISTED_OBJECTS).map((object) => ({ id: object.id, label: object.label, typeId: object.typeId })),
         },

@@ -188,7 +188,7 @@ function layerTypeIssues(type: LayerType, objectTypeIds: Set<Id>): Issue[] {
     issues.push(
       problem(
         CATALOG_ISSUE_CODES.UNSIGNED_ASSUMPTION,
-        `Тип слоя «${type.id}»: не подписано, откуда берутся числа. Синтетические значения подписываются как допущение команды.`,
+        `Тип слоя «${type.id}»: не подписано, откуда берутся числа.`,
         `${path}.note`,
       ),
     );
@@ -228,7 +228,7 @@ export function validateCatalog(catalog: Catalog): Issue[] {
       issues.push(
         problem(
           CATALOG_ISSUE_CODES.UNSIGNED_ASSUMPTION,
-          `Тип «${type.id}»: не указан источник размеров. Условные размеры подписываются как допущение команды.`,
+          `Тип «${type.id}»: не указан источник размеров.`,
           `objectTypes.${type.id}.provenance`,
         ),
       );

@@ -93,7 +93,7 @@ function ruleSource(rule: Rule): string {
 
 function sourceLabel(rule: Rule): string {
   if (rule.source === 'organizer-material') return 'материалы организаторов';
-  return /^правило команды/i.test(rule.rationale) ? 'не норматив Почты России' : 'правило команды, не норматив Почты России';
+  return 'справочник проекта';
 }
 
 /**
@@ -175,7 +175,7 @@ function zonelessRuleNotes(plan: PlanDocument, typeId: Id): string[] {
     .filter((rule) => rule.kind === 'distance-to-entrance')
     .map((rule) => {
       const entrance = rule.entranceId === null ? 'ближайшего входа' : `входа ${rule.entranceId}`;
-      const search = rule.source === 'organizer-material' ? 'поиск места его соблюдает' : 'это допущение команды, поиск места им не ограничен';
+      const search = rule.source === 'organizer-material' ? 'поиск места его соблюдает' : 'поиск места этим правилом не ограничен';
       return `Правило ${rule.id} (${sourceLabel(rule)}) — не дальше ${String(rule.maxDistance_m).replace('.', ',')} м от ${entrance} — зону не задаёт; ${search}.`;
     });
 }

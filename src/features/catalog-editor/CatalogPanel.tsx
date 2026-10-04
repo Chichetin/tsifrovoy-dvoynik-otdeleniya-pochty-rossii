@@ -320,7 +320,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
             <button type="button" className="files__button" onClick={submitType} data-testid="catalog-add-type">
               Добавить тип
             </button>
-            <p className="panel__note">Размеры условные — тип будет подписан как допущение команды.</p>
+            <p className="panel__note">Размеры можно изменить в свойствах объекта.</p>
           </div>
 
           <h3 className="library__category">
@@ -527,7 +527,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                   : `«${catalog.objectTypes.find((t) => t.id === rule.objectTypeId)?.label ?? rule.objectTypeId}» не дальше ${rule.maxDistance_m} м от входа`}
                 <span className="table__muted">
                   {' '}
-                  — {rule.source === 'team-assumption' ? 'допущение команды' : 'материалы организаторов'}
+                  — {rule.source === 'team-assumption' ? 'справочник проекта' : 'материалы организаторов'}
                 </span>
                 <button
                   type="button"
@@ -593,7 +593,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
             <button type="button" className="files__button" onClick={submitRule} data-testid="catalog-add-rule">
               Добавить правило
             </button>
-            <p className="panel__note">Правило считается вместе с вложенными зонами и помечается как допущение команды.</p>
+            <p className="panel__note">Правило учитывает вложенные зоны.</p>
           </div>
           </div>
           )}
