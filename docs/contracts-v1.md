@@ -159,7 +159,7 @@ type Inventory = {
 // src/domain/inventory
 // buildInventory(plan: PlanDocument): Inventory
 // src/domain/validation
-// validatePlan(plan: PlanDocument): Issue[]
+// validatePlan(plan: PlanDocument, today?: string /* «ГГГГ-ММ-ДД», по умолчанию — сегодня */): Issue[]
 type Command =
   | { type: 'room.set'; boundary: Polygon }
   | { type: 'zone.put'; zone: Zone }

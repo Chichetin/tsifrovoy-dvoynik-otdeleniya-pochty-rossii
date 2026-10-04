@@ -28,6 +28,7 @@ import { useDeferredValue, useMemo, useState } from 'react';
 import type { Id, PlanDocument } from '../../contracts/model';
 import type { InventoryPanelProps, RequestState } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
+import { MAINTENANCE_DATE_KEY, MAINTENANCE_WARNING_DAYS, localToday } from '../../domain/validation';
 import {
   attributeColumns,
   attributeText,
@@ -43,6 +44,7 @@ import {
   display,
   filterObjectRows,
   type InventorySort,
+  maintenanceDue,
   NO_INVENTORY_NUMBER,
   objectRows,
   type SortColumn,
@@ -229,6 +231,7 @@ export function InventoryPanel({
 }: InventoryPanelViewProps): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [typeId, setTypeId] = useState<Id | null>(null);
+  const [maintenanceOnly, setMaintenanceOnly] = useState(false);
   const [sort, setSort] = useState<InventorySort | null>(null);
   const [exported, setExported] = useState<RequestState>({ status: 'idle' });
   const [notice, setNotice] = useState<string | null>(null);
@@ -259,6 +262,7 @@ export function InventoryPanel({
     setOpenedId(plan?.id);
     setQuery('');
     setTypeId(null);
+    setMaintenanceOnly(false);
     setSort(null);
     setExported({ status: 'idle' });
     setNotice(null);
@@ -273,10 +277,21 @@ export function InventoryPanel({
   const naming = useMemo(() => (plan === undefined ? EMPTY_INDEX : planIndex(plan)), [plan]);
   const types = useMemo(() => typeSummary(inventory, naming), [inventory, naming]);
   const zones = useMemo(() => zoneSummary(inventory, naming), [inventory, naming]);
-  const rows = useMemo(() => objectRows(inventory, naming), [inventory, naming]);
+  // Тот же день, что у проверки плана: фильтр и находки «ТО» не расходятся.
+  const today = useMemo(() => localToday(), []);
+  const rows = useMemo(() => objectRows(inventory, naming, today), [inventory, naming, today]);
   const found = useMemo(
-    () => filterObjectRows(rows, { query: search, typeId }),
-    [rows, search, typeId],
+    () => filterObjectRows(rows, { query: search, typeId, maintenanceDue: maintenanceOnly }),
+    [rows, search, typeId, maintenanceOnly],
+  );
+  const dueCount = useMemo(() => rows.filter(maintenanceDue).length, [rows]);
+  // Фильтр по ТО виден, когда справочник плана знает дату ТО хотя бы у одного типа.
+  const tracksMaintenance = useMemo(
+    () =>
+      plan?.catalog.objectTypes.some((type) =>
+        type.attributes.some((attribute) => attribute.key === MAINTENANCE_DATE_KEY),
+      ) ?? false,
+    [plan],
   );
   const shown = useMemo(() => sortObjectRows(found, sort), [found, sort]);
 
@@ -321,7 +336,7 @@ export function InventoryPanel({
   };
 
   const total = rows.length;
-  const filtered = search.trim() !== '' || typeId !== null;
+  const filtered = search.trim() !== '' || typeId !== null || maintenanceOnly;
   const absent = absentTypes(inventory);
 
   // Раскрыто целиком, когда просить нечего: сворачивать три строки незачем, а
@@ -333,6 +348,7 @@ export function InventoryPanel({
   const reset = (): void => {
     setQuery('');
     setTypeId(null);
+    setMaintenanceOnly(false);
   };
 
   const exportCsv = async (): Promise<void> => {
@@ -428,6 +444,18 @@ export function InventoryPanel({
             data-testid="inventory-search"
             onChange={(event) => setQuery(event.target.value)}
           />
+
+          {tracksMaintenance ? (
+            <label className="panel__note" style={{ ...COLUMN_PICKER_STYLE, display: 'block' }} data-testid="inventory-maintenance">
+              <input
+                type="checkbox"
+                checked={maintenanceOnly}
+                data-testid="inventory-maintenance-toggle"
+                onChange={(event) => setMaintenanceOnly(event.target.checked)}
+              />{' '}
+              Только ТО просрочено или в ближайшие {MAINTENANCE_WARNING_DAYS} дн.: {dueCount}
+            </label>
+          ) : null}
 
           {allAttributes.length === 0 ? null : (
             <details style={COLUMN_PICKER_STYLE} data-testid="inventory-columns">
