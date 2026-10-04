@@ -303,7 +303,7 @@ Timeout внешнего API — 15 с, не более одного повто�
 `query` ≤2000 символов; лимиты v1: 2000 объектов, 200 зон, 256 вершин на полигон и
 20000 вершин суммарно; F02 фиксирует их в схеме. Эти ограничения не равны замеру быстродействия.
 Браузер при сетевой ошибке/429 формирует fallback из своего такого же расчёта.
-`GET /api/health` → `{status:'ok', llm: {configured:false} | {configured:true, provider}}` — `provider` только имя из `LLM_PROVIDER`; ключей, адресов и model ID в ответе нет (D-200).
+`GET /api/health` → `{status:'ok', llm: {configured:false} | {configured:true, provider}, build?}` — `provider` только имя из `LLM_PROVIDER`; ключей, адресов и model ID в ответе нет (D-200). `build` — короткий SHA сборки из `BUILD_SHA` (#136); нет переменной — нет поля.
 
 Агент по плану (D-258) — `src/contracts/advice-chat.ts`. Инструмент `propose_edits`
 (#126) принимает до 12 правок `AgentEdit`: `move` (`id`, `dx_m`, `dy_m`), `rotate`
