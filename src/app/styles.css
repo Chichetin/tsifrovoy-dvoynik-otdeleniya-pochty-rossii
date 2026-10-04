@@ -545,6 +545,26 @@ body {
   gap: 8px;
 }
 
+/* Bottom-left of the canvas, away from the scale and «Вписать» in the right
+   corner; it never takes a click meant for the plan. */
+.canvas-status {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-width: calc(100% - 24px);
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 85%);
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
 .editor-canvas__scale {
   margin: 0;
   padding: 2px 8px;
