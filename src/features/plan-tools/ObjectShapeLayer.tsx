@@ -91,7 +91,7 @@ export function ObjectShapeLayer({
   const layers = new Map(plan.layers.map((layer) => [layer.id, layer]));
   const editable = (object: Equipment): boolean => {
     const layer = layers.get(object.layerId);
-    return layer !== undefined && layer.visible && !layer.locked;
+    return layer !== undefined && layer.visible && !layer.locked && object.locked !== true;
   };
   const object =
     editingId !== null && selection?.kind === 'object' && selection.id === editingId && tool.kind === 'select'

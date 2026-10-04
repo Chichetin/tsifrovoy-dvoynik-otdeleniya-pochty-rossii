@@ -287,7 +287,7 @@ export function EquipmentLayer({
       ? (plan.objects.find((object) => object.id === selection.id) ?? null)
       : null;
   const selectedVisible = selectedObject !== null && visibleLayers.has(selectedObject.layerId);
-  const selectedLocked = selectedObject !== null && lockedLayers.has(selectedObject.layerId);
+  const selectedLocked = selectedObject !== null && (selectedObject.locked === true || lockedLayers.has(selectedObject.layerId));
   // Настенный прибор (D-228) не растягивают: его габариты — свойство изделия,
   // а не решение планировщика. Ручки размера ему не показываются, поворот и
   // перенос остаются. Признак — из справочника, не список типов здесь.
@@ -315,7 +315,7 @@ export function EquipmentLayer({
   );
   const isGroup = members.length > 1;
   // A locked layer neither drags nor moves by key; its members stay put.
-  const movable = members.filter((object) => !lockedLayers.has(object.layerId));
+  const movable = members.filter((object) => object.locked !== true && !lockedLayers.has(object.layerId));
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
@@ -679,7 +679,7 @@ export function EquipmentLayer({
   const shown = (object: Equipment): Equipment => {
     if (gesture === null) return object;
     if (gesture.id === object.id) return gesture.object;
-    if (gesture.delta === undefined || !group.has(object.id) || lockedLayers.has(object.layerId)) {
+    if (gesture.delta === undefined || !group.has(object.id) || object.locked === true || lockedLayers.has(object.layerId)) {
       return object;
     }
     const [dx, dy] = gesture.delta;
@@ -757,7 +757,7 @@ export function EquipmentLayer({
         rotation={current.rotation_deg}
         // The ruler only reads the plan: a press-and-drag there must not move
         // the object under it (D-256).
-        draggable={!ghost && session.tool.kind !== 'measure' && !lockedLayers.has(object.layerId)}
+        draggable={!ghost && session.tool.kind !== 'measure' && object.locked !== true && !lockedLayers.has(object.layerId)}
         listening={!ghost}
         onPointerClick={
           picking
@@ -781,7 +781,7 @@ export function EquipmentLayer({
           onGesturePreview?.({ objectId: object.id, position: object.position });
         }}
         onMouseEnter={(event) => {
-          setCursor(event, lockedLayers.has(object.layerId) ? 'default' : 'grab');
+          setCursor(event, object.locked === true || lockedLayers.has(object.layerId) ? 'default' : 'grab');
           showHover(event, object);
         }}
         onMouseMove={(event) => showHover(event, object)}
@@ -822,6 +822,15 @@ export function EquipmentLayer({
           stroke="#343A40"
           strokeWidth={1}
         />
+        {object.locked !== true || ghost ? null : (
+          <Group name={`object-lock-${object.id}`} x={current.size_m[0] * viewport.scale / 2}
+            y={-current.size_m[1] * viewport.scale / 2} rotation={-current.rotation_deg} listening={false}>
+            <Circle radius={9} fill="#FFFFFF" stroke="#343A40" strokeWidth={1} />
+            <Rect x={-3} y={-5} width={6} height={7} cornerRadius={3} stroke="#343A40" strokeWidth={1.5} />
+            <Rect x={-4} y={-1} width={8} height={6} cornerRadius={1} fill="#343A40" />
+            <Circle x={0} y={2} radius={1} fill="#FFFFFF" />
+          </Group>
+        )}
         {hasCaption ? null : (
           <EquipmentPictogram
             kind={pictograms ? planPictogram(object.typeId) : null}
@@ -1070,7 +1079,7 @@ export function EquipmentLayer({
         isGroup ||
         selectedObject === null ||
         !selectedVisible ||
-        lockedLayers.has(selectedObject.layerId) ||
+        selectedLocked ||
         selectedObject.id === hideHandlesFor
           ? null
           : [
