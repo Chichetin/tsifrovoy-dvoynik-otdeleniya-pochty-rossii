@@ -328,4 +328,34 @@ describe('A03: диспетчер сценариев', () => {
       }
     }
   });
+
+  test('правило входа: расстояние до входа было → стало отдельно от суммы перемещений', () => {
+    const rule: Rule = {
+      id: 'rule_desk_entrance',
+      source: 'organizer-material',
+      rationale: 'Тест: стол не дальше 3 м от входа.',
+      kind: 'distance-to-entrance',
+      objectTypeId: 'ot_desk',
+      maxDistance_m: 3,
+      entranceId: null,
+    };
+    const base = {
+      walls: [{ id: 'w_north', from: [0, 8] as Point, to: [10, 8] as Point, thickness_m: 0.2, height_m: 3 }],
+      openings: [
+        { id: 'op_entrance', wallId: 'w_north', offset_m: 4, width_m: 1.2, kind: 'entrance' as const, sill_m: 0, height_m: 2.1 },
+      ],
+      catalog: { ...catalog, rules: [rule] },
+    };
+    const advice = only(
+      plan([object('eq_desk_1', [4.6, 2])], base),
+      plan([object('eq_desk_1', [4.6, 6])], base),
+    );
+
+    expect(values(advice)).toMatchObject({
+      'layout.entrance.before': 6,
+      'layout.entrance.after': 2,
+      'layout.entrance.delta': -4,
+      'placement.distance.delta': 4,
+    });
+  });
 });
