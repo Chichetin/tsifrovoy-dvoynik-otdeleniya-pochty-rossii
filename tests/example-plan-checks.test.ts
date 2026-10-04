@@ -27,6 +27,7 @@ import {
   mixedAttributeKeys,
   sharedAttributeDefs,
 } from '../src/features/properties/group-attributes';
+import { findFix, planFix } from '../src/features/validation/finding-why';
 import { decodePlan, encodePlan } from '../src/persistence/codec';
 import { createPlanStore } from '../src/state/plan-store';
 
@@ -315,5 +316,22 @@ describe('правка атрибута у группы (#30)', () => {
     expect(
       reopened.value.objects.filter((object) => ids.includes(object.id)).map((object) => object.attributes.equipmentStatus),
     ).toEqual(['repair', 'repair']);
+  });
+});
+
+describe('вариант исправления находки (#33)', () => {
+  test('коллизия окна со стеллажом: переставляется стеллаж, место находится', () => {
+    const issues = validatePlan(plan);
+    const collision = issues.find(
+      (entry) =>
+        entry.code === VALIDATION_ISSUE_CODES.OBJECT_COLLISION &&
+        entry.refs.some((ref) => ref.id === 'eq_rack_1') &&
+        entry.refs.some((ref) => ref.id === 'eq_cashier_1'),
+    );
+    if (collision === undefined) throw new Error('коллизии окна со стеллажом нет');
+    const fix = planFix(plan, collision, issues);
+    expect(fix.kind === 'move' ? fix.object.id : fix.kind).toBe('eq_rack_1');
+    if (fix.kind === 'none') throw new Error('вариант не запланирован');
+    expect(findFix(plan, fix).ok).toBe(true);
   });
 });
