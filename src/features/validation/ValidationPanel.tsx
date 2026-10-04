@@ -279,7 +279,7 @@ export function ValidationPanel({
         <summary>Правила физики ({PHYSICS_RULES.length})</summary>
         <p className="panel__note">
           Нарушение любого из них останавливает сохранение плана файлом и не даёт поставить
-          объект. Это допущения команды, а не нормативы Почты.
+          объект.
         </p>
         <dl>
           {PHYSICS_RULES.map((rule) => (

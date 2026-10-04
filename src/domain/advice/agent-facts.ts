@@ -130,7 +130,7 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
     }
     if (entry.name === 'check_equipment' && Array.isArray(output.recommendations) && output.recommendations.length === 0) {
       const refs: Ref[] = typeof output.zoneId === 'string' ? [{ kind: 'zone', id: output.zoneId }] : roomRefs;
-      add(`${prefix}.stocking`, 'equipment.violations', 0, refs, `${subject(state, refs)}; проверены правила команды, не нормативы Почты России`);
+      add(`${prefix}.stocking`, 'equipment.violations', 0, refs, `${subject(state, refs)}; проверены правила комплектования`);
     }
     if (entry.name === 'plan_overview' || entry.name === 'validate_plan') {
       const validation = entry.name === 'validate_plan' ? output : record(output.validation);

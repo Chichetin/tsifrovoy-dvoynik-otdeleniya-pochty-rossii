@@ -37,9 +37,9 @@ export type FindingWhy = {
   ruleId: Id | null;
 };
 
-const TEAM_NOTE = 'Правило команды, не норматив Почты.';
+const TEAM_NOTE = 'Правило справочника.';
 const ORGANIZER_NOTE =
-  'Источник порога — материалы организаторов. Способ замера выбрала команда: это правило команды, не норматив Почты.';
+  'Источник порога — материалы организаторов.';
 
 /** How a rule kind measures its number. A new kind is a contract change anyway. */
 const RULE_METHODS: Readonly<Record<string, string>> = {
