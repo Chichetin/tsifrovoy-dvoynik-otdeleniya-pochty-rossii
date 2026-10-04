@@ -288,6 +288,7 @@ export function InventoryWalk({
               Другой номер
             </button>
           </div>
+          <p className="panel__note">Выбор объекта на плане делает его текущим.</p>
           <div style={ROW_STYLE}>
             <button type="button" className="table__link" onClick={skip}>
               Пропустить

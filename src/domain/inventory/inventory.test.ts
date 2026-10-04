@@ -13,7 +13,7 @@ import type { Command } from '../../contracts/commands';
 import type { Equipment, Id, PlanDocument, Zone } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import { applyCommand } from '../commands';
-import { buildInventory, walkRoute } from './index';
+import { buildInventory, markObject, walkActEntries, walkRoute } from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -240,5 +240,27 @@ describe('обход для инвентаризации', () => {
     expect(plan.objects.length).toBeGreaterThan(50);
     expect(route).toHaveLength(plan.objects.length);
     expect([...route].sort()).toEqual(plan.objects.map((object) => object.id).sort());
+  });
+
+  test('акт: «на месте» не попадает, «не проверен» попадает, номер только у «другой номер»', () => {
+    const plan = loadPlan('nested.json');
+    const [first, second] = plan.objects;
+    if (first === undefined || second === undefined) throw new Error('в фикстуре меньше двух объектов');
+    const marked: PlanDocument = {
+      ...plan,
+      objects: [markObject(first, 'present'), markObject(second, 'broken', 'ИНВ-9'), ...plan.objects.slice(2)],
+    };
+    const unmarked = plan.objects.slice(2).map((object) => object.id);
+
+    const entries = walkActEntries(marked);
+
+    expect(entries.map((entry) => entry.id)).toEqual([second.id, ...unmarked]);
+    expect(entries[0]).toEqual({ id: second.id, mark: 'сломан', foundNumber: null });
+    expect(walkActEntries({ ...marked, objects: [markObject(second, 'other-number', 'ИНВ-9')] })).toEqual([
+      { id: second.id, mark: 'другой номер', foundNumber: 'ИНВ-9' },
+    ]);
+    expect(walkActEntries({ ...plan, objects: [first] })).toEqual([
+      { id: first.id, mark: 'не проверен', foundNumber: null },
+    ]);
   });
 });
