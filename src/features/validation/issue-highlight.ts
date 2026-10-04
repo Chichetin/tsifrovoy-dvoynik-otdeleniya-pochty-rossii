@@ -13,6 +13,7 @@
 
 import type { Issue, Point, Polygon, Ref, Severity, Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
+import type { IssueMeasure, ValidationIssue } from '../../domain/validation';
 
 export type IssueHighlight = {
   code: string;
@@ -89,6 +90,61 @@ export function issueMarkers(issues: Issue[], focus: Ref | null): IssueMarker[] 
     if (issue.severity === 'error') known.severity = 'error';
   }
   return [...byKey.values()];
+}
+
+/** Отрезок, который измерило правило расстояния, и цвет его находки. */
+export type IssueMeasureLine = IssueMeasure & { severity: Severity };
+
+/**
+ * Пунктир «объект → вход» у находок правила расстояния (#14). Показывается,
+ * когда находка выбрана: выделен её объект или её вход. Иначе на плане с
+ * несколькими терминалами линии перекрыли бы всё.
+ */
+export function measuresFor(issues: ValidationIssue[], focus: Ref | null): IssueMeasureLine[] {
+  if (focus === null) return [];
+  const out: IssueMeasureLine[] = [];
+  for (const issue of issues) {
+    if (issue.measure === undefined) continue;
+    if (!issue.refs.some((ref) => sameRef(ref, focus))) continue;
+    out.push({ ...issue.measure, severity: issue.severity });
+  }
+  return out;
+}
+
+/** Находки об одной сущности: в списке они идут одним пунктом. */
+export type IssueGroup<T extends Issue> = {
+  /** Первая ссылка находок группы; null — находка без ссылок, она одна. */
+  ref: Ref | null;
+  severity: Severity;
+  issues: T[];
+};
+
+/**
+ * Сводит находки одной сущности в одну группу (#14). Ключ — первая ссылка
+ * находки, как у маркера на плане: число в значке равно числу строк в группе.
+ * Порядок — порядок первой находки группы, внутри группы — исходный.
+ */
+export function groupIssuesBySubject<T extends Issue>(issues: T[]): IssueGroup<T>[] {
+  const groups: IssueGroup<T>[] = [];
+  const byKey = new Map<string, IssueGroup<T>>();
+  for (const issue of issues) {
+    const ref = issue.refs[0];
+    if (ref === undefined) {
+      groups.push({ ref: null, severity: issue.severity, issues: [issue] });
+      continue;
+    }
+    const key = `${ref.kind}:${ref.id}`;
+    const known = byKey.get(key);
+    if (known === undefined) {
+      const group: IssueGroup<T> = { ref, severity: issue.severity, issues: [issue] };
+      byKey.set(key, group);
+      groups.push(group);
+      continue;
+    }
+    known.issues.push(issue);
+    if (issue.severity === 'error') known.severity = 'error';
+  }
+  return groups;
 }
 
 /** Правый верхний угол фигуры на экране — там значок не закрывает саму фигуру. */
