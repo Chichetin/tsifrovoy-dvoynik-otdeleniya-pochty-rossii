@@ -473,6 +473,25 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, [searchOpen]);
 
+  // #141: Ctrl+C/V/D copy objects only (EquipmentLayer); on a zone the key says so.
+  const [zoneCopyHint, setZoneCopyHint] = useState(false);
+  useEffect(() => {
+    if (!zoneCopyHint) return;
+    const timer = window.setTimeout(() => setZoneCopyHint(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [zoneCopyHint]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (selection?.kind !== 'zone' || view !== '2d' || isTypingTarget(event.target)) return;
+      if (event.code !== 'KeyC' && event.code !== 'KeyV' && event.code !== 'KeyD') return;
+      if (event.code === 'KeyD') event.preventDefault();
+      setZoneCopyHint(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selection, view]);
+
   // «×» drops the selection; the card goes, so focus lands on the open tab of
   // the same column rather than on the removed button.
   const closeProps = useCallback(() => {
@@ -1366,6 +1385,9 @@ export function App(): React.JSX.Element {
               draft={drawingRoom ? null : planTool.draft}
               draftCursor={drawingRoom ? null : planTool.cursor}
             />
+          ) : null}
+          {zoneCopyHint && view === '2d' ? (
+            <p className="canvas-hint" role="status">Зону копировать нельзя: Ctrl+C, Ctrl+V и Ctrl+D работают для объектов.</p>
           ) : null}
           {view === '3d' ? (
             <View3D document={shownDocument} selection={selection} onSelect={select} />
