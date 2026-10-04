@@ -195,6 +195,49 @@ export function inventoryCsvFileName(plan: PlanDocument | undefined): string {
   return `${stem === '' ? 'plan' : stem}-инвентаризация.csv`;
 }
 
+/** Columns of the discrepancy report of the walk (#124). */
+export const WALK_ACT_COLUMNS = [
+  'Объект',
+  'id объекта',
+  'Инв. №',
+  'Отметка',
+  'Найденный номер',
+  'Зона',
+  'id зоны',
+] as const;
+
+/** One line of the act: the mark already worded by the caller (domain `walkActEntries`). */
+export type WalkActLine = { id: Id; mark: string; foundNumber: string | null };
+
+/**
+ * The discrepancy report of the walk: one line per entry, in the given order.
+ * Which objects are discrepancies is decided by the caller; this function only
+ * names them from the plan. Same separator, BOM and quoting as the inventory.
+ */
+export function walkActCsv(plan: PlanDocument, lines: readonly WalkActLine[]): string {
+  const index = planIndex(plan);
+  const objects = new Map(plan.objects.map((object) => [object.id, object]));
+  const body = lines.flatMap((line) => {
+    const object = objects.get(line.id);
+    if (object === undefined) return [];
+    return [[
+      object.label,
+      object.id,
+      inventoryNumberOf(object) ?? '',
+      line.mark,
+      line.foundNumber ?? '',
+      object.zoneId === null ? 'вне зон' : (index.zoneName(object.zoneId) ?? object.zoneId),
+      object.zoneId ?? '',
+    ]];
+  });
+  return CSV_BOM + toCsv([[...WALK_ACT_COLUMNS], ...body]);
+}
+
+/** `Демо-ОПС` → `Демо-ОПС-акт-расхождений.csv`. */
+export function walkActFileName(plan: PlanDocument | undefined): string {
+  return inventoryCsvFileName(plan).replace(/-инвентаризация\.csv$/u, '-акт-расхождений.csv');
+}
+
 const CHOICE_STORAGE_KEY = 'posttech:inventory-attribute-columns';
 
 /**

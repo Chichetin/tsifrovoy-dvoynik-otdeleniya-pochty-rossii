@@ -53,6 +53,8 @@ import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { InventoryWalk, type WalkState, walkOf } from '../features/inventory/InventoryWalk';
+import { WalkRouteLayer } from '../features/inventory/WalkRouteLayer';
 import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
@@ -439,6 +441,9 @@ export function App(): React.JSX.Element {
     [dispatch, dispatchAndSelect, select, store],
   );
 
+  // #124: route of the inventory walk — screen state; the marks live in the plan.
+  const [walk, setWalk] = useState<WalkState | null>(null);
+  const activeWalk = useMemo(() => walkOf(walk, document), [walk, document]);
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -1306,6 +1311,9 @@ export function App(): React.JSX.Element {
                   должен уходить под объект или под имя зоны. В план она ничего не
                   кладёт (D-256). */}
               <MeasureLayer viewport={viewport} />
+              {activeWalk === null ? null : (
+                <WalkRouteLayer document={document} viewport={viewport} route={activeWalk.route} currentId={activeWalk.currentId} />
+              )}
               {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                   тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
               <IssueLayer
@@ -1490,6 +1498,7 @@ export function App(): React.JSX.Element {
                       askAgent(question);
                     }}
                   />
+                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={focusOn} selectedId={selection?.kind === 'object' ? selection.id : null} />
                   <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
                 </>
               ),
