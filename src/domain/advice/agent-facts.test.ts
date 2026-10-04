@@ -119,7 +119,10 @@ describe('факты чата связаны с метрикой и предме
     runAgentTool(state, 'find_place', { typeId: 'ot_workplace', zoneId: 'z_client' });
     const facts = collectAgentFacts(state, []);
     expect(new Set(facts.map((f) => f.id)).size).toBe(facts.length);
-    const shared = facts.filter((f) => f.sourceFactId === 'adv_ot_workplace_7.placement.distance');
+    // The two searches share a candidate id; which one depends on the demo geometry.
+    const distances = facts.filter((f) => f.sourceFactId?.endsWith('.placement.distance'));
+    const sharedId = distances.find((f) => distances.filter((g) => g.sourceFactId === f.sourceFactId).length === 2)?.sourceFactId;
+    const shared = distances.filter((f) => f.sourceFactId === sharedId);
     expect(shared).toHaveLength(2);
     expect(shared[0]!.id).not.toBe(shared[1]!.id);
     expect(shared[0]!.value).not.toBe(shared[1]!.value);
@@ -191,6 +194,6 @@ describe('факты чата связаны с метрикой и предме
     const output = runAgentTool(state, 'check_equipment', { zoneId: 'z_waiting' }).output;
     const facts = collectAgentFacts(state, [{ name: 'check_equipment', output }]);
     expect(facts[0]).toMatchObject({ metric: 'equipment.violations', value: 0, refs: [{ kind: 'zone', id: 'z_waiting' }] });
-    expect(renderAgentFact(facts[0]!)).toContain('не нормативы Почты России');
+    expect(renderAgentFact(facts[0]!)).toContain('проверены правила комплектования');
   });
 });

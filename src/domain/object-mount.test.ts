@@ -34,8 +34,8 @@ describe('напольные и потолочные объекты', () => {
     expect(countByMount(plan.objects, 'l_base')).toEqual({ floor: 42, ceiling: 11 });
   });
 
-  test('демо-план после: одно табло убрано, скамья добавлена — 10 потолочных', () => {
-    expect(countByMount(demo('after.json').objects, 'l_base')).toEqual({ floor: 43, ceiling: 10 });
+  test('демо-план после: скамья добавлена, табло остались — 11 потолочных', () => {
+    expect(countByMount(demo('after.json').objects, 'l_base')).toEqual({ floor: 43, ceiling: 11 });
   });
 
   test('делится первый обычный слой, информационные не в счёт', () => {

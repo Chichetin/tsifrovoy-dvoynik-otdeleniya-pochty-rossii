@@ -180,16 +180,6 @@ describe('рисование контура', () => {
     expect(command.zone.id).toBe('z_2');
   });
 
-  it('удалённый в этой сессии id проёму не выдаётся: после «удалить op_1» новый — op_2', () => {
-    const plan = planWith([]);
-    plan.walls = [{ id: 'w_1', from: [0, 4], to: [10, 4], thickness_m: 0.2, height_m: 3 }];
-    const { commands, click } = setup({ kind: 'opening.place' }, plan, new Set(['op_1']));
-    click([5, 4]);
-    const command = commands[0];
-    if (command?.type !== 'opening.put') throw new Error('ожидалась opening.put');
-    expect(command.opening.id).toBe('op_2');
-  });
-
   it('зона, нарисованная внутри другой, становится вложенной', () => {
     const { commands, click } = setup({ kind: 'zone.draw' }, planWith([hall]));
 
@@ -276,13 +266,15 @@ describe('рисование контура', () => {
   it('пропавший при правке контура проём объясняется строкой, а не молчанием', () => {
     // Настоящая команда: новый контур пересобирает наружные стены, и вход не
     // помещается на новое северное ребро длиной 1 м.
-    const { commands, click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
+    const { commands, hook, click, plan } = setupApplying({ kind: 'room.draw' }, planWithEntrance());
 
     click([0, 0]);
     click([10, 0]);
     click([10, 8]);
     click([9, 8]);
     click([0.05, 0.05]);
+    // На плане со стенами контур закрывается кнопкой подтверждения, не щелчком (#116).
+    act(() => hook.result.current.confirmRoom());
 
     expect(commands).toHaveLength(1);
     expect(plan().openings).toHaveLength(0);

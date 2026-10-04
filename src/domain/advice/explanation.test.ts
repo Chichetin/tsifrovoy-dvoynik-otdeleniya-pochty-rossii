@@ -489,5 +489,6 @@ describe('#122: раскладку зоны считает код', () => {
     }
     // Seeded search: the same plan gives the same variants.
     expect(layoutZone(demo, 'z_waiting', null)).toEqual(layoutZone(demo, 'z_waiting', null));
-  });
+    // The search runs three times here: 1.4 s alone, over the default 5 s when the whole suite runs in parallel.
+  }, 20_000);
 });

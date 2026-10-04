@@ -145,20 +145,20 @@ describe('панель инструментов плана', () => {
 
   it('подсказки инструментов называют Alt, который отключает привязку', () => {
     show(null);
-    for (const name of ['Выбор', 'Помещение', 'Зона', 'Перегородка']) {
+    for (const name of ['Выбор', 'Комната', 'Зона', 'Перегородка']) {
       expect(screen.getByRole('button', { name }).getAttribute('title')).toContain('Alt — без привязки');
     }
   });
 
   it('подсказки контура говорят, как его закончить: первая точка, Enter, двойной клик (D-262)', () => {
     show(null);
-    for (const name of ['Помещение', 'Зона']) {
-      const title = screen.getByRole('button', { name }).getAttribute('title') ?? '';
-      expect(title).toContain('клик по первой точке');
-      expect(title).toContain('Enter');
-      expect(title).toContain('двойной клик');
-      expect(title).toContain('Esc');
-    }
+    const title = screen.getByRole('button', { name: 'Зона' }).getAttribute('title') ?? '';
+    expect(title).toContain('клик по первой точке');
+    expect(title).toContain('Enter');
+    expect(title).toContain('двойной клик');
+    expect(title).toContain('Esc');
+    // «Комната» — два угла и кнопка «Создать комнату» (#116), не контур по точкам.
+    expect(screen.getByRole('button', { name: 'Комната' }).getAttribute('title')).toContain('два противоположных угла');
   });
 
   it('подсказка панорамирования называет тачпад и среднюю кнопку', () => {
@@ -190,7 +190,7 @@ describe('панель инструментов плана', () => {
     // Он стоит между инструментами, которые план не меняют («Выбор», «Обзор»,
     // «Линейка»), и теми, что создают геометрию (D-256).
     expect(gaps[0]!.previousElementSibling?.textContent).toBe('Линейка');
-    expect(gaps[0]!.nextElementSibling?.textContent).toBe('Помещение');
+    expect(gaps[0]!.nextElementSibling?.textContent).toBe('Комната');
   });
 
   it('без выбора удалять нечего', () => {
@@ -198,20 +198,16 @@ describe('панель инструментов плана', () => {
     expect(screen.queryByRole('button', { name: /Удалить/ })).toBeNull();
   });
 
-  it('удаляет выбранную зону, перегородку и проём своими командами', () => {
-    const zone = show({ kind: 'zone', id: 'z_hall' });
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить зону' }));
-    expect(zone.commands).toEqual([{ type: 'zone.delete', id: 'z_hall' }]);
-    cleanup();
-
-    const wall = show({ kind: 'wall', id: 'w_north' });
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить перегородку' }));
-    expect(wall.commands).toEqual([{ type: 'wall.delete', id: 'w_north' }]);
-    cleanup();
-
-    const opening = show({ kind: 'opening', id: 'op_entrance' });
-    fireEvent.click(screen.getByRole('button', { name: 'Удалить проём' }));
-    expect(opening.commands).toEqual([{ type: 'opening.delete', id: 'op_entrance' }]);
+  it('удаление не в панели инструментов: с выбором тоже нет кнопок «Удалить» (D-370)', () => {
+    for (const selection of [
+      { kind: 'zone', id: 'z_hall' },
+      { kind: 'wall', id: 'w_north' },
+      { kind: 'opening', id: 'op_entrance' },
+    ] as const) {
+      show(selection);
+      expect(screen.queryByRole('button', { name: /Удалить/ })).toBeNull();
+      cleanup();
+    }
   });
 
   it('объект удаляет свой модуль: кнопки плана для него нет', () => {
@@ -316,10 +312,10 @@ describe('панель инструментов плана', () => {
     const { canvas, field } = page();
     show({ kind: 'opening', id: 'op_entrance' }, { kind: 'opening.place' });
     fireEvent.pointerDown(canvas);
-    expect(screen.queryByText(/Проём: тяните вдоль стены; Enter — готово/)).not.toBeNull();
+    expect(screen.queryByText(/Проём: центр — двигать, края — ширина; Enter — готово/)).not.toBeNull();
 
     fireEvent.focusIn(field);
-    expect(screen.queryByText(/тяните вдоль стены/)).toBeNull();
+    expect(screen.queryByText(/центр — двигать/)).toBeNull();
     cleanup();
     document.body.replaceChildren();
 
@@ -334,14 +330,14 @@ describe('панель инструментов плана', () => {
     const { canvas } = page();
     show({ kind: 'opening', id: 'op_entrance' });
     fireEvent.pointerDown(canvas);
-    expect(screen.getByText(/тяните вдоль стены/)).toBeDefined();
+    expect(screen.getByText(/центр — двигать, края — ширина/)).toBeDefined();
     expect(screen.getByText(/Enter — готово/)).toBeDefined();
   });
 
-  it('подсказка инструмента «Проём» тоже называет Enter — готово', () => {
+  it('подсказка инструмента «Проём» ведёт к кнопке «Установить проём»', () => {
     show(null);
     const title = screen.getByRole('button', { name: 'Проём' }).getAttribute('title') ?? '';
-    expect(title).toContain('Enter — готово');
+    expect(title).toContain('«Установить проём»');
   });
 
   it('отказ гаснет при смене выделения: он был про прошлую фигуру', () => {

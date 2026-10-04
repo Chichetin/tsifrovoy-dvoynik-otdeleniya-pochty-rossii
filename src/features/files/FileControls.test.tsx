@@ -121,6 +121,12 @@ beforeEach(() => {
   vi.useFakeTimers();
 });
 
+/** Create, open and demos live in the «Файл» menu (#105): open it, then take the item. */
+function menuItem(name: string): HTMLElement {
+  fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
+  return screen.getByRole('menuitem', { name });
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -145,7 +151,7 @@ describe('FileControls: замена текущего плана', () => {
   test('закончившееся после «Создать новый» чтение не заменяет новый план', async () => {
     const { onReplace } = renderControls({ storage: null });
     const pending = delayedFile();
-    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
+    fireEvent.click(menuItem('Создать новый'));
     await pending.finish();
     expect(onReplace).not.toHaveBeenCalled();
     expect(screen.queryByTestId('files-notice')).toBeNull();
@@ -189,7 +195,7 @@ describe('FileControls: замена текущего плана', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 0 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
+    fireEvent.click(menuItem('Создать новый'));
 
     expect(confirm).not.toHaveBeenCalled();
     expect(onNew).toHaveBeenCalledTimes(1);
@@ -199,7 +205,7 @@ describe('FileControls: замена текущего плана', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     const { onNew } = renderControls({ storage: null, document: empty, dirty: true, revision: 1 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
+    fireEvent.click(menuItem('Создать новый'));
 
     expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Создать новый план?'));
     expect(onNew).not.toHaveBeenCalled();
@@ -209,7 +215,7 @@ describe('FileControls: замена текущего плана', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     renderControls({ storage: null, document: filled, dirty: false, revision: 1 });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть существующий' }));
+    fireEvent.click(menuItem('Открыть существующий'));
 
     expect(confirm).toHaveBeenCalledWith(
       'Текущий план будет заменён. Открыть другой файл?',
@@ -341,7 +347,7 @@ describe('FileControls: предложение восстановить черн
     const storage = fakeStorage(draftOf(filled));
     const { onNew, rerender } = renderControls({ storage, dirty: false });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Создать новый' }));
+    fireEvent.click(menuItem('Создать новый'));
 
     expect(onNew).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('draft-restore')).toBeNull();
@@ -477,14 +483,14 @@ describe('FileControls: меню «Экспорт»', () => {
   }
 
   function openMenu(): HTMLElement {
-    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    const trigger = screen.getByRole('button', { name: 'Файл' });
     fireEvent.click(trigger);
-    return screen.getByRole('menu', { name: 'Экспорт' });
+    return screen.getByRole('menu', { name: 'Файл' });
   }
 
   test('кнопка объявляет меню, открывает его и ставит фокус на первый пункт', () => {
     renderControls({ storage: null });
-    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    const trigger = screen.getByRole('button', { name: 'Файл' });
     expect(trigger.getAttribute('aria-haspopup')).toBe('menu');
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(screen.queryByRole('menu')).toBeNull();
@@ -496,11 +502,10 @@ describe('FileControls: меню «Экспорт»', () => {
 
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
     const items = screen.getAllByRole('menuitem');
-    expect(items.map((item) => item.textContent)).toEqual([
-      expect.stringContaining('JSON'),
-      expect.stringContaining('PNG'),
-      expect.stringContaining('SVG'),
-    ]);
+    // The menu starts with «Создать новый»; the export items come last (#105).
+    expect(items[0]?.textContent).toBe('Создать новый');
+    const labels = items.map((item) => item.textContent ?? '');
+    for (const word of ['JSON', 'PNG', 'SVG']) expect(labels.some((label) => label.includes(word))).toBe(true);
     expect(document.activeElement).toBe(items[0]);
   });
 
@@ -509,17 +514,19 @@ describe('FileControls: меню «Экспорт»', () => {
     const menu = openMenu();
     const items = screen.getAllByRole('menuitem');
 
+    const last = items[items.length - 1];
     fireEvent.keyDown(menu, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(items[1]);
-    fireEvent.keyDown(menu, { key: 'ArrowDown' });
-    fireEvent.keyDown(menu, { key: 'ArrowDown' });
+    fireEvent.keyDown(menu, { key: 'ArrowUp' });
     expect(document.activeElement).toBe(items[0]);
     fireEvent.keyDown(menu, { key: 'ArrowUp' });
-    expect(document.activeElement).toBe(items[2]);
-    fireEvent.keyDown(menu, { key: 'Home' });
+    expect(document.activeElement).toBe(last);
+    fireEvent.keyDown(menu, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(items[0]);
     fireEvent.keyDown(menu, { key: 'End' });
-    expect(document.activeElement).toBe(items[2]);
+    expect(document.activeElement).toBe(last);
+    fireEvent.keyDown(menu, { key: 'Home' });
+    expect(document.activeElement).toBe(items[0]);
   });
 
   test('Escape закрывает меню и возвращает фокус на кнопку', () => {
@@ -529,7 +536,7 @@ describe('FileControls: меню «Экспорт»', () => {
     fireEvent.keyDown(menu, { key: 'Escape' });
 
     expect(screen.queryByRole('menu')).toBeNull();
-    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    const trigger = screen.getByRole('button', { name: 'Файл' });
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(trigger);
   });
@@ -541,7 +548,7 @@ describe('FileControls: меню «Экспорт»', () => {
     expect(screen.queryByRole('menu')).toBeNull();
 
     openMenu();
-    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
     expect(screen.queryByRole('menu')).toBeNull();
   });
 
@@ -632,7 +639,7 @@ describe('FileControls: меню «Экспорт»', () => {
   });
   test('стрелка вниз на кнопке открывает меню на первом пункте, вверх — на последнем', () => {
     renderControls({ storage: null });
-    const trigger = screen.getByRole('button', { name: 'Экспорт' });
+    const trigger = screen.getByRole('button', { name: 'Файл' });
 
     fireEvent.keyDown(trigger, { key: 'ArrowDown' });
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
@@ -721,7 +728,7 @@ describe('FileControls: отказ сохранить план с нарушен
   }
 
   function exportJson(): void {
-    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
     fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
   }
 
@@ -732,8 +739,7 @@ describe('FileControls: отказ сохранить план с нарушен
     exportJson();
 
     const dialog = screen.getByTestId('save-blocked');
-    expect(dialog.textContent).toContain('одно место');
-    expect(dialog.textContent).toContain('допущение команды');
+    expect(dialog.textContent).toMatch(/1\s+нарушение физики/);
     expect(downloads).toEqual([]);
     expect(onExported).not.toHaveBeenCalled();
   });
@@ -751,12 +757,14 @@ describe('FileControls: отказ сохранить план с нарушен
     expect(onExported).toHaveBeenCalledTimes(1);
   });
 
-  test('«Вернуться и исправить» закрывает окно и ничего не сохраняет', () => {
+  test('«Показать в «Проверке»» закрывает окно, открывает проверку и ничего не сохраняет', () => {
     const downloads = stubDownload();
-    const { onExported } = renderControls({ storage: null, document: collided });
+    const onShowValidation = vi.fn();
+    const { onExported } = renderControls({ storage: null, document: collided, onShowValidation });
     exportJson();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Вернуться и исправить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Показать в «Проверке»' }));
+    expect(onShowValidation).toHaveBeenCalledTimes(1);
 
     expect(screen.queryByTestId('save-blocked')).toBeNull();
     expect(downloads).toEqual([]);
@@ -773,7 +781,7 @@ describe('FileControls: отказ сохранить план с нарушен
     cleanup();
     pngRenderer.mockResolvedValue(new Blob(['png'], { type: 'image/png' }));
     renderControls({ storage: null, document: collided });
-    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
     await act(async () => {
       fireEvent.click(screen.getByRole('menuitem', { name: /PNG/ }));
     });
@@ -826,7 +834,7 @@ describe('FileControls: сообщение о файле живёт семь с�
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
     vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
     rerender({ document: filled });
-    fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Файл' }));
     fireEvent.click(screen.getByRole('menuitem', { name: /JSON/ }));
     expect(screen.getByTestId('files-notice').textContent).toContain('.json');
 
