@@ -442,7 +442,9 @@ export function FileControls({
     // название уже правились. Нетронутый пустой план терять нечего.
     const current = fingerprint(encode, plan);
     const touched = current === null || current !== start.opening;
-    if ((hasContent(plan) || touched) && !window.confirm(RESTORE_WARNING)) return;
+    // The start sample, nothing edited since the page opened, is nobody's work.
+    const losesWork = touched || (hasContent(plan) && !untouchedSample);
+    if (losesWork && !window.confirm(RESTORE_WARNING)) return;
     openSequence.current += 1;
     const opened = read(draft.text);
     setOffered(null);
