@@ -32,6 +32,7 @@ function looksLikeAnswer(value: unknown): value is AgentAnswer {
     Array.isArray(answer.steps) &&
     Array.isArray(answer.actions) &&
     Array.isArray(answer.recommendations) &&
+    Array.isArray(answer.proposals) &&
     Array.isArray(answer.refs)
   );
 }
