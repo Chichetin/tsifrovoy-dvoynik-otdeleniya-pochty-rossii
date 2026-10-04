@@ -29,7 +29,7 @@ import {
   withHiddenMounts,
   type ObjectMount,
 } from '../domain/object-mount';
-import { validatePlan } from '../domain/validation';
+import { planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
@@ -72,6 +72,7 @@ import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
+import { HealthBadge } from '../features/validation/HealthScore';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
@@ -630,6 +631,9 @@ export function App(): React.JSX.Element {
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
+  // #125: the header score reads the same findings as «Проверка».
+  const health = useMemo(() => planHealth(issues), [issues]);
+  const [healthRequest, setHealthRequest] = useState(0);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
   // D-249: the one live signal a tab keeps while its panel is hidden — how
@@ -931,6 +935,13 @@ export function App(): React.JSX.Element {
               name={document.name}
               dirty={dirty}
               onRename={(name) => dispatch({ type: 'plan.rename', name }).ok}
+            />
+            <HealthBadge
+              health={health}
+              onOpen={() => {
+                showRightTab('validation');
+                setHealthRequest((count) => count + 1);
+              }}
             />
             <button
               type="button"
@@ -1424,7 +1435,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
               inventory: (
                 <>
                   <RuleChecklist
