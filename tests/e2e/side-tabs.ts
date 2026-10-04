@@ -13,6 +13,8 @@ export type SideTabTitle =
   | 'Площади'
   | 'Проверка'
   | 'Инвентаризация'
+  // Вкладки «Справочник» больше нет (D-350): спеки catalog-editor, right-column и assistant
+  // ещё ссылаются на неё и не переписаны — до переписывания они падают.
   | 'Справочник';
 
 /** Вкладка по названию; у «Проверки» за названием идёт счётчик находок. */
@@ -27,14 +29,17 @@ export async function showTab(page: Page, title: SideTabTitle): Promise<void> {
   await expect(tab).toHaveAttribute('aria-selected', 'true');
 }
 
+/** #105: resize handles come only with the «Изменить форму» switch of the selected object. */
+export async function enableReshape(page: Page): Promise<void> {
+  await page.getByRole('checkbox', { name: 'Изменить форму' }).check();
+}
+
 /**
- * D-268: после расстановки из библиотеки (или щелчка по левой вкладке)
- * выделение остаётся, а карточка «Свойства» уступает место вкладке. Кнопка
- * внизу левой колонки возвращает карточку.
+ * #105: the «Свойства» card of the selected object sits in the right column
+ * above the tabs; there is no switch to press. Waits until it shows and returns it.
  */
 export async function showProps(page: Page): Promise<Locator> {
-  await page.getByRole('button', { name: 'Свойства выбранного' }).click();
-  const card = page.locator('aside[data-tour="side-left"]').getByRole('region', { name: 'Свойства' });
+  const card = page.locator('aside[data-tour="side-right"]').getByRole('region', { name: 'Свойства' });
   await expect(card).toBeVisible();
   return card;
 }

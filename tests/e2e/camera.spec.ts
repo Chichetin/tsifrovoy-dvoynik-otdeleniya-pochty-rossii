@@ -9,13 +9,13 @@
  */
 
 import { expect, test, type Page } from './fixtures';
-import { showProps, showTab } from './side-tabs';
+import { enableReshape, showProps, showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
 type Calibration = { scale: number; origin: Screen };
 
 const CAMERA = 'Камера видеонаблюдения';
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 /** Зазор ручки поворота от передней кромки, как в EquipmentLayer. */
 const ROTATION_GAP_PX = 28;
 
@@ -140,6 +140,7 @@ test.describe('камеры: постановка и жесты', () => {
 
     await place(page, RACK, view, 6, 4);
     await clickCanvas(page, toScreen(view, 6, 4));
+    await enableReshape(page);
     expect(await handleNames(page)).toEqual([
       'handle-resize-e',
       'handle-resize-n',
@@ -150,12 +151,13 @@ test.describe('камеры: постановка и жесты', () => {
       'handle-resize-sw',
       'handle-resize-w',
       'handle-rotate',
+      'handle-rotate-icon',
     ]);
 
     await place(page, CAMERA, view, 6, 0.6);
     // Поставленный объект уже выбран (D-147): карточка про камеру.
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_2');
-    expect(await handleNames(page)).toEqual(['handle-rotate']);
+    expect(await handleNames(page)).toEqual(['handle-rotate', 'handle-rotate-icon']);
 
     // Поворот за ручку: указатель на 45° по часовой от «вперёд».
     const centre = toScreen(view, 6, 0.2);

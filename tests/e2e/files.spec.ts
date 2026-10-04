@@ -16,6 +16,9 @@ import { expect, test, type Page, exportPlan, expectUnsavedEdits } from './fixtu
 import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
+/** После перезагрузки приложение снова открывает демо-отделение (#111). */
+const DEMO_OBJECTS = (JSON.parse(readFileSync('demo/before.json', 'utf8')) as { objects: unknown[] }).objects.length;
+
 /** Файл организаторов лежит в корне репозитория и в тесте не меняется. */
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -113,18 +116,23 @@ test.describe('файлы плана', () => {
     });
     await page.goto('/');
 
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     expect(dialogs).toEqual([]);
     await placeFirstLibraryItem(page, 300, 260);
     await expect(inventoryRows(page)).toHaveCount(1);
 
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     expect(dialogs).toHaveLength(1);
     expect(dialogs[0]).toContain('Создать новый план?');
     await expect(inventoryRows(page)).toHaveCount(1);
 
     accept = true;
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await expect(inventoryRows(page)).toHaveCount(0);
   });
 
@@ -139,7 +147,8 @@ test.describe('файлы плана', () => {
 
     // Двенадцать объектов примера и его зоны — на месте и со своими id.
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    await expandInventoryRows(page);
+    await expect(page.locator('.table__link', { hasText: 'Клиентская зона' }).first()).toBeVisible();
     // Перечень свёрнут по умолчанию — первая строка с z_back стоит не среди
     // первых трёх (z_back начинается с восьмого объекта примера).
     await expandInventoryRows(page);
@@ -197,12 +206,14 @@ test.describe('файлы плана', () => {
 
     // Чистый лист, затем открываем скачанный файл.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     await openFile(page, first);
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    await expandInventoryRows(page);
+    await expect(page.locator('.table__link', { hasText: 'Клиентская зона' }).first()).toBeVisible();
     // Это наш файл, а не пример: подпись про импорт больше не показывается.
     await expect(page.getByTestId('organizer-assumptions')).toHaveCount(0);
 
@@ -233,7 +244,8 @@ test.describe('файлы плана', () => {
     await expect(details).toContainText('futureAttr');
     // «Создать новый» — чистый лист, предупреждение уходит; обычный файл его не приносит.
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
     await openFile(page, join(process.cwd(), 'demo', 'before.json'));
     await expect(page.getByTestId('dropped-fields')).toHaveCount(0);
@@ -273,14 +285,16 @@ test.describe('файлы плана', () => {
     await draftHolds(page, 12);
 
     await page.reload();
-    // После перезагрузки план пуст, но черновик предложен, а не применён сам.
-    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+    // После перезагрузки открыто демо, а черновик предложен, а не применён сам.
+    await expect(inventoryRows(page)).toHaveCount(DEMO_OBJECTS);
     const offer = page.getByTestId('draft-restore');
     await expect(offer).toBeVisible();
 
+    page.once('dialog', (dialog) => void dialog.accept());
     await offer.getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
-    await expect(page.locator('.table__link', { hasText: 'z_client' }).first()).toBeVisible();
+    await expandInventoryRows(page);
+    await expect(page.locator('.table__link', { hasText: 'Клиентская зона' }).first()).toBeVisible();
     await expect(offer).toHaveCount(0);
   });
 
@@ -298,6 +312,7 @@ test.describe('файлы плана', () => {
     await page.reload();
     const offer = page.getByTestId('draft-restore');
     await expect(offer).toBeVisible();
+    page.once('dialog', (dialog) => void dialog.accept());
     await offer.getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
   });
@@ -329,6 +344,7 @@ test.describe('файлы плана', () => {
     await page.reload();
     const offer = page.getByTestId('draft-restore');
     await expect(offer).toContainText(SECOND_PLAN_NAME);
+    page.once('dialog', (dialog) => void dialog.accept());
     await offer.getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(4);
   });
@@ -343,7 +359,7 @@ test.describe('файлы плана', () => {
     await page.reload();
     await page.getByTestId('draft-restore').getByRole('button', { name: 'Удалить черновик' }).click();
     await expect(page.getByTestId('draft-restore')).toHaveCount(0);
-    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+    await expect(inventoryRows(page)).toHaveCount(DEMO_OBJECTS);
 
     await page.reload();
     await expect(page.getByTestId('draft-restore')).toHaveCount(0);
@@ -363,12 +379,13 @@ test.describe('файлы плана', () => {
     await offer.getByRole('button', { name: 'Не сейчас' }).click();
     await expect(offer).toHaveCount(0);
 
-    // План остался пустым, черновик — в браузере.
-    await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
+    // План остался демо, черновик — в браузере.
+    await expect(inventoryRows(page)).toHaveCount(DEMO_OBJECTS);
     await draftHolds(page, 12);
 
     await page.reload();
     await expect(page.getByTestId('draft-restore')).toBeVisible();
+    page.once('dialog', (dialog) => void dialog.accept());
     await page.getByTestId('draft-restore').getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
     await expectUnsavedEdits(page, true);
@@ -476,19 +493,21 @@ test.describe('файлы плана', () => {
     await expectUnsavedEdits(page, true);
 
     // Меню открывается с клавиатуры и закрывается Escape, не выгружая ничего.
-    const trigger = page.getByRole('button', { name: 'Экспорт' });
+    const trigger = page.getByRole('button', { name: 'Файл' });
     await trigger.focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('menu', { name: 'Экспорт' })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: /JSON/ })).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(page.getByRole('menuitem', { name: /PNG/ })).toBeFocused();
+    await expect(page.getByRole('menu', { name: 'Файл' })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Создать новый' })).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(page.getByRole('menuitem').last()).toBeFocused();
+    await page.keyboard.press('Home');
+    await expect(page.getByRole('menuitem', { name: 'Создать новый' })).toBeFocused();
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('menu', { name: 'Экспорт' })).toHaveCount(0);
+    await expect(page.getByRole('menu', { name: 'Файл' })).toHaveCount(0);
     await expect(trigger).toBeFocused();
     // Стрелка вверх на кнопке — меню открыто на последнем пункте.
     await page.keyboard.press('ArrowUp');
-    await expect(page.getByRole('menuitem', { name: /SVG/ })).toBeFocused();
+    await expect(page.getByRole('menuitem').last()).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(trigger).toBeFocused();
 

@@ -15,9 +15,11 @@ for (const width of [1280, 1440]) {
   test(`бирки демо сохраняют номера при вписывании и увеличении (${width})`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
-    await page.getByRole('button', { name: 'Демо', exact: true }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
     await page.getByRole('menuitem', { name: 'Исходный демо-план' }).click();
     await expect(page.getByTestId('files-notice')).toContainText('учебное отделение');
+    // Подписи объектов выключены по умолчанию (D-362).
+    await page.getByRole('button', { name: 'Подписи объектов' }).click();
     for (const [id, expected] of [['eq_13', 'Рабочее место 1'], ['eq_14', 'Рабочее место 2'],
       ['eq_15', 'Рабочее место 3'], ['eq_41', 'Стеллаж посылок 1'],
       ['eq_42', 'Стеллаж посылок 2'], ['eq_43', 'Стеллаж посылок 3'],

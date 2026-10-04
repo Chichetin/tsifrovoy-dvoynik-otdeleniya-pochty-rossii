@@ -13,7 +13,7 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page , exportPlan, passPhysicsBlock } from './fixtures';
 import { showTab } from './side-tabs';
 
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 /** Шаг стрелки из src/features/equipment/selection-edit.ts. */
 const NUDGE_STEP_M = 0.5;
 

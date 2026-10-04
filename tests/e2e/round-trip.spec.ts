@@ -6,6 +6,8 @@ import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 import { closeSettings, openSettings } from './settings';
 
+test.use({ emptyStart: false });
+
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
 test('готовый план → правка → файл → новая страница → те же данные', async ({ page }) => {

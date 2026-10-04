@@ -25,7 +25,7 @@ type Saved = {
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 const TYPE_NAME = 'Стойка угловая e2e';
-const RACK = 'Шкаф / стеллаж для посылок';
+const RACK = 'Стеллаж для посылок';
 const card = (page: Page) => page.getByLabel('Свойства');
 const demo = JSON.parse(readFileSync(DEMO, 'utf8')) as Saved;
 
@@ -49,6 +49,18 @@ async function nodeOnPage(page: Page, name: string): Promise<Screen> {
   const box = await page.getByTestId('editor-canvas').boundingBox();
   if (box === null) throw new Error('холст не виден');
   return { x: box.x + local.x, y: box.y + local.y };
+}
+
+/**
+ * #105: vertices are edited only for the object whose «Изменить форму» switch is on,
+ * so the object is selected and the switch turned on before the double click.
+ */
+async function enterShapeEdit(page: Page, centre: Screen): Promise<void> {
+  await page.mouse.click(centre.x, centre.y);
+  const reshape = page.getByRole('checkbox', { name: 'Изменить форму' });
+  await expect(reshape).toBeVisible();
+  if (!(await reshape.isChecked())) await reshape.check();
+  await page.mouse.dblclick(centre.x, centre.y);
 }
 
 /** How many resize and rotation handles the equipment layer draws right now. */
@@ -104,13 +116,13 @@ test('режим формы выключается Enter и сменой инс�
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   const target = growableTarget();
   const centre = await nodeOnPage(page, `equipment-${target.id}`);
-  await page.mouse.dblclick(centre.x, centre.y);
+  await enterShapeEdit(page, centre);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
   // D-290: shape vertices replace the object's resize and rotation handles.
   await expect.poll(() => objectHandles(page)).toBe(0);
   await page.keyboard.press('Enter');
   await expect.poll(() => objectHandles(page)).toBeGreaterThan(0);
-  await page.mouse.dblclick(centre.x, centre.y);
+  await enterShapeEdit(page, centre);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 
   // D-282: switching tools clears the mode and its hint.
@@ -119,7 +131,7 @@ test('режим формы выключается Enter и сменой инс�
   await expect(page.getByTestId('plan-tools-notice')).toHaveCount(0);
   await tools.getByRole('button', { name: 'Выбор', exact: true }).click();
   await expect(page.getByTestId('plan-tools-notice')).toHaveCount(0);
-  await page.mouse.dblclick(centre.x, centre.y);
+  await enterShapeEdit(page, centre);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 });
 
@@ -134,7 +146,7 @@ test('форма вершиной → новый тип → объект это�
   const target = growableTarget();
   // Double click on the object: shape mode, vertex handles appear.
   const centre = await nodeOnPage(page, `equipment-${target.id}`);
-  await page.mouse.dblclick(centre.x, centre.y);
+  await enterShapeEdit(page, centre);
   await expect(page.getByTestId('plan-tools-notice')).toContainText('Правка формы');
 
   // Pull one corner out, Alt keeps it under the pointer (no snapping).

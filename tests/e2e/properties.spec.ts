@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page , exportPlan } from './fixtures';
 import { showTab } from './side-tabs';
+import { closeSettings, openSettings } from './settings';
 import type { PlanDocument } from '../../src/contracts/model';
 
 const card = (page: Page) => page.getByLabel('Свойства');
@@ -18,7 +19,7 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
 }
 
 async function drawZone(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Зона', exact: true }).click();
+  await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: 'Зона', exact: true }).click();
   await clickCanvas(page, 200, 180);
   await clickCanvas(page, 430, 180);
   await clickCanvas(page, 430, 360);
@@ -123,8 +124,11 @@ test.describe('карточка свойств', () => {
     await expect(card(page)).toHaveAttribute('data-entity-id', 'room_main');
     await expect(card(page).getByTestId('props-room-area')).toContainText('108,00 м²');
 
-    await card(page).getByLabel('Название плана').fill('ОПС 115534 Тестовое');
-    await card(page).getByLabel('Высота потолка, м').fill('3.4');
+    // Название плана и высота потолка — в окне «Настройки», раздел «План» (D-350).
+    const settings = await openSettings(page, 'План');
+    await settings.getByLabel('Название плана').fill('ОПС 115534 Тестовое');
+    await settings.getByLabel('Высота потолка, м').fill('3.4');
+    await closeSettings(page);
 
     const download = await Promise.all([
       page.waitForEvent('download'),
@@ -138,8 +142,10 @@ test.describe('карточка свойств', () => {
     expect(saved.walls.map((w: { height_m: number }) => w.height_m)).toEqual([3.4, 3.4, 3.4, 3.4]);
 
     // Пустое название отклоняется у поля, план остаётся с прежним именем.
-    await card(page).getByLabel('Название плана').fill('   ');
-    await expect(card(page).getByRole('alert')).toContainText('название');
+    const refusal = await openSettings(page, 'План');
+    await refusal.getByLabel('Название плана').fill('   ');
+    await expect(refusal.getByRole('alert')).toContainText('название');
+    await closeSettings(page);
     expect(JSON.parse(await savePlan(page)).name).toBe('ОПС 115534 Тестовое');
   });
 
@@ -201,7 +207,8 @@ test.describe('карточка свойств', () => {
   test('атрибуты зоны приходят из справочника и сохраняются', async ({ page }) => {
     await page.goto('/');
     await drawZone(page);
-    await page.locator('.table__link', { hasText: 'z_1' }).first().click();
+    // Зона выбирается кликом по её полу — там, где нет объектов.
+    await clickCanvas(page, 300, 270);
 
     await expect(card(page)).toHaveAttribute('data-entity-id', 'z_1');
     await card(page).getByLabel('Название').fill('Клиентский зал');
@@ -246,7 +253,8 @@ test.describe('карточка свойств', () => {
     plan.objects[0].typeId = 'ot_team_counter';
 
     page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Создать новый' }).click();
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Создать новый' }).click();
     await page.getByTestId('plan-file-input').setInputFiles({
       name: 'custom-type.json',
       mimeType: 'application/json',
