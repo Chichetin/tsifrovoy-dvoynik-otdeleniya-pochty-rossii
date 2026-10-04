@@ -306,13 +306,19 @@ Timeout внешнего API — 15 с, не более одного повто�
 
 Агент по плану (D-258) — `src/contracts/advice-chat.ts`. Инструмент `propose_edits`
 (#126) принимает до 12 правок `AgentEdit`: `move` (`id`, `dx_m`, `dy_m`), `rotate`
-(`id`, `by_deg`), `add` (`typeId`, `zoneId` и/или `position_m`), `delete` (`id`).
-Код проверяет каждую правку: `id` существует, команда проходит физику и проверку плана.
+(`id`, `by_deg`), `add` (`typeId`, `zoneId`, `position_m`), `delete` (`id`). У `add`
+точка — подсказка: место ставит код, как `find_place`. Нет точки — код ищет место в
+зоне. Нет и зоны — код выбирает уместную зону. Код проверяет правки по порядку, каждую
+поверх уже принятых: `id` существует, команда проходит физику и проверку плана.
 Принятые правки — `AgentEditProposal.commands` (команды `src/contracts/commands.ts`) и
-`changes` «было → стало» с `id`. Отклонённые — `rejected` с причиной.
+`changes` «было → стало» с `id`. Отклонённые — `rejected` с причиной. Эффект всех
+принятых правок считает код: `facts` (`area.free`, `area.occupied`, `objects.added`,
+`objects.removed`) и `findings` — ошибки и предупреждения проверки было → стало.
 `AgentAnswer.proposals` хранит предложения. `preview-edits` показывает призраки без
-команды. `apply-edits` по щелчку человека применяет `commands` одним `batch`: один шаг
-отмены.
+команды: `EditorSession.previewEdits` и `EquipmentLayerProps.previewEdits`
+(`EditsPreview`: `put` — объекты после правок, `removed` — удалённые `id`).
+`apply-edits` по щелчку человека применяет `commands` одним `batch`: один шаг отмены.
+Новый `id` из `add`, который хранилище уже списало (D-019), UI выпускает заново.
 
 ## Контрактные fixtures и поведение UI
 

@@ -9,7 +9,7 @@
  */
 
 import { z } from 'zod';
-import type { Recommendation } from './advice';
+import type { Fact, Recommendation } from './advice';
 import type { Command } from './commands';
 import { LIMITS, type Id, type Issue, type PlanDocument, type Point, type Ref } from './model';
 
@@ -53,7 +53,11 @@ export const agentEditSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('move'), id: z.string().min(1), dx_m: finiteNumber, dy_m: finiteNumber }),
   /** Turn by this angle, not to it. */
   z.object({ op: z.literal('rotate'), id: z.string().min(1), by_deg: finiteNumber }),
-  /** A zone, a point or both; without a point code finds the place in the zone. */
+  /**
+   * The point is a hint: code puts the object at the nearest place that passes
+   * the check, as `find_place` does. Without a point code finds the place in
+   * the zone; with both null, code also picks a fitting zone.
+   */
   z.object({
     op: z.literal('add'),
     typeId: z.string().min(1),
@@ -84,22 +88,35 @@ export type AgentEditChange = {
   after: AgentEditPose | null;
 };
 
+/** Validation findings of one severity on the plan before and after the edits. */
+export type AgentEditFindings = { before: number; after: number };
+
 /**
- * Edits from one `propose_edits` call after the code check: ids exist, each
- * command applies to the plan of the answer's revision and passes physics and
- * validation. A refused edit stays out of `commands` and keeps its reason.
+ * Edits from one `propose_edits` call after the code check. Code checks the
+ * edits one by one, in order, each on top of the edits accepted before it:
+ * the ids exist, the command applies to the plan of the answer's revision and
+ * passes physics and validation. A refused edit stays out of `commands`,
+ * keeps its reason, and the next edit is checked without it.
  */
 export type AgentEditProposal = {
   id: Id;
   /**
    * Accepted edits as editor commands, in order. Applied as one `batch` — one
    * undo step. A new object's id is minted against the plan; the UI re-mints
-   * an id the store has retired (D-019).
+   * an id the store has retired (D-019) and names the id the object got.
    */
   commands: Command[];
   /** One entry per accepted edit, in the order of `commands`. */
   changes: AgentEditChange[];
   rejected: { edit: AgentEdit; reason: string }[];
+  /**
+   * Effect of all accepted edits, calculated by code on a copy of the plan:
+   * `area.free`, `area.occupied`, `objects.added`, `objects.removed` with
+   * phases before, after and delta.
+   */
+  facts: Fact[];
+  /** Validation errors and warnings before → after all accepted edits. */
+  findings: { errors: AgentEditFindings; warnings: AgentEditFindings };
 };
 
 export type AssistantAction =
