@@ -33,6 +33,7 @@ export async function buildServer(env: NodeJS.ProcessEnv = process.env) {
     llmLabel: config.llm === null ? null : `${config.llm.provider}/${publicModelName(config.llm.model)}`,
     llmProvider: config.llm === null ? null : config.llm.provider,
     rateLimit: config.rateLimit,
+    build: config.build,
   });
   registerAgentRoute(app, {
     chat: config.llm === null ? null : createLlmChat(config.llm),

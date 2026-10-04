@@ -41,7 +41,10 @@ export type SettingsDialogProps = {
   onSelect: SelectSink;
 };
 
-const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
+/** #136: the build's short SHA; vite.config.ts puts it into VITE_BUILD_SHA. */
+const BUILD_SHA: string | undefined = import.meta.env.VITE_BUILD_SHA || undefined;
+
+const FOCUSABLE ='button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
 /** Collapsed list rows keep their buttons in the DOM under `hidden`: those are not in the Tab order. */
 function focusables(dialog: HTMLElement): HTMLElement[] {
@@ -201,6 +204,10 @@ export function SettingsDialog({ open, onClose, document: plan, onCommand, sessi
                 {item.title}
               </button>
             ))}
+            {/* #136: which build is open — to compare with origin/main and /api/health. */}
+            <p className="panel__note" title="Короткий SHA коммита, из которого собрана страница">
+              Сборка: {BUILD_SHA ?? 'неизвестна'}
+            </p>
           </nav>
           <div className="settings__content">
             <h3 className="settings__heading">{current.title}</h3>

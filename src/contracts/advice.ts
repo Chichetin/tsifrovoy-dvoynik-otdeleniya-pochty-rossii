@@ -113,6 +113,11 @@ export type AdviceHttpRequest = {
 export type HealthResponse = {
   status: 'ok';
   llm: { configured: false } | { configured: true; provider: string };
+  /**
+   * #136: short git SHA the running build was made from (BUILD_SHA at build
+   * time). Absent when the build did not know it — never a guess.
+   */
+  build?: string;
 };
 
 /**
