@@ -960,7 +960,14 @@ export function App(): React.JSX.Element {
         </div>
         {/* data-tour marks what the first-run tour highlights; display: contents keeps the header layout. */}
         <div className="shell__anchor" data-tour="tools">
-          <PlanTools document={document} session={session} onTool={setTool} onCommand={dispatch}
+          <PlanTools document={document} session={session} onTool={(next) => {
+            if (next.kind === 'room.draw') {
+              planTool.cancel();
+              setRoomMode('internal');
+            }
+            setTool(next);
+          }} onCommand={dispatch}
+            boundaryEditing={roomMode === 'boundary'}
             drawingActive={tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw'}
           />
         </div>
@@ -1026,6 +1033,13 @@ export function App(): React.JSX.Element {
           encode={encodePlan}
           onReplace={replaceDocument}
           onNew={startNewPlan}
+          onEditBoundary={() => {
+            internalRoom.cancel();
+            planTool.cancel();
+            setRoomMode('boundary');
+            setView('2d');
+            setTool({ kind: 'room.draw' });
+          }}
           onExported={() => {
             store.getState().markExported(revision);
           }}
@@ -1035,14 +1049,10 @@ export function App(): React.JSX.Element {
 
       <div className={`shell__body${planOnly ? ' shell__body--plan-only' : ''}`}>
         <aside id="side-panel-left" className="shell__side" data-tour="side-left">
-          {view === '2d' && tool.kind === 'room.draw' ? <fieldset className="drawing-controls"><legend>Что построить</legend>
-            <label><input type="radio" name="room-mode" checked={roomMode === 'internal'} onChange={() => { planTool.cancel(); setRoomMode('internal'); }} /> Комнату внутри отделения</label>
-            <label><input type="radio" name="room-mode" checked={roomMode === 'boundary'} onChange={() => { internalRoom.cancel(); setRoomMode('boundary'); }} /> Изменить внешний контур</label>
-          </fieldset> : null}
           {placingOpening ? <OpeningControls ready={openingTool.ready} valid={openingTool.valid} message={openingTool.message} kind={openingTool.kind} width={openingTool.width} onKind={openingTool.changeKind} onWidth={openingTool.setWidth} onApply={openingTool.apply} onCancel={openingTool.cancel} /> : null}
           {drawingRoom ? <InternalRoomControls draft={internalRoom.draft} ready={internalRoom.ready} valid={internalRoom.valid} message={internalRoom.message} name={internalRoom.name} typeId={internalRoom.typeId} types={document.catalog.zoneTypes} onName={internalRoom.setName} onType={internalRoom.setTypeId} onApply={internalRoom.apply} onCancel={internalRoom.cancel} onRemoveLast={internalRoom.removeLast} /> : null}
           {view === '2d' && !drawingRoom && (tool.kind === 'zone.draw' || tool.kind === 'room.draw' || tool.kind === 'shape.draw') ? (
-            <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'помещение' : 'фигуру'}
+            <DrawingControls name={tool.kind === 'zone.draw' ? 'зону' : tool.kind === 'room.draw' ? 'границу отделения' : 'фигуру'}
               shapeLabel={tool.kind === 'shape.draw' ? (document.catalog.objectTypes.find((type) => type.id === tool.typeId)?.label ?? tool.typeId) : undefined}
               roomBoundary={tool.kind === 'room.draw'} pendingRoom={planTool.pendingRoom} onConfirmRoom={planTool.confirmRoom}
               draft={planTool.draft} onFinish={planTool.finish} onRemoveLast={planTool.removeLast}

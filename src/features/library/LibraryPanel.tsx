@@ -83,9 +83,11 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                     event.dataTransfer.setData('text/plain', type.id);
                     onTool({ kind: 'object.place', typeId: type.id });
                   }}
-                  onClick={() =>
+                  onClick={(event) =>
                     onTool(
-                      activeTypeId === type.id
+                      // #102: the second click of a double click keeps the type;
+                      // otherwise the next plan click selects the zone under it.
+                      activeTypeId === type.id && event.detail < 2
                         ? { kind: 'select' }
                         : { kind: 'object.place', typeId: type.id },
                     )

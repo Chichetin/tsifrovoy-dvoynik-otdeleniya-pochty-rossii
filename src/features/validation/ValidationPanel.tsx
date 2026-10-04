@@ -98,6 +98,19 @@ export function ValidationPanel({
   // The row of a fixed finding is gone from the list, so the result of
   // «Подтвердить» is said here, above the list.
   const [applied, setApplied] = useState<string | null>(null);
+  // The first change of the plan after «Подтвердить» is that command itself;
+  // any later one (Ctrl+Z, an edit) makes the sentence stale, and it goes.
+  const appliedPlan = useRef<PlanDocument | undefined>(undefined);
+  useEffect(() => {
+    if (applied === null) {
+      appliedPlan.current = undefined;
+    } else if (appliedPlan.current === undefined) {
+      appliedPlan.current = plan;
+    } else if (appliedPlan.current !== plan) {
+      appliedPlan.current = undefined;
+      setApplied(null);
+    }
+  }, [applied, plan]);
 
   // Every click, hide and edit starts a new sequence: a search that finishes
   // late for an older plan or an older click shows nothing.

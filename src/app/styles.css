@@ -1419,7 +1419,10 @@ body {
    Accent-strong on accent-soft is 7.8:1. */
 .shell__props {
   display: flex;
-  flex: 0 1 auto;
+  /* The card keeps its own height up to the cap; the tabs under it shrink. With
+     `flex-shrink: 1` a long open tab (the inventory) squeezed the card to a
+     few lines (#128). */
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
   /* The tabs under the card keep at least the lower 44 % of the column. */
@@ -1702,6 +1705,13 @@ body {
   text-align: left;
 }
 
+/* A long word breaks inside its column instead of running into the next one
+   (the inventory in a narrow right column, #129). */
+.table td,
+.table td .table__link {
+  overflow-wrap: anywhere;
+}
+
 .table th {
   color: var(--muted);
   font-weight: 500;
@@ -1899,6 +1909,11 @@ span.inventory__num {
 .assistant__field select,
 .assistant__field input,
 .assistant__field textarea {
+  /* A grid item will not shrink below its longest option; the select was wider
+     than the panel and made it scroll sideways (#129). */
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
   padding: 0.3125rem 0.375rem;
   border: 1px solid var(--line);
   border-radius: 0.25rem;

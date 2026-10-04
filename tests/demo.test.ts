@@ -85,9 +85,10 @@ test('вопрос о составе зоны ведёт к зоне, даже �
   expect(routeAgentQuery(plan, 'Покажи весь план', false)[0]?.name).toBe('plan_overview');
 });
 
-test('стартовый план-шоурум открывается без замечаний, зоны объектов — из геометрии (#73)', () => {
+test('стартовый план совпадает с исходным демо из ZIP и показывает находки (#111)', () => {
   const plan = openStartPlan();
-  expect(validatePlan(plan)).toEqual([]);
+  expect(plan).toEqual(JSON.parse(readFileSync(join(DEMO_DIR, 'before.json'), 'utf8')));
+  expect(validatePlan(plan).length).toBeGreaterThan(0);
   const reconciled = reconcileZones(plan);
   expect(reconciled.ok && reconciled.value.objects.map((object) => object.zoneId)).toEqual(
     plan.objects.map((object) => object.zoneId),
