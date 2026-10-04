@@ -71,7 +71,7 @@ import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
-import { ValidationPanel } from '../features/validation/ValidationPanel';
+import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
@@ -404,10 +404,17 @@ export function App(): React.JSX.Element {
   );
 
   // «Подтвердить» under a fix variant of «Проверка»: the shown ghost goes in as
-  // one command — the spot the search checked, with the size it checked. A
-  // moved object keeps its id, name and attributes.
+  // one command — the spot the search checked, with the size it checked — or
+  // the named object is deleted. A moved object keeps its id, name and
+  // attributes.
   const applyFix = useCallback(
-    (candidate: Candidate, movedId: Id | null): Result<PlanDocument> => {
+    (application: FixApplication): Result<PlanDocument> => {
+      if (application.kind === 'delete') {
+        const result = dispatch({ type: 'object.delete', id: application.id });
+        if (result.ok) select(null);
+        return result;
+      }
+      const { candidate, movedId } = application;
       const current = store.getState();
       const moved = movedId === null ? undefined : current.document.objects.find((entry) => entry.id === movedId);
       const object =
@@ -424,7 +431,7 @@ export function App(): React.JSX.Element {
       if (result.ok) setPreview(null);
       return result;
     },
-    [dispatchAndSelect, store],
+    [dispatch, dispatchAndSelect, select, store],
   );
 
   const focusOn = useCallback(

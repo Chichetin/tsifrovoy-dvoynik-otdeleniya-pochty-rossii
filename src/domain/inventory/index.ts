@@ -70,13 +70,23 @@ export function countInZoneScope(
   zoneId: Id,
   scope: 'direct' | 'inclusive',
 ): number {
+  return objectsInZoneScope(plan, objectTypeId, zoneId, scope).length;
+}
+
+/** The objects `countInZoneScope` counts, in document order. */
+export function objectsInZoneScope(
+  plan: PlanDocument,
+  objectTypeId: Id,
+  zoneId: Id,
+  scope: 'direct' | 'inclusive',
+): Equipment[] {
   const parents = zoneParents(plan.zones);
   return plan.objects.filter((object) => {
     if (object.typeId !== objectTypeId) return false;
     if (object.zoneId === null) return false;
     if (scope === 'direct') return object.zoneId === zoneId;
     return chainFrom(object.zoneId, parents).includes(zoneId);
-  }).length;
+  });
 }
 
 /** Rows in document order: the table must not reshuffle itself between edits. */

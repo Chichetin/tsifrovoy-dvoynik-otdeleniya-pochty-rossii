@@ -32,13 +32,17 @@ export type ValidationPanelViewProps = Omit<ValidationPanelProps, 'issues'> & {
   focus?: FocusRequest | null;
   /** #33: shows the fix variant on the plan as a ghost; `null` hides it. */
   onPreview?: (candidate: Candidate | null) => void;
-  /**
-   * «Подтвердить» под вариантом исправления: ставит показанный вариант на
-   * план одной командой. `movedId` — объект, который переставляют; `null` —
-   * вариант добавляет новый объект.
-   */
-  onApplyFix?: (candidate: Candidate, movedId: Id | null) => Result<PlanDocument>;
+  /** «Подтвердить» под вариантом исправления: одна команда, одна отмена. */
+  onApplyFix?: (application: FixApplication) => Result<PlanDocument>;
 };
+
+/**
+ * What «Подтвердить» does: puts the shown variant on the plan (`movedId` is
+ * the object that moves, `null` — a new object is added) or deletes one.
+ */
+export type FixApplication =
+  | { kind: 'put'; candidate: Candidate; movedId: Id | null }
+  | { kind: 'delete'; id: Id };
 
 type FixState = { key: string; plan: PlanDocument } & (
   | { status: 'loading' }
@@ -129,6 +133,10 @@ export function ValidationPanel({
       const result = findFix(plan, planned);
       setFix({ key, plan, status: 'done', result });
       if (!result.ok) return;
+      if (result.candidate === null) {
+        onFocus({ kind: 'object', id: result.fix.object.id });
+        return;
+      }
       ghostShown.current = true;
       onPreview(result.candidate);
     }, 0);
@@ -143,21 +151,28 @@ export function ValidationPanel({
   const applyFix = (result: Extract<FixResult, { ok: true }>): void => {
     if (onApplyFix === undefined) return;
     const { candidate, fix: planned } = result;
-    const movedId = planned.kind === 'move' ? planned.object.id : null;
-    const outcome = onApplyFix(candidate, movedId);
+    const outcome = onApplyFix(
+      candidate === null
+        ? { kind: 'delete', id: planned.object.id }
+        : { kind: 'put', candidate, movedId: planned.kind === 'move' ? planned.object.id : null },
+    );
     if (!outcome.ok) {
       setApplied(`Не применено: ${outcome.issues.map((issue) => issue.message).join('; ')}`);
       return;
     }
     hideFix();
+    if (candidate === null) {
+      setApplied(`Применено: удалён объект «${planned.object.label}». Отменить — Ctrl+Z.`);
+      return;
+    }
     if (planned.kind === 'add') {
-      setApplied(`Применено: «${candidate.object.label}» добавлен на план. Отменить — Ctrl+Z.`);
+      setApplied(`Применено: на план добавлен объект «${candidate.object.label}». Отменить — Ctrl+Z.`);
       return;
     }
     const [width, depth] = candidate.object.size_m;
     const resized = width !== planned.object.size_m[0] || depth !== planned.object.size_m[1];
     setApplied(
-      `Применено: «${planned.object.label}» переставлен${resized ? `, размер по справочнику ${formatNumber(width)} × ${formatNumber(depth)} м` : ''}. Отменить — Ctrl+Z.`,
+      `Применено: объект «${planned.object.label}» переставлен${resized ? `, размер по справочнику ${formatNumber(width)} × ${formatNumber(depth)} м` : ''}. Отменить — Ctrl+Z.`,
     );
   };
   // One index per document (D-202): names come from the plan itself, so a
@@ -413,6 +428,10 @@ function fixText(plan: PlanDocument, fix: FixState): string {
   if (fix.status === 'loading') return 'Ассистент ищет место…';
   const { result } = fix;
   if (!result.ok) return `Варианта нет: ${result.message}`;
+  if (result.candidate === null) {
+    const { object, retired } = result.fix;
+    return `Удалить «${object.label}» (${retired ? 'выведено из эксплуатации' : 'последний в списке'}). Объект выделен на плане, план не изменён: «Подтвердить» удалит его. Расчёт без LLM.`;
+  }
   const object = result.candidate.object;
   const zone = plan.zones.find((entry) => entry.id === object.zoneId)?.name ?? 'вне зон';
   const where = `(${formatNumber(object.position[0])}; ${formatLength(object.position[1])}), поворот ${object.rotation_deg}°, зона «${zone}»`;

@@ -377,6 +377,41 @@ describe('вариант исправления находки (#33)', () => {
     if (fix.kind === 'none') throw new Error('вариант не запланирован');
     expect(findFix(plan, fix).ok).toBe(true);
   });
+
+  test('больше максимума: удаляется выведенный из эксплуатации объект, без него — последний в списке', () => {
+    const decoded = decodePlan(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8'));
+    if (!decoded.ok) throw new Error('demo/before.json не открылся');
+    const strict = (plan: PlanDocument): PlanDocument => ({
+      ...plan,
+      catalog: {
+        ...plan.catalog,
+        rules: plan.catalog.rules.map((rule) =>
+          rule.id === 'rule_info_display_max' && rule.kind === 'count' ? { ...rule, max: 1 } : rule,
+        ),
+      },
+    });
+    const removed = (plan: PlanDocument): string => {
+      const issues = validatePlan(plan);
+      const excess = issues.find((entry) => entry.code === VALIDATION_ISSUE_CODES.RULE_COUNT_ABOVE_MAX);
+      if (excess === undefined) throw new Error('находки «больше максимума» нет');
+      const fix = planFix(plan, excess, issues);
+      return fix.kind === 'remove' ? fix.object.id : fix.kind;
+    };
+    const withRetired = strict(decoded.value);
+    expect(removed(withRetired)).toBe('eq_8');
+    const noRetired: PlanDocument = {
+      ...withRetired,
+      objects: withRetired.objects.map((object) =>
+        object.id === 'eq_8' ? { ...object, attributes: { ...object.attributes, equipmentStatus: 'working' } } : object,
+      ),
+    };
+    expect(removed(noRetired)).toBe('eq_8');
+    const reordered: PlanDocument = {
+      ...noRetired,
+      objects: [...noRetired.objects.filter((object) => object.id === 'eq_8'), ...noRetired.objects.filter((object) => object.id !== 'eq_8')],
+    };
+    expect(removed(reordered)).not.toBe('eq_8');
+  });
 });
 
 describe('силуэт постановки (#26)', () => {
