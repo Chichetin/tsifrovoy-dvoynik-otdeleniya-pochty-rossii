@@ -1,19 +1,18 @@
 /**
  * V02 (подсветка): находки проверки поверх плана.
  *
- * Один слой Konva, две группы. Подсветка выделенной сущности — заливка и
- * сплошной контур с белой каймой, который читается и на красном объекте, где
- * пунктир того же цвета терялся. Поверх неё маркеры: у каждой затронутой
+ * Две группы Konva в верхнем слое холста. Подсветка выделенной сущности —
+ * заливка и сплошной контур с белой каймой, который читается и на красном
+ * объекте, где пунктир того же цвета терялся. Поверх неё маркеры: у каждой затронутой
  * сущности значок с числом находок и цветом по серьёзности, виден всегда, без
- * клика (D-157). Отдельный слой под маркеры не заводится: у сцены их и так
- * шесть при рекомендованных Konva 3–5.
+ * клика (D-157).
  *
- * Подсветка и остальной слой мышь по-прежнему не ловят — иначе слой заслонил
+ * Подсветка и остальная группа мышь не ловят — иначе группа заслонила
  * бы объект, который пользователь хочет потянуть после исправления. Ловит
  * только сам кружочек маркера (V02-marker-click): клик по нему открывает
  * находки сущности в списке, но не должен провалиться в объект под ним, —
  * `cancelBubble` останавливает всплытие раньше, чем его увидят инструмент
- * плана и рамка выделения на слое оборудования. Слой становится `listening`
+ * плана и рамка выделения на слое оборудования. Группа становится `listening`
  * только когда `onMarkerClick` передан (в режимах «Выбор»/«Обзор»): во время
  * рисования её не задают, и клик по маркеру проходит насквозь, как раньше.
  *
@@ -27,7 +26,7 @@
  */
 
 import type Konva from 'konva';
-import { Circle, Group, Label, Layer, Line, Tag, Text } from 'react-konva';
+import { Circle, Group, Label, Line, Tag, Text } from 'react-konva';
 import type { Ref, Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
 import { formatLength } from '../../domain/number-format';
@@ -71,7 +70,7 @@ export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLaye
   const measures = measuresFor(issues, focus);
   const clickable = onMarkerClick !== undefined;
   return (
-    <Layer listening={clickable} name="issue-highlights">
+    <Group listening={clickable} name="issue-highlights">
       <Group name="issue-focus" listening={false}>
         {highlights.map((entry, index) => {
           const points = entry.polygon.flatMap((point) => modelToScreen(point, viewport));
@@ -167,6 +166,6 @@ export function IssueLayer({ issues, focus, viewport, onMarkerClick }: IssueLaye
           );
         })}
       </Group>
-    </Layer>
+    </Group>
   );
 }

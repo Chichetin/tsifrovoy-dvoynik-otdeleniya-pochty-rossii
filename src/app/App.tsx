@@ -11,6 +11,7 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
@@ -1096,17 +1097,50 @@ export function App(): React.JSX.Element {
             }}
             onViewport={setViewport}
             onSelect={selectOnPlan}
+            overlay={
+              <>
+              {/* После оборудования — иначе объект, вставший на подпись, закрывает
+                  название зоны целиком; полупрозрачность не даёт подписи закрыть
+                  сам объект. */}
+              <ZoneNameLayer document={shownDocument} viewport={viewport} />
+              {/* Правка формы объекта (D-279) — над оборудованием: её ручки
+                  должны перехватывать жест раньше переноса и размера объекта. */}
+              <ObjectShapeLayer
+                document={document}
+                session={session}
+                onCommand={dispatch}
+                onEditingChange={setShapeEditingId}
+              />
+              <InformationLayer document={document} session={session} />
+              {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
+                  должен уходить под объект или под имя зоны. В план она ничего не
+                  кладёт (D-256). */}
+              <MeasureLayer viewport={viewport} />
+              {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
+                  тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
+              <IssueLayer
+                issues={issues}
+                focus={selection}
+                viewport={viewport}
+                // Маркер ловит клик только в «Выбор»/«Обзор»: во время рисования
+                // клик должен по-прежнему идти инструменту, ставящему точки.
+                onMarkerClick={tool.kind === 'select' || tool.kind === 'pan' ? focusFromMarker : undefined}
+              />
+              </>
+            }
           >
-            <PlanGeometryLayer
-              document={document}
-              session={session}
-              draft={drawingRoom ? internalRoom.draft : planTool.draft}
-              draftCursor={drawingRoom ? null : planTool.cursor}
-              rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
-              onCommand={dispatch}
-              onSelect={selectOnPlan}
-            />
-            <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
+            <Layer name="plan">
+              <PlanGeometryLayer
+                document={document}
+                session={session}
+                draft={drawingRoom ? internalRoom.draft : planTool.draft}
+                draftCursor={drawingRoom ? null : planTool.cursor}
+                rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
+                onCommand={dispatch}
+                onSelect={selectOnPlan}
+              />
+              <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
+            </Layer>
             <EquipmentLayer
               document={shownDocument}
               session={session}
@@ -1118,33 +1152,6 @@ export function App(): React.JSX.Element {
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
               pictograms={pictograms}
-            />
-            {/* После оборудования — иначе объект, вставший на подпись, закрывает
-                название зоны целиком; полупрозрачность не даёт подписи закрыть
-                сам объект. */}
-            <ZoneNameLayer document={shownDocument} viewport={viewport} />
-            {/* Правка формы объекта (D-279) — над оборудованием: её ручки
-                должны перехватывать жест раньше переноса и размера объекта. */}
-            <ObjectShapeLayer
-              document={document}
-              session={session}
-              onCommand={dispatch}
-              onEditingChange={setShapeEditingId}
-            />
-            <InformationLayer document={document} session={session} />
-            {/* Линейка — поверх плана: измеряют по тому, что видно, и отрезок не
-                должен уходить под объект или под имя зоны. В план она ничего не
-                кладёт (D-256). */}
-            <MeasureLayer viewport={viewport} />
-            {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
-                тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
-            <IssueLayer
-              issues={issues}
-              focus={selection}
-              viewport={viewport}
-              // Маркер ловит клик только в «Выбор»/«Обзор»: во время рисования
-              // клик должен по-прежнему идти инструменту, ставящему точки.
-              onMarkerClick={tool.kind === 'select' || tool.kind === 'pan' ? focusFromMarker : undefined}
             />
           </EditorCanvas>
           {view === '3d' ? (

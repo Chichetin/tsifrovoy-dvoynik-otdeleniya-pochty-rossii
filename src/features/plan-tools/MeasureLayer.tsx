@@ -9,7 +9,7 @@
  * клик по тому, что под ней.
  */
 
-import { Circle, Label, Layer, Line, Tag, Text } from 'react-konva';
+import { Circle, Group, Label, Line, Tag, Text } from 'react-konva';
 import type { Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
 import { measurementCaption, useMeasurement } from './measure';
@@ -77,8 +77,8 @@ export function MeasureLayer({ viewport }: { viewport: Viewport }): React.JSX.El
   };
 
   return (
-    <Layer name="measure" listening={false}>
+    <Group name="measure" listening={false}>
       {content()}
-    </Layer>
+    </Group>
   );
 }

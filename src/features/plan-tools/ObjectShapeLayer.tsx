@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Circle, Layer, Line } from 'react-konva';
+import { Circle, Group, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { Equipment, Id, PlanDocument, Point, Polygon } from '../../contracts/model';
 import type { CommandSink, EditorSession } from '../../contracts/ui';
@@ -123,13 +123,13 @@ export function ObjectShapeLayer({
 
   // The stage's double click is the one way in: the object's own group is
   // drawn by the equipment layer, and a feature does not reach into another.
-  const [layerNode, setLayerNode] = useState<Konva.Layer | null>(null);
+  const [groupNode, setGroupNode] = useState<Konva.Group | null>(null);
   useEffect(() => {
-    const stage = layerNode?.getStage();
+    const stage = groupNode?.getStage();
     if (stage === null || stage === undefined) return;
     const onDouble = (event: Konva.KonvaEventObject<MouseEvent>): void => {
       if (tool.kind !== 'select') return;
-      if (event.target.getLayer() === layerNode) return;
+      if (groupNode?.isAncestorOf(event.target)) return;
       const id = objectIdUnder(event.target);
       const target = id === null ? undefined : plan.objects.find((item) => item.id === id);
       if (target === undefined || !editable(target)) return;
@@ -157,7 +157,7 @@ export function ObjectShapeLayer({
     return () => window.removeEventListener('keydown', onKey);
   }, [active]);
 
-  if (!active) return <Layer name="object-shape" ref={setLayerNode} />;
+  if (!active) return <Group name="object-shape" ref={setGroupNode} />;
 
   const ring = footprint(object);
   const shown = dragged ?? ring;
@@ -189,7 +189,7 @@ export function ObjectShapeLayer({
   };
 
   return (
-    <Layer name="object-shape" ref={setLayerNode}>
+    <Group name="object-shape" ref={setGroupNode}>
       <Line
         name={`shape-outline-${object.id}`}
         points={flat(shown)}
@@ -262,6 +262,6 @@ export function ObjectShapeLayer({
           />
         );
       })}
-    </Layer>
+    </Group>
   );
 }

@@ -18,7 +18,7 @@
  * самого правого края холста обрезается.
  */
 
-import { Circle, Label, Layer, Line, Tag, Text } from 'react-konva';
+import { Circle, Group, Label, Line, Tag, Text } from 'react-konva';
 import type { PlanGeometryLayerProps } from '../../contracts/ui';
 import type { SnapTarget } from '../../domain/geometry';
 import { modelToScreen } from '../../domain/geometry';
@@ -110,8 +110,8 @@ export function SnapMarkerLayer({ viewport }: { viewport: Viewport }): React.JSX
   };
 
   return (
-    <Layer name="snap-marker" listening={false}>
+    <Group name="snap-marker" listening={false}>
       {content()}
-    </Layer>
+    </Group>
   );
 }

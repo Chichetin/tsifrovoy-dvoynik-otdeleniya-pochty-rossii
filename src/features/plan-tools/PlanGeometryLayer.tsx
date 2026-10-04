@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Label, Layer, Line, Tag, Text } from 'react-konva';
+import { Circle, Group, Label, Line, Tag, Text } from 'react-konva';
 import type Konva from 'konva';
 import type { Id, Opening, PlanDocument, Point, Polygon, Ref, Wall, Zone } from '../../contracts/model';
 import { TOLERANCE } from '../../contracts/model';
@@ -593,7 +593,7 @@ export function PlanGeometryLayer({
 
   return (
     <>
-    <Layer>
+    <Group>
       <Line
         points={flatten(room.polygon, viewport)}
         closed
@@ -629,7 +629,7 @@ export function PlanGeometryLayer({
         );
       })}
 
-      {/* Названия зон рисует `ZoneNameLayer` — отдельным слоем поверх
+      {/* Названия зон рисует `ZoneNameLayer` — группой поверх
           оборудования, иначе объект, вставший на подпись, закрывает её
           целиком. Здесь их больше нет намеренно. */}
 
@@ -748,9 +748,9 @@ export function PlanGeometryLayer({
       {!picking || selectedOpening === undefined || selectedOpeningWall === undefined
         ? null
         : openingHandles(selectedOpening, selectedOpeningWall)}
-    </Layer>
-    {/* Маркер цели привязки — на своём слое: кадр жеста не должен
-        перерисовывать зоны, стены и подписи (D-177, D-224). */}
+    </Group>
+    {/* Маркер цели привязки — в слое плана: черновик под курсором и так
+        перерисовывает этот слой на каждом движении (#51). */}
     <SnapMarkerLayer viewport={viewport} />
     </>
   );
