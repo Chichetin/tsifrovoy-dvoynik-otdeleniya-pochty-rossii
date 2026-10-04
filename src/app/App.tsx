@@ -884,7 +884,8 @@ export function App(): React.JSX.Element {
           }
           // Like «Подтвердить» in «Проверка» (#105): one command, one undo step.
           const result = dispatch({ type: 'batch', commands });
-          setEditGhosts(null);
+          // A refused batch leaves the plan as it was: the ghosts stay to explain it.
+          if (result.ok) setEditGhosts(null);
           const added = editGhostsOf(commands).put.filter((object) => !current.document.objects.some((entry) => entry.id === object.id));
           setAgentActionStatus(
             result.ok
