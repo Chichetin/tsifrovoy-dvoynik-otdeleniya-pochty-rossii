@@ -479,11 +479,8 @@ body {
 .shell--plan-only .shell__bar,
 .shell__body--plan-only > .shell__side,
 .shell__body--plan-only > .shell__resize {
-  display: none;
-}
-
-.shell__body--plan-only {
-  grid-template-columns: minmax(0, 1fr);
+  /* visibility keeps the layout: the canvas does not grow or move. */
+  visibility: hidden;
 }
 
 .shell__side {
@@ -527,17 +524,9 @@ body {
   color: var(--color-accent-strong);
 }
 
-.shell--plan-only .shell__plan-only-toggle {
-  top: 0.75rem;
-}
-
 /* Under the «show only the plan» button; D-362. */
 .shell__captions-toggle {
   top: calc(var(--strip-row) + 3.25rem);
-}
-
-.shell--plan-only .shell__captions-toggle {
-  top: 3.25rem;
 }
 
 .shell__plan-only-toggle:hover,
