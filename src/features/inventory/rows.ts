@@ -54,7 +54,8 @@ export type InventoryFilter = { query: string; typeId: Id | null; maintenanceDue
 
 /** Overdue or due within the warning window: what the «ТО» filter keeps. */
 export function maintenanceDue(row: ObjectRow): boolean {
-  return row.maintenance !== null && row.maintenance.kind !== 'invalid';
+  // An unreadable date stays in the list: a quiet drop looks like «ТО учтено».
+  return row.maintenance !== null;
 }
 
 /**
