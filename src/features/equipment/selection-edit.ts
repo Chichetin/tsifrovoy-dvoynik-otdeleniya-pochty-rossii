@@ -14,6 +14,7 @@
 
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import { nextFreeId } from '../../domain/commands';
+import { unmarkObject } from '../../domain/inventory';
 import { boundingBox, footprint, intersects, normalizeAngle } from '../../domain/geometry';
 import { ROTATION_SNAP_DEG, snapPosition } from './transform';
 
@@ -110,7 +111,8 @@ export function nextObjectId(taken: Set<Id>): Id {
  * номер у двух объектов проверка считает дублем. Номер пуст, а не «следующий
  * свободный»: копия — «такой же предмет» на время расстановки, реестровый номер
  * ей даёт человек (D-266, D-311); пустой номер «Проверка» показывает находкой
- * (D-312). Следующий номер серии получает только постановка из библиотеки (D-310).
+ * (D-312). Отметку обхода (`inventoryCheck`, `inventoryFoundNumber`) копия тоже
+ * не наследует (#163). Следующий номер серии получает только постановка из библиотеки (D-310).
  */
 export function pasteObjects(
   source: readonly Equipment[],
@@ -149,13 +151,13 @@ function copyObjects(source: readonly Equipment[], taken: ReadonlySet<Id>, [dx, 
       INVENTORY_NUMBER_KEY in object.attributes
         ? { ...object.attributes, [INVENTORY_NUMBER_KEY]: null }
         : { ...object.attributes };
+    // #163: the walk mark belongs to the checked object, not to its copy.
     return {
-      ...object,
+      ...unmarkObject({ ...object, attributes }),
       ...(object.locked === true ? { locked: false } : {}),
       id,
       position: snapPosition([object.position[0] + dx, object.position[1] + dy]),
       zoneId: null,
-      attributes,
     };
   });
 }
