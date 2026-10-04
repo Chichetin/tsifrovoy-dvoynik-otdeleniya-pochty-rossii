@@ -12,7 +12,7 @@
 
 import { z } from 'zod';
 import type { Recommendation } from '../../contracts/advice';
-import type { AgentPanel, AgentStep, AgentToolName, AssistantAction } from '../../contracts/advice-chat';
+import { proposeEditsArgsSchema, type AgentPanel, type AgentStep, type AgentToolName, type AssistantAction } from '../../contracts/advice-chat';
 import type { Id, PlanDocument, Ref } from '../../contracts/model';
 import { buildInventory } from '../inventory';
 import { measurePlan } from '../metrics';
@@ -64,6 +64,7 @@ const argSchemas = {
   suggest_candidate: z.object({ recommendationId: z.string().min(1), candidateId: z.string().min(1) }),
   suggest_layer: z.object({ layerId: z.string().min(1) }),
   open_panel: z.object({ panel: z.enum(['metrics', 'validation', 'inventory']) }),
+  propose_edits: proposeEditsArgsSchema,
 } satisfies Record<AgentToolName, z.ZodType>;
 
 /** JSON Schemas for the provider's `tools` field, in the same order as above. */
@@ -441,5 +442,10 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       addAction(state, { kind: 'open-panel', panel });
       return { output: { ok: true }, step: { tool: name, label: `Панель «${PANEL_LABELS[panel]}»`, ok: true } };
     }
+
+    // #126: the contract is in place, the check of edits comes next. Until
+    // then the tool is not offered to the model and refuses every call.
+    case 'propose_edits':
+      return fail(name, 'Правка плана недоступна', 'Правка плана текстом пока недоступна.');
   }
 }
