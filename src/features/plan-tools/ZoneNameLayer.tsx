@@ -19,7 +19,7 @@
  */
 
 import { useMemo } from 'react';
-import { Layer, Text } from 'react-konva';
+import { Group, Text } from 'react-konva';
 import type { PlanDocument, Viewport, Zone } from '../../contracts/model';
 import { ZONE_CAPTION_FONT, ZONE_CAPTION_SPACING, zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 import { zoneDepth } from '../../domain/relations';
@@ -54,7 +54,7 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
   const zones: Zone[] = plan.zones.filter((zone) => visibleLayers.has(zone.layerId));
 
   return (
-    <Layer listening={false} name="zone-names">
+    <Group listening={false} name="zone-names">
       {zones.map((zone) => {
         const box = captions.get(zone.id);
         if (box === undefined) return null;
@@ -78,6 +78,6 @@ export function ZoneNameLayer({ document: plan, viewport }: ZoneNameLayerProps):
           />
         );
       })}
-    </Layer>
+    </Group>
   );
 }

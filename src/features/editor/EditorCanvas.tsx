@@ -4,9 +4,10 @@
  *
  * Shapes are not drawn here. The app composition passes them as children, so
  * the plan layer and the equipment layer stay independent of each other and of
- * this file; what they receive is already in world coordinates. The one shape
- * this file does draw is the short-lived focus ring: it belongs to the view,
- * never to the document, and disappears by itself.
+ * this file; what they receive is already in world coordinates. `overlay` is
+ * drawn above them in one layer. The one shape this file does draw is the
+ * short-lived focus ring: it belongs to the view, never to the document, and
+ * disappears by itself.
  *
  * Fitting is a view decision too, so it lives here, next to the only place that
  * knows the size of the canvas in pixels: a replaced document opens fitted, and
@@ -14,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { Circle, Layer, Line, Stage } from 'react-konva';
+import { Circle, Group, Layer, Line, Stage } from 'react-konva';
 import Konva from 'konva';
 import type { Point, Polygon, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
@@ -72,6 +73,7 @@ export function EditorCanvas({
   onViewport,
   onSelect,
   children,
+  overlay,
 }: EditorCanvasProps): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
@@ -474,13 +476,15 @@ export function EditorCanvas({
             {gridLayer}
           </Layer>
           {children}
-          {/* The focus layer is always mounted, empty most of the time: adding
-              or removing a Konva layer makes the stage repaint every layer,
-              which on a plan of 1000 objects turned each click in a panel
-              into seconds of drawing (Q02, D-177). */}
-          <Layer listening={false} name="focus-ring">
+          {/* The overlay layer is always mounted: adding or removing a Konva
+              layer makes the stage repaint every layer, which on a plan of
+              1000 objects turned each click in a panel into seconds of drawing
+              (Q02, D-177). One layer for the overlay and the focus ring keeps
+              the stage within Konva's 3–5 layers (#51). */}
+          <Layer name="overlay">
+            {overlay}
             {ring === null || focusExtent === null ? null : (
-              <>
+              <Group listening={false} name="focus-ring">
               <Line
                 points={screenPoints(focusExtent, session.viewport)}
                 closed
@@ -497,7 +501,7 @@ export function EditorCanvas({
                 strokeWidth={2}
                 opacity={0.8}
               />
-              </>
+              </Group>
             )}
           </Layer>
         </Stage>

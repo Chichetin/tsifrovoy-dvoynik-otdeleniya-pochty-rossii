@@ -12,7 +12,7 @@
  */
 
 import { Fragment, useMemo } from 'react';
-import { Layer, Line, Rect, Shape, Text } from 'react-konva';
+import { Group, Line, Rect, Shape, Text } from 'react-konva';
 import type { Id, LayerType, Point, Polygon, Zone } from '../../contracts/model';
 import type { InformationLayerProps } from '../../contracts/ui';
 import { findLayerType } from '../../domain/catalog';
@@ -257,7 +257,7 @@ export function InformationLayer({
   );
 
   return (
-    <Layer listening={false}>
+    <Group listening={false}>
       {fills}
 
       {labels.map((label, index) => {
@@ -392,6 +392,6 @@ export function InformationLayer({
           listening={false}
         />,
       ])}
-    </Layer>
+    </Group>
   );
 }
