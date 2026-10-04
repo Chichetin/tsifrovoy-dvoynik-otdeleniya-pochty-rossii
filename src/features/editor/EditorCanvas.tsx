@@ -429,8 +429,20 @@ export function EditorCanvas({
       onPointer({ phase: 'cancel', point: [0, 0], shift: false, alt: false, button: 0 });
       onSelect(null);
     };
+    // #128: Escape in a field lets the field go, so the next Escape clears the
+    // selection. This one bubbles: a field with an Escape of its own (the X/Y
+    // reset) stops the event in React, before it gets here.
+    const onFieldKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || event.defaultPrevented || !isTypingTarget(event.target)) return;
+      if (event.target instanceof Element && event.target.closest('[aria-modal="true"], [role="menu"]') !== null) return;
+      if (event.target instanceof HTMLElement) event.target.blur();
+    };
     window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
+    window.addEventListener('keydown', onFieldKey);
+    return () => {
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keydown', onFieldKey);
+    };
   }, [onPointer, onSelect]);
 
   const grid = useMemo(

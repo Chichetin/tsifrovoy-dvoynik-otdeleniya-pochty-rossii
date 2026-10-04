@@ -1347,7 +1347,10 @@ body {
    Accent-strong on accent-soft is 7.8:1. */
 .shell__props {
   display: flex;
-  flex: 0 1 auto;
+  /* The card keeps its own height up to the cap; the tabs under it shrink. With
+     `flex-shrink: 1` a long open tab (the inventory) squeezed the card to a
+     few lines (#128). */
+  flex: 0 0 auto;
   flex-direction: column;
   min-height: 0;
   /* The tabs under the card keep at least the lower 44 % of the column. */
