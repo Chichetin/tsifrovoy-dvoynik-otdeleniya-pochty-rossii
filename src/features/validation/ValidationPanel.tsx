@@ -223,7 +223,7 @@ export function ValidationPanel({
                   aria-current={isMatch ? 'true' : undefined}
                 >
                   {group.issues.length === 1 ? (
-                    <p className="issues__message">{first?.message}</p>
+                    <p className="issues__message"><FindingMessage message={first?.message ?? ''} /></p>
                   ) : (
                     <>
                       <p className="issues__message">
@@ -232,7 +232,7 @@ export function ValidationPanel({
                       <ul className="issues__group" style={{ margin: '0 0 4px', paddingLeft: 18 }}>
                         {group.issues.map((issue, line) => (
                           <li key={`${issue.code}-${line}`} className="issues__message">
-                            {issue.message}
+                            <FindingMessage message={issue.message} />
                             {why(issue, `issue-why-${index}-${line}`)}
                           </li>
                         ))}
@@ -294,6 +294,17 @@ export function ValidationPanel({
   );
 }
 
+/** Keep the source below the finding without changing the diagnostic contract. */
+function FindingMessage({ message }: { message: string }): React.JSX.Element {
+  const sourceStart = message.lastIndexOf('Источник правила:');
+  return sourceStart < 0 ? <>{message}</> : (
+    <>
+      {message.slice(0, sourceStart).trimEnd()}
+      <em className="issues__source">{message.slice(sourceStart)}</em>
+    </>
+  );
+}
+
 /** One finding is one code about one set of entities; the key survives re-sorting. */
 function issueKey(issue: ValidationIssue): string {
   return `${issue.code}:${issue.refs.map((ref) => `${ref.kind}:${ref.id}`).join(',')}`;
@@ -338,7 +349,7 @@ function FindingWhyDetails({
       )}
       <p className="panel__note">Откуда число: {why.method}</p>
       <p className="panel__note" data-testid="issue-why-source">
-        {why.sourceNote}
+        <em>{why.sourceNote}</em>
       </p>
       {planned.kind === 'none' ? (
         <p className="panel__note">{planned.reason}</p>

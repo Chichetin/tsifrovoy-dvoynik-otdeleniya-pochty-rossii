@@ -1785,6 +1785,12 @@ span.inventory__num {
   margin: 0 0 2px;
 }
 
+.issues__source {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
 .issues__refs {
   display: flex;
   flex-wrap: wrap;
