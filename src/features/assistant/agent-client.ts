@@ -23,10 +23,13 @@ const LOCAL_REASON = 'Сервер ассистента недоступен —
 const STOPPED_REASON = 'Запрос остановлен — ответ собран расчётом в браузере, без LLM.';
 
 /**
- * The page's own limit: the service's `LLM_TIMEOUT_MS`, 60 s (`.env.example`),
- * plus 5 s for the calculation and the network.
+ * The page's own limit: the server's `LLM_TIMEOUT_MS` from the stream's
+ * header plus 5 s for the calculation and the network. Until the header
+ * arrives, or without it, — 60 s (`.env.example`) plus the same 5 s.
  */
-const TIMEOUT_MS = 60_000 + 5_000;
+const LLM_TIMEOUT_HEADER = 'x-llm-timeout-ms';
+const TIMEOUT_MARGIN_MS = 5_000;
+const TIMEOUT_MS = 60_000 + TIMEOUT_MARGIN_MS;
 
 function timeoutReason(ms: number): string {
   return `Сервер ассистента не ответил за ${Math.max(1, Math.round(ms / 1000))} с — ответ собран расчётом в браузере, без LLM.`;
@@ -77,11 +80,14 @@ export async function requestAgent(
   input: AgentHttpRequest,
   onStep: (step: AgentStep) => void,
   fetchImpl: typeof fetch = fetch,
-  timeoutMs = TIMEOUT_MS,
+  /** Overrides the server's header; for tests. */
+  fixedTimeoutMs?: number,
 ): Promise<Result<AgentAnswer>> {
   const controller = new AbortController();
   current = controller;
-  const timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
+  const started = Date.now();
+  let timeoutMs = fixedTimeoutMs ?? TIMEOUT_MS;
+  let timer = setTimeout(() => controller.abort('timeout'), timeoutMs);
   // A fetch that ignores the signal, or a stream that stalls, still ends here.
   const aborted = new Promise<never>((_, reject) => {
     controller.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
@@ -104,6 +110,13 @@ export async function requestAgent(
       ]);
     } catch {
       return controller.signal.aborted ? onAbort() : local(input, onStep);
+    }
+
+    const named = Number(response.headers.get(LLM_TIMEOUT_HEADER));
+    if (fixedTimeoutMs === undefined && named > 0) {
+      timeoutMs = named + TIMEOUT_MARGIN_MS;
+      clearTimeout(timer);
+      timer = setTimeout(() => controller.abort('timeout'), Math.max(0, started + timeoutMs - Date.now()));
     }
 
     // No backend behind the dev proxy, or a static host: answer from the page.
