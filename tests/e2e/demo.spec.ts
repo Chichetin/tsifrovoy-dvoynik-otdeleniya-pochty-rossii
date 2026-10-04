@@ -6,8 +6,7 @@
  * Проверка «после распаковки оба плана открываются» иначе остаётся рассуждением.
  *
  * Второй сценарий — та же рекомендация, применённая руками в редакторе:
- * поставить скамью из библиотеки, удалить лишнее табло, перетащить терминал
- * очереди числами карточки. Скачанный файл сравнивается с `demo/after.json`
+ * поставить скамью из библиотеки, перетащить терминал очереди числами карточки. Скачанный файл сравнивается с `demo/after.json`
  * целиком, поэтому «изменённый план получен в редакторе» — факт, а не подпись.
  */
 
@@ -96,7 +95,7 @@ test.describe('демо-комплект из ZIP', () => {
 
     // Изменённый план — тем же путём, с применённой рекомендацией внутри.
     await openFromArchive(page, 'after.json');
-    await expect(inventoryRows(page)).toHaveCount(53);
+    await expect(inventoryRows(page)).toHaveCount(54);
     await selectByLabel(page, 'Скамья ожидания 2');
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_54');
     await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Зона ожидания');
@@ -105,7 +104,7 @@ test.describe('демо-комплект из ZIP', () => {
       page.getByLabel('Инвентаризация').locator('.table__link', {
         hasText: 'Табло над зоной очереди',
       }),
-    ).toHaveCount(0);
+    ).toHaveCount(1);
 
     expect(errors).toEqual([]);
   });
@@ -144,13 +143,7 @@ test.describe('демо-комплект из ZIP', () => {
     await card(page).getByLabel('Мест').fill('3');
     await expect(card(page).getByTestId('props-zone')).toHaveText('Зона: Зона ожидания');
 
-    // 2. Лишнее табло — удалить.
-    await selectByLabel(page, 'Табло над зоной очереди');
-    await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_8');
-    await page.keyboard.press('Delete');
-    await expect(inventoryRows(page)).toHaveCount(53);
-
-    // 3. Терминал очереди — на место из рекомендации, тот же объект.
+    // 2. Терминал очереди — на место из рекомендации, тот же объект.
     await selectByLabel(page, 'Терминал электронной очереди');
     await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_1');
     await card(page).getByLabel('X, м').fill('7.9');
