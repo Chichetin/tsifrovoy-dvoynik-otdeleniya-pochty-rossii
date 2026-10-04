@@ -21,6 +21,8 @@ export const AGENT_CLIENT_ISSUE_CODES = {
 
 const LOCAL_REASON = 'Сервер ассистента недоступен — ответ собран расчётом в браузере, без LLM.';
 const STOPPED_REASON = 'Запрос остановлен — ответ собран расчётом в браузере, без LLM.';
+/** #164: the server limit (429) guards the model, not the calculation. */
+const LIMIT_REASON = 'Исчерпан лимит обращений к модели — ответ собран расчётом в браузере, без LLM. Спросите модель ещё раз через минуту.';
 
 /**
  * The page's own limit: the server's `LLM_TIMEOUT_MS` from the stream's
@@ -121,6 +123,7 @@ export async function requestAgent(
 
     // No backend behind the dev proxy, or a static host: answer from the page.
     if (response.status === 404 || response.status >= 500 || response.body === null) return local(input, onStep);
+    if (response.status === 429) return local(input, onStep, LIMIT_REASON);
     if (!response.ok) {
       let issues: Issue[];
       try {
