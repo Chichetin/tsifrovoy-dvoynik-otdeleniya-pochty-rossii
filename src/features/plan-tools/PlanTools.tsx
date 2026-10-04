@@ -212,7 +212,7 @@ export function PlanTools({
       {drawingActive || (session.tool.kind !== 'object.place' && shapeType === null && hint === null && notice === null) ? null : (
         <div className="toolbar__hints">
           {session.tool.kind === 'object.place' ? (
-            <span className="toolbar__note">Клик по плану ставит объект</span>
+            <span className="toolbar__note">Клик по плану ставит объект, Esc — отмена</span>
           ) : null}
           {shapeType === null ? null : (
             <span className="toolbar__note" data-testid="shape-draw-hint">

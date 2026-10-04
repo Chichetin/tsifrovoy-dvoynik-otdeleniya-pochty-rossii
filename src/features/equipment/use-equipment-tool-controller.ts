@@ -11,7 +11,7 @@
 import { useCallback, useEffect } from 'react';
 import type { ToolController, UsePlanToolController, WorldPointer } from '../../contracts/ui';
 import { findObjectType } from '../../domain/catalog';
-import { placedObject, placementGhost, placementRefusal } from './placement-ghost';
+import { placedObject, placementGhost, placementVerdict } from './placement-ghost';
 
 export const useEquipmentToolController: UsePlanToolController = ({
   document: plan,
@@ -37,7 +37,7 @@ export const useEquipmentToolController: UsePlanToolController = ({
       const object = placedObject(plan, type, event.point, session.retired);
       if (event.phase === 'move') {
         placementGhost.publish(
-          object === null ? null : { object, refusal: placementRefusal(plan, object, session.retired) },
+          object === null ? null : { object, ...placementVerdict(plan, object, session.retired) },
         );
         return;
       }

@@ -77,7 +77,7 @@ import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
 import { ORGANIZER_CATALOG_VERSION, withTeamCatalog } from '../persistence/organizer-import';
 import { createPlanStore } from '../state/plan-store';
-import { catalog, createEmptyPlan, openStartPlan } from './default-plan';
+import { catalog, createEmptyPlan, openStartPlan, START_PLAN_ID } from './default-plan';
 import { documentNotice, isEditErrorCurrent, refusalOf, type EditError } from './edit-error';
 import { createObjectGesturePreviewChannel } from './gesture-preview';
 import {
@@ -975,6 +975,7 @@ export function App(): React.JSX.Element {
           document={document}
           dirty={dirty}
           revision={revision}
+          untouchedSample={document.id === START_PLAN_ID && revision === 0}
           demoRequest={demoRequest}
           read={readPlanFile}
           encode={encodePlan}
@@ -1193,6 +1194,8 @@ export function App(): React.JSX.Element {
             session={session}
             onPointer={(event) => {
               if (event.phase !== 'cancel') publishCanvasCursor(event.point);
+              // Esc drops the type taken from the library, as it drops a drawing.
+              else if (tool.kind === 'object.place') setTool({ kind: 'select' });
               if (placingOpening) openingTool.handlePointer(event);
               else if (drawingRoom) internalRoom.handlePointer(event);
               else planTool.handlePointer(event);
@@ -1388,7 +1391,7 @@ export function App(): React.JSX.Element {
       }} />
       <HotkeysMapDialog open={hotkeysMap.open} onClose={hotkeysMap.hide} />
       {menuObject === undefined || objectMenu === null ? null : (
-        <ObjectContextMenu object={menuObject} at={objectMenu.at} onAction={runObjectMenu} onClose={closeObjectMenu} />
+        <ObjectContextMenu object={menuObject} count={selected.has(menuObject.id) ? selected.size : 1} at={objectMenu.at} onAction={runObjectMenu} onClose={closeObjectMenu} />
       )}
       {/* Mounted only while open: every opening starts with an empty query. */}
       {!searchOpen ? null : <QuickSearchDialog
