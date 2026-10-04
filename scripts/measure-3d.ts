@@ -13,6 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import { chromium } from '@playwright/test';
+import { resolveChannel } from '../playwright.config';
 import { generateBenchmark } from './generate-benchmark';
 
 const [target = '1000', runs = '3'] = process.argv.slice(2);
@@ -25,7 +26,7 @@ type Run = { sceneMs: number; fps: number; models: number };
 const results: Run[] = [];
 
 for (let run = 0; run < Number(runs); run += 1) {
-  const browser = await chromium.launch({ args: ['--enable-gpu', '--use-angle=gl'] });
+  const browser = await chromium.launch({ channel: resolveChannel(process.env.PW_CHANNEL), args: ['--enable-gpu', '--use-angle=gl'] });
   const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
   await context.addInitScript(() => window.localStorage.setItem('ops-twin.onboarding.v1', 'done'));
   const page = await context.newPage();
