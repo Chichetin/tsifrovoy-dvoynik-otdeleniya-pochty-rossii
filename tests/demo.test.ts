@@ -199,7 +199,7 @@ describe('комплект демо-проекта', () => {
     ]);
     expect(
       issues.filter((issue) => issue.severity === 'warning').map((issue) => issue.code).sort(),
-    ).toEqual(['RULE_COUNT_ABOVE_MAX', 'RULE_COUNT_BELOW_MIN']);
+    ).toEqual(['RULE_COUNT_BELOW_MIN']);
     // The changed plan is clean: that is the point of the recommendation.
     expect(validatePlan(after)).toEqual([]);
   });
@@ -257,7 +257,7 @@ describe('комплект демо-проекта', () => {
     const applied = new Map(
       recommendationFile.applied.map((entry) => [entry.objectId, entry]),
     );
-    expect([...applied.keys()].sort()).toEqual(['eq_1', 'eq_54', 'eq_8']);
+    expect([...applied.keys()].sort()).toEqual(['eq_1', 'eq_54']);
 
     // Added: the bench, with the geometry of the candidate it came from.
     const bench = after.objects.find((object) => object.id === 'eq_54');
@@ -269,9 +269,8 @@ describe('комплект демо-проекта', () => {
     expect(bench?.zoneId).toBe('z_waiting');
     expect(before.objects.some((object) => object.id === 'eq_54')).toBe(false);
 
-    // Removed: the extra display, and only it.
-    expect(after.objects.some((object) => object.id === 'eq_8')).toBe(false);
-    expect(before.objects.some((object) => object.id === 'eq_8')).toBe(true);
+    // Nothing is removed: the queue display stays, the rule allows two.
+    expect(after.objects.length).toBe(before.objects.length + 1);
 
     // Moved: the same object, same id and attributes, new position.
     const wasTerminal = before.objects.find((object) => object.id === 'eq_1');

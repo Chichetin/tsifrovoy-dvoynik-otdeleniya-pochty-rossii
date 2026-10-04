@@ -83,14 +83,14 @@ const BASE_LAYER = 'l_base';
 const NEW_BENCH_ID = 'eq_54';
 const NEW_BENCH_LABEL = 'Скамья ожидания 2';
 const NEW_BENCH_ATTRIBUTES = { inventoryNumber: 'ИНВ-ДЕМО-054', seats: 3, equipmentStatus: 'unknown' } as const;
-/** The information display our own rule calls one too many. */
-const EXCESS_DISPLAY_ID = 'eq_8';
+/** The queue display: its status is «выведено», so the status layer has a retired example. */
+const RETIRED_DISPLAY_ID = 'eq_8';
 /** The queue terminal standing too far from the entrance. */
 const QUEUE_TERMINAL_ID = 'eq_1';
 
 /** Synthetic states make the new informational layer demonstrable on both plans. */
 function demoEquipmentStatus(id: Id): 'working' | 'repair' | 'retired' {
-  if (id === EXCESS_DISPLAY_ID) return 'retired';
+  if (id === RETIRED_DISPLAY_ID) return 'retired';
   if (id === 'eq_16' || id === 'eq_23') return 'repair';
   return 'working';
 }
@@ -432,11 +432,10 @@ export function calculateDemo(): DemoCalculation {
     'adv_place_ot_queue_terminal_z_entrance',
   );
   const missingBench = one(equipment, 'adv_rule_bench_min_z_waiting_missing');
-  const excessDisplay = one(equipment, 'adv_rule_info_display_max_z_client_excess');
 
   // Applying the recommendation by hand, in the order a person does it in the
-  // editor: place the bench (it takes the next free id), delete the extra
-  // display, then drag the queue terminal to the offered spot.
+  // editor: place the bench (it takes the next free id), then drag the queue
+  // terminal to the offered spot.
   const benchSpot = firstCandidate(benchPlace);
   const terminalSpot = firstCandidate(terminalPlace);
   const oldTerminal = objectById(before, QUEUE_TERMINAL_ID);
@@ -450,7 +449,6 @@ export function calculateDemo(): DemoCalculation {
       attributes: { ...NEW_BENCH_ATTRIBUTES },
     },
   });
-  after = step(after, { type: 'object.delete', id: EXCESS_DISPLAY_ID });
   after = step(after, {
     type: 'object.put',
     object: {
@@ -463,7 +461,7 @@ export function calculateDemo(): DemoCalculation {
 
   const compare = one(advise(after, { scenario: 'compare', before }), 'adv_compare');
 
-  const recommendations = [missingBench, excessDisplay, benchPlace, terminalPlace, compare];
+  const recommendations = [missingBench, benchPlace, terminalPlace, compare];
 
   const areaBefore = measured(before);
   const areaAfter = measured(after);
@@ -552,15 +550,6 @@ export function calculateDemo(): DemoCalculation {
           `Вторая скамья поставлена в найденную точку [${benchSpot.position.join(', ')}], ` +
           `поворот ${benchSpot.rotation_deg}°; редактор присвоил ей следующий свободный id ${NEW_BENCH_ID}, ` +
           'название и атрибуты заполнены в карточке свойств.',
-      },
-      {
-        recommendationId: excessDisplay.id,
-        candidateId: null,
-        action: 'object.delete',
-        objectId: EXCESS_DISPLAY_ID,
-        description:
-          `Лишнее информационное табло ${EXCESS_DISPLAY_ID} удалено: правило команды разрешает ` +
-          'одно табло на клиентскую зону вместе с вложенными.',
       },
       {
         recommendationId: terminalPlace.id,
