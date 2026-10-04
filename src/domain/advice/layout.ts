@@ -167,9 +167,8 @@ function goalCost(search: Search, goal: Goal, state: ReadonlyMap<Id, Equipment>)
 function anneal(search: Search, goal: Goal, start: ReadonlyMap<Id, Equipment>, seed: number): Map<Id, Equipment> | null {
   const next = random(seed);
   const ids = [...start.keys()];
-  const cost = (state: ReadonlyMap<Id, Equipment>): number => 100 * violations(search, state) + goalCost(search, goal, state);
   let state = new Map(start);
-  let current = cost(state);
+  let current = 100 * violations(search, state) + goalCost(search, goal, state);
   let best: Map<Id, Equipment> | null = null;
   let bestCost = Infinity;
   for (let i = 0; i < ITERATIONS; i += 1) {
@@ -185,12 +184,13 @@ function anneal(search: Search, goal: Goal, start: ReadonlyMap<Id, Equipment>, s
             position: [snap(object.position[0] + (next() * 2 - 1) * sigma), snap(object.position[1] + (next() * 2 - 1) * sigma)],
           };
     const candidate = new Map(state).set(id, trial);
-    const trialCost = cost(candidate);
+    const broken = violations(search, candidate);
+    const trialCost = 100 * broken + goalCost(search, goal, candidate);
     const temperature = 0.5 * cooling + 0.01;
     if (trialCost < current || next() < Math.exp((current - trialCost) / temperature)) {
       state = candidate;
       current = trialCost;
-      if (current < bestCost && violations(search, state) === 0) {
+      if (current < bestCost && broken === 0) {
         best = new Map(state);
         bestCost = current;
       }
@@ -199,8 +199,7 @@ function anneal(search: Search, goal: Goal, start: ReadonlyMap<Id, Equipment>, s
   return best;
 }
 
-/** Variant facts: passage and entrance before → after → delta, by code. */
-/** `movableIds`: every object the layout may move, so all variants share one «было». */
+/** Variant facts: passage and entrance before → after → delta, by code. `movableIds`: every object the layout may move, so all variants share one «было». */
 function layoutFacts(id: Id, search: Search, after: PlanDocument, zoneId: Id, movableIds: readonly Id[]): Fact[] {
   const refs: Ref[] = [{ kind: 'zone', id: zoneId }];
   const floorAfter = search.floor.map((object) => after.objects.find((entry) => entry.id === object.id) ?? object);

@@ -14,6 +14,8 @@ import { describe, expect, test } from 'vitest';
 import type { Explanation, Recommendation } from '../../contracts/advice';
 import { REASON_CODE_SPECS } from '../../contracts/advice-semantics';
 import { applyCommand } from '../commands';
+import { contains, footprint } from '../geometry';
+import { layoutZone } from './layout';
 import { acceptFactChoice, acceptToolResult, calculateAdvice, createAgentSession } from './index';
 import {
   EXPLANATION_ISSUE_CODES,
@@ -479,9 +481,13 @@ describe('#122: раскладку зоны считает код', () => {
     expect(variants.length).toBeGreaterThan(0);
     const passageBefore = new Set(variants.map((variant) => variant.facts.find((fact) => fact.metric === 'layout.passage' && fact.phase === 'before')?.value));
     expect(passageBefore.size).toBe(1);
+    const zone = demo.zones.find((entry) => entry.id === 'z_waiting')!.polygon;
     for (const variant of variants) {
       expect(applyCommand(demo, { type: 'batch', commands: variant.commands }).ok).toBe(true);
       expect(variant.findings.errors.after).toBeLessThanOrEqual(variant.findings.errors.before);
+      for (const command of variant.commands) expect(command.type === 'object.put' && contains(zone, footprint(command.object))).toBe(true);
     }
+    // Seeded search: the same plan gives the same variants.
+    expect(layoutZone(demo, 'z_waiting', null)).toEqual(layoutZone(demo, 'z_waiting', null));
   });
 });
