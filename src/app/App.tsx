@@ -849,6 +849,11 @@ export function App(): React.JSX.Element {
         case 'open-panel':
           showRightTab(action.panel);
           return;
+        // #126: no tool offers edit proposals yet.
+        case 'preview-edits':
+        case 'apply-edits':
+          setAgentActionStatus('Правка плана текстом пока недоступна.');
+          return;
       }
     },
     [dispatch, dispatchAndSelect, document, focusOn, highlight, store, showLeftTab, showRightTab],

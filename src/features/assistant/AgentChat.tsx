@@ -94,6 +94,10 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
         ?.candidates.find((entry) => entry.id === action.candidateId);
       return `Применить: ${candidate?.object.label ?? 'вариант'}`;
     }
+    case 'preview-edits':
+      return 'Показать правки';
+    case 'apply-edits':
+      return 'Применить правки';
     case 'show-layer':
       return `Включить слой «${names.layerName(action.layerId) ?? action.layerId}»`;
     case 'open-panel':
