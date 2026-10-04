@@ -29,7 +29,7 @@ import {
   withHiddenMounts,
   type ObjectMount,
 } from '../domain/object-mount';
-import { planHealth, validatePlan } from '../domain/validation';
+import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert, proposalCommands } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
@@ -954,6 +954,14 @@ export function App(): React.JSX.Element {
 
   const shownError = lastError !== null && isEditErrorCurrent(lastError, document, revision) ? lastError : null;
 
+  // A refusal does not bump the revision, so it would hang for ever over the
+  // plan while the person works elsewhere (#146): it leaves after a while.
+  useEffect(() => {
+    if (lastError === null || lastError.scope !== 'edit') return undefined;
+    const timer = window.setTimeout(() => setLastError(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [lastError]);
+
   return (
     <div
       className={`shell${planOnly ? ' shell--plan-only' : ''}`}
@@ -972,6 +980,7 @@ export function App(): React.JSX.Element {
             />
             <HealthBadge
               health={health}
+              empty={isEmptyPlan(document)}
               onOpen={() => {
                 showRightTab('validation');
                 setHealthRequest((count) => count + 1);

@@ -70,6 +70,23 @@ export function visibleAttributeColumns(
   });
 }
 
+/**
+ * Codes of an enumerated attribute (`working`) by the label the card and the
+ * colour layer show («Работает») — the table and the CSV are read by people.
+ * A value the catalog has no label for stays as written.
+ */
+export function labelledAttributes(catalog: Catalog | undefined, attributes: Attributes): Attributes {
+  let shown = attributes;
+  for (const type of catalog?.layerTypes ?? []) {
+    const representation = type.representation;
+    if (representation.kind !== 'object-color') continue;
+    const raw = attributes[representation.attribute];
+    const option = typeof raw === 'string' ? representation.values.find((entry) => entry.value === raw) : undefined;
+    if (option !== undefined) shown = { ...shown, [representation.attribute]: option.label };
+  }
+  return shown;
+}
+
 /** Rows of the whole plan in document order, the order of the plan file. */
 export function inventoryCsvRows(plan: PlanDocument): InventoryCsvRow[] {
   const index = planIndex(plan);
@@ -81,7 +98,7 @@ export function inventoryCsvRows(plan: PlanDocument): InventoryCsvRow[] {
     typeLabel: index.objectTypeLabel(object.typeId),
     zoneId: object.zoneId,
     zoneName: object.zoneId === null ? null : index.zoneName(object.zoneId),
-    attributes: object.attributes,
+    attributes: labelledAttributes(plan.catalog, object.attributes),
   }));
 }
 

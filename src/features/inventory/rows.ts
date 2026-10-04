@@ -15,7 +15,9 @@
 import type { Attributes, Catalog, Equipment, Id, Inventory } from '../../contracts/model';
 import type { PlanIndex } from '../../domain/plan-index';
 import { type MaintenanceStatus, maintenanceStatus } from '../../domain/validation';
-import { attributeText } from '../../persistence/inventory-csv';
+import { attributeText, labelledAttributes } from '../../persistence/inventory-csv';
+
+export { labelledAttributes };
 
 /** Human names for ids taken from the plan; `null` means "no such id there". */
 /** Names for the rows: the document's own index (D-202); `EMPTY_INDEX` keeps every id raw. */
@@ -122,23 +124,6 @@ export function zoneSummary(inventory: Inventory, naming: Naming): ZoneSummaryRo
     direct,
     inclusive: inventory.byZoneInclusive[zoneId] ?? 0,
   }));
-}
-
-/**
- * Codes of an enumerated attribute (`working`) by the label the card and the
- * colour layer show («Работает») — the table and the CSV are read by people.
- * A value the catalog has no label for stays as written.
- */
-export function labelledAttributes(catalog: Catalog | undefined, attributes: Attributes): Attributes {
-  let shown = attributes;
-  for (const type of catalog?.layerTypes ?? []) {
-    const representation = type.representation;
-    if (representation.kind !== 'object-color') continue;
-    const raw = attributes[representation.attribute];
-    const option = typeof raw === 'string' ? representation.values.find((entry) => entry.value === raw) : undefined;
-    if (option !== undefined) shown = { ...shown, [representation.attribute]: option.label };
-  }
-  return shown;
 }
 
 /** `today` is «YYYY-MM-DD», the same day the plan check uses. */

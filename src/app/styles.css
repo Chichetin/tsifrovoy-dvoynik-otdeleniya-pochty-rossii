@@ -2875,6 +2875,10 @@ span.inventory__num {
   padding-left: 1.125rem;
 }
 
+.file-dialog__list > li {
+  overflow-wrap: anywhere;
+}
+
 .file-dialog__list > li + li {
   margin-top: 0.25rem;
 }
