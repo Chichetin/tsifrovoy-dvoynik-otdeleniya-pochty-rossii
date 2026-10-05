@@ -28,6 +28,11 @@ export function placeZoneCaption(polygon: Polygon, width: number, height: number
   const spanX = bounds.maxX - 4 - width - lowX;
   const spanY = bounds.maxY - 4 - height - lowY;
   if (spanX < 0 || spanY < 0) return fallback;
+  // #223: most zones are axis-aligned rectangles, and every candidate lies
+  // inside their bounds by construction. The general containment test is the
+  // bulk of a zoom frame, so it runs only for other shapes.
+  const rectangle = polygon.length === 4 && polygon.every(([x, y]) =>
+    (x === bounds.minX || x === bounds.maxX) && (y === bounds.minY || y === bounds.maxY));
   const boundsBox = { x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY };
   const nearby = obstacles.filter((box) => overlapArea(boundsBox, box) > 0);
   const positions = (low: number, span: number, size: number, axis: 'x' | 'y'): number[] => {
@@ -44,7 +49,7 @@ export function placeZoneCaption(polygon: Polygon, width: number, height: number
       const box = { x, y, width, height };
       const ring: Polygon = [[box.x, box.y], [box.x + width, box.y],
         [box.x + width, box.y + height], [box.x, box.y + height]];
-      if (!contains(polygon, ring)) continue;
+      if (!rectangle && !contains(polygon, ring)) continue;
       const grown = { x: box.x - 3, y: box.y - 3, width: width + 6, height: height + 6 };
       const area = nearby.reduce((sum, obstacle) => sum + overlapArea(grown, obstacle), 0);
       const distance = (box.x + width / 2 - cx) ** 2 + (box.y + height / 2 - cy) ** 2;
@@ -77,15 +82,35 @@ function captionHeight(text: string, width: number): number {
   return lines * ZONE_CAPTION_FONT;
 }
 
+/**
+ * #223: placement depends on the plan and the scale only — a pan moves every
+ * box by the origin. One entry per plan keeps the last scale, so a pan frame
+ * and the second layer that asks for the same frame do not place again.
+ */
+const placedAtScale = new WeakMap<PlanDocument, { scale: number; boxes: Map<string, CaptionBox> }>();
+
 /** Shared by zone names and informational layers; no changes to the document. */
 export function zoneCaptionBoxes(plan: PlanDocument, viewport: Viewport): Map<string, CaptionBox> {
+  let placed = placedAtScale.get(plan);
+  if (placed === undefined || placed.scale !== viewport.scale) {
+    placed = { scale: viewport.scale, boxes: placeCaptions(plan, { scale: viewport.scale, origin: [0, 0] }) };
+    placedAtScale.set(plan, placed);
+  }
+  const [dx, dy] = viewport.origin;
+  const result = new Map<string, CaptionBox>();
+  for (const [id, box] of placed.boxes) result.set(id, { ...box, x: box.x + dx, y: box.y + dy });
+  return result;
+}
+
+function placeCaptions(plan: PlanDocument, viewport: Viewport): Map<string, CaptionBox> {
   const visible = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
   const obstacles: CaptionBox[] = [];
+  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
   for (const object of plan.objects) {
     if (!visible.has(object.layerId)) continue;
     const bounds = boundingBox(footprint(object).map((point) => modelToScreen(point, viewport)));
     obstacles.push({ x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
-    const kind = planPictogram(object.typeId);
+    const kind = planPictogram(types.get(object.typeId));
     const label = objectLabel(object, viewport, kind === null ? 0 : CAPTION_ICON_SPACE_PX);
     if (label === null) {
       const [w, h] = object.size_m.map((size) => size * viewport.scale);

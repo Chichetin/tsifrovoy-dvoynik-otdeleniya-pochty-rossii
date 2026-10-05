@@ -130,8 +130,8 @@ function editingHint(selection: Ref | null): string | null {
 }
 
 /**
- * D-282: the handles of the selected shape answer «Выбор» and «Обзор» (the
- * geometry layer picks under both); a door just placed stays selected under
+ * D-282: the handles of the selected shape answer «Выбор» (the
+ * geometry layer picks under it); a door just placed stays selected under
  * «Проём» and is slid along its wall there before Enter finishes it (D-267).
  * Every other tool owns the click, so its hint, not this one, is what applies.
  */

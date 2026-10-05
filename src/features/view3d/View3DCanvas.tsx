@@ -61,7 +61,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
 import { EYE_HEIGHT_M, type VisitorResult } from './visitor';
+import { declutterLabels } from './label-declutter';
 import { isSelected, type Scene, type SceneLabel, type SceneModel, type ScenePrism } from './scene';
+import './viewpoint-tools.css';
 
 type Props = { scene: Scene; visitor: VisitorResult; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
 
@@ -316,21 +318,37 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
         style={lost ? { display: 'none' } : undefined}
       />
       {lost ? null : (
-        <div className="view3d__tools">
-          <button
-            type="button"
-            className="files__button"
-            onClick={enterVisitor}
-            disabled={!('pose' in visitor)}
-            aria-pressed={visitorMode}
-            title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
-          >
-            Глазами посетителя
-          </button>
-          <button type="button" className="files__button" onClick={leaveVisitor} disabled={!visitorMode}>
-            Обзор
-          </button>
-          <button type="button" className="files__button" onClick={savePicture}>
+        <div className="view3d__tools view3d__tools--grouped">
+          <fieldset className="view3d__viewpoints" onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+            const index = buttons.indexOf(event.target as HTMLButtonElement);
+            if (index < 0) return;
+            event.preventDefault(); event.stopPropagation();
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 :
+              (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+            buttons[next]?.focus();
+          }}>
+            <legend>Точка зрения</legend>
+            <div className="view3d__viewpoint-buttons">
+              <button type="button" className="files__button" onClick={() => { if (visitorMode) leaveVisitor(); }}
+                aria-pressed={!visitorMode} title="Посмотреть на весь план со стороны">
+                Обзор
+              </button>
+              <button
+                type="button"
+                className="files__button"
+                onClick={() => { if (!visitorMode) enterVisitor(); }}
+                disabled={!('pose' in visitor)}
+                aria-pressed={visitorMode}
+                aria-description={'pose' in visitor ? undefined : visitor.reason}
+                title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
+              >
+                Глазами посетителя
+              </button>
+            </div>
+          </fieldset>
+          <button type="button" className="files__button view3d__download" onClick={savePicture}>
             Скачать картинку 3D
           </button>
           {saveError === null ? null : (
@@ -387,6 +405,7 @@ function createStage(container: HTMLDivElement): Stage {
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   const render = () => {
     fadeWalls(group, camera.position, controls.target);
+    spreadLabels(labels, camera, renderer);
     renderer.render(world, camera);
   };
   controls.addEventListener('change', render);
@@ -641,6 +660,42 @@ function placeLabels(group: Group, labels: SceneLabel[]): void {
   }
 }
 
+/**
+ * #218: a tilted camera squeezes the floor, a name keeps its height on screen,
+ * and neighbouring names collide. Before each frame the names are projected to
+ * pixels; larger names stay, a smaller one moves up or down the screen just
+ * enough to clear them (`declutterLabels`).
+ */
+function spreadLabels(group: Group, camera: PerspectiveCamera, renderer: WebGLRenderer): void {
+  const sprites = group.children.filter((child): child is Sprite => child instanceof Sprite);
+  const size = renderer.getSize(new Vector2());
+  if (sprites.length === 0 || size.y <= 0) return;
+  camera.updateMatrixWorld();
+  const up = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  const halfFov = Math.tan((camera.fov * Math.PI) / 360);
+  const items = sprites.flatMap((sprite) => {
+    const base = sprite.userData['base'] as Vector3 | undefined;
+    if (base === undefined) return [];
+    sprite.position.copy(base);
+    const depth = -base.clone().applyMatrix4(camera.matrixWorldInverse).z;
+    if (depth <= 0) return [];
+    const metresPerPx = (2 * depth * halfFov) / size.y;
+    const ndc = base.clone().project(camera);
+    const width = sprite.scale.x / metresPerPx;
+    const height = sprite.scale.y / metresPerPx;
+    const x = ((ndc.x + 1) / 2) * size.x - width / 2;
+    const y = ((1 - ndc.y) / 2) * size.y - height / 2;
+    return [{ sprite, metresPerPx, box: { x, y, width, height } }];
+  });
+  items.sort((a, b) => b.sprite.scale.x * b.sprite.scale.y - a.sprite.scale.x * a.sprite.scale.y);
+  const shifts = declutterLabels(items.map((item) => item.box));
+  items.forEach((item, index) => {
+    const shift = shifts[index] ?? 0;
+    // Screen y grows down; the camera's up vector points up the screen.
+    if (shift !== 0) item.sprite.position.addScaledVector(up, -shift * item.metresPerPx);
+  });
+}
+
 /** Lines that fit `maxWidth`; one word longer than that stays on its own line. */
 function wrapLine(context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
@@ -694,6 +749,8 @@ function labelSprite(label: SceneLabel): Sprite | null {
   const fit = Math.min(1, maxWidth / widest);
   sprite.scale.set((canvas.width / LABEL_PX_PER_M) * fit, (canvas.height / LABEL_PX_PER_M) * fit, 1);
   sprite.position.set(label.center[0], label.center[1], label.z_m);
+  // Where the plan put the name; `spreadLabels` moves it from here each frame.
+  sprite.userData['base'] = sprite.position.clone();
   sprite.renderOrder = LABEL_ORDER;
   sprite.name = `label:${label.ref.id}`;
   return sprite;

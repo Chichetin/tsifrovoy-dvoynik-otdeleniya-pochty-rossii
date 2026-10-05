@@ -45,7 +45,7 @@ export type {
 } from './camera-coverage';
 export { checkAgentEdits, proposalCommands } from './agent-edits';
 export { candidateObjectForInsert } from './candidate-object';
-export { comparePlans, diffPlans } from './compare';
+export { appliedEffectLine, comparePlans, diffPlans } from './compare';
 export { EDIT_HINT_LIMIT, editHint, editHintNumbers, editHintSnapshot, editHintText } from './edit-hints';
 export type { EditHint, EditHintItem, EditHintNumber, EditHintSnapshot, EditHintTone } from './edit-hints';
 export {
@@ -292,4 +292,4 @@ export { acceptFactChoice, acceptToolResult, createAgentSession, MAX_TOOL_OUTPUT
 export type { AgentSession, FactChoiceOutcome, ToolResultMessage } from './agent-turn';
 export { composeFallbackText, hideNamedIds, QUOTED_ID_PATTERN, routeAgentQuery } from './agent-fallback';
 export { answerWithoutModel, finishAgentAnswer } from './agent';
-export { collectAgentFacts, renderAgentFact, renderAgentFactSelection } from './agent-facts';
+export { collectAgentFacts, renderAgentFact, renderAgentFactSelection, WHY_LEAD } from './agent-facts';

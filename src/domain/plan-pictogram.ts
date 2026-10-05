@@ -3,37 +3,19 @@
  *
  * The catalog's `symbol` describes geometry (rectangle, circle, triangle),
  * while this module describes what an employee recognises at a glance: a
- * counter, rack, printer or camera.  Unknown team-added types deliberately
- * fall back to no overlay — their colour, shape and caption remain truthful.
+ * counter, rack, printer or camera.  The catalog picks the sign by name; a
+ * type with no sign of its own and none in the team catalog gets no overlay —
+ * its colour, shape and caption remain truthful.
  */
 
-import type { Id } from '../contracts/model';
+import teamObjectTypes from '../../data/catalog/object-types.json';
+import { PLAN_PICTOGRAM_NAMES, type Id, type ObjectType, type PlanPictogramName } from '../contracts/model';
 
-export type PlanPictogram =
-  | 'workplace'
-  | 'seat'
-  | 'cashier'
-  | 'terminal'
-  | 'mailbox'
-  | 'display'
-  | 'printer'
-  | 'camera'
-  | 'sensor'
-  | 'rack'
-  | 'scales'
-  | 'computer'
-  | 'pinpad'
-  | 'alarm'
-  | 'socket'
-  | 'ramp'
-  | 'switchboard'
-  | 'hvac'
-  | 'heater'
-  | 'stand'
-  | null;
+/** The sign of a type, or null when the type has none (D-376). */
+export type PlanPictogram = PlanPictogramName | null;
 
 /** A single 24 × 24 line drawing per meaning, shared by canvas and SVG export. */
-export const PLAN_PICTOGRAM_PATHS: Record<Exclude<PlanPictogram, null>, string> = {
+export const PLAN_PICTOGRAM_PATHS: Record<PlanPictogramName, string> = {
   workplace: 'M4 3H20V12H4Z M12 12V16 M8 16H16 M4 20H20 M6 20V16 M18 20V16',
   seat: 'M4 4V12H20V4 M4 12H20 M6 12V20 M18 12V20 M4 16H20',
   cashier: 'M3 4H21V20H3Z M3 14H21 M9 9A3 3 0 1 0 15 9A3 3 0 1 0 9 9',
@@ -63,57 +45,28 @@ export const PLAN_PICTOGRAM_PATHS: Record<Exclude<PlanPictogram, null>, string> 
   stand: 'M4 4H20V14H4Z M12 14V20 M8 20H16 M9 8H15 M9 11H13',
 };
 
-/** An equipment type's readable 2D-plan symbol. */
-export function planPictogram(typeId: Id): PlanPictogram {
-  switch (typeId) {
-    case 'ot_workplace':
-      return 'workplace';
-    case 'ot_chair':
-    case 'ot_bench':
-      return 'seat';
-    case 'ot_cashier_window':
-      return 'cashier';
-    case 'ot_payment_terminal':
-    case 'ot_queue_terminal':
-      return 'terminal';
-    case 'ot_mailbox':
-      return 'mailbox';
-    case 'ot_info_display':
-    case 'ot_media_panel':
-      return 'display';
-    case 'ot_info_stand':
-      return 'stand';
-    case 'ot_printer':
-    case 'ot_label_printer':
-      return 'printer';
-    case 'ot_camera':
-      return 'camera';
-    case 'ot_fire_sensor':
-      return 'sensor';
-    case 'ot_parcel_rack':
-    case 'ot_goods_rack':
-      return 'rack';
-    case 'ot_scales':
-      return 'scales';
-    case 'ot_computer':
-      return 'computer';
-    case 'ot_pos_terminal':
-      return 'pinpad';
-    case 'ot_alarm_panel':
-      return 'alarm';
-    case 'ot_socket':
-      return 'socket';
-    case 'ot_ramp':
-      return 'ramp';
-    case 'ot_switchboard':
-      return 'switchboard';
-    case 'ot_hvac':
-      return 'hvac';
-    case 'ot_water_heater':
-      return 'heater';
-    default:
-      return null;
-  }
+const SIGN_NAMES: ReadonlySet<string> = new Set(PLAN_PICTOGRAM_NAMES);
+
+/**
+ * Signs of the team catalog by type id. A plan file carries its own catalog,
+ * and a plan saved before D-376 has no `pictogram` there.
+ */
+const TEAM_PICTOGRAMS: ReadonlyMap<Id, PlanPictogramName> = new Map(
+  (teamObjectTypes as { id: Id; pictogram?: string }[]).flatMap((type) =>
+    type.pictogram !== undefined && SIGN_NAMES.has(type.pictogram)
+      ? [[type.id, type.pictogram as PlanPictogramName] as const]
+      : [],
+  ),
+);
+
+/**
+ * An equipment type's readable 2D-plan symbol (D-376). The type's own
+ * `pictogram` wins; without it the team catalog's type with the same id gives
+ * the sign; otherwise — and with no type at all — there is no sign.
+ */
+export function planPictogram(type: Pick<ObjectType, 'id' | 'pictogram'> | null | undefined): PlanPictogram {
+  if (type === null || type === undefined) return null;
+  return type.pictogram ?? TEAM_PICTOGRAMS.get(type.id) ?? null;
 }
 
 /** Меньше этого знак превращается в кляксу; таков же пол у SVG-экспорта (0,18 м на 100 px/м). */

@@ -24,6 +24,8 @@ export type SideTabsProps<T extends string> = {
   tabs: readonly TabDef<T>[];
   active: T;
   onSelect: (id: T) => void;
+  /** Hidden with `display: none`: panels stay mounted and keep their state. */
+  hidden?: boolean;
   /** Short live counters next to a tab title, e.g. the number of findings. */
   badges?: Partial<Record<T, TabBadge>>;
   panels: Record<T, ReactNode>;
@@ -37,6 +39,7 @@ export function SideTabs<T extends string>({
   onSelect,
   badges,
   panels,
+  hidden,
 }: SideTabsProps<T>): React.JSX.Element {
   const list = useRef<HTMLDivElement>(null);
 
@@ -50,7 +53,7 @@ export function SideTabs<T extends string>({
   };
 
   return (
-    <div className="side-tabs">
+    <div className="side-tabs" hidden={hidden}>
       <div ref={list} className="side-tabs__list" role="tablist" aria-label={label} onKeyDown={onKeyDown}>
         {tabs.map((tab) => {
           const selected = tab.id === active;

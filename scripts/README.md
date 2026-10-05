@@ -31,6 +31,10 @@
   из 1000 объектов (#169, #170): `npx tsx scripts/measure-drag.ts [прогонов]`, медиана.
   Без `APP_URL` сам делает `vite build` и `vite preview` на `PREVIEW_PORT` (5189).
   `PW_CHANNEL` выбирает браузер, как в e2e.
+- `measure-wheel.ts` — колесо мыши, свайп и щипок трекпада на демо-плане и на плане
+  из 1000 объектов (#223): время жеста, худший кадр и шаг за событие.
+  `npx tsx scripts/measure-wheel.ts [прогонов]`, медиана. `APP_URL`, `PREVIEW_PORT`
+  и `PW_CHANNEL` — как у `measure-drag.ts`.
 - `models/build.py` — 3D-модели типов в `public/models/<имя>.glb` (#59, D-357).
   Запуск: `~/.local/opt/blender-5.2.2-linux-x64/blender -b -P scripts/models/build.py --
   [имя …] [--preview <папка>]`. Размеры берёт из `data/catalog/object-types.json`,
