@@ -316,8 +316,17 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     const onDown = (event: KeyboardEvent): void => {
       if (document.activeElement !== canvas || event.ctrlKey || event.metaKey || event.altKey ||
         !/^(Key[WASD]|Arrow(Up|Down|Left|Right)|Shift(Left|Right))$/.test(event.code)) return;
+      const moving = [...keys].some((key) => !key.startsWith('Shift'));
       event.preventDefault(); event.stopImmediatePropagation(); keys.add(event.code);
-      if (raf === 0 && !event.code.startsWith('Shift')) { last = performance.now(); raf = requestAnimationFrame(tick); }
+      if (!moving && !event.code.startsWith('Shift')) {
+        // A quick tap can end before RAF: give it one small step immediately.
+        cancelAnimationFrame(raf);
+        const now = performance.now();
+        last = now - 16;
+        tick(now);
+      } else if (raf === 0 && !event.code.startsWith('Shift')) {
+        last = performance.now(); raf = requestAnimationFrame(tick);
+      }
     };
     const onUp = (event: KeyboardEvent): void => { keys.delete(event.code); };
     const releasePointer = (): void => {
