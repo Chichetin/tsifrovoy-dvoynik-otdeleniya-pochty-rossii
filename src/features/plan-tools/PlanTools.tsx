@@ -30,9 +30,10 @@ import { setNotice, useNotice } from './notice';
  */
 const VIEW_TOOL_COUNT = 3;
 
-const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: string; hint: string }[] = [
-  { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
+const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: string; hint: string; key: string }[] = [
+  { key: '1 или V', kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
   {
+    key: '2 или H',
     kind: 'pan',
     // D-248: «Рука» не говорит, что произойдёт — инструмент двигает и
     // масштабирует вид, а не хватает план рукой; «Обзор» короче
@@ -43,11 +44,13 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
       'колесо и Ctrl+колесо — масштаб',
   },
   {
+    key: '3 или M',
     kind: 'measure',
     label: 'Линейка',
     hint: 'Два клика: измерить расстояние; Esc убирает, Alt — без привязки. В план не попадает',
   },
   {
+    key: '4',
     kind: 'room.draw',
     label: 'Комната',
     hint:
@@ -56,6 +59,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
       'Стены и внешний контур не меняются; контур — «Файл» → «Изменить внешний контур отделения…»',
   },
   {
+    key: '5',
     kind: 'zone.draw',
     label: 'Зона',
     hint:
@@ -63,6 +67,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
       'Завершить — клик по первой точке, Enter или двойной клик. Убрать точку — Backspace или Ctrl+Z; Esc — отмена. Alt — без привязки',
   },
   {
+    key: '6 или W',
     kind: 'wall.draw',
     label: 'Перегородка',
     hint:
@@ -71,6 +76,7 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
       'Изменить готовую — «Выбор», клик по ней и «Изменить перегородку» в свойствах',
   },
   {
+    key: '7 или O',
     kind: 'opening.place',
     label: 'Проём',
     hint:
@@ -179,7 +185,7 @@ export function PlanTools({
         <Fragment key={tool.kind}>
           <button
             type="button"
-            title={tool.hint}
+            title={`${tool.hint} (клавиша ${tool.key})`}
             aria-pressed={session.tool.kind === tool.kind && !(tool.kind === 'room.draw' && boundaryEditing)}
             className={session.tool.kind === tool.kind && !(tool.kind === 'room.draw' && boundaryEditing) ? 'toolbar__button is-active' : 'toolbar__button'}
             onClick={() => onTool({ kind: tool.kind })}
