@@ -154,6 +154,19 @@ describe('schema: точные коды отказа', () => {
     expect(codesOf(expectRefused(plan))).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
   });
 
+  test('знак типа на плане: без поля и с известным именем принимается, неизвестное имя отклоняется', () => {
+    const plan = loadPlan('minimal.json');
+    const objectTypes = (plan['catalog'] as Record<string, unknown>)['objectTypes'] as Record<string, unknown>[];
+    expect(objectTypes[0]).not.toHaveProperty('pictogram');
+    expect(expectAccepted(plan).catalog.objectTypes[0]?.pictogram).toBeUndefined();
+    objectTypes[0]!['pictogram'] = 'workplace';
+    expect(expectAccepted(plan).catalog.objectTypes[0]?.pictogram).toBe('workplace');
+    objectTypes[0]!['pictogram'] = 'rocket';
+    const issues = expectRefused(plan);
+    expect(codesOf(issues)).toContain(CONTRACT_ISSUE_CODES.SCHEMA_INVALID);
+    expect(issues.some((entry) => entry.path === 'catalog.objectTypes.0.pictogram')).toBe(true);
+  });
+
   test('полигон сверх предела вершин отклоняется', () => {
     const plan = loadPlan('minimal.json');
     const boundary = Array.from({ length: LIMITS.maxPolygonVertices + 1 }, (_, i) => [i, 0]);

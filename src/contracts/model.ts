@@ -117,6 +117,35 @@ export type AttributeDef = {
 
 export type ObjectSymbol = 'rect' | 'circle' | 'triangle';
 
+/**
+ * Names of the plan signs (D-376). The drawing of each sign lives in
+ * src/domain/plan-pictogram.ts; the catalog only names the sign.
+ */
+export const PLAN_PICTOGRAM_NAMES = [
+  'workplace',
+  'seat',
+  'cashier',
+  'terminal',
+  'mailbox',
+  'display',
+  'printer',
+  'camera',
+  'sensor',
+  'rack',
+  'scales',
+  'computer',
+  'pinpad',
+  'alarm',
+  'socket',
+  'ramp',
+  'switchboard',
+  'hvac',
+  'heater',
+  'stand',
+] as const;
+
+export type PlanPictogramName = (typeof PLAN_PICTOGRAM_NAMES)[number];
+
 export type ObjectType = {
   id: Id;
   label: string;
@@ -139,6 +168,8 @@ export type ObjectType = {
    * app. Absent or not found — the 3D view draws the box from size and height.
    */
   model3d?: string;
+  /** Sign of the type on the 2D plan and in SVG (D-376). Absent — no sign. */
+  pictogram?: PlanPictogramName;
   color: string;
   attributes: AttributeDef[];
   /** Where the defaults come from; synthetic assumptions say so here. */

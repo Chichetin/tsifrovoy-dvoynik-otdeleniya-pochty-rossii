@@ -47,6 +47,7 @@ type ObjectType = {
   physical: boolean; occupiesFloor: boolean;
   symbol: 'rect' | 'circle' | 'triangle'; outline?: Polygon;
   model3d?: string; // D-356: имя файла models/<model3d>.glb, [a-z0-9_-], без пути
+  pictogram?: PlanPictogramName; // D-376: знак на плане из PLAN_PICTOGRAM_NAMES; нет поля — нет знака
   color: string;
   attributes: AttributeDef[]; provenance: string;
 };
