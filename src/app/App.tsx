@@ -17,7 +17,7 @@ import type { Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
 import type { EditorSession, Tool } from '../contracts/ui';
-import { buildInventory } from '../domain/inventory';
+import { buildInventory, inventoryLinkTarget } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
@@ -51,6 +51,7 @@ import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { InventoryLinkNotice } from '../features/inventory/InventoryLinkNotice';
 import { InventoryWalk, type WalkState, walkOf } from '../features/inventory/InventoryWalk';
 import { WalkRouteLayer } from '../features/inventory/WalkRouteLayer';
 import { InformationLayer } from '../features/layers/InformationLayer';
@@ -258,7 +259,8 @@ export function App(): React.JSX.Element {
   const focusSequence = useRef(0);
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
-  const [tourOpen, setTourOpen] = useState(() => shouldShowTour(tourStorage()));
+  const [tourOpen, setTourOpen] = useState(() =>
+    inventoryLinkTarget(window.location.search) === null && shouldShowTour(tourStorage()));
   const [demoRequest, setDemoRequest] = useState<{ id: number; variant: 'before' | 'after' } | null>(null);
   const closeTour = useCallback((outcome: TourOutcome) => {
     rememberTour(tourStorage(), outcome);
@@ -1236,6 +1238,7 @@ export function App(): React.JSX.Element {
         />
 
         <aside id="side-panel-right" className="shell__side shell__side--wide" data-tour="side-right">
+          <InventoryLinkNotice document={document} onFocus={focusOn} />
           {/* #105 (was D-268): «Свойства» stand above the right column's tabs;
               «×» drops the selection (the same as Escape on the canvas). D-272: the band
               is the card's only title and its only heading — the card has
