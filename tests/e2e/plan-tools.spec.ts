@@ -18,8 +18,8 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type Page, type TestInfo , exportPlan } from './fixtures';
-import { showTab } from './side-tabs';
+import { expect, test, type Locator, type Page, type TestInfo , exportPlan, hideMinimap } from './fixtures';
+import { showTab, sideTab } from './side-tabs';
 
 type Point = [number, number];
 type Pixel = { x: number; y: number };
@@ -49,6 +49,9 @@ async function openEditor(page: Page): Promise<Rect> {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
+  // The minimap (bottom left) and the assistant button (bottom right) lie over
+  // the stage: the minimap is hidden, ROOM keeps clear of the button.
+  await hideMinimap(page);
   return stageRect(page);
 }
 
@@ -127,13 +130,22 @@ async function snapMarker(page: Page): Promise<{ caption: string; lines: string[
 
 const areas = (page: Page): Locator => page.getByLabel('Площади');
 
+/**
+ * #222: while a selection shows its card, the tab row is hidden. The panels stay
+ * mounted and keep counting, so with a selection the numbers are read from the
+ * mounted «Площади» panel; the selection under test is not dropped for that.
+ */
+async function openAreas(page: Page): Promise<void> {
+  if (await sideTab(page, 'Площади').isVisible()) await showTab(page, 'Площади');
+}
+
 async function roomArea(page: Page): Promise<string> {
-  await showTab(page, 'Площади');
+  await openAreas(page);
   return ((await areas(page).locator('dd').first().textContent()) ?? '').trim();
 }
 
 async function zoneArea(page: Page, name: string): Promise<string> {
-  await showTab(page, 'Площади');
+  await openAreas(page);
   const row = areas(page).locator('tbody tr', { hasText: name }).first();
   return ((await row.locator('td').nth(1).textContent()) ?? '').trim();
 }
@@ -195,9 +207,9 @@ async function placeOpening(page: Page, point: Pixel): Promise<void> {
 /** Доли сцены: тест не зависит от размера окна, а план — от порядка кликов. */
 const ROOM = [
   [0.08, 0.08],
-  [0.92, 0.08],
-  [0.92, 0.92],
-  [0.08, 0.92],
+  [0.88, 0.08],
+  [0.88, 0.88],
+  [0.08, 0.88],
 ] as const;
 const OUTER = [
   [0.2, 0.2],
