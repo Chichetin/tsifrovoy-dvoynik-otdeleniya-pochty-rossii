@@ -62,8 +62,19 @@ function compactToolResult(output: unknown): unknown {
     if (Array.isArray(row.candidates)) out.candidates = row.candidates.map(entry);
     return out;
   };
-  // #217: zone load is short and has no other tool: it stays whole.
-  if (source.zoneLoad !== undefined) compact.zoneLoad = source.zoneLoad;
+  // #217: zone load has no other tool, so it goes first. Rows lose names and
+  // keep the highest loads within the budget: the zone count and a long name
+  // must not push the answer facts out of the envelope (#234).
+  const load = source.zoneLoad as Record<string, unknown> | null | undefined;
+  if (load !== undefined && load !== null && Array.isArray(load.zones)) {
+    const rows: unknown[] = [];
+    compact.zoneLoad = { ...load, zones: rows };
+    for (const raw of load.zones) {
+      const row = raw as Record<string, unknown>;
+      rows.push({ zoneId: row.zoneId, value: row.value, overloaded: row.overloaded });
+      if (JSON.stringify(compact).length > MAX_TOOL_OUTPUT_CHARS / 4) { rows.pop(); break; }
+    }
+  } else if (load !== undefined) compact.zoneLoad = load;
   // Catalog first: there is no other discovery tool for equipment/layer types.
   for (const key of ['catalogTypes', 'layers', 'zones', 'recommendations', 'objects', 'children']) {
     if (!Array.isArray(source[key])) continue;

@@ -171,8 +171,12 @@ for (const width of [1280, 1339, 1340, 1460, 1500]) {
     await page.getByRole('button', { name: 'Перегородка', exact: true }).click();
     const canvas = await page.locator('.editor-canvas canvas').first().boundingBox();
     const y = canvas!.y + canvas!.height / 2;
+    // Alt — без привязки: перегородка ляжет ровно на строку клика. С привязкой
+    // она уходит к узлу сетки, и клик по середине мажет при другом вписывании (#233).
+    await page.keyboard.down('Alt');
     await page.mouse.click(canvas!.x + canvas!.width / 2 - 60, y);
     await page.mouse.click(canvas!.x + canvas!.width / 2 + 60, y);
+    await page.keyboard.up('Alt');
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await page.mouse.click(canvas!.x + canvas!.width / 2, y);
     await expect(page.locator('.toolbar__hints')).toContainText('Перегородка: включите «Изменить перегородку»');
@@ -218,8 +222,11 @@ for (const size of [
       await page.getByRole('button', { name: 'Перегородка', exact: true }).click();
       const canvas = await page.locator('.editor-canvas canvas').first().boundingBox();
       const y = canvas!.y + canvas!.height / 2;
+      // Alt — без привязки: перегородка ляжет ровно на строку клика (#233).
+      await page.keyboard.down('Alt');
       await page.mouse.click(canvas!.x + canvas!.width / 2 - 60, y);
       await page.mouse.click(canvas!.x + canvas!.width / 2 + 60, y);
+      await page.keyboard.up('Alt');
       await expect(page.getByRole('button', { name: 'Удалить перегородку' })).toBeVisible();
       // Подсказка правки — только под «Выбором» и у холста (D-282): вернуться
       // к «Выбору» и взять перегородку кликом по её середине.
