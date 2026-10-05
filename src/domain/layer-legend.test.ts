@@ -5,9 +5,9 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import layerTypes from '../../../data/catalog/layer-types.json';
-import type { LayerType } from '../../contracts/model';
-import { legendOf } from './legend';
+import layerTypes from '../../data/catalog/layer-types.json';
+import type { LayerType } from '../contracts/model';
+import { legendOf } from './layer-legend';
 
 const types = layerTypes as LayerType[];
 const byId = (id: string): LayerType => {

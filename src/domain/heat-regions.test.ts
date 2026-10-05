@@ -7,8 +7,8 @@
  */
 
 import { describe, expect, test } from 'vitest';
-import type { Attributes, Polygon, Zone } from '../../contracts/model';
-import { polygonArea, signedArea } from '../../domain/geometry';
+import type { Attributes, Polygon, Zone } from '../contracts/model';
+import { polygonArea, signedArea } from './geometry';
 import { heatRegions } from './heat-regions';
 
 const ATTRIBUTE = 'loadPercent';
