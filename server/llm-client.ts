@@ -90,7 +90,7 @@ export function createLlmClient(config: LlmConfig): LlmClient {
       return timedOut
         ? failure(
             LLM_ISSUE_CODES.LLM_TIMEOUT,
-            `Провайдер ${config.provider} не ответил за ${config.timeoutMs} мс.`,
+            `Модель не ответила за ${Math.max(1, Math.round(config.timeoutMs / 1000))} с.`,
           )
         : failure(
             LLM_ISSUE_CODES.LLM_UNREACHABLE,
@@ -221,7 +221,7 @@ export function createLlmChat(config: LlmConfig): LlmChat {
     } catch (error) {
       const timedOut = error instanceof Error && error.name === 'TimeoutError';
       return timedOut
-        ? fail(LLM_ISSUE_CODES.LLM_TIMEOUT, `Провайдер ${config.provider} не ответил за ${config.timeoutMs} мс.`)
+        ? fail(LLM_ISSUE_CODES.LLM_TIMEOUT, `Модель не ответила за ${Math.max(1, Math.round(config.timeoutMs / 1000))} с.`)
         : fail(LLM_ISSUE_CODES.LLM_UNREACHABLE, `Не удалось обратиться к провайдеру ${config.provider}.`);
     }
     if (!response.ok) {

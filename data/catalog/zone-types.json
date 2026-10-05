@@ -15,13 +15,16 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -40,19 +43,23 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       },
       {
         "key": "queueLength",
         "label": "Человек в очереди",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -65,19 +72,23 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       },
       {
         "key": "queueLength",
         "label": "Человек в очереди",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -90,13 +101,16 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -116,13 +130,16 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -135,13 +152,16 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -154,13 +174,16 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   },
@@ -173,13 +196,16 @@
         "key": "loadPercent",
         "label": "Загрузка зоны, %",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0,
+        "max": 100
       },
       {
         "key": "staffCount",
         "label": "Сотрудников в смене",
         "type": "number",
-        "required": false
+        "required": false,
+        "min": 0
       }
     ]
   }

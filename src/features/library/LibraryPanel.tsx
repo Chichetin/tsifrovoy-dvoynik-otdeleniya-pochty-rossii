@@ -5,7 +5,7 @@
  * added to data/catalog appears here with its size and its provenance note.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { ObjectType } from '../../contracts/model';
 import type { LibraryPanelProps } from '../../contracts/ui';
 import { typeOutline } from '../../contracts/outline';
@@ -23,6 +23,9 @@ function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
 export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProps): React.JSX.Element {
   const [query, setQuery] = useState('');
   const [needType, setNeedType] = useState(false);
+  // Roving tabindex (#146): the list is one Tab stop, arrows move inside it.
+  const [rovingId, setRovingId] = useState<string | null>(null);
+  const listRef = useRef<HTMLElement>(null);
 
   const groups = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -35,8 +38,28 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
     return groupByCategory(matching);
   }, [catalog.objectTypes, query]);
 
+  const visibleIds = groups.flatMap(([, types]) => types.map((type) => type.id));
+  const stopId =
+    rovingId !== null && visibleIds.includes(rovingId)
+      ? rovingId
+      : activeTypeId !== null && visibleIds.includes(activeTypeId)
+        ? activeTypeId
+        : (visibleIds[0] ?? null);
+
+  const moveFocus = (event: React.KeyboardEvent, id: string): void => {
+    const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+    const edge = event.key === 'Home' ? 0 : event.key === 'End' ? visibleIds.length - 1 : null;
+    if (step === 0 && edge === null) return;
+    event.preventDefault();
+    const at = visibleIds.indexOf(id);
+    const next = visibleIds[edge ?? Math.min(visibleIds.length - 1, Math.max(0, at + step))];
+    if (next === undefined) return;
+    setRovingId(next);
+    listRef.current?.querySelector<HTMLElement>(`[data-type-id="${CSS.escape(next)}"]`)?.focus();
+  };
+
   return (
-    <section className="panel" aria-label="Библиотека оборудования">
+    <section className="panel" aria-label="Библиотека оборудования" ref={listRef}>
       <h2 className="panel__title">Библиотека</h2>
       <input
         className="panel__search"
@@ -74,6 +97,10 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                   type="button"
                   className={`library__item${activeTypeId === type.id ? ' is-selected' : ''}`}
                   aria-pressed={activeTypeId === type.id}
+                  data-type-id={type.id}
+                  tabIndex={stopId === type.id ? 0 : -1}
+                  onFocus={() => setRovingId(type.id)}
+                  onKeyDown={(event) => moveFocus(event, type.id)}
                   draggable
                   title={`Перетащите на план или нажмите для установки. ${type.provenance}`}
                   onDragStart={(event) => {

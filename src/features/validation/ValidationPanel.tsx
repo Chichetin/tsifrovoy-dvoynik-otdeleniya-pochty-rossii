@@ -12,7 +12,7 @@ import type { Id, Issue, PlanDocument, Ref, Result } from '../../contracts/model
 import type { FocusRequest, ValidationPanelProps } from '../../contracts/ui';
 import { EMPTY_INDEX, planIndex } from '../../domain/plan-index';
 import { PHYSICS_RULES } from '../../domain/physics';
-import { type ValidationIssue, planHealth } from '../../domain/validation';
+import { type ValidationIssue, isEmptyPlan, planHealth } from '../../domain/validation';
 import { formatLength, formatNumber } from '../../domain/number-format';
 import { explainFinding, findFix, planFix, type FixResult } from './finding-why';
 import { type IssueGroup, groupIssuesBySubject } from './issue-highlight';
@@ -271,6 +271,7 @@ export function ValidationPanel({
       <HealthBreakdown
         ref={healthRef}
         health={health}
+        empty={plan !== undefined && isEmptyPlan(plan)}
         plan={plan}
         names={names}
         onFocus={onFocus}

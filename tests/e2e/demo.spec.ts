@@ -18,6 +18,8 @@ import { DEMO_FILES, packageDemo, readZip } from '../../scripts/package-demo';
 import { expandInventoryRows } from './inventory-collapse';
 import { showTab } from './side-tabs';
 
+test.use({ emptyStart: false });
+
 /** Каталог с распакованным архивом; наполняется один раз на файл спеки. */
 let unpacked = '';
 

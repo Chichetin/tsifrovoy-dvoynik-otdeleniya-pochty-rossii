@@ -8,6 +8,7 @@
  */
 
 import type { Recommendation } from '../../contracts/advice';
+import { AGENT_LIMITS, type AgentEdit } from '../../contracts/advice-chat';
 import type { CountRule, Id, PlanDocument, Rule } from '../../contracts/model';
 import { countInZoneScope } from '../inventory';
 import { formatArea, formatShort } from '../number-format';
@@ -259,9 +260,85 @@ const CAMERA_COVERAGE =
 /** «Камера хранения» — a storage room. */
 const STORAGE_ROOM = /камер[а-я]* хранени/;
 
+/** #122: a request to lay a zone out anew. */
+const LAYOUT_VERB = /(?:^|[^а-я])(разложи|расставь|переставь|раскладк)/;
+
+/** #126: an imperative verb makes a clause an edit; «где поставить» stays a question about a place. */
+const EDIT_VERB = /(?:^|[^а-я])(раздвинь|сдвинь|передвинь|подвинь|перемести|поверни|разверни|удали|убери|добавь|поставь)(?:[^а-я]|$)/;
+/** #150: a question about a place — the only reading that turns a type name into a search. */
+const PLACE_INTENT = /постав|добав|размест|установ|повес|помест|куда|где|мест[оау]|влез|вместит|нужн/;
+const DIRECTIONS: Record<string, [number, number]> = { влево: [-1, 0], вправо: [1, 0], вверх: [0, 1], вниз: [0, -1] };
+
+/** The label that shares the longest word starts with the clause: «окно» finds «Кассовое окно». */
+function looseMatch<T extends { id: Id }>(entries: readonly T[], label: (entry: T) => string, clauseWords: readonly string[]): Id | null {
+  let best: { id: Id; score: number } | null = null;
+  for (const entry of entries) {
+    const labelWords = words(label(entry));
+    const score = clauseWords.map(stem).filter((part) => labelWords.some((word) => word.startsWith(part))).reduce((sum, part) => sum + part.length, 0);
+    if (score > 0 && (best === null || score > best.score)) best = { id: entry.id, score };
+  }
+  return best?.id ?? null;
+}
+
+/** One clause of an edit request, as edits; an empty list when the clause is not understood. */
+function clauseEdits(plan: PlanDocument, clause: string): AgentEdit[] {
+  const verb = EDIT_VERB.exec(clause)?.[1];
+  if (verb === undefined) return [];
+  const number = /(\d+(?:[.,]\d+)?)\s*(?:м|°|град)/.exec(clause);
+  const amount = number?.[1] === undefined ? null : Number(number[1].replace(',', '.'));
+  const clauseWords = words(clause);
+  const typeId = looseMatch(plan.catalog.objectTypes, (type) => type.label, clauseWords);
+  const zoneId = looseMatch(plan.zones, (zone) => zone.name, clauseWords);
+  const ids = [...clause.matchAll(/[a-z][a-z0-9]*(?:_[a-z0-9]+)+/g)].map((match) => match[0]).filter((id) => plan.objects.some((object) => object.id === id));
+  if (verb === 'добавь' || verb === 'поставь') return typeId === null ? [] : [{ op: 'add', typeId, zoneId, position_m: null }];
+  // A type alone would delete every object of it: deletion takes ids only.
+  if (verb === 'удали' || verb === 'убери') return ids.map((id) => ({ op: 'delete', id }));
+  // Named ids, else the objects of the type in the named zone, else in the zone that has most of them.
+  const ofType = plan.objects.filter((object) => object.typeId === typeId && (zoneId === null || object.zoneId === zoneId));
+  const zones = [...new Set(ofType.map((object) => object.zoneId))];
+  const group = zones.map((zone) => ofType.filter((object) => object.zoneId === zone)).sort((a, b) => b.length - a.length)[0] ?? [];
+  const targets = ids.length > 0 ? plan.objects.filter((object) => ids.includes(object.id)) : group;
+  if (verb === 'поверни' || verb === 'разверни') return targets.map((object) => ({ op: 'rotate', id: object.id, by_deg: amount ?? 90 }));
+  const step = amount ?? 1;
+  if (verb === 'раздвинь') {
+    if (targets.length < 2) return [];
+    const spread = (axis: 0 | 1): number => Math.max(...targets.map((o) => o.position[axis])) - Math.min(...targets.map((o) => o.position[axis]));
+    const axis = spread(0) >= spread(1) ? 0 : 1;
+    const sorted = [...targets].sort((a, b) => a.position[axis] - b.position[axis]);
+    return sorted
+      .map((object, index): AgentEdit => {
+        const offset = (index - (sorted.length - 1) / 2) * step;
+        return { op: 'move', id: object.id, dx_m: axis === 0 ? offset : 0, dy_m: axis === 1 ? offset : 0 };
+      })
+      .filter((edit) => edit.op === 'move' && (edit.dx_m !== 0 || edit.dy_m !== 0));
+  }
+  const direction = Object.entries(DIRECTIONS).find(([word]) => clause.includes(word))?.[1];
+  if (direction === undefined) return [];
+  return targets.map((object) => ({ op: 'move', id: object.id, dx_m: direction[0] * step, dy_m: direction[1] * step }));
+}
+
+/** #126: «раздвинь стеллажи на 1 м и добавь окно в зале» — clauses split on «и», commas, «затем». */
+function editCalls(plan: PlanDocument, text: string): AgentToolCall[] {
+  if (!EDIT_VERB.test(text)) return [];
+  const edits = text.split(/,|;|\s(?:и|затем|потом)\s/).flatMap((clause) => clauseEdits(plan, clause)).slice(0, AGENT_LIMITS.maxEdits);
+  if (edits.length === 0) return [];
+  return [{
+    name: 'propose_edits',
+    args: { edits },
+    note: 'Правку разобрал расчёт по ключевым словам: проверьте призраки на плане до применения.',
+  }];
+}
+
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
+  // #122: «разложи / расставь зону ожидания» — the layout of a named zone.
+  if (LAYOUT_VERB.test(text)) {
+    const zoneId = matchZone(plan, words(text));
+    if (zoneId !== null) return [{ name: 'layout_zone', args: { zoneId }, note: 'Раскладку посчитал код: сравните варианты на плане.' }];
+  }
+  const edits = editCalls(plan, text);
+  if (edits.length > 0) return edits;
   const queryWords = words(text);
   const cameras = cameraLayer(plan);
   const matched = matchType(plan, queryWords);
@@ -291,12 +368,27 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (cameras !== null && !STORAGE_ROOM.test(text) && CAMERA_COVERAGE.test(text)) {
     return placeRoute(plan, cameras.typeId, zoneId);
   }
-  if (typeId !== null) return placeRoute(plan, typeId, zoneId);
+  if (typeId !== null && PLACE_INTENT.test(text)) return placeRoute(plan, typeId, zoneId);
   if (zoneId !== null) {
     return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
   }
-  return [{ name: 'plan_overview', args: {} }];
+  // #150: no scenario fits — no calls; the answer says so and lists what the calculation can do.
+  return [];
 }
+
+/** #150: the honest answer to a question no scenario fits. The plan is not touched, no place is offered. */
+const NOT_UNDERSTOOD = [
+  'Не понял вопрос без модели. Расчёт умеет:',
+  '— найти место: «Где поставить ещё одно кассовое окно?»;',
+  '— проверить комплектование: «Чего не хватает или что лишнее?»;',
+  '— показать эффект изменений: «Как мои изменения повлияли на свободную площадь?»;',
+  '— проверить план: «Какие ошибки в плане?»;',
+  '— описать зону: «Что находится в зоне ожидания?»;',
+  '— разложить зону: «Разложи зону ожидания»;',
+  '— внести правку: «Сдвинь стеллажи вправо на 1 м», «Добавь окно в зале»;',
+  '— покрытие камер: «Где слепые пятна у камер?».',
+  'План не изменён, место не предлагалось.',
+].join('\n\n');
 
 /**
  * After the calls: the best placement variant is offered, as the model would.
@@ -447,10 +539,37 @@ export function composeFallbackText(
   if (records.some((record) => record.name === 'check_equipment') && recommendations.every((entry) => entry.scenario !== 'equipment')) {
     parts.push('Нарушений правил комплектования нет.');
   }
+  for (const proposal of state.proposals) {
+    const metric = (code: string, phase: string): number | undefined => proposal.facts.find((fact) => fact.metric === code && fact.phase === phase)?.value;
+    // #122: a layout variant reads by its own numbers; the area does not change.
+    if (proposal.title !== undefined) {
+      const pair = (code: string, name: string): string => {
+        const was = metric(code, 'before');
+        const now = metric(code, 'after');
+        return was === undefined || now === undefined ? '' : `${name}: ${formatShort(was, 2)} → ${formatShort(now, 2)} м.`;
+      };
+      parts.push([
+        `${proposal.title}. Сдвинуто объектов: ${proposal.changes.length}.`,
+        pair('layout.passage', 'Самый узкий проход'),
+        pair('layout.entrance', 'Среднее расстояние до входа'),
+        `Ошибок проверки: ${proposal.findings.errors.before} → ${proposal.findings.errors.after}.`,
+      ].filter(Boolean).join(' '));
+      continue;
+    }
+    const free = (phase: string): number | undefined => metric('area.free', phase);
+    const before = free('before');
+    const after = free('after');
+    const { errors } = proposal.findings;
+    parts.push([
+      `Правки: принято ${proposal.changes.length}, отклонено ${proposal.rejected.length}.`,
+      proposal.commands.length === 0 || before === undefined || after === undefined ? '' : `Свободная площадь: ${formatArea(before)} → ${formatArea(after)}. Ошибок проверки: ${errors.before} → ${errors.after}.`,
+      proposal.commands.length === 0 ? 'План не изменится: ни одна правка не прошла проверку, причины — в списке ниже.' : 'Правки показаны на плане полупрозрачно. «Применить правки» — одной командой, отмена — Ctrl+Z.',
+    ].filter(Boolean).join(' '));
+  }
   if (state.actions.some((action) => action.kind === 'apply-candidate')) {
     parts.push('Вариант показан на плане полупрозрачно — его можно применить кнопкой ниже.');
   }
-  return parts.length === 0 ? 'Расчёт не нашёл, что ответить на этот вопрос. Уточните, о какой зоне или оборудовании речь.' : parts.join('\n\n');
+  return parts.length === 0 ? NOT_UNDERSTOOD : parts.join('\n\n');
 }
 
 /**

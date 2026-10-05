@@ -24,7 +24,15 @@ export type MetricCode =
   | 'equipment.max'
   | 'objects.added'
   | 'objects.removed'
-  | 'placement.distance';
+  | 'placement.distance'
+  /**
+   * #122: the narrowest clear gap in the zone — between two of its floor
+   * objects, or between an object and the zone's edge. Shapes closer than
+   * 5 cm stand together (a desk at a wall) and form no passage.
+   */
+  | 'layout.passage'
+  /** #122: mean distance from the zone's objects to the nearest entrance. */
+  | 'layout.entrance';
 
 export type ReasonCode =
   | 'placement.available'
@@ -105,6 +113,11 @@ export type AdviceHttpRequest = {
 export type HealthResponse = {
   status: 'ok';
   llm: { configured: false } | { configured: true; provider: string };
+  /**
+   * #136: short git SHA the running build was made from (BUILD_SHA at build
+   * time). Absent when the build did not know it — never a guess.
+   */
+  build?: string;
 };
 
 /**

@@ -72,9 +72,11 @@ function TourCard({ onClose, steps, onOpenDemo }: Omit<OnboardingProps, 'open' |
     };
   }, []);
 
+  // The card stays hidden until the first measure, so it never jumps (CLS).
+  const ready = cardSize.height > 0;
   useEffect(() => {
-    dialog.current?.focus();
-  }, [step]);
+    if (ready) dialog.current?.focus();
+  }, [step, ready]);
 
   // Capture phase on window runs ahead of every editor listener but the ones
   // registered earlier in the same phase (EditorCanvas' Escape — it only drops
@@ -154,7 +156,7 @@ function TourCard({ onClose, steps, onOpenDemo }: Omit<OnboardingProps, 'open' |
         aria-describedby="onboarding-text"
         tabIndex={-1}
         className="onboarding__card"
-        style={{ left: position.left, top: position.top, width: '22.5rem' }}
+        style={{ left: position.left, top: position.top, width: '22.5rem', visibility: ready ? 'visible' : 'hidden' }}
       >
         <p className="onboarding__count">
           Шаг {step + 1} из {steps.length}

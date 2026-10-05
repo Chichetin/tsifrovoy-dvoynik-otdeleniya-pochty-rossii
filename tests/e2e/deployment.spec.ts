@@ -25,6 +25,8 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page, exportPlan } from './fixtures';
 import { showTab } from './side-tabs';
 
+test.use({ emptyStart: false });
+
 /**
  * Сколько ждать ответа ассистента на развёрнутом сервисе: рекомендованный
  * бюджет модели `LLM_TIMEOUT_MS=60000` (D-206) плюс запас на сеть и разбор

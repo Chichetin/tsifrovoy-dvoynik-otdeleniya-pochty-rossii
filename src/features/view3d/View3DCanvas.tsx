@@ -25,7 +25,7 @@
  * restores the context the whole stage is built again from the same scene.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ACESFilmicToneMapping,
   CanvasTexture,
@@ -42,7 +42,7 @@ import {
   Matrix4,
   Mesh,
   MeshStandardMaterial,
-  PCFSoftShadowMap,
+  PCFShadowMap,
   PerspectiveCamera,
   PMREMGenerator,
   Raycaster,
@@ -60,9 +60,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
+import { EYE_HEIGHT_M, type VisitorResult } from './visitor';
 import { isSelected, type Scene, type SceneLabel, type SceneModel, type ScenePrism } from './scene';
 
-type Props = { scene: Scene; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
+type Props = { scene: Scene; visitor: VisitorResult; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
 
 type Stage = {
   renderer: WebGLRenderer;
@@ -119,10 +120,14 @@ const ENVIRONMENT_INTENSITY = 0.5;
 /** Shadow map side: 2048 keeps the edges soft but not blurry on a 15 m room. */
 const SHADOW_MAP = 2048;
 
-export default function View3DCanvas({ scene, selection, onSelect, fileName }: Props): React.JSX.Element {
+export default function View3DCanvas({ scene, visitor, selection, onSelect, fileName }: Props): React.JSX.Element {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
   const framed = useRef<string | null>(null);
+  // Overview camera kept while the visitor stands at the entrance.
+  const [visitorMode, setVisitorMode] = useState(false);
+  const visitorRef = useRef(false);
+  const saved = useRef<{ position: Vector3; target: Vector3 } | null>(null);
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -203,13 +208,77 @@ export default function View3DCanvas({ scene, selection, onSelect, fileName }: P
     // Re-frame only when the room changes: moving an object must not yank the
     // camera the user has just placed.
     const key = JSON.stringify([scene.bounds, scene.ceilingHeight_m]);
-    if (framed.current !== key) {
+    if (framed.current !== key && !visitorRef.current) {
       frame(current, scene);
       framed.current = key;
     }
     current.render();
     // `generation` — новая сцена на новом контексте: её надо наполнить заново.
   }, [scene, selection, generation, lost, modelsLoaded]);
+
+  const poseKey = 'pose' in visitor ? JSON.stringify(visitor.pose) : null;
+  // Pose is read from the current plan: a moved entrance moves the camera too.
+  useEffect(() => {
+    const current = stage.current;
+    if (!current || lost || !visitorMode || !('pose' in visitor)) return;
+    const { position, heading } = visitor.pose;
+    current.camera.position.set(position[0], position[1], EYE_HEIGHT_M);
+    current.controls.target.set(position[0] + heading[0] * 3, position[1] + heading[1] * 3, EYE_HEIGHT_M);
+    current.camera.lookAt(current.controls.target);
+    current.render();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `poseKey` is the pose's value
+  }, [visitorMode, poseKey, generation, lost]);
+
+  const enterVisitor = (): void => {
+    const current = stage.current;
+    if (!current) return;
+    saved.current = { position: current.camera.position.clone(), target: current.controls.target.clone() };
+    current.controls.enabled = false;
+    visitorRef.current = true;
+    setVisitorMode(true);
+  };
+
+  const leaveVisitor = (): void => {
+    const current = stage.current;
+    visitorRef.current = false;
+    setVisitorMode(false);
+    if (!current) return;
+    current.controls.enabled = true;
+    if (saved.current !== null) {
+      current.camera.position.copy(saved.current.position);
+      current.controls.target.copy(saved.current.target);
+      current.controls.update();
+    }
+    current.render();
+  };
+
+  // «Вписать»: back to the default overview, also from the visitor's view.
+  const sceneRef = useRef(scene);
+  useEffect(() => {
+    sceneRef.current = scene;
+  }, [scene]);
+  const fitView = useCallback((): void => {
+    const current = stage.current;
+    if (!current) return;
+    visitorRef.current = false;
+    setVisitorMode(false);
+    current.controls.enabled = true;
+    frame(current, sceneRef.current);
+    current.render();
+  }, []);
+
+  // By key code, so the Russian layout works too.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.code !== 'KeyF' || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))) return;
+      event.preventDefault();
+      fitView();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fitView]);
 
   const savePicture = (): void => {
     const current = stage.current;
@@ -248,6 +317,22 @@ export default function View3DCanvas({ scene, selection, onSelect, fileName }: P
       />
       {lost ? null : (
         <div className="view3d__tools">
+          <button
+            type="button"
+            className="files__button"
+            onClick={enterVisitor}
+            disabled={!('pose' in visitor)}
+            aria-pressed={visitorMode}
+            title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
+          >
+            Глазами посетителя
+          </button>
+          <button type="button" className="files__button" onClick={leaveVisitor} disabled={!visitorMode}>
+            Обзор
+          </button>
+          <button type="button" className="files__button" onClick={fitView} title="Вернуть обзор по умолчанию (клавиша F)">
+            Вписать
+          </button>
           <button type="button" className="files__button" onClick={savePicture}>
             Скачать картинку 3D
           </button>
@@ -266,7 +351,7 @@ function createStage(container: HTMLDivElement): Stage {
   const renderer = new WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = PCFSoftShadowMap;
+  renderer.shadowMap.type = PCFShadowMap;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.domElement.dataset['testid'] = 'view3d-canvas';
   renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание вращает, колесо приближает');
@@ -477,6 +562,9 @@ function frame(stage: Stage, scene: Scene): void {
   // Direction: back and up, 0.8 along -Y to 0.6 up — a three-quarter view.
   stage.camera.position.set(cx, cy - distance * 0.8, distance * 0.6);
   stage.controls.target.set(cx, cy, 0);
+  // The wheel cannot take the plan out of the frame (#157): at most three room diagonals away.
+  stage.controls.minDistance = 2;
+  stage.controls.maxDistance = Math.max(Math.hypot(width, depth) * 3, distance * 1.5);
   stage.controls.update();
 
   // The sun keeps its angle and follows the room; its shadow box covers the

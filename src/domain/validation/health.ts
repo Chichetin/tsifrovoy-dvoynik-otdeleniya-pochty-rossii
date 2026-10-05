@@ -7,7 +7,7 @@
  * This is a team rule, not a standard of the Post.
  */
 
-import type { Id, Ref, Severity } from '../../contracts/model';
+import type { Id, PlanDocument, Ref, Severity } from '../../contracts/model';
 import type { ValidationIssue } from './index';
 
 export const HEALTH_MAX = 100;
@@ -40,6 +40,11 @@ export type PlanHealth = {
   /** Largest penalty first. */
   lines: HealthLine[];
 };
+
+/** A plan with no zones and no equipment has nothing to check: 100 means «no data», not «ideal». */
+export function isEmptyPlan(plan: Pick<PlanDocument, 'zones' | 'objects'>): boolean {
+  return plan.zones.length === 0 && plan.objects.length === 0;
+}
 
 export function issuePenalty(issue: ValidationIssue): number {
   return SEVERITY_PENALTY[issue.severity];

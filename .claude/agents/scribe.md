@@ -44,7 +44,7 @@ color: orange
 
 ## Порядок
 
-1. Собери факты: бриф, `git log --oneline -20`, `npm test`, `bash scripts/gitlab-mr.sh list`.
+1. Собери факты: бриф, `git log --oneline -20`, `bash scripts/gitlab-mr.sh list`.
 2. Напиши или поправь документ в worktree. Всё, что README говорит про запуск,
    выполни: `npm ci`, `npm run build`, `npm run serve` (health), `npm run dev`.
 3. Проверь ссылки внутри репозитория: файлы существуют.

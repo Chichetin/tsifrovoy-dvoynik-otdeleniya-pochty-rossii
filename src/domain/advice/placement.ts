@@ -43,6 +43,7 @@ import {
   objectInterval,
   openingCentre,
   locatePoint,
+  polygonArea,
   polygonSegmentDistance,
   wallObstacles,
   type BoundingBox,
@@ -50,7 +51,7 @@ import {
 } from '../geometry';
 import { measurePlan } from '../metrics';
 import { editableContentLayer } from '../content-layer';
-import { prepareZones, resolveZone } from '../relations';
+import { prepareZones, resolveZone, type PreparedZones } from '../relations';
 import { validatePlan } from '../validation';
 
 /** Codes owned by this module. */
@@ -242,6 +243,47 @@ export function zoneFit(plan: PlanDocument, typeId: Id, zoneId: Id | null): Zone
     placedZoneTypeIds,
     zoneIds,
   };
+}
+
+/**
+ * The deepest zone the object's centre lies strictly inside. The inventory
+ * zone (`zoneId`) needs the whole footprint inside; a spot that pokes 0.1 m out
+ * of a nested waiting area still stands in that area for a person — so fit and
+ * the label are judged by the centre. Equal depth — the smaller zone wins.
+ */
+export function centreZoneId(
+  plan: PlanDocument,
+  position: Point,
+  prepared: PreparedZones = prepareZones(plan.zones),
+): Id | null {
+  let best: { id: Id; depth: number; area: number } | null = null;
+  for (const entry of prepared.usable) {
+    if (locatePoint(position, entry.zone.polygon) !== 'inside') continue;
+    const area = polygonArea(entry.zone.polygon);
+    if (best === null || entry.depth > best.depth || (entry.depth === best.depth && area < best.area)) {
+      best = { id: entry.zone.id, depth: entry.depth, area };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Zones from the object's inventory zone down to the zone under its centre:
+ * `[z_hall, z_waiting]` reads «Клиентский зал → Зона ожидания». One entry when
+ * both are the same; empty when the object is outside every zone.
+ */
+export function placementZonePath(plan: PlanDocument, object: Equipment): Id[] {
+  const centre = centreZoneId(plan, object.position);
+  if (centre === null || centre === object.zoneId) return object.zoneId === null ? [] : [object.zoneId];
+  const parents = new Map(plan.zones.map((zone) => [zone.id, zone.parentId]));
+  const chain: Id[] = [];
+  let current: Id | null | undefined = centre;
+  while (current !== null && current !== undefined && !chain.includes(current)) {
+    chain.unshift(current);
+    if (current === object.zoneId) return chain;
+    current = parents.get(current);
+  }
+  return object.zoneId === null ? [centre] : [object.zoneId, centre];
 }
 
 function issue(code: string, message: string, refs: Ref[]): Issue {
@@ -556,6 +598,10 @@ function sweep(
       if (allowed !== null) {
         const home = resolveZone(trial, plan.zones, zoneIndex).zoneId;
         if (home === null || !allowed.has(home)) continue;
+        // A window whose footprint is in the hall but whose centre is in the
+        // nested waiting area stands in the waiting area: judged there.
+        const centre = centreZoneId(plan, position, zoneIndex);
+        if (centre !== null && !allowed.has(centre)) continue;
       }
       const key = footprintKey(shape);
       if (seen.has(key)) continue;

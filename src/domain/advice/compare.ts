@@ -23,6 +23,7 @@ import type {
   Ref,
   Zone,
 } from '../../contracts/model';
+import { openingCentre } from '../geometry';
 import { measurePlan } from '../metrics';
 
 function round6(value: number): number {
@@ -148,6 +149,46 @@ function travelled(before: PlanDocument, after: PlanDocument): number {
   return round6(total);
 }
 
+/** Distance from an object's centre to the nearest entrance the rule names; null when the plan has none. */
+function entranceDistance(plan: PlanDocument, object: Equipment, entranceId: Id | null): number | null {
+  const walls = new Map(plan.walls.map((wall) => [wall.id, wall]));
+  const distances = plan.openings.flatMap((opening) => {
+    if (entranceId === null ? opening.kind !== 'entrance' : opening.id !== entranceId) return [];
+    const wall = walls.get(opening.wallId);
+    if (wall === undefined) return [];
+    const centre = openingCentre(opening, wall);
+    return [Math.hypot(object.position[0] - centre[0], object.position[1] - centre[1])];
+  });
+  return distances.length === 0 ? null : Math.min(...distances);
+}
+
+/**
+ * «Было → стало» of the distance to the entrance for every object that has a
+ * `distance-to-entrance` rule and exists in both plans. One object, so the
+ * `layout.entrance` mean is that object's own distance.
+ */
+function entranceFacts(prefix: string, before: PlanDocument, after: PlanDocument): Fact[] {
+  const previous = byId(before.objects);
+  const facts: Fact[] = [];
+  for (const rule of after.catalog.rules) {
+    if (rule.kind !== 'distance-to-entrance') continue;
+    for (const object of after.objects) {
+      if (object.typeId !== rule.objectTypeId) continue;
+      const was = previous.get(object.id);
+      if (was === undefined) continue;
+      const from = entranceDistance(before, was, rule.entranceId);
+      const to = entranceDistance(after, object, rule.entranceId);
+      if (from === null || to === null) continue;
+      facts.push(
+        ...triple(`${prefix}.entrance.${object.id}`, 'layout.entrance', 'm', from, to, [
+          { kind: 'object', id: object.id },
+        ]),
+      );
+    }
+  }
+  return facts;
+}
+
 function fact(
   id: Id,
   metric: Fact['metric'],
@@ -246,6 +287,7 @@ export const comparePlans: ComparePlans = (before, after) => {
       'm',
       [roomRef],
     ),
+    ...entranceFacts(id, before, after),
   ];
 
   // A moved object changes no area and no count, so the reason code cannot be
