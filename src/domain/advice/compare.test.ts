@@ -8,6 +8,8 @@
  * который обязан отдавать все три сценария условий одной формой ответа.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type {
   Catalog,
@@ -21,7 +23,7 @@ import type {
 } from '../../contracts/model';
 import { SCHEMA_VERSION } from '../../contracts/model';
 import { METRIC_UNITS, REASON_CODE_SPECS } from '../../contracts/advice-semantics';
-import { calculateAdvice, comparePlans, diffPlans } from './index';
+import { appliedEffectLine, calculateAdvice, comparePlans, diffPlans } from './index';
 
 const DESK: ObjectType = {
   id: 'ot_desk',
@@ -358,4 +360,16 @@ describe('A03: диспетчер сценариев', () => {
       'placement.distance.delta': 4,
     });
   });
+});
+
+test('строка эффекта после «Применить»: до входа, ошибки, свободно, объектов (#212)', () => {
+  const before = JSON.parse(readFileSync(join(process.cwd(), 'demo/before.json'), 'utf8')) as PlanDocument;
+  const after: PlanDocument = {
+    ...before,
+    objects: before.objects.map((object) => (object.id === 'eq_1' ? { ...object, position: [7.9, 2.1] as Point } : object)),
+  };
+  // formatArea puts a no-break space before «м²».
+  expect(appliedEffectLine(before, after, { before: 1, after: 0 })?.replaceAll(' ', ' ')).toBe(
+    '«Терминал электронной очереди» до входа 6,62 → 2,25 м; ошибок 1 → 0; свободно 114,73 м² → 114,73 м²; объектов 53 → 53',
+  );
 });

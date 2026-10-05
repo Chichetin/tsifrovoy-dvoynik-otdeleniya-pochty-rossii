@@ -25,6 +25,7 @@ import type {
 } from '../../contracts/model';
 import { openingCentre } from '../geometry';
 import { measurePlan } from '../metrics';
+import { formatArea, formatShort } from '../number-format';
 
 function round6(value: number): number {
   return Math.round(value * 1e6) / 1e6;
@@ -321,3 +322,32 @@ export const comparePlans: ComparePlans = (before, after) => {
 
   return { ok: true, value: [recommendation] };
 };
+
+/**
+ * #212: «было → стало» in one line after a proposal is applied — the distance
+ * to the entrance of each object that moved under that rule, errors, free area
+ * and the number of objects. Numbers from `comparePlans`; errors from the
+ * proposal's own check. Null when a plan cannot be measured.
+ */
+export function appliedEffectLine(
+  before: PlanDocument,
+  after: PlanDocument,
+  errors: { before: number; after: number },
+): string | null {
+  const compared = comparePlans(before, after);
+  if (!compared.ok) return null;
+  const facts = compared.value.flatMap((recommendation) => recommendation.facts);
+  const value = (id: string): number => facts.find((entry) => entry.id === id)?.value ?? 0;
+  const parts: string[] = [];
+  for (const delta of facts) {
+    if (delta.metric !== 'layout.entrance' || delta.phase !== 'delta' || delta.value === 0) continue;
+    const prefix = delta.id.slice(0, -'.delta'.length);
+    const objectId = delta.refs[0]?.id;
+    const label = after.objects.find((object) => object.id === objectId)?.label ?? objectId;
+    parts.push(`«${label}» до входа ${formatShort(value(`${prefix}.before`), 2)} → ${formatShort(value(`${prefix}.after`), 2)} м`);
+  }
+  parts.push(`ошибок ${errors.before} → ${errors.after}`);
+  parts.push(`свободно ${formatArea(value('adv_compare.area.free.before'))} → ${formatArea(value('adv_compare.area.free.after'))}`);
+  parts.push(`объектов ${value('adv_compare.equipment.count.before')} → ${value('adv_compare.equipment.count.after')}`);
+  return parts.join('; ');
+}
