@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../../contracts/advice';
-import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
+import type { AgentAnswer, AssistantAction } from '../../contracts/advice-chat';
 import type { Command } from '../../contracts/commands';
 import type { Id, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../contracts/ui';
 import { candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
-import { requestAgent, turnsOf } from './agent-client';
+import { draftAnswer, requestAgent, turnsOf, type ChatExchange } from './agent-client';
 
 type OpenPanel = Extract<AssistantAction, { kind: 'open-panel' }>['panel'];
 
@@ -156,7 +156,7 @@ export function useAssistantSession({
   const adviceSequence = useRef(0);
   // D-258: the conversation with the plan agent — interface state, never in
   // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
-  const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
+  const [exchanges, setExchanges] = useState<ChatExchange[]>([]);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const chatSequence = useRef(0);
 
@@ -285,21 +285,34 @@ export function useAssistantSession({
     (question: string) => {
       const sequence = ++chatSequence.current;
       const id = `ask-${sequence}`;
-      const update = (change: (exchange: AgentExchange) => AgentExchange): void => {
+      const update = (change: (exchange: ChatExchange) => ChatExchange): void => {
         if (sequence !== chatSequence.current) return;
         setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
       };
       setActionStatus(null);
       setExchanges((previous) => [...previous, { id, question, revision, steps: [], answer: null, error: null }]);
       const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
-      void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
+      const request = requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] })));
+      // #211: the request is on the wire; the calculation answers in the page
+      // meanwhile, so numbers and variants show in a second, not after the model.
+      window.setTimeout(() => {
+        if (sequence !== chatSequence.current) return;
+        let draft: AgentAnswer;
+        try {
+          draft = draftAnswer(input);
+        } catch {
+          return;
+        }
+        update((exchange) => (exchange.answer === null && exchange.error === null ? { ...exchange, draft } : exchange));
+      }, 0);
+      void request.then((result) => {
         if (sequence !== chatSequence.current) return;
         if (!result.ok) {
           update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
           return;
         }
         const answer = result.value;
-        update((exchange) => ({ ...exchange, answer }));
+        update((exchange) => ({ ...exchange, answer, draft: undefined }));
         // The agent shows what it found: the offered variant ghosted on the
         // plan, otherwise a ring round the first entity of the answer.
         const offered = answer.actions.find((action) => action.kind === 'preview-candidate');

@@ -11,7 +11,7 @@
  * answer comes from the page with the reason in words.
  */
 
-import { AGENT_LIMITS, type AgentAnswer, type AgentHttpRequest, type AgentStep, type AgentStreamEvent, type AgentTurn } from '../../contracts/advice-chat';
+import { AGENT_LIMITS, type AgentAnswer, type AgentExchange, type AgentHttpRequest, type AgentStep, type AgentStreamEvent, type AgentTurn } from '../../contracts/advice-chat';
 import type { Issue, Result } from '../../contracts/model';
 import { answerWithoutModel } from '../../domain/advice';
 
@@ -35,6 +35,24 @@ const TIMEOUT_MS = 60_000 + TIMEOUT_MARGIN_MS;
 
 function timeoutReason(ms: number): string {
   return `Сервер ассистента не ответил за ${Math.max(1, Math.round(ms / 1000))} с — ответ собран расчётом в браузере, без LLM.`;
+}
+
+/**
+ * #211: the calculation's answer shown while the server still works. It
+ * rides on the exchange object outside the contract and is never sent back.
+ */
+export type ChatExchange = AgentExchange & { draft?: AgentAnswer | undefined };
+
+export function draftOf(exchange: AgentExchange): AgentAnswer | undefined {
+  return (exchange as ChatExchange).draft;
+}
+
+/** The reason a draft carries: the person reads the mode line, not this. */
+export const DRAFT_REASON = 'Расчёт в браузере, пока LLM пишет объяснение.';
+
+/** #211: the calculation alone, in the page, at once — no network, no model. */
+export function draftAnswer(input: AgentHttpRequest): AgentAnswer {
+  return answerWithoutModel(input.plan, input.before ?? null, input.query, input.revision, DRAFT_REASON);
 }
 
 /** The request in flight: one at a time, the chat blocks a second question. */
