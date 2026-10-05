@@ -173,7 +173,7 @@ for (const width of [1280, 1339, 1340, 1460, 1500]) {
     await page.mouse.click(canvas!.x + canvas!.width / 2 + 60, y);
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
     await page.mouse.click(canvas!.x + canvas!.width / 2, y);
-    await expect(page.getByText('Перегородка: тяните концы')).toBeVisible();
+    await expect(page.locator('.toolbar__hints')).toContainText('Перегородка: включите «Изменить перегородку»');
     await page.addStyleTag({ content: '.shell__bar button { letter-spacing: 0.4px; }' });
     const measured = await layout(page);
     expect(measured.overflow, `${width}: более широкие надписи остаются в окне`).toBeLessThanOrEqual(0);
@@ -223,7 +223,7 @@ for (const size of [
       // к «Выбору» и взять перегородку кликом по её середине.
       await page.getByRole('button', { name: 'Выбор', exact: true }).click();
       await page.mouse.click(canvas!.x + canvas!.width / 2, y);
-      await expect(page.getByText('Перегородка: тяните концы')).toBeVisible();
+      await expect(page.locator('.toolbar__hints')).toContainText('Перегородка: включите «Изменить перегородку»');
       await expectOneRow(page, reference, 'выбрана перегородка, есть правки');
       const worst = await layout(page);
       expect(worst.slack, `запас шапки в худшем состоянии на ${size.width} px`).toBeGreaterThanOrEqual(MIN_SLACK_PX);

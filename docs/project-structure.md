@@ -121,7 +121,7 @@ README каждого каталога описывает назначение, 
 | Откуда | Куда разрешено | Граница |
 |---|---|---|
 | contracts | Библиотека схем; type-only UI-типы в ui.ts | Никаких реализаций проекта |
-| domain | contracts, публичные функции других domain-модулей по DAG плана, математические библиотеки | Ни React, ни IO; без циклов между модулями |
+| domain | contracts, публичные функции других domain-модулей по DAG плана, математические библиотеки; data/catalog/object-types.json — только для запасного знака plan-pictogram (D-376) | Ни React, ни IO; без циклов между модулями |
 | state | contracts, domain/commands | Не знает о UI/сохранении/сервере |
 | persistence | contracts, domain/catalog/geometry/relations при импорте, domain/commands для слияния справочников (D-148) | DOM только в browser-draft; никакого store |
 | features | contracts, нужные domain/persistence-модули и UI-библиотеки | Без импортов соседних features, app, state и server |

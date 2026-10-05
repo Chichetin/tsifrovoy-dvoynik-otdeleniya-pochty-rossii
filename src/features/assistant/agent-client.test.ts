@@ -51,7 +51,13 @@ describe('requestAgent', () => {
     expect(result.value.mode).toBe('fallback');
     expect(result.value.revision).toBe(5);
     expect(result.value.fallbackReason).toContain('в браузере');
-    expect(steps.length).toBeGreaterThan(0);
+    // #150: an unrecognised question gets clarification without tool calls.
+    expect(steps).toEqual([]);
+    expect(result.value.text).toContain('Не понял вопрос без модели');
+    expect(result.value.proposals).toEqual([]);
+    const calculated = await requestAgent({ ...input, query: 'Какие ошибки в плане?' }, (entry) => steps.push(entry), async () => new Response('', { status: 404 }));
+    expect(calculated.ok && calculated.value.mode).toBe('fallback');
+    expect(steps.some((step) => step.tool === 'validate_plan')).toBe(true);
     const offline = await requestAgent(input, () => undefined, async () => {
       throw new TypeError('network');
     });
