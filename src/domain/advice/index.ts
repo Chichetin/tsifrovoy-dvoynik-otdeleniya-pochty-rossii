@@ -45,7 +45,7 @@ export type {
 } from './camera-coverage';
 export { checkAgentEdits, proposalCommands } from './agent-edits';
 export { candidateObjectForInsert } from './candidate-object';
-export { comparePlans, diffPlans } from './compare';
+export { appliedEffectLine, comparePlans, diffPlans } from './compare';
 export { EDIT_HINT_LIMIT, editHint, editHintNumbers, editHintSnapshot, editHintText } from './edit-hints';
 export type { EditHint, EditHintItem, EditHintNumber, EditHintSnapshot, EditHintTone } from './edit-hints';
 export {
