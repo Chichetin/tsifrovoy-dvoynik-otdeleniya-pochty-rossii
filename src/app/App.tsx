@@ -340,7 +340,11 @@ export function App(): React.JSX.Element {
   // on the left stays open while something is selected. A layer has no card of
   // its own (its settings live in «Слои»).
   // #184: not together with the assistant tab; the selection stays for its questions.
+  // #222: with a selection the column is that card alone; the tab row and its
+  // panels are hidden (they stay mounted) until the selection goes.
+  const issues = useMemo(() => validatePlan(document), [document]);
   const propsShown = selection !== null && selection.kind !== 'layer' && tabs.right !== 'assistant';
+  const cardOnly = propsShown;
 
   // #105: «Повернуть» and «Изменить форму» go with a single selected object.
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
@@ -514,10 +518,17 @@ export function App(): React.JSX.Element {
 
   // «×» drops the selection; the card goes, so focus lands on the open tab of
   // the same column rather than on the removed button.
+  // #222: the tab row is hidden while the card shows, so focus moves once it is back.
+  const refocusTabs = useRef(false);
   const closeProps = useCallback(() => {
+    refocusTabs.current = true;
     select(null);
+  }, [select]);
+  useEffect(() => {
+    if (cardOnly || !refocusTabs.current) return;
+    refocusTabs.current = false;
     window.document.getElementById(`side-right-tab-${tabs.right}`)?.focus();
-  }, [select, tabs.right]);
+  }, [cardOnly, tabs.right]);
 
   // #121: the button of the card sends the command the key would send.
   const deleteSelection = useCallback(() => {
@@ -672,7 +683,6 @@ export function App(): React.JSX.Element {
   );
 
   const inventory = useMemo(() => buildInventory(document), [document]);
-  const issues = useMemo(() => validatePlan(document), [document]);
   // #125: the header score reads the same findings as «Проверка».
   const health = useMemo(() => planHealth(issues), [issues]);
   const [healthRequest, setHealthRequest] = useState(0);
@@ -1316,7 +1326,7 @@ export function App(): React.JSX.Element {
               none of its own and stays the region «Свойства» by its
               aria-label (it renders the same without the band). */}
           {propsShown ? (
-            <div className="shell__props">
+            <div className={cardOnly ? 'shell__props shell__props--alone' : 'shell__props'}>
               <div className="shell__props-band">
                 {/* A heading by role, not an <h2>: the band keeps its look without
                     new styles, and a screen reader's heading list finds the
@@ -1372,6 +1382,7 @@ export function App(): React.JSX.Element {
           ) : null}
           <SideTabs
             label="Панели справа"
+            hidden={cardOnly}
             idPrefix="side-right"
             tabs={RIGHT_TABS}
             active={tabs.right}
