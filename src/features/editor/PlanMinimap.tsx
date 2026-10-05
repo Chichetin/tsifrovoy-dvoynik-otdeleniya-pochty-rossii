@@ -25,7 +25,7 @@ export function PlanMinimap({ document: plan, viewport, size, onViewport }: {
     const screen = modelToScreen(point, viewport);
     onViewport(panBy(viewport, [size.width/2-screen[0], size.height/2-screen[1]]));
   };
-  return <div style={{ position: 'absolute', left: 12, bottom: 48, zIndex: 2 }}>
+  return <div className="editor-canvas__minimap" style={{ position: 'absolute', left: 12, bottom: 48, zIndex: 2 }}>
     <button type="button" aria-expanded={visible} aria-controls="plan-minimap" onClick={() => setVisible(!visible)}
       style={{ background: '#FFF', border: '1px solid #ADB5BD', borderRadius: 4, padding: '4px 8px' }}>
       {visible ? 'Скрыть мини-карту' : 'Мини-карта'}

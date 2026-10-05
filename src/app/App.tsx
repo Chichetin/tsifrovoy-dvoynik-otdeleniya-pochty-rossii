@@ -1149,7 +1149,8 @@ export function App(): React.JSX.Element {
                   название зоны целиком; полупрозрачность не даёт подписи закрыть
                   сам объект. */}
               {zoneOverviewActive
-                ? <ZoneOverviewLayer document={document} viewport={viewport} issues={issues} metrics={metrics} onFocus={focusOn} />
+                ? <ZoneOverviewLayer document={document} viewport={viewport} issues={issues} metrics={metrics}
+                    onFocus={tool.kind === 'select' || tool.kind === 'pan' ? focusOn : undefined} />
                 : <ZoneNameLayer document={shownDocument} viewport={viewport} />}
               {/* Правка формы объекта (D-279) — над оборудованием: её ручки
                   должны перехватывать жест раньше переноса и размера объекта. */}
