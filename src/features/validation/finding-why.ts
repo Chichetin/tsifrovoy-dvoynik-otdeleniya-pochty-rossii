@@ -176,7 +176,7 @@ export function explainFinding(plan: PlanDocument, issue: ValidationIssue): Find
       method: physics.detail,
       rationale: null,
       params: [],
-      sourceNote: `Правило физики плана. ${TEAM_NOTE}`,
+      sourceNote: 'Правило физики плана.',
       ruleId: physics.id,
     };
   }
@@ -187,7 +187,7 @@ export function explainFinding(plan: PlanDocument, issue: ValidationIssue): Find
     method: check?.method ?? 'У этой проверки нет описания в справочнике правил. Что найдено — в тексте находки.',
     rationale: null,
     params: [],
-    sourceNote: `Проверка геометрии плана. ${TEAM_NOTE}`,
+    sourceNote: 'Проверка геометрии плана.',
     ruleId: null,
   };
 }
