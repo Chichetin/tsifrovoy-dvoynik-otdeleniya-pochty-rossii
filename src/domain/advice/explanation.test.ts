@@ -536,7 +536,8 @@ describe('#178: «почему сюда» — свободный текст мо
     const why = 'Вариант 1 переносит «Терминал электронной очереди» (eq_1) ближе ко входу, а «оставить как есть» держит его в z_waiting.';
     const choice = acceptFactChoice(session, JSON.stringify({ factIds: [factId], why }));
     expect(choice.kind === 'answer' && choice.answer.mode).toBe('llm');
-    expect(choice.kind === 'answer' && choice.answer.text.startsWith(`${WHY_LEAD}${why}`)).toBe(true);
+    // #210: the code's action line comes first; the checked «почему так» follows it.
+    expect(choice.kind === 'answer' && choice.answer.text.split('\n\n')[1]?.startsWith(`${WHY_LEAD}${why}`)).toBe(true);
     expect(choice.kind === 'answer' && choice.answer.text).toContain('Вариант 1 — ');
   }, 20_000);
 
