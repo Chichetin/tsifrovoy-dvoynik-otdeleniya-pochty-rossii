@@ -106,6 +106,15 @@ function zoneName(plan: PlanDocument, zoneId: string | null): string {
   return zone.name.trim() === '' ? zone.id : zone.name;
 }
 
+/**
+ * A name the editor gave, not the person: blank, the «Зона N» of a new zone, or
+ * the label of a zone type. Only such a name follows a type change (#215).
+ */
+function isDefaultZoneName(plan: PlanDocument, name: string): boolean {
+  const trimmed = name.trim();
+  return trimmed === '' || /^Зона \d+$/.test(trimmed) || plan.catalog.zoneTypes.some((type) => type.label === trimmed);
+}
+
 export function PropertiesPanel({
   document: plan,
   session,
@@ -440,15 +449,15 @@ export function PropertiesPanel({
             onChange={(event) => {
               // Смена типа переименовывает зону в название типа — одной
               // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
-              // связи нет: правка имени тип не трогает. Ручное название тоже
-              // заменяется (D-265).
+              // связи нет: правка имени тип не трогает. Название, введённое
+              // человеком, остаётся (D-265, #215).
               const typeId = event.target.value;
               const renamed = findZoneType(plan.catalog, typeId);
               setDraft((draft) => without(draft, 'name'));
               commit('typeId', {
                 ...zone,
                 typeId,
-                name: renamed === null ? zone.name : renamed.label,
+                name: renamed === null || !isDefaultZoneName(plan, zone.name) ? zone.name : renamed.label,
               });
             }}
           >

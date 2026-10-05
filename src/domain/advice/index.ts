@@ -292,4 +292,4 @@ export { acceptFactChoice, acceptToolResult, createAgentSession, MAX_TOOL_OUTPUT
 export type { AgentSession, FactChoiceOutcome, ToolResultMessage } from './agent-turn';
 export { composeFallbackText, hideNamedIds, QUOTED_ID_PATTERN, routeAgentQuery } from './agent-fallback';
 export { answerWithoutModel, finishAgentAnswer } from './agent';
-export { collectAgentFacts, renderAgentFact, renderAgentFactSelection } from './agent-facts';
+export { collectAgentFacts, renderAgentFact, renderAgentFactSelection, WHY_LEAD } from './agent-facts';

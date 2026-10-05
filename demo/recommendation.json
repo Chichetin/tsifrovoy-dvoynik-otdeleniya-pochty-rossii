@@ -5,7 +5,7 @@
   "llm": {
     "provider": "deepseek-via-yandex-ai-studio",
     "model": "gpt://<folder_ID>/deepseek-v4-flash",
-    "date": "2026-10-04"
+    "date": "2026-10-05"
   },
   "generatedBy": "npx tsx demo/build.ts",
   "planId": "plan_demo_ops_synthetic",

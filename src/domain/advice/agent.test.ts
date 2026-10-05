@@ -118,6 +118,8 @@ describe('агент без модели', () => {
       args: { zoneId: 'z_waiting' },
     });
     expect(routeAgentQuery(before, 'Какие ошибки в плане?', false)[0]?.name).toBe('validate_plan');
+    // #211: the operator's question leads to the check and its main finding.
+    expect(routeAgentQuery(before, 'Что не так и что сделать?', false)[0]?.name).toBe('validate_plan');
     expect(routeAgentQuery(after, 'Что изменилось?', true)[0]?.name).toBe('compare_with_original');
     expect(routeAgentQuery(before, 'Расскажи про клиентский зал', false)[0]).toEqual({
       name: 'zone_details',
@@ -143,6 +145,14 @@ describe('агент без модели', () => {
     expect(answer.actions.some((action) => action.kind === 'apply-candidate')).toBe(true);
     expect(answer.recommendations[0]?.scenario).toBe('place');
   });
+
+  test('#178: вопрос из подсказки «Предложить место» — перенос стоящего объекта; «я перенес» — не просьба', () => {
+    const answer = answerWithoutModel(before, null, 'Предложить место для eq_1: куда перенести и почему?', 1, 'без LLM');
+    expect(answer.steps[0]?.tool).toBe('find_place');
+    expect(answer.text).toContain('Вариант 1 — ');
+    expect(routeAgentQuery(before, 'Я перенес eq_1 — что изменилось?', false).some((call) => call.args.objectId !== undefined)).toBe(false);
+    expect(routeAgentQuery(before, 'Я применил предложенное место для eq_1 — что изменилось?', true)[0]?.name).toBe('compare_with_original');
+  }, 20_000);
 });
 
 describe('ответ без модели называет зоны, типы и правило (критерий «ИИ-ассистент»)', () => {

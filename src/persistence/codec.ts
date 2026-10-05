@@ -248,14 +248,15 @@ function canonicalObjectType(type: ObjectType): Json {
     attributes: type.attributes.map(canonicalAttributeDef),
     provenance: type.provenance,
   };
-  // Compile-time check: head and tail write every field but the optional two.
-  ({ ...head, ...tail }) satisfies Omit<Record<keyof ObjectType, Json>, 'outline' | 'model3d'>;
-  // The outline stands after the symbol it overrides, the 3D model (D-356) after
-  // the shape; each is absent when the type has none.
+  // Compile-time check: head and tail write every field but the optional three.
+  ({ ...head, ...tail }) satisfies Omit<Record<keyof ObjectType, Json>, 'outline' | 'model3d' | 'pictogram'>;
+  // The outline stands after the symbol it overrides, the 3D model (D-356) and
+  // the plan sign (D-376) after the shape; each is absent when the type has none.
   return {
     ...head,
     ...(type.outline === undefined ? {} : { outline: polygon(type.outline) }),
     ...(type.model3d === undefined ? {} : { model3d: type.model3d }),
+    ...(type.pictogram === undefined ? {} : { pictogram: type.pictogram }),
     ...tail,
   };
 }

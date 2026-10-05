@@ -116,7 +116,7 @@ function objectSymbol(object: Equipment, plan: PlanDocument, colorLayer: ObjectC
   const type = findObjectType(plan.catalog, object.typeId);
   const fill = esc(colorLayer === null ? (type?.color ?? OBJECT_FALLBACK) : objectColorValue(colorLayer, object.attributes).color);
   const paint = `fill="${fill}" fill-opacity="0.9" stroke="#343A40" stroke-width="0.02"`;
-  const pictogram = planPictogram(object.typeId);
+  const pictogram = planPictogram(type);
   // Export uses a fixed 100 px/m scale. Keep a tiny camera distinguishable,
   // but cap the drawn icon so a large counter does not become a giant glyph.
   const iconSize = Math.min(0.25, Math.max(0.18, Math.min(...object.size_m) * 0.6));
