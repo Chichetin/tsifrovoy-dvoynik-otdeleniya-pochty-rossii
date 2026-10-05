@@ -142,7 +142,7 @@ export function acceptFactChoice(
   onStep: (step: AgentStep) => void = () => undefined,
 ): FactChoiceOutcome {
   const facts = collectAgentFacts(session.state, session.records).filter((fact) => session.offered.has(fact.id));
-  const selection = renderAgentFactSelection(content, facts, session.state);
+  const selection = renderAgentFactSelection(content, facts, session.state, session.records);
   if (selection.ok) {
     for (const ref of selection.refs) {
       if (!session.state.refs.some((known) => known.kind === ref.kind && known.id === ref.id)) session.state.refs.push(ref);
@@ -150,11 +150,12 @@ export function acceptFactChoice(
     return { kind: 'answer', answer: finishAgentAnswer(session.state, session.revision, 'llm', selection.text, session.steps) };
   }
   if (session.repaired) {
-    return { kind: 'answer', answer: sessionFallback(session, `Выбор модели не прошёл проверку связанных фактов: ${selection.reason} Показан расчёт без LLM.`, onStep) };
+    const what = selection.why === true ? 'Обоснование модели не прошло проверку' : 'Выбор модели не прошёл проверку связанных фактов';
+    return { kind: 'answer', answer: sessionFallback(session, `${what}: ${selection.reason} Показан расчёт без LLM.`, onStep) };
   }
   session.repaired = true;
   return {
     kind: 'repair',
-    message: `${selection.reason} Перепиши ответ целиком: только JSON {"factIds":[...]} с ключами из answerFacts инструментов. Прозу и значения не добавляй.`,
+    message: `${selection.reason} Перепиши ответ целиком: только JSON {"factIds":[...],"why":"..."} — factIds с ключами из answerFacts инструментов; why только к вариантам места, с id и числами из результатов инструментов как есть. Других полей и значений не добавляй.`,
   };
 }
