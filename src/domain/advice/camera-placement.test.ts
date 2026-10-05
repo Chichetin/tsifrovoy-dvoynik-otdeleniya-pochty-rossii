@@ -222,7 +222,7 @@ describe('чат: покрытие камерами в фактах и в отв
     expect(of('after').value).toBeCloseTo(coverageWith(demo, representation, first.object).total.percent!, 9);
     expect(of('delta').value).toBeCloseTo(70.5 - 29, 9);
     expect(renderAgentFact(of('delta'))).toContain('+41,5 п. п. (изменение)');
-    expect(renderAgentFact(of('after'))).toContain('вариант 1 «Камера видеонаблюдения», центр [3,5; 1,5] м, поворот 60°: 70,5 % (стало)');
+    expect(renderAgentFact(of('after'))).toContain('вариант 1 «Камера видеонаблюдения»: 70,5 % (стало)');
 
     // Selecting a fact brings the recommendation's assumptions — the method goes with the number.
     runAgentTool(state, 'suggest_candidate', { recommendationId: recommendation.id, candidateId: first.id });

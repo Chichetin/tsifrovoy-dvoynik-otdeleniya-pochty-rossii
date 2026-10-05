@@ -4,7 +4,7 @@ import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contract
 import type { Command } from '../../contracts/commands';
 import type { Id, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../contracts/ui';
-import { answerWithoutModel, candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
+import { answerWithoutModel, appliedEffectLine, candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
 import { requestAgent, turnsOf } from './agent-client';
 
@@ -419,9 +419,13 @@ export function useAssistantSession({
           // A refused batch leaves the plan as it was: the ghosts stay to explain it.
           if (result.ok) setEditGhosts(null);
           const added = editGhostsOf(commands).put.filter((object) => !state.document.objects.some((entry) => entry.id === object.id));
+          // #212: what the applied edits did, «было → стало», counted by code;
+          // the other variants of the answer go stale with the plan revision.
+          const effect = result.ok ? appliedEffectLine(state.document, current().document, proposal.findings.errors) : null;
+          const what = proposal.title?.split(':')[0] ?? `правок: ${commands.length}`;
           setActionStatus(
             result.ok
-              ? `Применено правок: ${commands.length}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Отменить — Ctrl+Z.`
+              ? `Применено: ${what}${effect === null ? '' : ` — ${effect}`}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Остальные варианты устарели. Отменить — Ctrl+Z.`
               : `Не применено, план не изменён: ${result.issues.map((issue) => issue.message).join('; ')}`,
           );
           return;
