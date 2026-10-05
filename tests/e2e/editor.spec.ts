@@ -55,10 +55,11 @@ test.describe('сквозной сценарий редактора', () => {
 
     // Оборудование: первый тип библиотеки внутрь нарисованной зоны.
     const placed = await placeFirstLibraryItem(page, 300, 260);
+    // #222: поставленный объект выбран, вкладки скрыты — открываем перечень.
+    await showTab(page, 'Инвентаризация');
     // В библиотеке и в перечне одинаковая подпись — берём строку перечня.
     await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
 
-    await showTab(page, 'Инвентаризация');
     const inventoryRows = page.getByLabel('Инвентаризация').locator('tbody tr').first();
     await expect(inventoryRows).toBeVisible();
     await expectUnsavedEdits(page, true);

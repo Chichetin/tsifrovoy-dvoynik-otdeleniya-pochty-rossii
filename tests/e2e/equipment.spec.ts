@@ -62,9 +62,8 @@ async function dragFromLibrary(page: Page, label: string, x: number, y: number):
 
 /** Выбор по строке перечня: не зависит от попадания мышью в фигуру. */
 async function selectRow(page: Page, index: number): Promise<void> {
-  // После выбора на плане справа только «Свойства»: вкладка возвращает перечень.
-  const tab = page.getByRole('tab', { name: /^Инвентаризация/ });
-  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  // #222: после выбора справа только «Свойства»; помощник снимает выбор и открывает перечень.
+  await showTab(page, 'Инвентаризация');
   // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
   // кликается, пока список не раскрыт.
   await expandInventoryRows(page);
@@ -298,7 +297,7 @@ test.describe('жесты над оборудованием', () => {
       await expect.poll(hintText).toContain('Для подробностей включите «Выбор» сверху');
       // Keyboard activation changes the tool while the pointer stays over the object.
       await page.getByRole('button', { name: 'Выбор', exact: true }).focus();
-      await page.screenshot({ path: `docs/verification/2026-09-29-hover-mode-${width}.png` });
+      await page.screenshot({ path: test.info().outputPath(`hover-mode-${width}.png`) });
       await page.keyboard.press('Enter');
       await expect.poll(hintText).toContain('справа откроются «Свойства»');
       await page.mouse.click(pagePoint.x, pagePoint.y);

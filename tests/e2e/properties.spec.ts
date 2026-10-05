@@ -47,6 +47,8 @@ async function savePlan(page: Page): Promise<string> {
 
 /** Выбор объекта: по строке инвентаризации, а не попаданием мышью в фигуру. */
 async function selectPlacedObject(page: Page): Promise<void> {
+  // #222: a placed object is selected and hides the tabs; the helper drops it first.
+  await showTab(page, 'Инвентаризация');
   await page
     .getByLabel('Инвентаризация')
     .locator('table')
@@ -75,7 +77,7 @@ test.describe('карточка свойств', () => {
     expect((JSON.parse(await savePlan(page)) as PlanDocument).objects[0]!.attributes).toEqual(fixture.objects[0]!.attributes);
     if(process.env.UPDATE_SNAPSHOTS==='1'){
       await status.scrollIntoViewIfNeeded();
-      await page.screenshot({path:'docs/verification/2026-10-02-equipment-status-default.png'});
+      await page.screenshot({ path: test.info().outputPath('equipment-status-default.png') });
     }
     await status.selectOption('repair');
     const changed=JSON.parse(await savePlan(page)) as PlanDocument;

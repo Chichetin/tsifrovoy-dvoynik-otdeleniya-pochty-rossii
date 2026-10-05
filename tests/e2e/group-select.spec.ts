@@ -132,6 +132,10 @@ test.describe('групповой выбор', () => {
     await canvas(page).click({ position: { x: 420, y: 300 }, modifiers: ['Shift'] });
     await expect(groupNote(page)).toContainText('Выбрано объектов: 2');
 
+    // Two clicks on one object inside Konva's 400 ms window are a double click,
+    // and a double click opens the shape mode of that object (#105). A person
+    // clicks the second time later; the test waits the window out.
+    await page.waitForTimeout(500);
     await canvas(page).click({ position: { x: 420, y: 300 }, modifiers: ['Shift'] });
     await expect(groupNote(page)).toContainText('Выбрано объектов: 3');
 
