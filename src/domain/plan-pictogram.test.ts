@@ -12,13 +12,18 @@ import {
 } from './plan-pictogram';
 
 describe('пиктограммы готового 2D-плана', () => {
-  test('знак берётся из поля pictogram типа справочника (D-376)', () => {
-    expect(planPictogram({ pictogram: 'cashier' })).toBe('cashier');
-    expect(planPictogram({ pictogram: 'stand' })).toBe('stand');
+  test('знак берётся из поля pictogram типа; своё поле главнее справочника команды (D-376)', () => {
+    expect(planPictogram({ id: 'ot_team_custom', pictogram: 'cashier' })).toBe('cashier');
+    expect(planPictogram({ id: 'ot_camera', pictogram: 'rack' })).toBe('rack');
   });
 
-  test('тип без поля pictogram и неизвестный тип не получают ложную иконку', () => {
-    expect(planPictogram({})).toBeNull();
+  test('тип без поля из старого плана получает знак справочника команды по id', () => {
+    expect(planPictogram({ id: 'ot_camera' })).toBe('camera');
+    expect(planPictogram({ id: 'ot_bench' })).toBe('seat');
+  });
+
+  test('новый тип без поля и без пары в справочнике команды не получает ложную иконку', () => {
+    expect(planPictogram({ id: 'ot_team_custom' })).toBeNull();
     expect(planPictogram(null)).toBeNull();
     expect(planPictogram(undefined)).toBeNull();
   });
@@ -73,7 +78,7 @@ describe('покрытие справочника значками', () => {
   // компьютер, кассовый терминал, панель ОТС, розетка, пандус, электрощит,
   // вентиляция, водонагреватель.
   test('у каждого типа поставки есть свой знак', () => {
-    const without = types.filter((type) => planPictogram(type) === null).map((type) => type.label);
+    const without = types.filter((type) => type.pictogram === undefined).map((type) => type.label);
     expect(without).toEqual([]);
   });
 
@@ -106,7 +111,7 @@ describe('покрытие справочника значками', () => {
     ot_hvac: 'hvac',
     ot_water_heater: 'heater',
     };
-    expect(Object.fromEntries(types.map((type) => [type.id, planPictogram(type)]))).toEqual(before);
+    expect(Object.fromEntries(types.map((type) => [type.id, type.pictogram]))).toEqual(before);
   });
 
   test('каждый знак набора нарисован', () => {

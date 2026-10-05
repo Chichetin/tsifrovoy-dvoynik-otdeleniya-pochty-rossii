@@ -45,8 +45,7 @@ describe('размещение названия зоны', () => {
     if (!parsed.ok) throw new Error('Нет демо');
     const camera = { ...parsed.value.objects[0]!, typeId: 'ot_camera', size_m: [0.08, 0.08] as [number, number], position: [2, 2.23] as [number, number] };
     const zone = { ...parsed.value.zones[0]!, name: 'ЗАЛ', polygon: [[0, 0], [4, 0], [4, 4], [0, 4]] as [number, number][] };
-    const catalog = { ...parsed.value.catalog, objectTypes: parsed.value.catalog.objectTypes.map((type) => (type.id === 'ot_camera' ? { ...type, pictogram: 'camera' as const } : type)) };
-    const plan = { ...parsed.value, catalog, objects: [camera], zones: [zone] };
+    const plan = { ...parsed.value, objects: [camera], zones: [zone] };
     const viewport = { origin: [0, 0] as [number, number], scale: 50 };
     const box = zoneCaptionBoxes(plan, viewport).get(zone.id)!;
     expect(overlaps(box, { x: 100 - 7.07, y: -111.5 - 7.07, width: 14.14, height: 14.14 })).toBe(false);

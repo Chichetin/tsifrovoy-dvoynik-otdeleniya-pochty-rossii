@@ -227,12 +227,7 @@ describe('символ оборудования рисуется без буфе
 
 describe('пиктограммы на готовом 2D-плане', () => {
   test('рабочее место получает значок поверх своей геометрической формы', () => {
-    // The sign comes from the catalog type (D-376).
-    const base = planWith('rect');
-    const plan = {
-      ...base,
-      catalog: { ...base.catalog, objectTypes: base.catalog.objectTypes.map((type) => (type.id === 'ot_workplace' ? { ...type, pictogram: 'workplace' as const } : type)) },
-    };
+    const plan = planWith('rect');
     const first = plan.objects[0];
     if (first === undefined) throw new Error('В фикстуре нет рабочего места');
     const stage = renderLayer(plan, null, null);

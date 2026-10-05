@@ -86,8 +86,6 @@ type TypeSpec = {
   symbol: ObjectType['symbol'];
   /** 3D model (D-356): our catalog's model for a known type, own model for ATM, safe, counter. */
   model3d?: string;
-  /** Plan sign (D-376): the same as our catalog's type with this id. */
-  pictogram?: ObjectType['pictogram'];
   color: string;
   attributes?: AttributeDef[];
 };
@@ -116,7 +114,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: true,
     symbol: 'rect',
     model3d: 'cashier-window',
-    pictogram: 'cashier',
     color: '#0CA678',
   },
   pvz_counter: {
@@ -141,7 +138,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: true,
     symbol: 'rect',
     model3d: 'queue-terminal',
-    pictogram: 'terminal',
     color: '#087F5B',
   },
   atm: {
@@ -166,7 +162,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: true,
     symbol: 'rect',
     model3d: 'info-stand',
-    pictogram: 'stand',
     color: '#D6336C',
   },
   waiting_seat: {
@@ -179,7 +174,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: true,
     symbol: 'rect',
     model3d: 'bench',
-    pictogram: 'seat',
     color: '#F59F00',
     attributes: [CAPACITY_ATTRIBUTE],
   },
@@ -193,7 +187,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: true,
     symbol: 'rect',
     model3d: 'parcel-rack',
-    pictogram: 'rack',
     color: '#E03131',
   },
   safe: {
@@ -218,7 +211,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: true,
     symbol: 'rect',
     model3d: 'workplace',
-    pictogram: 'workplace',
     color: '#4C6EF5',
   },
   fitting_room: {
@@ -242,7 +234,6 @@ const OBJECT_TYPES: Record<string, TypeSpec> = {
     occupiesFloor: false,
     symbol: 'rect',
     model3d: 'scales',
-    pictogram: 'scales',
     color: '#A61E4D',
   },
   package_drop_box: {
@@ -495,7 +486,6 @@ function specToObjectType(spec: TypeSpec, fromExample: boolean): ObjectType {
     occupiesFloor: spec.occupiesFloor,
     symbol: spec.symbol,
     ...(spec.model3d === undefined ? {} : { model3d: spec.model3d }),
-    ...(spec.pictogram === undefined ? {} : { pictogram: spec.pictogram }),
     color: spec.color,
     attributes: spec.attributes ?? [],
     provenance: fromExample

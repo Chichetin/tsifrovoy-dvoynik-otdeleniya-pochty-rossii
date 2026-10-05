@@ -4,10 +4,12 @@
  * The catalog's `symbol` describes geometry (rectangle, circle, triangle),
  * while this module describes what an employee recognises at a glance: a
  * counter, rack, printer or camera.  The catalog picks the sign by name; a
- * type without one gets no overlay — its colour, shape and caption remain truthful.
+ * type with no sign of its own and none in the team catalog gets no overlay —
+ * its colour, shape and caption remain truthful.
  */
 
-import type { ObjectType, PlanPictogramName } from '../contracts/model';
+import teamObjectTypes from '../../data/catalog/object-types.json';
+import { PLAN_PICTOGRAM_NAMES, type Id, type ObjectType, type PlanPictogramName } from '../contracts/model';
 
 /** The sign of a type, or null when the type has none (D-376). */
 export type PlanPictogram = PlanPictogramName | null;
@@ -43,12 +45,28 @@ export const PLAN_PICTOGRAM_PATHS: Record<PlanPictogramName, string> = {
   stand: 'M4 4H20V14H4Z M12 14V20 M8 20H16 M9 8H15 M9 11H13',
 };
 
+const SIGN_NAMES: ReadonlySet<string> = new Set(PLAN_PICTOGRAM_NAMES);
+
 /**
- * An equipment type's readable 2D-plan symbol: the catalog names it in
- * `pictogram` (D-376). A type without the field, or no type, has no sign.
+ * Signs of the team catalog by type id. A plan file carries its own catalog,
+ * and a plan saved before D-376 has no `pictogram` there.
  */
-export function planPictogram(type: Pick<ObjectType, 'pictogram'> | null | undefined): PlanPictogram {
-  return type?.pictogram ?? null;
+const TEAM_PICTOGRAMS: ReadonlyMap<Id, PlanPictogramName> = new Map(
+  (teamObjectTypes as { id: Id; pictogram?: string }[]).flatMap((type) =>
+    type.pictogram !== undefined && SIGN_NAMES.has(type.pictogram)
+      ? [[type.id, type.pictogram as PlanPictogramName] as const]
+      : [],
+  ),
+);
+
+/**
+ * An equipment type's readable 2D-plan symbol (D-376). The type's own
+ * `pictogram` wins; without it the team catalog's type with the same id gives
+ * the sign; otherwise — and with no type at all — there is no sign.
+ */
+export function planPictogram(type: Pick<ObjectType, 'id' | 'pictogram'> | null | undefined): PlanPictogram {
+  if (type === null || type === undefined) return null;
+  return type.pictogram ?? TEAM_PICTOGRAMS.get(type.id) ?? null;
 }
 
 /** Меньше этого знак превращается в кляксу; таков же пол у SVG-экспорта (0,18 м на 100 px/м). */
