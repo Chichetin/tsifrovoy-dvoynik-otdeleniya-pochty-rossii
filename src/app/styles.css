@@ -3297,3 +3297,88 @@ span.inventory__num {
     white-space: nowrap;
   }
 }
+
+/* #180: the assistant avatar in two looks, compared by eye. The header look is
+   32 px, the name beside it only from 1400 px. The floating look is 44 px and
+   sits above the scale panel in the canvas corner. */
+.assistant-launcher__button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-s);
+}
+
+.assistant-launcher__avatar {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.assistant-launcher__button:hover .assistant-launcher__avatar {
+  border-color: var(--color-accent);
+}
+
+.assistant-launcher__button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.assistant-launcher__name {
+  display: none;
+}
+
+@media (min-width: 1400px) {
+  .assistant-launcher--header .assistant-launcher__name {
+    display: inline;
+    padding-right: var(--space-1);
+  }
+}
+
+.assistant-launcher__badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.assistant-launcher--floating {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 3.25rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.assistant-launcher--floating .assistant-launcher__avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgb(28 40 51 / 25%);
+}
+
+.assistant-launcher__bubble {
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+  font-size: var(--text-s);
+}
