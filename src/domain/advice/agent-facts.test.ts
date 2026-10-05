@@ -70,7 +70,7 @@ describe('факты чата связаны с метрикой и предме
     const output = runAgentTool(state, 'compare_with_original', {}).output;
     const facts = collectAgentFacts(state, [{ name: 'compare_with_original', output }]);
     const delta = facts.find((f) => f.metric === 'area.free' && f.phase === 'delta')!;
-    expect(renderAgentFact(facts.find((f) => f.metric === 'placement.distance')!)).toContain('Суммарное перемещение');
+    expect(renderAgentFact(facts.find((f) => f.metric === 'placement.distance')!)).toContain('суммарное перемещение сохранившихся объектов между снимками');
     expect(delta.value).toBeCloseTo(-0.8);
     const result = renderAgentFactSelection({ factIds: [delta.id] }, facts, state);
     expect(result.ok).toBe(true);
