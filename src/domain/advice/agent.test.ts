@@ -157,7 +157,7 @@ describe('агент без модели', () => {
   test('#217: «Какие зоны перегружены?» — зона на пороге слоя тепла, с id и процентом', () => {
     const answer = answerWithoutModel(before, null, 'Какие зоны перегружены?', 1, 'без LLM');
     expect(answer.steps[0]?.tool).toBe('plan_overview');
-    expect(answer.text.split('\n\n')[0]).toBe('Перегружена зона «Зона очереди» (z_queue) — 100 %. Порог перегрузки — 100 %, как на слое «Тепловая нагрузка зон».');
+    expect(answer.text.split('\n\n')[0]).toBe('Перегружена: «Зона очереди» (z_queue) — 100 %. Порог перегрузки — 100 %, как на слое «Тепловая нагрузка зон».');
     expect(answer.actions).toContainEqual({ kind: 'focus', ref: { kind: 'zone', id: 'z_queue' } });
     expect(answer.actions).toContainEqual({ kind: 'show-layer', layerId: 'l_lt_heat' });
     // Below the threshold the answer names the most loaded zone instead.

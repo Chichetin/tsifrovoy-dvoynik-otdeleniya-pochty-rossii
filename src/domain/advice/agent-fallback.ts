@@ -404,14 +404,14 @@ function zoneLoadText(plan: PlanDocument, view: ZoneLoadView | null, zoneId: Id 
   const asked = zoneId === null ? undefined : view.zones.find((zone) => zone.zoneId === zoneId);
   const own = asked === undefined
     ? ''
-    : `Загрузка зоны ${zoneTitle(plan, asked.zoneId)}: ${value(asked.value)}${asked.overloaded ? ' — перегружена' : ''}. `;
+    : `Загрузка: ${zoneTitle(plan, asked.zoneId)} — ${value(asked.value)}${asked.overloaded ? ', перегружена' : ''}. `;
   const overloaded = view.zones.filter((zone) => zone.overloaded);
   const list = overloaded.map((zone) => `${zoneTitle(plan, zone.zoneId)} — ${value(zone.value)}`);
   const head = overloaded.length === 0
     ? `Перегруженных зон нет. Самая загруженная — ${zoneTitle(plan, view.zones[0]!.zoneId)}: ${value(view.zones[0]!.value)}.`
     : overloaded.length === 1
-      ? `Перегружена зона ${list[0]}.`
-      : `Перегружены зоны: ${list.join(', ')}.`;
+      ? `Перегружена: ${list[0]}.`
+      : `Перегружены: ${list.join(', ')}.`;
   return `${own}${head} ${threshold}`;
 }
 
