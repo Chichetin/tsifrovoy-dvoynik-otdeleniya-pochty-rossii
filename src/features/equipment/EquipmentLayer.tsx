@@ -27,15 +27,16 @@ import {
   footprint,
   modelToScreen,
   objectGaps,
+  wallAxisGaps,
   objectGuides,
   objectOutline,
   screenToModel,
   snapObjectCentre,
 } from '../../domain/geometry';
 import type { AxisSnap, Gap } from '../../domain/geometry';
-import { formatLength } from '../../domain/number-format';
+import { formatLength, formatMeasure } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
-import { equipmentHoverHint, equipmentHoverSummary } from './hover-summary';
+import { equipmentHoverHint, equipmentHoverSummary, hasLearnedEquipmentSelection, rememberEquipmentSelection } from './hover-summary';
 import { fitCaption } from './caption-fit';
 import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-label';
 import {
@@ -53,7 +54,7 @@ import {
   grabOffset,
   handlePoint,
   resizeFromPointer,
-  rotationFromPointer,
+  rotationFromHandle,
   rotationHandlePoint,
   snapPosition,
   type ResizeHandle,
@@ -87,6 +88,11 @@ const ROTATE_ICON_SCALE = 0.62;
 
 /** Handles keep a screen size: a 10 cm object is still grabbable at any zoom. */
 const HANDLE_RADIUS_PX = 6;
+/**
+ * A small object (camera, sensor, socket) takes the press over a circle this
+ * wide or over its backdrop, whichever is larger (#134). Checks still use `size_m`.
+ */
+const SMALL_HIT_PX = 24;
 const ROTATION_GAP_PX = 32;
 const HOVER_WIDTH_PX = 320;
 const HOVER_GAP_PX = 14;
@@ -102,7 +108,7 @@ const HOVER_RULE_GAP_PX = 9;
 type SnapLines = { x: AxisSnap | null; y: AxisSnap | null; width: number; height: number };
 
 /** Shortest lines from the moved object to the nearest wall and neighbour, in world metres. */
-type Gaps = { wall: Gap | null; object: Gap | null };
+type Gaps = { wall: Gap | null; object: Gap | null; axes: (Gap | null)[]; width: number; height: number };
 
 /**
  * The object as the pointer is currently shaping it; null outside a gesture.
@@ -244,6 +250,13 @@ function EquipmentPictogram({
     </>
   );
 }
+/** Radius of a small object's press circle in px; null when the footprint is large enough. */
+function smallHitRadius(width: number, height: number): number | null {
+  if (Math.min(width, height) >= SMALL_HIT_PX) return null;
+  // 0.62 — the backdrop circle's radius in EquipmentPictogram.
+  return Math.max(SMALL_HIT_PX / 2, planPictogramSize(width, height) * 0.62);
+}
+
 export function EquipmentLayer({
   document: plan,
   session,
@@ -251,6 +264,7 @@ export function EquipmentLayer({
   onSelect,
   onSelectMany,
   preview,
+  previewEdits = null,
   onGesturePreview,
   hideHandlesFor = null,
   reshapeFor = null,
@@ -330,8 +344,16 @@ export function EquipmentLayer({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
+  // #169, #171: the dragged shape, the other members of its group and their
+  // captions ride on the small selection layer, so the thousand-shape layer is
+  // not repainted on every pointer step. They go back
+  // to the same place among its siblings before the drop is committed.
+  // A Map, like the guard above: handlers built during render may not touch a ref.
+  const [lifted] = useState(() => new Map<Konva.Node, { parent: Konva.Container; index: number }>());
   // Konva nodes live in state so event callbacks can update them without a
   // React render on every pointer move. They are assigned once on mount.
+  const [hoverLearned, setHoverLearned] = useState(hasLearnedEquipmentSelection);
+  if (!hoverLearned && (selectedObject !== null || group.size > 0)) setHoverLearned(true);
   const [hoverCard, setHoverCard] = useState<Konva.Group | null>(null);
   const [hoverBox, setHoverBox] = useState<Konva.Rect | null>(null);
   const [hoverTitle, setHoverTitle] = useState<Konva.Text | null>(null);
@@ -614,7 +636,7 @@ export function EquipmentLayer({
     if (stage === null || stage === undefined || pointer === null || pointer === undefined) return;
     if (card === null || box === null || title === null || rule === null || hint === null) return;
 
-    const summary = equipmentHoverSummary(shown(object), picking);
+    const summary = equipmentHoverSummary(shown(object), picking, hoverLearned);
     title.text(summary.title);
     hint.text(summary.hint);
 
@@ -622,11 +644,15 @@ export function EquipmentLayer({
     // поэтому блоки укладываются после того, как текст уже задан.
     let y = HOVER_PAD_PX;
     title.y(y);
-    y += title.height() + HOVER_RULE_GAP_PX;
+    y += title.height();
+    const showHint = summary.hint !== '';
+    rule.visible(showHint);
+    hint.visible(showHint);
+    if (showHint) y += HOVER_RULE_GAP_PX;
     rule.points([HOVER_PAD_PX, y, HOVER_WIDTH_PX - HOVER_PAD_PX, y]);
-    y += HOVER_RULE_GAP_PX;
+    if (showHint) y += HOVER_RULE_GAP_PX;
     hint.y(y);
-    const height = y + hint.height() + HOVER_PAD_PX;
+    const height = y + (showHint ? hint.height() : 0) + HOVER_PAD_PX;
     box.height(height);
 
     const left = Math.min(pointer.x + HOVER_GAP_PX, Math.max(0, stage.width() - HOVER_WIDTH_PX));
@@ -643,14 +669,20 @@ export function EquipmentLayer({
   // A keyboard tool switch can leave the pointer still over the same object.
   // Refresh only the hint node, keeping the document and equipment nodes intact.
   useEffect(() => {
-    if (hoverHint === null || hoverBox === null || hoverCard === null || !hoverCard.visible()) return;
-    hoverHint.text(equipmentHoverHint(picking));
-    const height = hoverHint.y() + hoverHint.height() + HOVER_PAD_PX;
+    if (hoverLearned) rememberEquipmentSelection();
+    if (hoverHint === null || hoverTitle === null || hoverRule === null || hoverBox === null || hoverCard === null || !hoverCard.visible()) return;
+    const text = equipmentHoverHint(picking, hoverLearned);
+    hoverHint.text(text);
+    hoverHint.visible(text !== '');
+    hoverRule.visible(text !== '');
+    const height = text === ''
+      ? HOVER_PAD_PX * 2 + hoverTitle.height()
+      : hoverHint.y() + hoverHint.height() + HOVER_PAD_PX;
     hoverBox.height(height);
     const stage = hoverCard.getStage();
     if (stage !== null) hoverCard.y(Math.min(hoverCard.y(), Math.max(0, stage.height() - height)));
     hoverCard.getLayer()?.batchDraw();
-  }, [picking, hoverHint, hoverBox, hoverCard]);
+  }, [picking, hoverLearned, hoverHint, hoverTitle, hoverRule, hoverBox, hoverCard]);
 
   /**
    * Start of every gesture: select what is being pulled, remember where from.
@@ -679,6 +711,35 @@ export function EquipmentLayer({
       onSelectMany([...[...group.values()].filter((member) => member !== id), id]);
     } else {
       onSelect({ kind: 'object', id });
+    }
+  };
+
+  /** Moves the shapes and captions a drag of `id` changes onto the selection layer. */
+  const liftGesture = (node: Konva.Node, id: Id): void => {
+    const top = node.getStage()?.findOne<Konva.Layer>('.equipment-selection');
+    const parent = node.parent;
+    if (top === undefined || parent === null || lifted.size > 0) return;
+    const ids = isGroup && group.has(id) ? [id, ...movable.map((member) => member.id)] : [id];
+    const names = new Set(ids.flatMap((member) => [`equipment-${member}`, `label-${member}`]));
+    // Direct children only: a ghost of the agent's preview carries the same name.
+    const nodes = parent.children.filter((child) => names.has(child.name()));
+    for (const child of nodes) lifted.set(child, { parent, index: child.zIndex() });
+    for (const child of nodes) {
+      const at = child.absolutePosition();
+      child.moveTo(top);
+      child.absolutePosition(at);
+    }
+  };
+
+  /** Puts lifted nodes back in their old order; the lowest index first keeps each index valid. */
+  const dropGesture = (): void => {
+    const entries = [...lifted.entries()].sort((a, b) => a[1].index - b[1].index);
+    lifted.clear();
+    for (const [child, { parent, index }] of entries) {
+      const at = child.absolutePosition();
+      child.moveTo(parent);
+      child.zIndex(Math.min(index, parent.children.length - 1));
+      child.absolutePosition(at);
     }
   };
 
@@ -736,6 +797,7 @@ export function EquipmentLayer({
     const hasCaption = captions && objectLabel(current, viewport,
       pictograms && planPictogram(object.typeId) !== null ? CAPTION_ICON_SPACE_PX : 0) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
+    const hitRadius = smallHitRadius(current.size_m[0] * viewport.scale, current.size_m[1] * viewport.scale);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
     // the object jump at release.
@@ -751,8 +813,13 @@ export function EquipmentLayer({
       }
       // The drop needs only the position: the distances leave with the gesture.
       const obstacles = phase === 'move' ? started?.obstacles : undefined;
+      const stage = node.getStage();
       const measured = (position: Point): Gaps | undefined =>
-        obstacles === undefined ? undefined : objectGaps({ ...object, position }, obstacles);
+        obstacles === undefined || stage === null ? undefined : {
+          ...objectGaps({ ...object, position }, obstacles),
+          axes: wallAxisGaps({ ...object, position }, obstacles.walls),
+          width: stage.width(), height: stage.height(),
+        };
       const guides = started?.guides;
       if (started?.snapOff === true || guides === undefined) {
         const position = snapPosition(centre);
@@ -761,7 +828,6 @@ export function EquipmentLayer({
       // Already settled by the domain: a guide axis keeps the guide's own
       // millimetres, rounding it to the centimetre would push it into the wall.
       const snapped = snapObjectCentre(object, centre, guides, SNAP.grid_m, SNAP.tolerance_px / viewport.scale);
-      const stage = node.getStage();
       const lines: SnapLines | undefined =
         stage === null || (snapped.snap.x === null && snapped.snap.y === null)
           ? undefined
@@ -800,6 +866,7 @@ export function EquipmentLayer({
         }
         onDragStart={(event) => {
           hideHover();
+          liftGesture(event.target, object.id);
           beginGesture(event, object.id);
           onGesturePreview?.({ objectId: object.id, position: object.position });
         }}
@@ -825,6 +892,7 @@ export function EquipmentLayer({
           });
         }}
         onDragEnd={(event) => {
+          dropGesture();
           const next = { ...object, position: movedTo(event.target, event.evt, 'drop').position };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
@@ -845,6 +913,17 @@ export function EquipmentLayer({
           stroke="#343A40"
           strokeWidth={1}
         />
+        {hitRadius === null ? null : (
+          <Circle
+            name={`object-hit-${object.id}`}
+            radius={hitRadius}
+            fill="transparent"
+            // A selected zone or room has handles on the plan layer below; the
+            // enlarged hit area must not cover them (#149).
+            listening={selection?.kind !== 'zone' && selection?.kind !== 'room'}
+            perfectDrawEnabled={false}
+          />
+        )}
         {object.locked !== true || ghost ? null : (
           <Group name={`object-lock-${object.id}`} x={current.size_m[0] * viewport.scale / 2}
             y={-current.size_m[1] * viewport.scale / 2} rotation={-current.rotation_deg} listening={false}>
@@ -855,13 +934,16 @@ export function EquipmentLayer({
           </Group>
         )}
         {hasCaption ? null : (
-          <EquipmentPictogram
-            kind={pictograms ? planPictogram(object.typeId) : null}
-            width={current.size_m[0] * viewport.scale}
-            height={current.size_m[1] * viewport.scale}
-            opacity={ghost ? 0.45 : 0.9}
-            backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
-          />
+          // The sign stays upright whatever the object's rotation, like the lock.
+          <Group rotation={-current.rotation_deg} listening={false}>
+            <EquipmentPictogram
+              kind={pictograms ? planPictogram(object.typeId) : null}
+              width={current.size_m[0] * viewport.scale}
+              height={current.size_m[1] * viewport.scale}
+              opacity={ghost ? 0.45 : 0.9}
+              backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
+            />
+          </Group>
         )}
       </Group>
     );
@@ -927,7 +1009,7 @@ export function EquipmentLayer({
     const [fx, fy] = modelToScreen(handlePoint(current, front), viewport);
     const turned = (pointer: Point, shift: boolean): Equipment => ({
       ...object,
-      rotation_deg: rotationFromPointer(object.position, pointer, shift, object.rotation_deg),
+      rotation_deg: rotationFromHandle(object.position, pointer, shift, object.rotation_deg),
     });
     return (
       <Fragment key="rotate">
@@ -988,6 +1070,110 @@ export function EquipmentLayer({
     );
   };
 
+  /** One caption badge; null when the object is too small on screen to carry a name. */
+  const renderCaption = (object: Equipment): React.JSX.Element | null => {
+    const kind = pictograms ? planPictogram(object.typeId) : null;
+    const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
+    const label = objectLabel(shown(object), viewport, iconSpace);
+    if (label === null) return null;
+    // The symbol and the name share one badge. A separate floating
+    // marker used to cover the caption on the busy demo plan.
+    const fit = fitCaption(label.text, label.fontSize, iconSpace, label.width, label.lines);
+    const height = Math.max(fit.lines * LABEL_LINE_PX + 4, iconSpace === 0 ? 0 : 22);
+    return (
+      <Group
+        key={`label-${object.id}`}
+        name={`label-${object.id}`}
+        // Поворот — вокруг центра объекта, поэтому точка задаётся
+        // центром, а смещение уводит бирку в её левый верхний угол.
+        // Так неповёрнутая подпись стоит ровно там же, где стояла.
+        x={label.x}
+        y={label.y}
+        offsetX={fit.width / 2}
+        offsetY={height / 2}
+        rotation={label.rotation}
+        listening={false}
+      >
+        {/* D-363: a dark glass tag, the icon on the type's own colour. */}
+        <Rect
+          width={fit.width}
+          height={height}
+          fill="#17232E"
+          opacity={0.88}
+          stroke="#FFFFFF"
+          strokeWidth={0.75}
+          cornerRadius={Math.min(6, height / 2)}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+        {kind === null ? null : (
+          <Group name={`plan-pictogram-caption-${object.id}`} x={11} y={height / 2} listening={false}>
+            <Rect
+              x={-9}
+              y={-9}
+              width={18}
+              height={18}
+              fill={findObjectType(plan.catalog, object.typeId)?.color ?? FALLBACK_COLOR}
+              cornerRadius={5}
+              listening={false}
+            />
+            <EquipmentPictogram
+              kind={kind}
+              width={20}
+              height={20}
+              opacity={1}
+              color="#FFFFFF"
+            />
+          </Group>
+        )}
+        <Text
+          x={iconSpace}
+          width={fit.width - iconSpace}
+          height={height}
+          text={label.text}
+          fontSize={label.fontSize}
+          lineHeight={LABEL_LINE_PX / label.fontSize}
+          fontFamily="system-ui, sans-serif"
+          fill="#FFFFFF"
+          align="center"
+          verticalAlign="middle"
+          // Always by word (D-216): a one-line caption too long for
+          // its box loses whole words to the ellipsis, never a
+          // half-word — «Стеллаж…», not «Стелл…».
+          wrap="word"
+          ellipsis
+          padding={1}
+        />
+      </Group>
+    );
+  };
+
+  // #169: a drag step changes only the gesture's objects. The other elements are
+  // reused as they are, so React skips them and Konva gets no prop updates; on a
+  // plan of 1000 objects that was the whole cost of a step. Anything else that
+  // the elements read starts a new cache.
+  const elementCache = useMemo(
+    () => ({ objects: new Map<Id, React.JSX.Element>(), labels: new Map<Id, React.JSX.Element | null>() }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the keys are what the cached elements read
+    [plan, session, viewport, captions, pictograms, hoverCard, hoverBox, hoverTitle, hoverRule,
+      hoverHint, hoverLearned, onCommand, onSelect, onSelectMany, onGesturePreview],
+  );
+  const inGesture = (object: Equipment): boolean =>
+    gesture !== null && (gesture.id === object.id || (gesture.delta !== undefined && group.has(object.id)));
+  const cached = <T,>(object: Equipment, store: Map<Id, T>, draw: (object: Equipment) => T): T => {
+    if (inGesture(object)) return draw(object);
+    if (store.has(object.id)) return store.get(object.id) as T;
+    const element = draw(object);
+    store.set(object.id, element);
+    return element;
+  };
+
+  // Larger footprints first: a camera on a desk is drawn and pressed above the desk (#134).
+  const drawOrder = useMemo(
+    () => [...plan.objects].sort((a, b) => b.size_m[0] * b.size_m[1] - a.size_m[0] * a.size_m[1]),
+    [plan.objects],
+  );
+
   // A candidate carries a whole object, not a reference: the assistant may be
   // proposing something that is not in the document yet.
   const previewObject = preview?.object ?? null;
@@ -1000,93 +1186,42 @@ export function EquipmentLayer({
   return (
     <>
       <Layer name="equipment">
-        {plan.objects
+        {drawOrder
           .filter((object) => visibleLayers.has(object.layerId))
-          .map((object) => render(object, false))}
+          .map((object) => cached(object, elementCache.objects, (shape) => render(shape, false)))}
 
         {previewObject === null ? null : render(previewObject, true)}
+
+        {/* #126: the agent's edits before «Применить правки» — moved, turned
+            and new objects as ghosts, deleted ones outlined in red. A ghost
+            of an existing object sits in its own group: same id, other key. */}
+        {previewEdits === null ? null : (
+          <Group name="edit-ghosts" listening={false}>
+            {previewEdits.put.map((object) => (
+              <Group key={`ghost-${object.id}`}>{render(object, true)}</Group>
+            ))}
+            {plan.objects
+              .filter((object) => previewEdits.removed.includes(object.id))
+              .map((object) => (
+                <Line
+                  key={`removed-${object.id}`}
+                  points={footprint(object).flatMap((point) => modelToScreen(point, viewport))}
+                  closed
+                  stroke="#C92A2A"
+                  strokeWidth={2}
+                  dash={[6, 4]}
+                  perfectDrawEnabled={false}
+                />
+              ))}
+          </Group>
+        )}
 
         {/* Captions sit above every shape and never catch the pointer: the plan
             is read by a manager who should not have to click to learn what a
             rectangle is. Objects too small on screen stay uncaptioned. */}
         {plan.objects
           .filter((object) => captions && visibleLayers.has(object.layerId))
-          .map((object) => {
-            const kind = pictograms ? planPictogram(object.typeId) : null;
-            const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
-            const label = objectLabel(shown(object), viewport, iconSpace);
-            if (label === null) return null;
-            // The symbol and the name share one badge. A separate floating
-            // marker used to cover the caption on the busy demo plan.
-            const fit = fitCaption(label.text, label.fontSize, iconSpace, label.width, label.lines);
-            const height = Math.max(fit.lines * LABEL_LINE_PX + 4, iconSpace === 0 ? 0 : 22);
-            return (
-              <Group
-                key={`label-${object.id}`}
-                name={`label-${object.id}`}
-                // Поворот — вокруг центра объекта, поэтому точка задаётся
-                // центром, а смещение уводит бирку в её левый верхний угол.
-                // Так неповёрнутая подпись стоит ровно там же, где стояла.
-                x={label.x}
-                y={label.y}
-                offsetX={fit.width / 2}
-                offsetY={height / 2}
-                rotation={label.rotation}
-                listening={false}
-              >
-                {/* D-363: a dark glass tag, the icon on the type's own colour. */}
-                <Rect
-                  width={fit.width}
-                  height={height}
-                  fill="#17232E"
-                  opacity={0.88}
-                  stroke="#FFFFFF"
-                  strokeWidth={0.75}
-                  cornerRadius={Math.min(6, height / 2)}
-                  listening={false}
-                  perfectDrawEnabled={false}
-                />
-                {kind === null ? null : (
-                  <Group name={`plan-pictogram-caption-${object.id}`} x={11} y={height / 2} listening={false}>
-                    <Rect
-                      x={-9}
-                      y={-9}
-                      width={18}
-                      height={18}
-                      fill={findObjectType(plan.catalog, object.typeId)?.color ?? FALLBACK_COLOR}
-                      cornerRadius={5}
-                      listening={false}
-                    />
-                    <EquipmentPictogram
-                      kind={kind}
-                      width={20}
-                      height={20}
-                      opacity={1}
-                      color="#FFFFFF"
-                    />
-                  </Group>
-                )}
-                <Text
-                  x={iconSpace}
-                  width={fit.width - iconSpace}
-                  height={height}
-                  text={label.text}
-                  fontSize={label.fontSize}
-                  lineHeight={LABEL_LINE_PX / label.fontSize}
-                  fontFamily="system-ui, sans-serif"
-                  fill="#FFFFFF"
-                  align="center"
-                  verticalAlign="middle"
-                  // Always by word (D-216): a one-line caption too long for
-                  // its box loses whole words to the ellipsis, never a
-                  // half-word — «Стеллаж…», not «Стелл…».
-                  wrap="word"
-                  ellipsis
-                  padding={1}
-                />
-              </Group>
-            );
-          })}
+          .map((object) => cached(object, elementCache.labels, renderCaption))}
 
       </Layer>
 
@@ -1152,23 +1287,34 @@ export function EquipmentLayer({
               );
             })}
 
-        {/* How far the moved object is from the nearest wall and neighbour: a
+        {/* Four clearances to wall faces and the nearest neighbour: a
             dashed line along the shortest gap and its length in metres. */}
         {gesture?.gaps === undefined
           ? null
-          : (['wall', 'object'] as const).map((kind) => {
-              const gap = gesture.gaps?.[kind];
+          : [...gesture.gaps.axes.map((gap, i) => ({kind: `wall-${i}`, gap})),
+            {kind: 'object', gap: gesture.gaps.object}].map(({kind, gap}) => {
               if (gap === null || gap === undefined) return null;
               const [x1, y1] = modelToScreen(gap.from, viewport);
               const [x2, y2] = modelToScreen(gap.to, viewport);
               // Two short gaps put both labels on the same spot: the second one
               // steps down by its own height so both numbers stay readable.
-              const wall = gesture.gaps?.wall ?? null;
-              const [wx, wy] = wall === null ? [Infinity, Infinity] : modelToScreen(midpoint(wall.from, wall.to), viewport);
               const crowded =
                 kind === 'object' &&
-                Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
-                Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
+                gesture.gaps!.axes.some((wall) => {
+                  if (wall === null) return false;
+                  const [wx, wy] = modelToScreen(midpoint(wall.from, wall.to), viewport);
+                  return Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
+                    Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
+                });
+              // A distant wall can be outside the view. Keep the number visible
+              // on the same dimension line without changing the measured gap.
+              const halfWidth = GAP_LABEL_WIDTH_PX / 2 + 4;
+              const halfHeight = GAP_LABEL_HEIGHT_PX / 2 + 4;
+              const labelX = Math.max(halfWidth, Math.min(
+                gesture.gaps!.width - halfWidth, (x1 + x2) / 2));
+              const labelY = Math.max(halfHeight, Math.min(
+                gesture.gaps!.height - halfHeight,
+                (y1 + y2) / 2 + (crowded ? GAP_LABEL_HEIGHT_PX + 2 : 0)));
               return (
                 <Fragment key={`gap-${kind}`}>
                   <Line
@@ -1179,10 +1325,17 @@ export function EquipmentLayer({
                     dash={[3, 3]}
                     listening={false}
                   />
+                  {kind === 'object' ? null : [0, 1].map((end) => {
+                    const x = end === 0 ? x1 : x2;
+                    const y = end === 0 ? y1 : y2;
+                    return <Line key={end}
+                      points={Math.abs(y1-y2) < 0.01 ? [x,y-4,x,y+4] : [x-4,y,x+4,y]}
+                      stroke={GAP_STROKE} strokeWidth={1} listening={false} />;
+                  })}
                   <Group
                     name={`gap-label-${kind}`}
-                    x={(x1 + x2) / 2}
-                    y={(y1 + y2) / 2 + (crowded ? GAP_LABEL_HEIGHT_PX + 2 : 0)}
+                    x={labelX}
+                    y={labelY}
                     offsetX={GAP_LABEL_WIDTH_PX / 2}
                     offsetY={GAP_LABEL_HEIGHT_PX / 2}
                     listening={false}
@@ -1195,11 +1348,13 @@ export function EquipmentLayer({
                       stroke={GAP_STROKE}
                       strokeWidth={1}
                       cornerRadius={3}
+                      // D-187: no stage-sized buffer copy per label on every drag step.
+                      perfectDrawEnabled={false}
                     />
                     <Text
                       width={GAP_LABEL_WIDTH_PX}
                       height={GAP_LABEL_HEIGHT_PX}
-                      text={`${kind === 'wall' ? 'до стены' : 'до объекта'} ${formatLength(gap.distance)}`}
+                      text={`${kind === 'object' ? 'до объекта' : 'до стены'} ${kind === 'object' ? formatLength(gap.distance) : formatMeasure(gap.distance, 'м', 1)}`}
                       fontSize={12}
                       fontFamily="system-ui, sans-serif"
                       fill="#212529"

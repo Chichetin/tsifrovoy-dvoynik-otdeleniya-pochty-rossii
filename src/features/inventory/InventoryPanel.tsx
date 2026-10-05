@@ -298,7 +298,7 @@ export function InventoryPanel({
     () => (plan === undefined ? [] : attributeColumns(plan.catalog)),
     [plan],
   );
-  const attributes = useMemo(
+  const csvAttributes = useMemo(
     () =>
       plan === undefined
         ? []
@@ -308,6 +308,16 @@ export function InventoryPanel({
             choice,
           ),
     [plan, typeId, types, choice],
+  );
+  // The whole plan shows no attribute column until one is picked: five columns
+  // do not fit the right column, and a word is cut mid-way (#130). A filter by
+  // one type still shows all attributes of that type. CSV keeps its columns.
+  const attributes = useMemo(
+    () =>
+      typeId !== null
+        ? csvAttributes
+        : csvAttributes.filter((column) => choice[column.key] === true),
+    [typeId, csvAttributes, choice],
   );
   const columns: { column: SortColumn; title: string }[] = [
     ...COLUMNS,
@@ -358,7 +368,7 @@ export function InventoryPanel({
     await new Promise((resolve) => setTimeout(resolve, 0));
     const name = inventoryCsvFileName(plan);
     try {
-      downloadCsv(inventoryCsv(shown, attributes), name);
+      downloadCsv(inventoryCsv(shown, csvAttributes), name);
     } catch (error) {
       setExported({
         status: 'error',
@@ -452,7 +462,7 @@ export function InventoryPanel({
                 data-testid="inventory-maintenance-toggle"
                 onChange={(event) => setMaintenanceOnly(event.target.checked)}
               />{' '}
-              Только ТО просрочено или в ближайшие {MAINTENANCE_WARNING_DAYS} дн.: {dueCount}
+              Только ТО просрочено, в ближайшие {MAINTENANCE_WARNING_DAYS} дн. или дата не распознана: {dueCount}
             </label>
           ) : null}
 
@@ -463,8 +473,8 @@ export function InventoryPanel({
               </summary>
               <fieldset style={FIELDSET_STYLE}>
                 <legend className="panel__note">
-                  Без выбора видны атрибуты, общие для всех типов в перечне. Фильтр по типу
-                  показывает все атрибуты типа. Те же столбцы уходят в CSV.
+                  На весь план столбцов нет, пока их не выбрали. Фильтр по типу показывает все
+                  атрибуты типа. CSV получает атрибуты, общие для типов в перечне, и выбранные.
                 </legend>
                 <div style={COLUMN_LIST_STYLE}>
                   {allAttributes.map((attribute) => (
@@ -567,6 +577,12 @@ export function InventoryPanel({
                       >
                         {row.label}
                       </button>
+                      {row.maintenance?.kind === 'invalid' ? (
+                        <span className="table__muted" data-testid="inventory-date-invalid" title={`«${row.maintenance.text}»`}>
+                          {' '}
+                          — дата ТО не распознана
+                        </span>
+                      ) : null}
                     </td>
                     <td title={row.typeLabel === null ? undefined : row.typeId}>
                       {display(row.typeLabel, row.typeId)}

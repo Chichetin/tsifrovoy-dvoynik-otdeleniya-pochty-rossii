@@ -57,9 +57,21 @@ export {
   MAINTENANCE_DATE_KEY,
   MAINTENANCE_WARNING_DAYS,
   type MaintenanceStatus,
+  maintenanceDateError,
+  maintenanceDateWarnings,
   localToday,
   maintenanceStatus,
 } from './maintenance';
+export {
+  HEALTH_MAX,
+  SEVERITY_PENALTY,
+  type HealthLine,
+  type PlanHealth,
+  healthLineRefs,
+  isEmptyPlan,
+  issuePenalty,
+  planHealth,
+} from './health';
 
 /**
  * The segment a distance rule measured: from the object's centre to the

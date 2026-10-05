@@ -54,7 +54,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/session-context.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session-context.sh\"",
             "timeout": 10
           }
         ]
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-issue.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-issue.sh\"",
             "timeout": 15,
             "statusMessage": "Взята ли задача для этой работы…"
           }
@@ -78,13 +78,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-secrets.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-secrets.sh\"",
             "timeout": 30,
             "statusMessage": "Поиск секретов в файлах для коммита…"
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-upstream.sh stop",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-upstream.sh\" stop",
             "timeout": 30,
             "statusMessage": "Чужие коммиты в origin/main против текущей работы…"
           }
@@ -97,7 +97,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-upstream.sh post",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-upstream.sh\" post",
             "timeout": 30
           }
         ]
@@ -108,7 +108,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/check-worktrees.sh",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-worktrees.sh\"",
             "timeout": 60,
             "statusMessage": "Секреты в worktree субагентов…"
           }

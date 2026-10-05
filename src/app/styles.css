@@ -286,6 +286,18 @@ body {
   stroke-width: 2;
 }
 
+/* #125: the plan score next to the plan name; colour follows the worst finding. */
+.health-badge { flex: none; height: 1.375rem; padding: 0 var(--space-2); border: 1px solid currentColor; border-radius: 999px; background: var(--color-success-soft); color: var(--color-success); font: inherit; font-size: var(--text-xs); font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; }
+.health-badge.is-warning { background: var(--color-warning-soft); color: var(--color-warning); }
+.health-badge.is-error { background: var(--color-danger-soft); color: var(--color-danger); }
+.health { margin-bottom: var(--space-2); padding-bottom: var(--space-2); border-bottom: 1px solid var(--color-line); font-size: var(--text-s); }
+.health > summary { cursor: pointer; }
+.health__lines { margin: var(--space-2) 0; padding: 0; list-style: none; }
+.health__line { display: grid; grid-template-columns: 1fr auto; gap: 0 var(--space-2); padding: 0.25rem 0; border-top: 1px solid var(--color-line); }
+.health__penalty { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.health__line.is-error .health__penalty { color: var(--color-danger); }
+.health__refs { grid-column: 1 / -1; margin: 0; }
+
 .shell__bar > .shell__view {
   grid-row: 1;
   grid-column: 4;
@@ -466,11 +478,8 @@ body {
 .shell--plan-only .shell__bar,
 .shell__body--plan-only > .shell__side,
 .shell__body--plan-only > .shell__resize {
-  display: none;
-}
-
-.shell__body--plan-only {
-  grid-template-columns: minmax(0, 1fr);
+  /* visibility keeps the layout: the canvas does not grow or move. */
+  visibility: hidden;
 }
 
 .shell__side {
@@ -514,17 +523,9 @@ body {
   color: var(--color-accent-strong);
 }
 
-.shell--plan-only .shell__plan-only-toggle {
-  top: 0.75rem;
-}
-
 /* Under the «show only the plan» button; D-362. */
 .shell__captions-toggle {
   top: calc(var(--strip-row) + 3.25rem);
-}
-
-.shell--plan-only .shell__captions-toggle {
-  top: 3.25rem;
 }
 
 .shell__plan-only-toggle:hover,
@@ -545,6 +546,11 @@ body {
 .editor-canvas {
   position: absolute;
   inset: 0;
+}
+
+/* In 3D the 2D scale panel is under the canvas and does nothing (#157). */
+.shell__canvas[data-view='3d'] .editor-canvas__hud {
+  display: none;
 }
 
 /* Накладки холста собраны в один угол: свободный угол плана дороже
@@ -581,6 +587,21 @@ body {
 }
 
 /* The widest reading is reserved, so the segments after it do not jump. */
+.canvas-hint {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.25rem;
+  background: rgb(255 255 255 / 92%);
+  color: var(--text);
+  font-size: 0.8125rem;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+}
+
 .canvas-status__cursor {
   min-width: 21ch;
 }
@@ -1593,6 +1614,8 @@ body {
 .library__label {
   flex: 1;
   min-width: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .library__size {
@@ -1604,7 +1627,7 @@ body {
 
 /* At the compact sidebar widths, put dimensions below the name instead of
    letting the two columns collide. Tables retain readable columns and scroll. */
-@container (max-width: 14.375rem) {
+@container (max-width: 16.5rem) {
   .library__item {
     display: grid;
     grid-template-columns: 0.75rem minmax(0, 1fr);
@@ -1751,7 +1774,8 @@ span.inventory__num {
   font-size: 0.75rem;
 }
 
-.inventory__table td {
+.inventory__table td,
+.inventory__table td .table__link {
   vertical-align: top;
   overflow-wrap: break-word;
   hyphens: auto;
@@ -1913,6 +1937,17 @@ span.inventory__num {
 .agent__status { margin: 0; min-height: 1em; font-size: var(--text-xs); color: var(--muted); }
 .agent__status:empty { min-height: 0; }
 .agent__form { display: grid; gap: 0.375rem; }
+/* The question field stays at the bottom of the panel while the history and the
+   examples scroll above it: under an open «Свойства» card the tab is short and
+   the field used to sit below the fold (#130). */
+.agent__form {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface);
+}
 .agent__form textarea { width: 100%; min-height: 3.25rem; resize: vertical; }
 .agent__form-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.375rem; }
 .agent__hint { font-size: var(--text-xs); color: var(--muted); }
@@ -2862,6 +2897,10 @@ span.inventory__num {
   padding-left: 1.125rem;
 }
 
+.file-dialog__list > li {
+  overflow-wrap: anywhere;
+}
+
 .file-dialog__list > li + li {
   margin-top: 0.25rem;
 }
@@ -3244,3 +3283,17 @@ span.inventory__num {
 }
 
 .props__geometry { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+/* #141: at 1100 px and below the saved mark keeps only its check or dot (the
+   text stays for screen readers and in the tooltip), so the plan name gets
+   the width instead of an ellipsis after four letters. */
+@media (max-width: 1100px) {
+  .shell__doc-state-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

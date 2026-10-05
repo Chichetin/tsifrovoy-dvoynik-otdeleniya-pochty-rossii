@@ -26,10 +26,12 @@ import type {
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
 import type { PropertiesPanelProps } from '../../contracts/ui';
-import { findObjectType, findZoneType } from '../../domain/catalog';
+import { attributeBoundsError, attributeRange, findObjectType, findZoneType } from '../../domain/catalog';
+import { MAINTENANCE_DATE_KEY, maintenanceDateError } from '../../domain/validation';
 import { footprintArea, ringArea } from '../../domain/geometry';
 import { formatArea, formatLength, formatNumber } from '../../domain/number-format';
 import { objectColorValue, type ObjectColorRepresentation } from '../../domain/object-color';
+import { WALK_ATTRIBUTE_LABELS, WALK_MARK_KEY, WALK_MARK_LABELS, walkMarkOf } from '../../domain/inventory';
 import { hasOwnShape, shapeTypeFrom } from './shape-type';
 import { ObjectPositionFields } from './ObjectPositionFields';
 import { groupAttributeCommand, mixedAttributeKeys, sharedAttributeDefs } from './group-attributes';
@@ -109,7 +111,13 @@ export function PropertiesPanel({
   session,
   onCommand,
   gesturePreview,
-}: PropertiesPanelProps): React.JSX.Element {
+  wallEditing = false,
+  onWallEditingChange,
+}: PropertiesPanelProps & {
+  /** #167: the «Изменить перегородку» switch; without a handler it is not shown. */
+  wallEditing?: boolean;
+  onWallEditingChange?: (on: boolean) => void;
+}): React.JSX.Element {
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
   const liveGesture = useSyncExternalStore(
@@ -257,12 +265,18 @@ export function PropertiesPanel({
         );
       }
       if (def.type === 'number') {
+        const range = attributeRange(def);
+        // Значение из файла может лежать вне границ (#138): поле называет это,
+        // пока человек не исправит число.
+        const stored = isMixed ? null : attributeBoundsError(def, attributes[def.key] ?? null);
         return field(
           name,
           label,
           <input
             type="number"
             aria-label={label}
+            min={def.min}
+            max={def.max}
             value={shown(name, isMixed ? '' : attributeValue(attributes, def))}
             placeholder={isMixed ? 'разные' : undefined}
             onChange={(event) => {
@@ -270,9 +284,17 @@ export function PropertiesPanel({
               // Пустое поле — очистка значения (null), а не ноль. Нечисло не
               // уходит в команду вовсе: NaN прошёл бы проверку типа атрибута.
               const parsed = parseNumber(raw);
+              const outside = parsed === null ? null : attributeBoundsError(def, parsed);
+              if (outside !== null) {
+                // Число вне границ не применяется; черновик остаётся в поле.
+                setDraft((current) => ({ ...current, [name]: raw }));
+                setErrors((current) => ({ ...current, [name]: outside }));
+                return;
+              }
               commitCommand(name, raw.trim() === '' ? set(null) : parsed === null ? null : set(parsed), raw);
             }}
           />,
+          stored ?? (range === null ? undefined : `Допустимо ${range}`),
         );
       }
       const choices = colorChoices.get(def.key);
@@ -300,9 +322,17 @@ export function PropertiesPanel({
           aria-label={label}
           value={shown(name, isMixed ? '' : attributeValue(attributes, def))}
           placeholder={isMixed ? 'разные' : undefined}
-          onChange={(event) =>
-            commitCommand(name, set(event.target.value === '' ? null : event.target.value), event.target.value)
-          }
+          onChange={(event) => {
+            const raw = event.target.value;
+            // Дата ТО: текст не дата — не применяется, черновик остаётся в поле (#151).
+            const notDate = def.key === MAINTENANCE_DATE_KEY ? maintenanceDateError(raw) : null;
+            if (notDate !== null) {
+              setDraft((current) => ({ ...current, [name]: raw }));
+              setErrors((current) => ({ ...current, [name]: notDate }));
+              return;
+            }
+            commitCommand(name, set(raw === '' ? null : raw), raw);
+          }}
         />,
       );
     });
@@ -310,18 +340,35 @@ export function PropertiesPanel({
   /** Атрибуты, которых нет в справочнике: показать, но не править вслепую. */
   const extraAttributes = (defs: AttributeDef[], attributes: Attributes): React.JSX.Element | null => {
     const known = new Set(defs.map((def) => def.key));
-    const extra = Object.entries(attributes).filter(([key]) => !known.has(key));
-    if (extra.length === 0) return null;
+    // #124: marks of the inventory walk are read-only here and named in Russian.
+    const walk = Object.entries(attributes).filter(([key]) => !known.has(key) && key in WALK_ATTRIBUTE_LABELS);
+    const extra = Object.entries(attributes).filter(([key]) => !known.has(key) && !(key in WALK_ATTRIBUTE_LABELS));
+    if (extra.length === 0 && walk.length === 0) return null;
+    const walkMark = walkMarkOf({ attributes });
     return (
       <div className="props__extra">
-        <p className="props__hint">Атрибуты вне справочника: правятся типом, не карточкой</p>
-        <ul>
-          {extra.map(([key, value]) => (
-            <li key={key}>
-              {key}: {value === null ? '—' : String(value)}
-            </li>
-          ))}
-        </ul>
+        {walk.length === 0 ? null : (
+          <ul data-testid="props-walk">
+            {walk.map(([key, value]) => (
+              <li key={key}>
+                {WALK_ATTRIBUTE_LABELS[key]}:{' '}
+                {key === WALK_MARK_KEY && walkMark !== null ? WALK_MARK_LABELS[walkMark] : value === null ? '—' : String(value)}
+              </li>
+            ))}
+          </ul>
+        )}
+        {extra.length === 0 ? null : (
+          <>
+            <p className="props__hint">Атрибуты вне справочника: правятся типом, не карточкой</p>
+            <ul>
+              {extra.map(([key, value]) => (
+                <li key={key}>
+                  {key}: {value === null ? '—' : String(value)}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
       </div>
     );
   };
@@ -393,18 +440,15 @@ export function PropertiesPanel({
             onChange={(event) => {
               // Смена типа переименовывает зону в название типа — одной
               // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
-              // связи нет: правка имени тип не трогает. Переименовываем только
-              // типовое имя (пустое, подпись прежнего типа, «Зона N» новой
-              // зоны); введённое руками сохраняется (D-265).
+              // связи нет: правка имени тип не трогает. Ручное название тоже
+              // заменяется (D-265).
               const typeId = event.target.value;
               const renamed = findZoneType(plan.catalog, typeId);
-              const current = zone.name.trim();
-              const generic = current === '' || current === type?.label || /^Зона \d+$/.test(current);
               setDraft((draft) => without(draft, 'name'));
               commit('typeId', {
                 ...zone,
                 typeId,
-                name: renamed !== null && generic ? renamed.label : zone.name,
+                name: renamed === null ? zone.name : renamed.label,
               });
             }}
           >
@@ -711,11 +755,35 @@ export function PropertiesPanel({
         </div>
 
         {/* Концы стены тянутся на плане: править их числами здесь значило бы
-            держать две правды об одной геометрии. */}
+            держать две правды об одной геометрии. Ручки концов есть только при
+            включённом переключателе (#167): выбор стены её не меняет. */}
         <p className="props__hint">
           Длина {formatLength(length)}, от ({formatNumber(wall.from[0])}; {formatNumber(wall.from[1])}) до (
-          {formatNumber(wall.to[0])}; {formatNumber(wall.to[1])}); концы тянутся на плане
+          {formatNumber(wall.to[0])}; {formatNumber(wall.to[1])})
         </p>
+        {onWallEditingChange === undefined ? null : (
+          <label
+            className="props__line"
+            title="Без галочки перегородку можно только выбрать. С галочкой на её концах появляются ручки. Снимается при другом выборе, смене инструмента и по Esc."
+          >
+            <input
+              type="checkbox"
+              checked={wallEditing}
+              onChange={(event) => onWallEditingChange(event.target.checked)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && wallEditing) onWallEditingChange(false);
+              }}
+            />
+            {' '}Изменить перегородку
+          </label>
+        )}
+        {onWallEditingChange === undefined ? null : (
+          <p className="props__hint">
+            {wallEditing
+              ? 'Тяните ручку на конце перегородки; Alt — без привязки. Ctrl+Z отменяет правку.'
+              : 'Включите «Изменить перегородку», чтобы тянуть её концы на плане.'}
+          </p>
+        )}
         <p className="props__hint">
           {openings.length === 0
             ? 'Проёмов нет; инструмент «Проём» ставит их кликом по стене'

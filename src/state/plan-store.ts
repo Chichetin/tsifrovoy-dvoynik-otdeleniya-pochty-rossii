@@ -13,7 +13,25 @@ import type { Id, PlanDocument, Ref, Result } from '../contracts/model';
 import { applyCommand, idOwners, COMMAND_ISSUE_CODES } from '../domain/commands';
 import { editRejection } from '../domain/physics';
 
-export type PlanStoreState = PlanStore;
+/**
+ * #38: two redesign variants in one session. `null` — there is one plan.
+ * `active` is the variant being edited; `otherDirty` says whether the other
+ * one holds edits not yet saved, so replacing the plan can ask first.
+ */
+export type PlanVariants = { readonly active: 'А' | 'Б'; readonly otherDirty: boolean };
+
+/**
+ * The contract surface plus the variant slot. Variants live only in this
+ * session: each one is saved as an ordinary plan file, the format has no
+ * field for them.
+ */
+export type PlanStoreState = PlanStore & {
+  readonly variants: PlanVariants | null;
+  /** The current plan becomes variant А; editing goes on in variant Б. */
+  keepVariant(): void;
+  /** Swaps the active variant; each one keeps its own document, undo and dirty. */
+  switchVariant(): void;
+};
 export type PlanStoreApi = StoreApi<PlanStoreState>;
 
 /** The document as dirty tracking sees it: layer visibility is a view setting. */
@@ -101,6 +119,14 @@ export function createPlanStore(
   let past: PlanDocument[] = [];
   let future: PlanDocument[] = [];
   let hasExportedBaseline = origin === 'file';
+  /** The variant not being edited, with its own history and save state. */
+  let other: {
+    document: PlanDocument;
+    baseline: PlanDocument;
+    past: PlanDocument[];
+    future: PlanDocument[];
+    hasExportedBaseline: boolean;
+  } | null = null;
   /** Ids of deleted entities: a deleted id is never reused (contracts-v1). */
   const retired = new Set<Id>();
 
@@ -108,8 +134,10 @@ export function createPlanStore(
     // Showing or hiding a layer is how the plan is looked at, not what it
     // says: the flag travels in the file for convenience, but it must not
     // turn a freshly opened plan into «unsaved edits» (D-207).
+    const dirtyOf = (document: PlanDocument, baseline: PlanDocument, exported: boolean): boolean =>
+      !exported || !sameContent(withoutVisibility(document), withoutVisibility(baseline));
     const isDirty = (document: PlanDocument, baseline: PlanDocument): boolean =>
-      !hasExportedBaseline || !sameContent(withoutVisibility(document), withoutVisibility(baseline));
+      dirtyOf(document, baseline, hasExportedBaseline);
 
     /** Selection cannot outlive the entity it points at. */
     const keepSelection = (document: PlanDocument, selection: Ref | null): Ref | null => {
@@ -167,6 +195,7 @@ export function createPlanStore(
       selected: NO_SELECTION,
       dirty: origin !== 'file',
       retired: new Set<Id>(),
+      variants: null,
 
       dispatch(command: Command): Result<PlanDocument> {
         const current = get().document;
@@ -219,6 +248,8 @@ export function createPlanStore(
         // Only a document read from a file is a saved state. A new plan and a
         // restored draft are unsaved by definition.
         hasExportedBaseline = origin === 'file';
+        // The caller has already asked about unsaved edits of both variants.
+        other = null;
 
         set((state) => ({
           document: plan,
@@ -229,6 +260,7 @@ export function createPlanStore(
           selected: NO_SELECTION,
           dirty: origin !== 'file',
           retired: new Set<Id>(),
+          variants: null,
         }));
         return { ok: true, value: plan };
       },
@@ -274,6 +306,41 @@ export function createPlanStore(
           selection: last === undefined ? null : { kind: 'object', id: last },
           selected: kept.length === 0 ? NO_SELECTION : new Set(kept),
         });
+      },
+
+      keepVariant(): void {
+        if (other !== null) return;
+        const { document, baseline, dirty } = get();
+        // Variant А is the plan as it stands, saved or not. Variant Б starts
+        // as the same plan with the same «before», its own copy of the undo
+        // stack, and no file yet — so it is unsaved until its own save.
+        // Retired ids stay shared: one id never names two things in a session.
+        other = { document, baseline, past, future, hasExportedBaseline };
+        hasExportedBaseline = false;
+        set({ dirty: true, variants: { active: 'Б', otherDirty: dirty } });
+      },
+
+      switchVariant(): void {
+        const next = other;
+        const { document, baseline, dirty, variants } = get();
+        if (next === null || variants === null) return;
+
+        other = { document, baseline, past, future, hasExportedBaseline };
+        past = next.past;
+        future = next.future;
+        hasExportedBaseline = next.hasExportedBaseline;
+
+        // A new revision: whatever was computed for the other variant is stale.
+        set((state) => ({
+          document: next.document,
+          baseline: next.baseline,
+          revision: state.revision + 1,
+          contentRevision: state.contentRevision + 1,
+          selection: null,
+          selected: NO_SELECTION,
+          dirty: dirtyOf(next.document, next.baseline, next.hasExportedBaseline),
+          variants: { active: variants.active === 'А' ? 'Б' : 'А', otherDirty: dirty },
+        }));
       },
 
       markExported(revision: number): void {

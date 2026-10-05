@@ -26,6 +26,8 @@ export const METRIC_UNITS: Readonly<Record<MetricCode, FactUnit>> = {
   'objects.added': 'count',
   'objects.removed': 'count',
   'placement.distance': 'm',
+  'layout.passage': 'm',
+  'layout.entrance': 'm',
 };
 
 /** Metrics whose value must be an integer. */

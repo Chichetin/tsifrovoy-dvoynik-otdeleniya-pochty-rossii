@@ -16,8 +16,9 @@ import { useMemo, useState } from 'react';
 import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
-import { hideNamedIds, renderExplanation } from '../../domain/advice';
+import { hideNamedIds, placementZonePath, renderExplanation } from '../../domain/advice';
 import { AgentChat } from './AgentChat';
+import { EditHints } from './EditHints';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
@@ -39,7 +40,20 @@ const METRIC_LABELS: Record<Fact['metric'], string> = {
   'objects.added': 'Добавлено',
   'objects.removed': 'Удалено',
   'placement.distance': 'Расстояние',
+  'layout.passage': 'Самый узкий проход',
+  'layout.entrance': 'Среднее расстояние до входа',
 };
+
+/** Compare has its own meaning for two metrics: a sum of moves and one object's distance to the entrance. */
+function metricLabel(fact: Fact, scenario: Recommendation['scenario'], index: PlanIndex): string {
+  if (scenario !== 'compare') return METRIC_LABELS[fact.metric];
+  if (fact.metric === 'placement.distance') return 'Перемещено объектов, м (сумма)';
+  if (fact.metric === 'layout.entrance') {
+    const ref = fact.refs[0];
+    return `Расстояние до входа: ${ref === undefined ? '' : (index.nameOf(ref) ?? ref.id)}`;
+  }
+  return METRIC_LABELS[fact.metric];
+}
 
 const PHASE_LABELS: Record<Fact['phase'], string> = {
   current: 'сейчас',
@@ -85,11 +99,11 @@ function equipmentSubject(
  * Где окажется вариант: название зоны из плана (D-320); id остаётся доступен
  * рядом, в раскрытии «ID зон и объектов» карточки (D-323).
  */
-function candidateZone(index: PlanIndex, candidate: Candidate): string {
-  const zoneId = candidate.object.zoneId;
-  if (zoneId === null) return 'вне зон';
-  const name = index.zoneName(zoneId);
-  return name === null ? `зона ${zoneId}` : `зона «${name}»`;
+function candidateZone(plan: PlanDocument, index: PlanIndex, candidate: Candidate): string {
+  const path = placementZonePath(plan, candidate.object);
+  if (path.length === 0) return 'вне зон';
+  const names = path.map((zoneId) => index.zoneName(zoneId) ?? zoneId);
+  return `зона «${names.join(' → ')}»`;
 }
 
 /**
@@ -190,6 +204,8 @@ export function AssistantPanel({
   return (
     <section className="panel assistant" aria-label="Ассистент">
       <h2 className="panel__title">Ассистент</h2>
+
+      <EditHints names={names} onFocus={onFocus} onExplain={onAskAgent} />
 
       {onAskAgent === undefined || onAgentAction === undefined ? null : (
         <>
@@ -337,7 +353,7 @@ export function AssistantPanel({
                   {ownFacts(recommendation).map((fact) => (
                     <li key={fact.id}>
                       <span>
-                        {METRIC_LABELS[fact.metric]} ({PHASE_LABELS[fact.phase]})
+                        {metricLabel(fact, recommendation.scenario, names)} ({PHASE_LABELS[fact.phase]})
                       </span>
                       <b>{formatValue(fact)}</b>
                     </li>
@@ -358,7 +374,7 @@ export function AssistantPanel({
                           {candidate.object.rotation_deg}°
                         </span>
                         <span className="advice__zone" data-testid="candidate-zone">
-                          {candidateZone(names, candidate)}
+                          {candidateZone(plan, names, candidate)}
                         </span>
                         <span className="advice__forecast">
                           {candidate.facts

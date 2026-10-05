@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import type { Equipment } from '../../contracts/model';
-import { PASTE_OFFSET_M, copyOffset, duplicateObjects, pasteObjects, repeatOffset } from './selection-edit';
+import { PASTE_OFFSET_M, copyOffset, duplicateObjects, pasteObjects, repeatOffset, rotateDelta, rotateObjects } from './selection-edit';
 
 const chair: Equipment = {
   id: 'eq_1',
@@ -41,4 +41,23 @@ it('копия крупного объекта не ложится на ориг
   // Набор из двух стульев по диагонали: 2,5 × 1,5 м — шире и глубже сдвига.
   const second = { ...chair, id: 'eq_2', position: [4, 4] as [number, number] };
   expect(copyOffset([chair, second])[0]).toBeCloseTo(2.5 + 0.1);
+});
+
+it('копия не наследует отметку обхода инвентаризации (#163)', () => {
+  const marked: Equipment = {
+    ...chair,
+    attributes: { inventoryCheck: 'other-number', inventoryFoundNumber: '42', note: 'x' },
+  };
+  for (const copy of [duplicateObjects([marked], new Set([marked.id]))[0]!, pasteObjects([marked], new Set([marked.id]))[0]!]) {
+    expect(copy.attributes).toEqual({ note: 'x' });
+  }
+});
+
+it('] и [ поворачивают на 1° по и против часовой, R остаётся на 15°', () => {
+  expect(rotateDelta('BracketRight', false)).toBe(1);
+  expect(rotateDelta('BracketLeft', false)).toBe(-1);
+  expect(rotateDelta('KeyR', false)).toBe(15);
+  expect(rotateDelta('KeyR', true)).toBe(-15);
+  expect(rotateObjects([chair], 1)[0]!.rotation_deg).toBe(1);
+  expect(rotateObjects([chair], -1)[0]!.rotation_deg).toBe(359);
 });

@@ -73,3 +73,39 @@ export function isHotkeysMapHotkey(event: HotkeyEvent): boolean {
   if (!typed && !(event.code === 'Slash' && event.shiftKey)) return false;
   return !isTypingTarget(event.target);
 }
+
+/** #182: действие «голой» клавиши редактора: инструмент панели, правка перегородки, ассистент. */
+export type EditorHotkey =
+  | { action: 'tool'; tool: 'select' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
+  | { action: 'wall-edit' }
+  | { action: 'assistant' };
+
+const TOOL_BY_CODE: Record<string, Extract<EditorHotkey, { action: 'tool' }>['tool']> = {
+  Digit1: 'select',
+  KeyV: 'select',
+  Digit3: 'measure',
+  KeyM: 'measure',
+  Digit4: 'room.draw',
+  Digit5: 'zone.draw',
+  Digit6: 'wall.draw',
+  KeyW: 'wall.draw',
+  Digit7: 'opening.place',
+  KeyO: 'opening.place',
+};
+
+/**
+ * Инструменты (1, 3–7, V M W O), E — правка перегородки, A — ассистент. По коду
+ * клавиши: русская раскладка работает так же. Любой модификатор (в том числе
+ * Shift: Shift+7 на русской раскладке — это «?») оставляет нажатие другим.
+ * Поле ввода и диалог клавишу не отдают.
+ */
+export function editorHotkey(event: HotkeyEvent): EditorHotkey | null {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return null;
+  if (isTypingTarget(event.target)) return null;
+  if (event.target instanceof Element && event.target.closest('[aria-modal="true"]') !== null) return null;
+  const tool = TOOL_BY_CODE[event.code];
+  if (tool !== undefined) return { action: 'tool', tool };
+  if (event.code === 'KeyE') return { action: 'wall-edit' };
+  if (event.code === 'KeyA') return { action: 'assistant' };
+  return null;
+}

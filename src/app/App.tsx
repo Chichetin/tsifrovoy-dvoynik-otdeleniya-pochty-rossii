@@ -13,11 +13,10 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
-import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
-import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
+import type { Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
-import type { AssistantPanelRequest, EditorSession, RequestState, Tool } from '../contracts/ui';
+import type { EditorSession, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
@@ -29,14 +28,13 @@ import {
   withHiddenMounts,
   type ObjectMount,
 } from '../domain/object-mount';
-import { validatePlan } from '../domain/validation';
+import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
-import { requestAdvice } from '../features/assistant/advice-client';
-import { requestAgent, turnsOf } from '../features/assistant/agent-client';
+import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
 import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
@@ -47,12 +45,14 @@ import { duplicateObjects, rotateObjects } from '../features/equipment/selection
 import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
-import { historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
+import { editorHotkey, historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { InventoryWalk, type WalkState, walkOf } from '../features/inventory/InventoryWalk';
+import { WalkRouteLayer } from '../features/inventory/WalkRouteLayer';
 import { InformationLayer } from '../features/layers/InformationLayer';
 import { LayersPanel } from '../features/layers/LayersPanel';
 import { MetricsPanel } from '../features/inventory/MetricsPanel';
@@ -72,6 +72,7 @@ import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
 import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
+import { HealthBadge } from '../features/validation/HealthScore';
 import { View3D } from '../features/view3d/View3D';
 import { encodePlan } from '../persistence/codec';
 import { readPlanFile } from '../persistence/format';
@@ -139,10 +140,6 @@ function initialPanelWidths(): PanelWidths {
   }
 }
 
-function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
-  return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
-}
-
 export function App(): React.JSX.Element {
   const [store, setStore] = useState(() => createPlanStore(openStartPlan(), 'file'));
   const [gesturePreview] = useState(createObjectGesturePreviewChannel);
@@ -154,6 +151,7 @@ export function App(): React.JSX.Element {
   const contentRevision = useStore(store, (state) => state.contentRevision);
   const selection = useStore(store, (state) => state.selection);
   const dirty = useStore(store, (state) => state.dirty);
+  const variants = useStore(store, (state) => state.variants);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
   const [roomMode, setRoomMode] = useState<'internal' | 'boundary'>('internal');
@@ -163,21 +161,8 @@ export function App(): React.JSX.Element {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
   const [planOnly, setPlanOnly] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  const viewportBeforePlanOnly = useRef<Viewport | null>(null);
-  const togglePlanOnly = useCallback((): void => {
-    if (!planOnly) viewportBeforePlanOnly.current = viewport;
-    setPlanOnly(!planOnly);
-    // Presentation mode uses the whole canvas; returning restores the exact
-    // working view the person had before hiding the editor.
-    window.requestAnimationFrame(() => {
-      if (planOnly) {
-        if (viewportBeforePlanOnly.current !== null) setViewport(viewportBeforePlanOnly.current);
-        return;
-      }
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (rect !== undefined) setViewport(fitToExtent(planExtent(document), { width: rect.width, height: rect.height }));
-    });
-  }, [document, planOnly, viewport]);
+  // Only hides or shows the interface; the viewport and canvas size stay as they are.
+  const togglePlanOnly = useCallback((): void => setPlanOnly((value) => !value), []);
   useEffect(() => {
     if (!planOnly) return;
     const onEscape = (event: KeyboardEvent): void => {
@@ -287,21 +272,16 @@ export function App(): React.JSX.Element {
 
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
+  // #126: ghosts of the agent's edits, for the plan revision they were built on.
+  const [editGhosts, setEditGhosts] = useState<EditGhosts | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
   const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
   // #105: the object whose «Изменить форму» switch is on. It belongs to one
   // selection: picking something else, or nothing, puts it back to «off».
   const [reshapeFor, setReshapeFor] = useState<Id | null>(null);
-  const [advice, setAdvice] = useState<AdviceResponse | null>(null);
-  // A response belongs to the latest request, not merely to a plan revision.
-  // A new plan starts at revision 0 too, so comparing revisions cannot reject
-  // a late answer from the document that was open before «Новый».
-  const adviceRequestSequence = useRef(0);
-  // D-258: the conversation with the plan agent — interface state, never in
-  // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
-  const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
-  const [agentActionStatus, setAgentActionStatus] = useState<string | null>(null);
-  const agentSequence = useRef(0);
+  // #167: the wall whose «Изменить перегородку» switch is on, and the tool it
+  // was turned on under. Another selection or another tool turns it off.
+  const [wallEdit, setWallEdit] = useState<{ id: Id; tool: Tool['kind'] } | null>(null);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -311,7 +291,6 @@ export function App(): React.JSX.Element {
    * этого числа пересоздаёт холст, и вид считается заново.
    */
   const [documentEpoch, setDocumentEpoch] = useState(0);
-  const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   // D-249: which tab each side column shows — a fact about this browser,
   // kept in localStorage like the tour (D-195), never in the plan. The value
@@ -337,9 +316,11 @@ export function App(): React.JSX.Element {
   // what is selected.
   const retired = useStore(store, (state) => state.retired);
   const selected = useStore(store, (state) => state.selected);
+  // Any edit after the answer makes the ghosts stale: they leave the plan.
+  const previewEdits = editGhosts !== null && editGhosts.revision === contentRevision ? editGhosts.preview : null;
   const session: EditorSession = useMemo(
-    () => ({ tool, viewport, selection, selected, preview, focus, retired }),
-    [tool, viewport, selection, selected, preview, focus, retired],
+    () => ({ tool, viewport, selection, selected, preview, previewEdits, focus, retired }),
+    [tool, viewport, selection, selected, preview, previewEdits, focus, retired],
   );
 
   // #105: «Свойства» stand in the right column above its tabs, so the library
@@ -351,6 +332,14 @@ export function App(): React.JSX.Element {
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
     setReshapeFor(null);
   }
+  if (wallEdit !== null && !(selection?.kind === 'wall' && selection.id === wallEdit.id && tool.kind === wallEdit.tool)) {
+    setWallEdit(null);
+  }
+  const selectedWallId = selection?.kind === 'wall' ? selection.id : null;
+  const changeWallEdit = useCallback(
+    (on: boolean) => setWallEdit(on && selectedWallId !== null ? { id: selectedWallId, tool: tool.kind } : null),
+    [selectedWallId, tool.kind],
+  );
   const quickObject =
     selection !== null && selection.kind === 'object' && selected.size <= 1
       ? document.objects.find((entry) => entry.id === selection.id)
@@ -439,6 +428,9 @@ export function App(): React.JSX.Element {
     [dispatch, dispatchAndSelect, select, store],
   );
 
+  // #124: route of the inventory walk — screen state; the marks live in the plan.
+  const [walk, setWalk] = useState<WalkState | null>(null);
+  const activeWalk = useMemo(() => walkOf(walk, document), [walk, document]);
   const focusOn = useCallback(
     (ref: Ref) => {
       focusSequence.current += 1;
@@ -467,6 +459,25 @@ export function App(): React.JSX.Element {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [searchOpen]);
+
+  // #141: Ctrl+C/V/D copy objects only (EquipmentLayer); on a zone the key says so.
+  const [zoneCopyHint, setZoneCopyHint] = useState(false);
+  useEffect(() => {
+    if (!zoneCopyHint) return;
+    const timer = window.setTimeout(() => setZoneCopyHint(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [zoneCopyHint]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey) return;
+      if (selection?.kind !== 'zone' || view !== '2d' || isTypingTarget(event.target)) return;
+      if (event.code !== 'KeyC' && event.code !== 'KeyV' && event.code !== 'KeyD') return;
+      if (event.code === 'KeyD') event.preventDefault();
+      setZoneCopyHint(true);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selection, view]);
 
   // «×» drops the selection; the card goes, so focus lands on the open tab of
   // the same column rather than on the removed button.
@@ -503,20 +514,25 @@ export function App(): React.JSX.Element {
     () => ({ shown: pictograms, onToggle: () => setPictograms((shown) => !shown) }),
     [pictograms],
   );
+  // D-275: a placement into a hidden group shows that group — otherwise the
+  // new object is invisible and the next click places a duplicate.
+  const revealPlaced = useCallback(
+    (placed: Equipment) => {
+      const scope = mountScopeLayer(store.getState().document.layers);
+      if (scope !== undefined) setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
+    },
+    [store],
+  );
   // D-279: a drawn shape is a placement too — into a hidden group it shows that group.
   const dispatchPlanCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
       if (result.ok && tool.kind === 'shape.draw' && command.type === 'object.put') {
-        const scope = mountScopeLayer(store.getState().document.layers);
-        if (scope !== undefined) {
-          const placed = command.object;
-          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
-        }
+        revealPlaced(command.object);
       }
       return result;
     },
-    [dispatchAndSelect, store, tool],
+    [dispatchAndSelect, revealPlaced, tool],
   );
   const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand }, documentEpoch);
   const dispatchInternalRoom = useCallback((command: Command): Result<PlanDocument> => {
@@ -568,17 +584,11 @@ export function App(): React.JSX.Element {
       // through to the room selection layer after React re-renders.
       if (result.ok && tool.kind === 'object.place' && command.type === 'object.put') {
         placedType.current = tool.typeId;
-        // D-275: a placement into a hidden group shows that group — otherwise
-        // the new object is invisible and the next click places a duplicate.
-        const scope = mountScopeLayer(store.getState().document.layers);
-        if (scope !== undefined) {
-          const placed = command.object;
-          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
-        }
+        revealPlaced(command.object);
       }
       return result;
     },
-    [dispatchAndSelect, store, tool],
+    [dispatchAndSelect, revealPlaced, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
@@ -630,6 +640,9 @@ export function App(): React.JSX.Element {
 
   const inventory = useMemo(() => buildInventory(document), [document]);
   const issues = useMemo(() => validatePlan(document), [document]);
+  // #125: the header score reads the same findings as «Проверка».
+  const health = useMemo(() => planHealth(issues), [issues]);
+  const [healthRequest, setHealthRequest] = useState(0);
   const metrics = useMemo(() => measurePlan(document), [document]);
 
   // D-249: the one live signal a tab keeps while its panel is hidden — how
@@ -646,37 +659,6 @@ export function App(): React.JSX.Element {
     [issues],
   );
 
-  const askAssistant = useCallback(
-    (request: AssistantPanelRequest, query?: string) => {
-      const sequence = ++adviceRequestSequence.current;
-      setAdviceState({ status: 'loading' });
-      // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
-      // если план успели поправить, пока сервер считал.
-      // The panel knows no document history and sends the current plan as
-      // "before"; only the app knows the real one.
-      const grounded: AdviceRequest =
-        request.scenario === 'compare' ? { ...request, before: comparison.source?.plan ?? baseline } : request;
-      const asked = { plan: document, revision: contentRevision, request: grounded, ...(query === undefined ? {} : { query }) };
-      void requestAdvice(asked).then((result) => {
-        // The document may have been replaced, or another request may have
-        // started while this one was in flight. In either case this answer no
-        // longer owns the panel.
-        if (sequence !== adviceRequestSequence.current) return;
-        if (!result.ok) {
-          setAdvice(null);
-          setAdviceState({
-            status: 'error',
-            message: result.issues.map((issue) => issue.message).join('; '),
-          });
-          return;
-        }
-        setAdvice(result.value);
-        setAdviceState({ status: 'done' });
-      });
-    },
-    [baseline, comparison.source, contentRevision, document],
-  );
-
   // D-258: ring on the plan without selecting — the agent points, the
   // person decides what to pick.
   const highlight = useCallback((ref: Ref) => {
@@ -684,39 +666,32 @@ export function App(): React.JSX.Element {
     setFocus({ ref, sequence: focusSequence.current });
   }, []);
 
-  const askAgent = useCallback(
-    (question: string) => {
-      const sequence = ++agentSequence.current;
-      const id = `ask-${sequence}`;
-      const update = (change: (exchange: AgentExchange) => AgentExchange): void => {
-        if (sequence !== agentSequence.current) return;
-        setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
-      };
-      setAgentActionStatus(null);
-      setExchanges((previous) => [...previous, { id, question, revision: contentRevision, steps: [], answer: null, error: null }]);
-      const input = { plan: document, revision: contentRevision, query: question, history: turnsOf(exchanges), before: baseline };
-      void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
-        if (sequence !== agentSequence.current) return;
-        if (!result.ok) {
-          update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
-          return;
-        }
-        const answer = result.value;
-        update((exchange) => ({ ...exchange, answer }));
-        // The agent shows what it found: the offered variant ghosted on the
-        // plan, otherwise a ring round the first entity of the answer.
-        const offered = answer.actions.find((action) => action.kind === 'preview-candidate');
-        const candidate = offered === undefined ? null : candidateOf(answer, offered.recommendationId, offered.candidateId);
-        if (candidate !== null) {
-          setPreview(candidate);
-          if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
-        } else if (answer.refs[0] !== undefined) {
-          highlight(answer.refs[0]);
-        }
-      });
-    },
-    [baseline, contentRevision, document, exchanges, highlight],
-  );
+  const {
+    advice,
+    adviceState,
+    exchanges,
+    actionStatus: agentActionStatus,
+    ask: askAssistant,
+    askAgent,
+    runAction: runAssistantAction,
+    resetAdvice,
+    clearChat,
+    forget: forgetAdvice,
+  } = useAssistantSession({
+    document,
+    revision: contentRevision,
+    baseline,
+    comparisonBase: comparison.source?.plan ?? null,
+    current: store.getState,
+    dispatch,
+    dispatchAndSelect,
+    setPreview,
+    setEditGhosts,
+    highlight,
+    focusOn,
+    showLeftTab,
+    showRightTab,
+  });
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
   // for the selected one. The actions are the commands the keys already run;
@@ -788,89 +763,31 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', onKey);
   }, [document, objectMenu, openObjectMenu, selection, view, viewport]);
 
-  const runAgentAction = useCallback(
-    (action: AssistantAction, answer: AgentAnswer) => {
-      if (answer.revision !== store.getState().contentRevision) {
-        setAgentActionStatus('План изменился после ответа — спросите заново.');
-        return;
+  // #182: bare keys for the toolbar tools, «Изменить перегородку» and the assistant.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const hotkey = editorHotkey(event);
+      if (hotkey === null || event.repeat || objectMenu !== null || view !== '2d') return;
+      if (window.document.querySelector('[aria-modal="true"]') !== null) return;
+      if (hotkey.action === 'tool') {
+        event.preventDefault();
+        setTool({ kind: hotkey.tool });
+      } else if (hotkey.action === 'wall-edit') {
+        if (selectedWallId === null) return;
+        event.preventDefault();
+        changeWallEdit(wallEdit === null);
+      } else {
+        event.preventDefault();
+        showRightTab('assistant');
+        // The panel may mount after this render: focus the question field once it is there.
+        window.setTimeout(() => window.document.querySelector<HTMLElement>('textarea[name="agent-question"]')?.focus(), 50);
+        const [question] = selectionQuestions(document, selection);
+        if (question !== undefined) askAgent(question);
       }
-      switch (action.kind) {
-        case 'focus': {
-          const exists = action.ref.kind === 'zone' ? document.zones.some((zone) => zone.id === action.ref.id) : document.objects.some((object) => object.id === action.ref.id);
-          if (!exists) {
-            setAgentActionStatus(`«${action.ref.id}» больше нет в плане.`);
-            return;
-          }
-          focusOn(action.ref);
-          setAgentActionStatus(null);
-          return;
-        }
-        case 'preview-candidate':
-        case 'apply-candidate': {
-          const candidate = candidateOf(answer, action.recommendationId, action.candidateId);
-          if (candidate === null) {
-            setAgentActionStatus('Вариант не найден в ответе — спросите заново.');
-            return;
-          }
-          if (action.kind === 'preview-candidate') {
-            setPreview(candidate);
-            if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
-            setAgentActionStatus('Вариант показан на плане полупрозрачно.');
-            return;
-          }
-          // The one edit an answer can lead to: the person pressed the button,
-          // and the variant goes in as an ordinary command with its undo step.
-          const current = store.getState();
-          const object = candidateObjectForInsert(current.document, candidate, current.retired);
-          const result = dispatchAndSelect({ type: 'object.put', object });
-          setPreview(null);
-          setAgentActionStatus(
-            result.ok
-              ? `Применено: «${candidate.object.label}» поставлен на план. Отменить — Ctrl+Z.`
-              : `Не применено: ${result.issues.map((issue) => issue.message).join('; ')}`,
-          );
-          return;
-        }
-        case 'show-layer': {
-          const layer = document.layers.find((entry) => entry.id === action.layerId);
-          if (layer === undefined) {
-            setAgentActionStatus('Слоя больше нет в плане.');
-            return;
-          }
-          if (!layer.visible) dispatch({ type: 'layer.put', layer: { ...layer, visible: true } });
-          showLeftTab('layers');
-          setAgentActionStatus(`Слой «${layer.name}» включён.`);
-          return;
-        }
-        case 'open-panel':
-          showRightTab(action.panel);
-          return;
-      }
-    },
-    [dispatch, dispatchAndSelect, document, focusOn, highlight, store, showLeftTab, showRightTab],
-  );
-
-  const clearChat = useCallback(() => {
-    agentSequence.current += 1;
-    setExchanges([]);
-    setAgentActionStatus(null);
-    setPreview(null);
-  }, []);
-
-  // A recommendation belongs to the plan it was computed for: after «Открыть»
-  // or «Новый» its ids point at objects that no longer exist, and «план
-  // изменился» is too mild a warning for that — the answer goes away entirely.
-  const forgetAdvice = useCallback(() => {
-    // Invalidates an in-flight answer before clearing the visible one. Without
-    // this, «Новый» briefly clears the panel and the old answer repopulates it.
-    adviceRequestSequence.current += 1;
-    setAdvice(null);
-    setAdviceState({ status: 'idle' });
-    setPreview(null);
-    agentSequence.current += 1;
-    setExchanges([]);
-    setAgentActionStatus(null);
-  }, []);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [askAgent, changeWallEdit, document, objectMenu, selectedWallId, selection, showRightTab, view, wallEdit]);
 
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {
@@ -883,6 +800,8 @@ export function App(): React.JSX.Element {
         plan.catalog.version === ORGANIZER_CATALOG_VERSION ? withTeamCatalog(plan, catalog) : null;
       const document = merged?.ok ? merged.value : plan;
       store.getState().replaceDocument(document, origin);
+      // Another plan opens with the selection tool, as a new plan does.
+      setTool({ kind: 'select' });
       // Loading shows every layer again (plan-store); the groups follow.
       setHiddenMounts(new Set());
       // A refused merge is not a silent success: the plan opens as it came,
@@ -916,6 +835,14 @@ export function App(): React.JSX.Element {
 
   const shownError = lastError !== null && isEditErrorCurrent(lastError, document, revision) ? lastError : null;
 
+  // A refusal does not bump the revision, so it would hang for ever over the
+  // plan while the person works elsewhere (#146): it leaves after a while.
+  useEffect(() => {
+    if (lastError === null || lastError.scope !== 'edit') return undefined;
+    const timer = window.setTimeout(() => setLastError(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [lastError]);
+
   return (
     <div
       className={`shell${planOnly ? ' shell--plan-only' : ''}`}
@@ -931,6 +858,14 @@ export function App(): React.JSX.Element {
               name={document.name}
               dirty={dirty}
               onRename={(name) => dispatch({ type: 'plan.rename', name }).ok}
+            />
+            <HealthBadge
+              health={health}
+              empty={isEmptyPlan(document)}
+              onOpen={() => {
+                showRightTab('validation');
+                setHealthRequest((count) => count + 1);
+              }}
             />
             <button
               type="button"
@@ -1032,6 +967,13 @@ export function App(): React.JSX.Element {
           onExported={() => {
             store.getState().markExported(revision);
           }}
+          onShowValidation={() => showRightTab('validation')}
+          variants={variants}
+          onKeepVariant={() => store.getState().keepVariant()}
+          onSwitchVariant={() => {
+            store.getState().switchVariant();
+            setTool({ kind: 'select' });
+          }}
         />
         </div>
       </header>
@@ -1067,6 +1009,7 @@ export function App(): React.JSX.Element {
               ),
               library: (
                 <LibraryPanel
+                  key={documentEpoch}
                   catalog={document.catalog}
                   activeTypeId={tool.kind === 'object.place' || tool.kind === 'shape.draw' ? tool.typeId : null}
                   onTool={setTool}
@@ -1108,6 +1051,7 @@ export function App(): React.JSX.Element {
 
         <main
           className="shell__canvas"
+          data-view={view}
           ref={canvasRef}
           // The silhouette follows the pointer: outside the canvas there is none (#26).
           onPointerLeave={() => placementGhost.publish(null)}
@@ -1152,20 +1096,24 @@ export function App(): React.JSX.Element {
               {planOnly ? <path d="M3 21 21 3" /> : null}
             </svg>
           </button>
-          <button
-            type="button"
-            className="shell__plan-only-toggle shell__captions-toggle"
-            aria-label="Подписи объектов"
-            title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
-            aria-pressed={captions}
-            onClick={() => setCaptions((shown) => !shown)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7V5h16v2" />
-              <path d="M12 5v14" />
-              <path d="M9 19h6" />
-            </svg>
-          </button>
+          {/* The captions apply to the 2D canvas only. The state stays in App,
+              so it survives a round trip through 3D. */}
+          {view === '2d' ? (
+            <button
+              type="button"
+              className="shell__plan-only-toggle shell__captions-toggle"
+              aria-label="Подписи объектов"
+              title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
+              aria-pressed={captions}
+              onClick={() => setCaptions((shown) => !shown)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7V5h16v2" />
+                <path d="M12 5v14" />
+                <path d="M9 19h6" />
+              </svg>
+            </button>
+          ) : null}
           {/* The refusal floats over the canvas: a row above it would push the
               plan down under the pointer that just made the gesture. */}
           {shownError === null ? null : (
@@ -1251,6 +1199,9 @@ export function App(): React.JSX.Element {
                   должен уходить под объект или под имя зоны. В план она ничего не
                   кладёт (D-256). */}
               <MeasureLayer viewport={viewport} />
+              {activeWalk === null ? null : (
+                <WalkRouteLayer document={document} viewport={viewport} route={activeWalk.route} currentId={activeWalk.currentId} />
+              )}
               {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                   тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
               <IssueLayer
@@ -1271,6 +1222,8 @@ export function App(): React.JSX.Element {
                 draft={drawingRoom ? internalRoom.draft : planTool.draft}
                 draftCursor={drawingRoom ? null : planTool.cursor}
                 rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
+                wallEditing={wallEdit !== null}
+                onWallEditingChange={changeWallEdit}
                 onCommand={dispatch}
                 onSelect={select}
               />
@@ -1284,6 +1237,7 @@ export function App(): React.JSX.Element {
               onSelect={select}
               onSelectMany={selectMany}
               preview={preview}
+              previewEdits={previewEdits}
               onGesturePreview={gesturePreview.publish}
               hideHandlesFor={shapeEditingId}
               reshapeFor={reshapeFor}
@@ -1298,6 +1252,9 @@ export function App(): React.JSX.Element {
               draft={drawingRoom ? null : planTool.draft}
               draftCursor={drawingRoom ? null : planTool.cursor}
             />
+          ) : null}
+          {zoneCopyHint && view === '2d' ? (
+            <p className="canvas-hint" role="status">Зону копировать нельзя: Ctrl+C, Ctrl+V и Ctrl+D работают для объектов.</p>
           ) : null}
           {view === '3d' ? (
             <View3D document={shownDocument} selection={selection} onSelect={select} />
@@ -1376,6 +1333,8 @@ export function App(): React.JSX.Element {
                   session={session}
                   onCommand={dispatch}
                   gesturePreview={gesturePreview}
+                  wallEditing={wallEdit !== null}
+                  onWallEditingChange={changeWallEdit}
                 />
               </div>
             </div>
@@ -1400,7 +1359,7 @@ export function App(): React.JSX.Element {
                   exchanges={exchanges}
                   actionStatus={agentActionStatus}
                   onAskAgent={askAgent}
-                  onAgentAction={runAgentAction}
+                  onAgentAction={runAssistantAction}
                   onClearChat={clearChat}
                   selection={selection}
                   comparisonBusy={comparison.loading}
@@ -1408,23 +1367,17 @@ export function App(): React.JSX.Element {
                   comparison={<ComparisonPanel current={document} baseline={baseline} source={comparison.source}
                     loading={comparison.loading} error={comparison.error} onFocus={focusOn}
                     onLoad={async (file) => {
-                      adviceRequestSequence.current += 1;
-                      setAdvice(null);
-                      setAdviceState({ status: 'idle' });
-                      setPreview(null);
+                      resetAdvice();
                       await comparison.load(file);
                     }}
                     onClear={() => {
                       comparison.clear();
-                      adviceRequestSequence.current += 1;
-                      setAdvice(null);
-                      setAdviceState({ status: 'idle' });
-                      setPreview(null);
+                      resetAdvice();
                     }} />}
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
               inventory: (
                 <>
                   <RuleChecklist
@@ -1434,6 +1387,7 @@ export function App(): React.JSX.Element {
                       askAgent(question);
                     }}
                   />
+                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={focusOn} selectedId={selection?.kind === 'object' ? selection.id : null} />
                   <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
                 </>
               ),

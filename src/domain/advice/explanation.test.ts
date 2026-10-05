@@ -13,6 +13,9 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { Explanation, Recommendation } from '../../contracts/advice';
 import { REASON_CODE_SPECS } from '../../contracts/advice-semantics';
+import { applyCommand } from '../commands';
+import { contains, footprint } from '../geometry';
+import { layoutZone } from './layout';
 import { acceptFactChoice, acceptToolResult, calculateAdvice, createAgentSession } from './index';
 import {
   EXPLANATION_ISSUE_CODES,
@@ -453,4 +456,39 @@ describe('#69: ход агента без сети — модель выбира
     // The visible text is the fact as code rendered it, not the model's JSON.
     expect(choice.kind === 'answer' && choice.answer.text).toContain(first.text);
   });
+});
+
+describe('#126: правки модели проверяет код', () => {
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+
+  test('несуществующий id отброшен с причиной, верная правка осталась', () => {
+    const session = createAgentSession(demo, null, 'Подвинь скамью', 1);
+    const edits = [{ op: 'delete', id: 'eq_nope' }, { op: 'move', id: 'eq_9', dx_m: 0.5, dy_m: 0 }];
+    acceptToolResult(session, 'propose_edits', JSON.stringify({ edits }));
+    const [proposal] = session.state.proposals;
+    expect(proposal?.rejected.map((entry) => entry.reason)).toEqual(['Объекта «eq_nope» нет в плане.']);
+    expect(proposal?.commands.map((command) => command.type === 'object.put' && command.object.id)).toEqual(['eq_9']);
+  });
+});
+
+describe('#122: раскладку зоны считает код', () => {
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+
+  test('каждый вариант применяется одним batch без новых ошибок, «было» у вариантов общее', () => {
+    const session = createAgentSession(demo, null, 'Разложи зону ожидания', 1);
+    acceptToolResult(session, 'layout_zone', JSON.stringify({ zoneId: 'z_waiting' }));
+    const variants = session.state.proposals;
+    expect(variants.length).toBeGreaterThan(0);
+    const passageBefore = new Set(variants.map((variant) => variant.facts.find((fact) => fact.metric === 'layout.passage' && fact.phase === 'before')?.value));
+    expect(passageBefore.size).toBe(1);
+    const zone = demo.zones.find((entry) => entry.id === 'z_waiting')!.polygon;
+    for (const variant of variants) {
+      expect(applyCommand(demo, { type: 'batch', commands: variant.commands }).ok).toBe(true);
+      expect(variant.findings.errors.after).toBeLessThanOrEqual(variant.findings.errors.before);
+      for (const command of variant.commands) expect(command.type === 'object.put' && contains(zone, footprint(command.object))).toBe(true);
+    }
+    // Seeded search: the same plan gives the same variants.
+    expect(layoutZone(demo, 'z_waiting', null)).toEqual(layoutZone(demo, 'z_waiting', null));
+    // The search runs three times here: 1.4 s alone, over the default 5 s when the whole suite runs in parallel.
+  }, 20_000);
 });

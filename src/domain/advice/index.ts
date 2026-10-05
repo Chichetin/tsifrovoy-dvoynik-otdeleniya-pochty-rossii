@@ -43,9 +43,19 @@ export type {
   CoverageTally,
   ZoneCoverage,
 } from './camera-coverage';
+export { checkAgentEdits, proposalCommands } from './agent-edits';
 export { candidateObjectForInsert } from './candidate-object';
 export { comparePlans, diffPlans } from './compare';
-export { PLACEMENT_ISSUE_CODES, PLACEMENT_SEARCH, findPlacements, zoneFit } from './placement';
+export { EDIT_HINT_LIMIT, editHint, editHintNumbers, editHintSnapshot, editHintText } from './edit-hints';
+export type { EditHint, EditHintItem, EditHintNumber, EditHintSnapshot, EditHintTone } from './edit-hints';
+export {
+  PLACEMENT_ISSUE_CODES,
+  PLACEMENT_SEARCH,
+  centreZoneId,
+  findPlacements,
+  placementZonePath,
+  zoneFit,
+} from './placement';
 export type { ZoneFit } from './placement';
 export {
   EXPLANATION_ISSUE_CODES,
@@ -149,7 +159,9 @@ function zoneFitNotes(
     };
   }
 
-  if (request.zoneId !== null && found > 0) return none;
+  const nested =
+    'Уместность места проверяется по самой глубокой зоне, в которой лежит центр объекта: вложенная зона другого назначения (например, зона ожидания внутри зала) места не даёт.';
+  if (request.zoneId !== null && found > 0) return { assumptions: [nested], limitations: [] };
   const zones = plan.zones
     .filter((zone) => fit.zoneIds?.includes(zone.id))
     .map((zone) => `«${zone.name}» (${zone.id})`)
@@ -159,7 +171,7 @@ function zoneFitNotes(
       ? `Искали только в зонах, где «${typeLabel}» уместен: ${zones}.`
       : `Во вложенных зонах другого назначения места не предлагаются: «${typeLabel}» уместен в зонах ${zones}.`;
   return {
-    assumptions: [`${scope} ${basis}`],
+    assumptions: [`${scope} ${basis}`, nested],
     limitations:
       found > 0
         ? []

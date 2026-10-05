@@ -19,12 +19,35 @@ export type AgentRouteOptions = {
   chat: LlmChat | null;
   rateLimit: { max: number; windowMs: number };
   deadlineMs: number;
+  /** #137: one model call's timeout; the page waits this long plus a margin. Null — no model. */
+  llmTimeoutMs?: number | null;
 };
+
+/** The header that names `llmTimeoutMs` on the agent's stream. */
+export const LLM_TIMEOUT_HEADER = 'x-llm-timeout-ms';
 
 export function registerAgentRoute(app: FastifyInstance, options: AgentRouteOptions): void {
   const allow = createLimiter(options.rateLimit);
 
-  app.post('/api/assistant/agent', async (request: FastifyRequest, reply: FastifyReply) => {
+  // A broken JSON body gets the same {issues} shape as every other error.
+  app.setErrorHandler((error: { statusCode?: number; message: string }, _request, reply) => {
+    const status = error.statusCode ?? 500;
+    if (status >= 500) return reply.code(500).send({ issues: [{ code: 'SERVER_ERROR', severity: 'error', message: 'Ошибка сервера.', refs: [] }] });
+    return reply.code(status).send({
+      issues: [{ code: 'REQUEST_INVALID', severity: 'error', message: `Запрос не разобран: ${error.message}`, refs: [] }],
+    });
+  });
+
+  // The limit is an onRequest hook: it runs before the body is read or parsed.
+  const limit = async (_request: FastifyRequest, reply: FastifyReply) => {
+    if (!allow()) {
+      return reply.code(429).send({
+        issues: [{ code: 'RATE_LIMITED', severity: 'error', message: 'Превышен лимит обращений к ассистенту на этом сервере. Повторите позже.', refs: [] }],
+      });
+    }
+  };
+
+  app.post('/api/assistant/agent', { onRequest: limit }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = agentBodySchema.safeParse(request.body);
     if (!body.success) {
       return reply.code(400).send({
@@ -50,7 +73,11 @@ export function registerAgentRoute(app: FastifyInstance, options: AgentRouteOpti
     }
 
     reply.hijack();
-    reply.raw.writeHead(200, { 'content-type': 'application/x-ndjson; charset=utf-8', 'cache-control': 'no-cache' });
+    reply.raw.writeHead(200, {
+      'content-type': 'application/x-ndjson; charset=utf-8',
+      'cache-control': 'no-cache',
+      ...(options.llmTimeoutMs == null ? {} : { [LLM_TIMEOUT_HEADER]: String(options.llmTimeoutMs) }),
+    });
     const send = (event: AgentStreamEvent): void => {
       reply.raw.write(`${JSON.stringify(event)}\n`);
     };
@@ -61,9 +88,7 @@ export function registerAgentRoute(app: FastifyInstance, options: AgentRouteOpti
       const answer =
         options.chat === null
           ? answerWithoutModel(plan.value, before, query, revision, 'Провайдер модели не настроен — ответ собран расчётом без LLM.', onStep)
-          : !allow()
-            ? answerWithoutModel(plan.value, before, query, revision, 'Превышен лимит обращений к модели — ответ собран расчётом без LLM.', onStep)
-            : await runAgent({ chat: options.chat, plan: plan.value, before, query, history, revision, onStep, deadlineMs: options.deadlineMs });
+          : await runAgent({ chat: options.chat, plan: plan.value, before, query, history, revision, onStep, deadlineMs: options.deadlineMs });
       send({ type: 'answer', answer });
     } catch (error) {
       request.log.error({ err: error }, 'agent failed');

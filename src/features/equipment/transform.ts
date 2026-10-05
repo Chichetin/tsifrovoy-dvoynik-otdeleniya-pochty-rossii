@@ -22,6 +22,12 @@ export const MIN_SIZE_M = 0.1;
 /** Shift snaps the angle to multiples of this. */
 export const ROTATION_SNAP_DEG = 15;
 
+/** `[` and `]` turn the selected object by this small step. */
+export const ROTATION_FINE_STEP_DEG = 1;
+
+/** Without Shift, a handle angle this close to 0/90/180/270° lands exactly on the axis. */
+export const AXIS_SNAP_DEG = 4;
+
 /** Gestures write centimetres and tenths of a degree — enough for a plan, readable in JSON. */
 const POSITION_UNITS_PER_M = 100;
 const ROTATION_UNITS_PER_DEG = 10;
@@ -85,6 +91,23 @@ export function rotationFromPointer(
     : roundTo(degrees, ROTATION_UNITS_PER_DEG);
   // Snapping -3° gives -0, which normalises to -0; `|| 0` keeps "0" in the card.
   return normalizeAngle(snapped) || 0;
+}
+
+/**
+ * Angle for the rotation handle. Shift keeps the 15° step. Without Shift the
+ * rotation is free, except within `AXIS_SNAP_DEG` of an axis, where it lands
+ * exactly on 0/90/180/270°. Only the angle changes; the centre stays.
+ */
+export function rotationFromHandle(
+  centre: Point,
+  pointer: Point,
+  shift: boolean,
+  current_deg: number,
+): number {
+  const free = rotationFromPointer(centre, pointer, shift, current_deg);
+  if (shift) return free;
+  const axis = Math.round(free / 90) * 90;
+  return Math.abs(free - axis) <= AXIS_SNAP_DEG ? normalizeAngle(axis) || 0 : free;
 }
 
 /**

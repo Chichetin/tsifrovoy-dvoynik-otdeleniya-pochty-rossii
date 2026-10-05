@@ -43,6 +43,7 @@ import {
   objectInterval,
   openingCentre,
   locatePoint,
+  polygonArea,
   polygonSegmentDistance,
   wallObstacles,
   type BoundingBox,
@@ -50,7 +51,7 @@ import {
 } from '../geometry';
 import { measurePlan } from '../metrics';
 import { editableContentLayer } from '../content-layer';
-import { prepareZones, resolveZone } from '../relations';
+import { prepareZones, resolveZone, type PreparedZones } from '../relations';
 import { validatePlan } from '../validation';
 
 /** Codes owned by this module. */
@@ -61,6 +62,8 @@ export const PLACEMENT_ISSUE_CODES = {
   TARGET_ZONE_MISSING: 'TARGET_ZONE_MISSING',
   /** There is no ordinary unlocked layer that may own a new object. */
   TARGET_LAYER_MISSING: 'TARGET_LAYER_MISSING',
+  /** #177: the object to move is not in the plan. */
+  OBJECT_MISSING: 'OBJECT_MISSING',
 } as const;
 
 /**
@@ -132,7 +135,7 @@ type VerifiedProbe = Probe & { object: Equipment; warnings: number; wallGap_m: n
  * появляются вместе с контуром, а у собранного руками фрагмента могут и не
  * появиться, и тогда контур остаётся единственной границей зала.
  */
-function wallEdgesFor(plan: PlanDocument, type: ObjectType): [Point, Point][] {
+export function wallEdgesFor(plan: PlanDocument, type: ObjectType): [Point, Point][] {
   const interval = intervalOf(type);
   const edges: [Point, Point][] = [];
   const collect = (polygon: Polygon): void => {
@@ -149,7 +152,7 @@ function wallEdgesFor(plan: PlanDocument, type: ObjectType): [Point, Point][] {
 }
 
 /** Зазор от отпечатка до ближайшей стены; без стен — бесконечность. */
-function wallGap(shape: Polygon, edges: [Point, Point][]): number {
+export function wallGap(shape: Polygon, edges: [Point, Point][]): number {
   let nearest = Number.POSITIVE_INFINITY;
   for (const [from, to] of edges) {
     nearest = Math.min(nearest, polygonSegmentDistance(shape, from, to));
@@ -242,6 +245,47 @@ export function zoneFit(plan: PlanDocument, typeId: Id, zoneId: Id | null): Zone
     placedZoneTypeIds,
     zoneIds,
   };
+}
+
+/**
+ * The deepest zone the object's centre lies strictly inside. The inventory
+ * zone (`zoneId`) needs the whole footprint inside; a spot that pokes 0.1 m out
+ * of a nested waiting area still stands in that area for a person — so fit and
+ * the label are judged by the centre. Equal depth — the smaller zone wins.
+ */
+export function centreZoneId(
+  plan: PlanDocument,
+  position: Point,
+  prepared: PreparedZones = prepareZones(plan.zones),
+): Id | null {
+  let best: { id: Id; depth: number; area: number } | null = null;
+  for (const entry of prepared.usable) {
+    if (locatePoint(position, entry.zone.polygon) !== 'inside') continue;
+    const area = polygonArea(entry.zone.polygon);
+    if (best === null || entry.depth > best.depth || (entry.depth === best.depth && area < best.area)) {
+      best = { id: entry.zone.id, depth: entry.depth, area };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Zones from the object's inventory zone down to the zone under its centre:
+ * `[z_hall, z_waiting]` reads «Клиентский зал → Зона ожидания». One entry when
+ * both are the same; empty when the object is outside every zone.
+ */
+export function placementZonePath(plan: PlanDocument, object: Equipment): Id[] {
+  const centre = centreZoneId(plan, object.position);
+  if (centre === null || centre === object.zoneId) return object.zoneId === null ? [] : [object.zoneId];
+  const parents = new Map(plan.zones.map((zone) => [zone.id, zone.parentId]));
+  const chain: Id[] = [];
+  let current: Id | null | undefined = centre;
+  while (current !== null && current !== undefined && !chain.includes(current)) {
+    chain.unshift(current);
+    if (current === object.zoneId) return chain;
+    current = parents.get(current);
+  }
+  return object.zoneId === null ? [centre] : [object.zoneId, centre];
 }
 
 function issue(code: string, message: string, refs: Ref[]): Issue {
@@ -556,6 +600,10 @@ function sweep(
       if (allowed !== null) {
         const home = resolveZone(trial, plan.zones, zoneIndex).zoneId;
         if (home === null || !allowed.has(home)) continue;
+        // A window whose footprint is in the hall but whose centre is in the
+        // nested waiting area stands in the waiting area: judged there.
+        const centre = centreZoneId(plan, position, zoneIndex);
+        if (centre !== null && !allowed.has(centre)) continue;
       }
       const key = footprintKey(shape);
       if (seen.has(key)) continue;
@@ -642,7 +690,14 @@ function fact(
  * question cannot be answered at all — an unknown type, a missing zone, a
  * polygon with no area; "nowhere to put it" is an empty list, not an error.
  */
-export const findPlacements: FindPlacements = (plan, request) => {
+export const findPlacements: FindPlacements = (plan, request) => searchPlacements(plan, request);
+
+/** #177: spots nearer than `minSeparation_m` to `avoid` (the object's own spot) are «оставить как есть». */
+export function searchPlacements(
+  plan: PlanDocument,
+  request: Parameters<FindPlacements>[1],
+  avoid: Point | null = null,
+): ReturnType<FindPlacements> {
   const type = findObjectType(plan.catalog, request.typeId);
   if (type === null) {
     return {
@@ -756,7 +811,8 @@ export const findPlacements: FindPlacements = (plan, request) => {
   );
 
   const candidates: Candidate[] = [];
-  for (const entry of spreadApart(verified, separation, PLACEMENT_SEARCH.maxCandidates)) {
+  const apart = avoid === null ? verified : verified.filter((entry) => distance(entry.position, avoid) >= PLACEMENT_SEARCH.minSeparation_m - TOLERANCE.coordinate_m);
+  for (const entry of spreadApart(apart, separation, PLACEMENT_SEARCH.maxCandidates)) {
     const after = measurePlan(withObject(plan, entry.object));
     if (!after.ok) continue;
     const id = entry.object.id;
@@ -794,4 +850,4 @@ export const findPlacements: FindPlacements = (plan, request) => {
   }
 
   return { ok: true, value: candidates };
-};
+}

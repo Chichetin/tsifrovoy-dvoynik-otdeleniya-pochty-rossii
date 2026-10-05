@@ -18,6 +18,8 @@ import {
   type PlanDocument,
   type Result,
 } from '../contracts/model';
+import { attributeBoundsWarnings } from '../domain/catalog';
+import { maintenanceDateWarnings } from '../domain/validation';
 import { decodePlan } from './codec';
 import { importOrganizerExample } from './organizer-import';
 
@@ -40,6 +42,11 @@ export type OpenedPlan = {
    * `extensions`, which travels whole.
    */
   dropped: string[];
+  /**
+   * Attribute values outside the min/max of their type (#138): a load of 150 %.
+   * The plan still opens; the person fixes the value in «Свойства».
+   */
+  warnings: string[];
 };
 
 /**
@@ -139,6 +146,7 @@ export function readPlanFile(text: string): Result<OpenedPlan> {
       format,
       assumptions: format === 'organizer' ? assumptionsOf(opened.value) : [],
       dropped: format === 'ours' ? droppedFields(payload, opened.value) : [],
+      warnings: [...attributeBoundsWarnings(opened.value), ...maintenanceDateWarnings(opened.value.objects)],
     },
   };
 }

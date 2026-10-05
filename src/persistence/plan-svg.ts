@@ -28,6 +28,12 @@ const ZONE_FALLBACK = '#E9ECEF';
 const OBJECT_FALLBACK = '#868E96';
 const LABEL_FILL = '#212529';
 const ZONE_LABEL_FILL = '#495057';
+/** Same stack as the interface (`--font-ui` in styles.css). */
+const FONT_FAMILY = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans', 'Liberation Sans', Arial, sans-serif";
+/** One size for object labels and zone names: a zone name must not outweigh equipment. */
+const LABEL_SIZE_M = 0.16;
+/** Gap kept between two drawn labels, metres. */
+const LABEL_GAP_M = 0.03;
 /** Objects smaller than this (a sensor, a socket) get no label on the picture. */
 const MIN_LABELLED_AREA_M2 = 0.15;
 
@@ -49,11 +55,61 @@ function centreOf(polygon: Polygon): Point {
 }
 
 /** Текст подписи: Y отражён обратно, иначе буквы стоят вверх ногами. */
-function label(at: Point, text: string, size_m: number, fill = LABEL_FILL, opacity = 1): string {
+function label(at: Point, text: string, size_m: number, fill: string, opacity: number, weight: string): string {
   return (
-    `<text x="${n(at[0])}" y="${n(-at[1])}" transform="scale(1,-1)" ` +
+    `<text x="${n(at[0])}" y="${n(-at[1])}" transform="scale(1,-1)" font-family="${FONT_FAMILY}" font-weight="${weight}" ` +
     `font-size="${n(size_m)}" text-anchor="middle" dominant-baseline="middle" fill="${fill}" fill-opacity="${n(opacity)}">${esc(text)}</text>`
   );
+}
+
+// A feature module may not be imported from here (project-structure.md), so the
+// canvas rule of features/layers/label-layout.ts is repeated: width = chars x size x 0.62.
+type Box = { x: number; y: number; width: number; height: number };
+
+function boxesOverlap(a: Box, b: Box): boolean {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+type LabelRequest = { text: string; candidates: Point[]; own: Box | null; fill: string; opacity: number; weight: string };
+type PlacedLabel = { at: Point; text: string; fill: string; opacity: number; weight: string };
+
+/** Box of a centred one-line label in model metres (Y up). Width estimate is the canvas one. */
+function labelBox(at: Point, text: string): Box {
+  const width = text.length * LABEL_SIZE_M * 0.62 + 0.08;
+  const height = LABEL_SIZE_M * 1.25;
+  return { x: at[0] - width / 2, y: at[1] - height / 2, width, height };
+}
+
+function grow(box: Box, by: number): Box {
+  return { x: box.x - by, y: box.y - by, width: box.width + 2 * by, height: box.height + 2 * by };
+}
+
+function boxOf(polygon: Polygon): Box {
+  const b = boundingBox(polygon);
+  return { x: b.minX, y: b.minY, width: b.maxX - b.minX, height: b.maxY - b.minY };
+}
+
+/**
+ * Greedy, in priority order (object labels first, then zone names), like the
+ * canvas: a label is drawn at the first candidate spot that touches no drawn
+ * label, no other object and no wall; if none is free, it is not drawn.
+ */
+function placeAll(requests: LabelRequest[], obstacles: Box[]): PlacedLabel[] {
+  const taken: Box[] = [];
+  const placed: PlacedLabel[] = [];
+  for (const request of requests) {
+    for (const at of request.candidates) {
+      const box = grow(labelBox(at, request.text), LABEL_GAP_M);
+      const blocked =
+        taken.some((other) => boxesOverlap(box, other)) ||
+        obstacles.some((other) => other !== request.own && boxesOverlap(box, other));
+      if (blocked) continue;
+      taken.push(box);
+      placed.push({ at, text: request.text, fill: request.fill, opacity: request.opacity, weight: request.weight });
+      break;
+    }
+  }
+  return placed;
 }
 
 function objectSymbol(object: Equipment, plan: PlanDocument, colorLayer: ObjectColorRepresentation | null): string {
@@ -82,13 +138,52 @@ export function renderPlanSvg(plan: PlanDocument): string {
   );
   const visibleZones = plan.zones.filter((zone) => visibleLayers.has(zone.layerId));
   const visibleObjects = plan.objects.filter((object) => visibleLayers.has(object.layerId));
+  const objectBoxes = visibleObjects.map((object) => boxOf(footprint(object)));
+  const requests: LabelRequest[] = [];
+  visibleObjects.forEach((object, index) => {
+    if (object.size_m[0] * object.size_m[1] < MIN_LABELLED_AREA_M2) return;
+    const box = objectBoxes[index];
+    if (box === undefined) return;
+    const x = object.position[0];
+    requests.push({
+      text: object.label,
+      candidates: [
+        [x, box.y - 0.15],
+        [x, box.y + box.height + 0.15],
+        [box.x + box.width + 0.1 + labelBox([0, 0], object.label).width / 2, box.y + box.height / 2],
+        [box.x - 0.1 - labelBox([0, 0], object.label).width / 2, box.y + box.height / 2],
+      ],
+      own: box,
+      fill: LABEL_FILL,
+      opacity: 1,
+      weight: 'normal',
+    });
+  });
+  for (const zone of visibleZones) {
+    const zb = boxOf(zone.polygon);
+    const c = centreOf(zone.polygon);
+    requests.push({
+      text: zone.name,
+      candidates: [c, [c[0], zb.y + zb.height - 0.15], [c[0], zb.y + 0.15]],
+      own: null,
+      fill: ZONE_LABEL_FILL,
+      opacity: 0.85,
+      weight: 'bold',
+    });
+  }
+  const placed = placeAll(requests, [...objectBoxes, ...plan.walls.map((wall) => boxOf(wallPolygon(wall, plan.walls, plan.openings)))]);
+
   // Everything drawn takes part in the extent: a wall outside the outline
-  // must not be cut off.
+  // must not be cut off, and neither may a label at the edge.
   const shapes: Polygon[] = [
     plan.room.boundary,
     ...visibleZones.map((z) => z.polygon),
     ...plan.walls.map((wall) => wallPolygon(wall, plan.walls, plan.openings)),
     ...visibleObjects.map(footprint),
+    ...placed.map((p) => {
+      const box = labelBox(p.at, p.text);
+      return [[box.x, box.y], [box.x + box.width, box.y + box.height]] as Polygon;
+    }),
   ];
   const box = boundingBox(shapes.flat());
   const minX = box.minX - MARGIN_M;
@@ -101,12 +196,7 @@ export function renderPlanSvg(plan: PlanDocument): string {
     .sort((a, b) => (a.parentId === null ? 0 : 1) - (b.parentId === null ? 0 : 1))
     .map((zone) => {
       const fill = esc(findZoneType(plan.catalog, zone.typeId)?.color ?? ZONE_FALLBACK);
-      return (
-        `<polygon points="${points(zone.polygon)}" fill="${fill}" fill-opacity="0.75" stroke="#ADB5BD" stroke-width="0.02" data-id="${esc(zone.id)}"/>` +
-        // Under the objects, large and pale: a zone name is context, not a label
-        // that must win over the equipment standing in it.
-        label(centreOf(zone.polygon), zone.name, 0.5, ZONE_LABEL_FILL, 0.45)
-      );
+      return `<polygon points="${points(zone.polygon)}" fill="${fill}" fill-opacity="0.75" stroke="#ADB5BD" stroke-width="0.02" data-id="${esc(zone.id)}"/>`;
     })
     .join('\n');
 
@@ -130,10 +220,8 @@ export function renderPlanSvg(plan: PlanDocument): string {
 
   const colorLayer = activeObjectColor(plan);
   const objects = visibleObjects.map((object) => objectSymbol(object, plan, colorLayer)).join('\n');
-  const objectLabels = visibleObjects
-    .filter((object) => object.size_m[0] * object.size_m[1] >= MIN_LABELLED_AREA_M2)
-    .map((object) => label([object.position[0], object.position[1] - object.size_m[1] / 2 - 0.15], object.label, 0.16))
-    .join('\n');
+  const objectLabels = placed.map((p) => label(p.at, p.text, LABEL_SIZE_M, p.fill, p.opacity, p.weight)).join('\n');
+
 
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

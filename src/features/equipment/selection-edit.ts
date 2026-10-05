@@ -14,8 +14,9 @@
 
 import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import { nextFreeId } from '../../domain/commands';
+import { unmarkObject } from '../../domain/inventory';
 import { boundingBox, footprint, intersects, normalizeAngle } from '../../domain/geometry';
-import { ROTATION_SNAP_DEG, snapPosition } from './transform';
+import { ROTATION_FINE_STEP_DEG, ROTATION_SNAP_DEG, snapPosition } from './transform';
 
 /**
  * Ключ атрибута «инвентарный номер» — тот же, что в
@@ -75,9 +76,12 @@ export function moveObjects(objects: readonly Equipment[], delta: Point): Equipm
  * `R` поворачивает выделенное на `ROTATION_SNAP_DEG` по часовой, `Shift+R` —
  * против. Шаг — тот же, что уже даёт `Shift` при поворотах указателем
  * (`ROTATION_SNAP_DEG` в `transform.ts`, D-235): одна клавиша не должна учить
- * пользователя второму числу для того же жеста. Не `R` — `null`.
+ * пользователя второму числу для того же жеста. `]` и `[` (#182) — малый шаг
+ * `ROTATION_FINE_STEP_DEG` по и против часовой. Другая клавиша — `null`.
  */
 export function rotateDelta(code: string, shift: boolean): number | null {
+  if (code === 'BracketRight') return ROTATION_FINE_STEP_DEG;
+  if (code === 'BracketLeft') return -ROTATION_FINE_STEP_DEG;
   if (code !== 'KeyR') return null;
   return shift ? -ROTATION_SNAP_DEG : ROTATION_SNAP_DEG;
 }
@@ -110,7 +114,8 @@ export function nextObjectId(taken: Set<Id>): Id {
  * номер у двух объектов проверка считает дублем. Номер пуст, а не «следующий
  * свободный»: копия — «такой же предмет» на время расстановки, реестровый номер
  * ей даёт человек (D-266, D-311); пустой номер «Проверка» показывает находкой
- * (D-312). Следующий номер серии получает только постановка из библиотеки (D-310).
+ * (D-312). Отметку обхода (`inventoryCheck`, `inventoryFoundNumber`) копия тоже
+ * не наследует (#163). Следующий номер серии получает только постановка из библиотеки (D-310).
  */
 export function pasteObjects(
   source: readonly Equipment[],
@@ -149,13 +154,13 @@ function copyObjects(source: readonly Equipment[], taken: ReadonlySet<Id>, [dx, 
       INVENTORY_NUMBER_KEY in object.attributes
         ? { ...object.attributes, [INVENTORY_NUMBER_KEY]: null }
         : { ...object.attributes };
+    // #163: the walk mark belongs to the checked object, not to its copy.
     return {
-      ...object,
+      ...unmarkObject({ ...object, attributes }),
       ...(object.locked === true ? { locked: false } : {}),
       id,
       position: snapPosition([object.position[0] + dx, object.position[1] + dy]),
       zoneId: null,
-      attributes,
     };
   });
 }
