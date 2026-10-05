@@ -88,6 +88,11 @@ const ROTATE_ICON_SCALE = 0.62;
 
 /** Handles keep a screen size: a 10 cm object is still grabbable at any zoom. */
 const HANDLE_RADIUS_PX = 6;
+/**
+ * A small object (camera, sensor, socket) takes the press over a circle this
+ * wide or over its backdrop, whichever is larger (#134). Checks still use `size_m`.
+ */
+const SMALL_HIT_PX = 24;
 const ROTATION_GAP_PX = 32;
 const HOVER_WIDTH_PX = 320;
 const HOVER_GAP_PX = 14;
@@ -245,6 +250,13 @@ function EquipmentPictogram({
     </>
   );
 }
+/** Radius of a small object's press circle in px; null when the footprint is large enough. */
+function smallHitRadius(width: number, height: number): number | null {
+  if (Math.min(width, height) >= SMALL_HIT_PX) return null;
+  // 0.62 — the backdrop circle's radius in EquipmentPictogram.
+  return Math.max(SMALL_HIT_PX / 2, planPictogramSize(width, height) * 0.62);
+}
+
 export function EquipmentLayer({
   document: plan,
   session,
@@ -252,6 +264,7 @@ export function EquipmentLayer({
   onSelect,
   onSelectMany,
   preview,
+  previewEdits = null,
   onGesturePreview,
   hideHandlesFor = null,
   reshapeFor = null,
@@ -749,6 +762,7 @@ export function EquipmentLayer({
     const hasCaption = captions && objectLabel(current, viewport,
       pictograms && planPictogram(object.typeId) !== null ? CAPTION_ICON_SPACE_PX : 0) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
+    const hitRadius = smallHitRadius(current.size_m[0] * viewport.scale, current.size_m[1] * viewport.scale);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
     // last move saw: a key released a moment before the button must not make
     // the object jump at release.
@@ -862,6 +876,17 @@ export function EquipmentLayer({
           stroke="#343A40"
           strokeWidth={1}
         />
+        {hitRadius === null ? null : (
+          <Circle
+            name={`object-hit-${object.id}`}
+            radius={hitRadius}
+            fill="transparent"
+            // A selected zone or room has handles on the plan layer below; the
+            // enlarged hit area must not cover them (#149).
+            listening={selection?.kind !== 'zone' && selection?.kind !== 'room'}
+            perfectDrawEnabled={false}
+          />
+        )}
         {object.locked !== true || ghost ? null : (
           <Group name={`object-lock-${object.id}`} x={current.size_m[0] * viewport.scale / 2}
             y={-current.size_m[1] * viewport.scale / 2} rotation={-current.rotation_deg} listening={false}>
@@ -872,13 +897,16 @@ export function EquipmentLayer({
           </Group>
         )}
         {hasCaption ? null : (
-          <EquipmentPictogram
-            kind={pictograms ? planPictogram(object.typeId) : null}
-            width={current.size_m[0] * viewport.scale}
-            height={current.size_m[1] * viewport.scale}
-            opacity={ghost ? 0.45 : 0.9}
-            backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
-          />
+          // The sign stays upright whatever the object's rotation, like the lock.
+          <Group rotation={-current.rotation_deg} listening={false}>
+            <EquipmentPictogram
+              kind={pictograms ? planPictogram(object.typeId) : null}
+              width={current.size_m[0] * viewport.scale}
+              height={current.size_m[1] * viewport.scale}
+              opacity={ghost ? 0.45 : 0.9}
+              backdrop={colorLayer === null ? (type?.color ?? FALLBACK_COLOR) : objectColorValue(colorLayer, current.attributes).color}
+            />
+          </Group>
         )}
       </Group>
     );
@@ -1005,6 +1033,12 @@ export function EquipmentLayer({
     );
   };
 
+  // Larger footprints first: a camera on a desk is drawn and pressed above the desk (#134).
+  const drawOrder = useMemo(
+    () => [...plan.objects].sort((a, b) => b.size_m[0] * b.size_m[1] - a.size_m[0] * a.size_m[1]),
+    [plan.objects],
+  );
+
   // A candidate carries a whole object, not a reference: the assistant may be
   // proposing something that is not in the document yet.
   const previewObject = preview?.object ?? null;
@@ -1017,11 +1051,35 @@ export function EquipmentLayer({
   return (
     <>
       <Layer name="equipment">
-        {plan.objects
+        {drawOrder
           .filter((object) => visibleLayers.has(object.layerId))
           .map((object) => render(object, false))}
 
         {previewObject === null ? null : render(previewObject, true)}
+
+        {/* #126: the agent's edits before «Применить правки» — moved, turned
+            and new objects as ghosts, deleted ones outlined in red. A ghost
+            of an existing object sits in its own group: same id, other key. */}
+        {previewEdits === null ? null : (
+          <Group name="edit-ghosts" listening={false}>
+            {previewEdits.put.map((object) => (
+              <Group key={`ghost-${object.id}`}>{render(object, true)}</Group>
+            ))}
+            {plan.objects
+              .filter((object) => previewEdits.removed.includes(object.id))
+              .map((object) => (
+                <Line
+                  key={`removed-${object.id}`}
+                  points={footprint(object).flatMap((point) => modelToScreen(point, viewport))}
+                  closed
+                  stroke="#C92A2A"
+                  strokeWidth={2}
+                  dash={[6, 4]}
+                  perfectDrawEnabled={false}
+                />
+              ))}
+          </Group>
+        )}
 
         {/* Captions sit above every shape and never catch the pointer: the plan
             is read by a manager who should not have to click to learn what a

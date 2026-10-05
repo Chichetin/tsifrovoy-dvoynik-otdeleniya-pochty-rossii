@@ -14,6 +14,27 @@
 
 import type { Equipment, Id, Inventory, PlanDocument, Zone } from '../../contracts/model';
 
+export {
+  TWO_OPT_BUDGET_MS,
+  WALK_ATTRIBUTE_LABELS,
+  WALK_FOUND_NUMBER_KEY,
+  WALK_MARK_KEY,
+  WALK_MARK_LABELS,
+  WALK_MARKS,
+  WALK_UNCHECKED_LABEL,
+  type WalkActEntry,
+  type WalkMark,
+  markObject,
+  nextUnmarked,
+  reconcileRoute,
+  unmarkObject,
+  walkActEntries,
+  walkFoundNumberOf,
+  walkMarkOf,
+  walkRoute,
+  walkStart,
+} from './walk';
+
 /**
  * Counts the plan. Every zone of the document and every type of its catalog
  * gets an entry, including the empty ones: a type just added to the catalog is

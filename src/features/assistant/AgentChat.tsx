@@ -4,23 +4,27 @@
  * Each exchange reads as a work log: the question, the tools the agent ran —
  * live while it works — and the answer, whose ids are buttons that show the
  * entity on the plan. Under the answer: whether the text passed the check
- * against the calculation, and the actions. «Применить вариант» is the only
- * one that edits the plan, and only when pressed.
+ * against the calculation, and the actions. «Применить вариант» and «Применить
+ * правки» (#126) edit the plan, and only when pressed.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
+import type { AgentAnswer, AgentEdit, AgentEditPose, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
 import { QUOTED_ID_PATTERN } from '../../domain/advice';
+import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
+import { stopAgent } from './agent-client';
+import { VoiceInput } from './VoiceInput';
 
 const PANEL_NAMES = { metrics: 'Площади', validation: 'Проверка', inventory: 'Инвентаризация' } as const;
 
-/** The three scenarios of the brief, as a person would ask them. */
+/** The three scenarios of the brief and an edit by text (#126), as a person would ask them. */
 export const AGENT_EXAMPLES = [
   'Где поставить ещё одно кассовое окно ближе к входу?',
   'Чего не хватает или что лишнее по оборудованию?',
   'Как мои изменения повлияли на свободную площадь?',
+  'Добавь скамью для ожидания в зону ожидания',
 ] as const;
 
 /**
@@ -93,6 +97,13 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
         .find((entry) => entry.id === action.recommendationId)
         ?.candidates.find((entry) => entry.id === action.candidateId);
       return `Применить: ${candidate?.object.label ?? 'вариант'}`;
+    }
+    // #122: a layout variant is named by its number, plain edits by the old words.
+    case 'preview-edits':
+    case 'apply-edits': {
+      const variant = answer.proposals.find((entry) => entry.id === action.proposalId)?.title?.split(':')[0]?.toLowerCase();
+      const verb = action.kind === 'preview-edits' ? 'Показать' : 'Применить';
+      return variant === undefined ? `${verb} правки` : `${verb} ${variant}`;
     }
     case 'show-layer':
       return `Включить слой «${names.layerName(action.layerId) ?? action.layerId}»`;
@@ -170,6 +181,60 @@ function StepLog({ exchange, working }: { exchange: AgentExchange; working: bool
       <summary>Ход проверки: {steps.length} {steps.length === 1 ? 'шаг' : steps.length < 5 ? 'шага' : 'шагов'}</summary>
       {list}
     </details>
+  );
+}
+
+const OP_NAMES: Record<AgentEdit['op'], string> = { move: 'перемещение', rotate: 'поворот', add: 'новый объект', delete: 'удаление' };
+
+const metres = (value: number): string => formatShort(value, 2);
+
+function poseText(pose: AgentEditPose | null, names: PlanIndex): string {
+  if (pose === null) return 'нет';
+  const zone = pose.zoneId === null ? 'вне зон' : `зона «${names.zoneName(pose.zoneId) ?? pose.zoneId}»`;
+  return `(${metres(pose.position[0])}; ${metres(pose.position[1])}) м, ${pose.rotation_deg}°, ${zone}`;
+}
+
+/** What the model asked for, in words: shown next to the reason it was refused. */
+function editText(edit: AgentEdit): string {
+  switch (edit.op) {
+    case 'move':
+      return `сдвинуть ${edit.id} на (${metres(edit.dx_m)}; ${metres(edit.dy_m)}) м`;
+    case 'rotate':
+      return `повернуть ${edit.id} на ${metres(edit.by_deg)}°`;
+    case 'add':
+      return `добавить ${edit.typeId}${edit.zoneId === null ? '' : ` в ${edit.zoneId}`}`;
+    case 'delete':
+      return `удалить ${edit.id}`;
+  }
+}
+
+/** #126: every edit of the answer — «было → стало» with ids, and each refusal with its reason. */
+function EditList({ answer, names }: { answer: AgentAnswer; names: PlanIndex }): React.JSX.Element | null {
+  if (answer.proposals.length === 0) return null;
+  return (
+    <>
+      {answer.proposals.map((proposal) => (
+        <div key={proposal.id} className="agent__edits">
+          <p className="agent__mode">
+            {proposal.title ?? `Правки ${proposal.id}`}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
+          </p>
+          <ul className="agent__steps" aria-label={`Правки ${proposal.id}: было → стало`}>
+            {proposal.changes.map((change) => (
+              <li key={`${change.op}-${change.id}`}>
+                <span className="agent__tick" aria-hidden="true">✓</span>
+                <code>{change.id}</code> «{change.label}», {OP_NAMES[change.op]}: {poseText(change.before, names)} → {poseText(change.after, names)}
+              </li>
+            ))}
+            {proposal.rejected.map((entry, index) => (
+              <li key={`rejected-${index}`} className="is-failed">
+                <span className="agent__tick" aria-hidden="true">×</span>
+                Отклонено: {editText(entry.edit)} — {entry.reason}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </>
   );
 }
 
@@ -251,6 +316,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                         </ul>
                       </details>
                     )}
+                    <EditList answer={answer} names={names} />
                     {answer.actions.length === 0 ? null : (
                       <div className="agent__actions" role="group" aria-label="Действия по ответу">
                         {answer.actions
@@ -259,7 +325,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                             <button
                               key={index}
                               type="button"
-                              className={action.kind === 'apply-candidate' ? 'files__button is-primary' : 'files__button'}
+                              className={action.kind === 'apply-candidate' || action.kind === 'apply-edits' ? 'files__button is-primary' : 'files__button'}
                               disabled={stale || working}
                               onClick={() => onAction(action, answer)}
                             >
@@ -314,12 +380,29 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
           />
         </label>
         <div className="agent__form-row">
-          <button type="submit" className="files__button is-primary" disabled={working || question.trim() === ''}>
-            {working ? 'Работаю…' : 'Отправить'}
-          </button>
-          {exchanges.length === 0 ? null : (
-            <button type="button" className="files__button" disabled={working} onClick={onClear}>Новый диалог</button>
+          {/* #137: a running request can always be ended — by «Остановить» or by «Новый диалог». */}
+          {working ? (
+            <button type="button" className="files__button is-primary" onClick={stopAgent}>Остановить</button>
+          ) : (
+            <button type="submit" className="files__button is-primary" disabled={question.trim() === ''}>Отправить</button>
           )}
+          {exchanges.length === 0 ? null : (
+            <button
+              type="button"
+              className="files__button"
+              onClick={() => {
+                stopAgent();
+                onClear();
+              }}
+            >
+              Новый диалог
+            </button>
+          )}
+          <VoiceInput
+            onText={(text) =>
+              setQuestion((current) => (current.trim() === '' ? text : `${current.trimEnd()} ${text}`).slice(0, LIMITS.maxQueryChars))
+            }
+          />
           <span className="agent__hint">Enter — отправить, Shift+Enter — перенос</span>
         </div>
       </form>

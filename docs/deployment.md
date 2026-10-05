@@ -32,7 +32,7 @@ docker compose up --build -d
 
 ```bash
 docker compose ps                        # STATUS должен стать "Up ... (healthy)"
-curl http://127.0.0.1:8080/api/health    # {"status":"ok","llm":{"configured":false}} — с ключом: {"configured":true,"provider":"…"}
+curl http://127.0.0.1:8080/api/health    # {"status":"ok","llm":{"configured":false},"build":"<SHA>"} — с ключом: {"configured":true,"provider":"…"}; build — SHA сборки (deploy-vm.sh)
 ```
 
 Редактор открывается в браузере по адресу <http://127.0.0.1:8080> (на удалённой машине —
@@ -123,6 +123,7 @@ docker compose down              # остановить и удалить кон
    запрещает всё и открывает поимённо `src`, `server`, `data`, `demo/*.json`,
    `index.html` и конфиги. Демо-планы сдачи (`demo/*.json`, пакет E01) открыты именно
    поэтому: клиент подключает их на сборке, и без них `vite build` в образе упал бы.
+   Сервер отдаёт `index.html` только для путей без расширения; `/x.png` без файла — 404.
 3. Процесс запускается от пользователя `node` (не root), слушает `0.0.0.0:$PORT`, имеет
    `HEALTHCHECK` на `/api/health`.
 4. Остановка штатная (D-203): по `SIGTERM`/`SIGINT` сервер перестаёт принимать

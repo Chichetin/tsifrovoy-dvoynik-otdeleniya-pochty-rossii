@@ -12,12 +12,15 @@
 
 import { z } from 'zod';
 import type { Recommendation } from '../../contracts/advice';
-import type { AgentPanel, AgentStep, AgentToolName, AssistantAction } from '../../contracts/advice-chat';
+import { AGENT_LIMITS, layoutZoneArgsSchema, proposeEditsArgsSchema, type AgentEditProposal, type AgentPanel, type AgentStep, type AgentToolName, type AssistantAction } from '../../contracts/advice-chat';
 import type { Id, PlanDocument, Ref } from '../../contracts/model';
 import { buildInventory } from '../inventory';
 import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
+import { checkAgentEdits } from './agent-edits';
+import { layoutZone } from './layout';
+import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
 import { calculateAdvice } from './index';
 
@@ -30,13 +33,15 @@ export type AgentToolState = {
   /** Placement's requested type remains known even when no candidate fits. */
   placementTypes: Map<Id, Id>;
   actions: AssistantAction[];
+  /** #126: checked edit proposals of this exchange, accepted or not. */
+  proposals: AgentEditProposal[];
   refs: Ref[];
 };
 
 export type AgentToolOutcome = { output: unknown; step: AgentStep };
 
 export function createAgentToolState(plan: PlanDocument, before: PlanDocument | null): AgentToolState {
-  return { plan, before, names: planIndex(plan), recommendations: new Map(), placementTypes: new Map(), actions: [], refs: [] };
+  return { plan, before, names: planIndex(plan), recommendations: new Map(), placementTypes: new Map(), actions: [], proposals: [], refs: [] };
 }
 
 const PANEL_LABELS: Record<AgentPanel, string> = {
@@ -64,6 +69,8 @@ const argSchemas = {
   suggest_candidate: z.object({ recommendationId: z.string().min(1), candidateId: z.string().min(1) }),
   suggest_layer: z.object({ layerId: z.string().min(1) }),
   open_panel: z.object({ panel: z.enum(['metrics', 'validation', 'inventory']) }),
+  propose_edits: proposeEditsArgsSchema,
+  layout_zone: layoutZoneArgsSchema,
 } satisfies Record<AgentToolName, z.ZodType>;
 
 /** JSON Schemas for the provider's `tools` field, in the same order as above. */
@@ -145,6 +152,48 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
       required: ['panel'],
     },
   },
+  {
+    name: 'layout_zone',
+    description:
+      'Разложить зону заново, когда человек просит разложить, расставить или переставить оборудование зоны. Код перебирает раскладки свободно стоящих объектов зоны и возвращает до трёх проверенных вариантов: вдоль стен, ближе ко входу, шире проходы — с числами было → стало (самый узкий проход, среднее расстояние до входа, находки проверки). typeIds — только эти типы; без них — все подвижные объекты зоны. План не меняется: варианты видны призраками, применит человек. Объясни разницу вариантов по их фактам.',
+    parameters: {
+      type: 'object',
+      properties: {
+        zoneId: { type: 'string' },
+        typeIds: { type: ['array', 'null'], items: { type: 'string' } },
+      },
+      required: ['zoneId'],
+    },
+  },
+  {
+    name: 'propose_edits',
+    description:
+      'Предложить правки плана, когда человек просит переместить, повернуть, добавить или удалить оборудование. Правки: move — сдвиг объекта id на dx_m, dy_m метров (X вправо, Y вверх); rotate — поворот объекта id на by_deg градусов по часовой; add — новый объект типа typeId в зоне zoneId, position_m — желаемая точка (место выберет расчёт; без зоны и точки расчёт сам выберет зону); delete — удалить объект id. Id бери из list_objects или zone_details. Код проверяет каждую правку по порядку (id, физика, проверка плана) и отклоняет неверные с причиной. План не меняется: правки видны призраками, применит их человек.',
+    parameters: {
+      type: 'object',
+      properties: {
+        edits: {
+          type: 'array',
+          maxItems: AGENT_LIMITS.maxEdits,
+          items: {
+            type: 'object',
+            properties: {
+              op: { type: 'string', enum: ['move', 'rotate', 'add', 'delete'] },
+              id: { type: 'string' },
+              dx_m: { type: 'number' },
+              dy_m: { type: 'number' },
+              by_deg: { type: 'number' },
+              typeId: { type: 'string' },
+              zoneId: { type: ['string', 'null'] },
+              position_m: { type: ['array', 'null'], items: { type: 'number' }, minItems: 2, maxItems: 2 },
+            },
+            required: ['op'],
+          },
+        },
+      },
+      required: ['edits'],
+    },
+  },
 ];
 
 export function isAgentTool(name: string): name is AgentToolName {
@@ -193,7 +242,9 @@ function recommendationView(state: AgentToolState, recommendation: Recommendatio
     candidates: recommendation.candidates.map((candidate) => ({
       candidateId: candidate.id,
       zoneId: candidate.object.zoneId,
-      zoneName: zoneName(state, candidate.object.zoneId),
+      zoneName: placementZonePath(state.plan, candidate.object)
+        .map((zoneId) => zoneName(state, zoneId) ?? zoneId)
+        .join(' → ') || null,
       position_m: candidate.object.position.map(round),
       size_m: candidate.object.size_m.map(round),
       rotation_deg: candidate.object.rotation_deg,
@@ -440,6 +491,74 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
       const { panel } = argSchemas.open_panel.parse(rawArgs);
       addAction(state, { kind: 'open-panel', panel });
       return { output: { ok: true }, step: { tool: name, label: `Панель «${PANEL_LABELS[panel]}»`, ok: true } };
+    }
+
+    case 'propose_edits': {
+      const { edits } = argSchemas.propose_edits.parse(rawArgs);
+      const proposal = checkAgentEdits(plan, edits, `edits_${state.proposals.length + 1}`);
+      // Kept even when nothing passed: the person sees every refusal and its reason.
+      state.proposals.push(proposal);
+      for (const change of proposal.changes) {
+        if (change.before !== null) addRef(state, { kind: 'object', id: change.id });
+        const zoneId = change.after?.zoneId ?? change.before?.zoneId ?? null;
+        if (zoneId !== null) addRef(state, { kind: 'zone', id: zoneId });
+      }
+      const label = `Правки плана: принято ${proposal.changes.length}, отклонено ${proposal.rejected.length}`;
+      const rejected = proposal.rejected.map((entry) => ({ edit: entry.edit, reason: entry.reason }));
+      if (proposal.commands.length === 0) {
+        return { output: { error: 'Ни одна правка не прошла проверку.', rejected }, step: { tool: name, label, ok: false } };
+      }
+      addAction(state, { kind: 'preview-edits', proposalId: proposal.id });
+      addAction(state, { kind: 'apply-edits', proposalId: proposal.id });
+      return {
+        output: {
+          proposalId: proposal.id,
+          accepted: proposal.changes.map((change) => ({
+            op: change.op,
+            id: change.id,
+            label: change.label,
+            before: change.before,
+            after: change.after,
+          })),
+          rejected,
+          findings: proposal.findings,
+          note: 'Правки показаны на плане призраками. Применит их человек кнопкой «Применить правки», отмена — Ctrl+Z.',
+        },
+        step: { tool: name, label, ok: true },
+      };
+    }
+
+    case 'layout_zone': {
+      const { zoneId, typeIds } = argSchemas.layout_zone.parse(rawArgs);
+      const zoneName = state.names.zoneName(zoneId);
+      if (zoneName === null || zoneName === undefined) return fail(name, 'Раскладка зоны', `Зоны «${zoneId}» нет в плане.`);
+      const variants = layoutZone(plan, zoneId, typeIds, `layout${state.proposals.length + 1}`);
+      addRef(state, { kind: 'zone', id: zoneId });
+      const label = `Раскладка зоны «${zoneName}»: вариантов ${variants.length}`;
+      if (variants.length === 0) {
+        return fail(name, label, 'Раскладка без новых нарушений не найдена: в зоне нет свободно стоящих объектов или им некуда встать.');
+      }
+      for (const variant of variants) {
+        state.proposals.push(variant);
+        addAction(state, { kind: 'preview-edits', proposalId: variant.id });
+        addAction(state, { kind: 'apply-edits', proposalId: variant.id });
+      }
+      const value = (variant: AgentEditProposal, metric: string, phase: string): number | null =>
+        variant.facts.find((fact) => fact.metric === metric && fact.phase === phase)?.value ?? null;
+      return {
+        output: {
+          variants: variants.map((variant) => ({
+            proposalId: variant.id,
+            title: variant.title,
+            moved: variant.changes.map((change) => change.id),
+            narrowestPassage_m: { before: value(variant, 'layout.passage', 'before'), after: value(variant, 'layout.passage', 'after') },
+            meanToEntrance_m: { before: value(variant, 'layout.entrance', 'before'), after: value(variant, 'layout.entrance', 'after') },
+            findings: variant.findings,
+          })),
+          note: 'Варианты показаны на плане призраками. Применит человек кнопкой «Применить вариант N», отмена — Ctrl+Z.',
+        },
+        step: { tool: name, label, ok: true },
+      };
     }
   }
 }

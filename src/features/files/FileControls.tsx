@@ -16,9 +16,8 @@
  * our format, not theirs.
  *
  * Replacing a plan with unsaved edits asks first — the store reports `dirty`,
- * it does not decide. Replacing a plan that already has zones or objects in it
- * asks too, saved or not: a file opened a minute ago is clean by `dirty` and is
- * still the user's work.
+ * it does not decide. A saved plan, or a file just opened, is clean and is
+ * replaced without asking (#141).
  *
  * The draft offer blocks writing only until the user does something with the
  * document — starts a new plan, opens a file, or makes the first edit. From
@@ -53,7 +52,9 @@ import {
   loadColumnChoice,
   visibleAttributeColumns,
 } from '../../persistence/inventory-csv';
+import { limitRefusal } from './limit-message';
 import { FileDialog } from './FileDialog';
+import { PrintDialog } from './PrintDialog';
 import { DEMO_PLANS, readDemoText, type DemoPlan } from './demo-plan';
 
 export type FileControlsProps = {
@@ -73,6 +74,8 @@ export type FileControlsProps = {
   onEditBoundary?: () => void;
   /** Told the revision that has just been written out, for the dirty flag. */
   onExported: () => void;
+  /** Opens the validation tab; the save-blocked dialog points there instead of listing findings. */
+  onShowValidation?: () => void;
   /**
    * Where the draft lives. `undefined` means the browser's localStorage;
    * `null` switches the draft off, which is what a stand or a test wants.
@@ -80,6 +83,13 @@ export type FileControlsProps = {
   storage?: DraftStorage | null;
   /** App bridges the first-run tour to the same file-opening controller. */
   demoRequest?: { id: number; variant: DemoPlan } | null;
+  /**
+   * #38: variants А and Б of one redesign. `null` — one plan. Each variant is
+   * saved as its own ordinary plan file, with the variant in the file name.
+   */
+  variants?: { active: 'А' | 'Б'; otherDirty: boolean } | null;
+  onKeepVariant?: () => void;
+  onSwitchVariant?: () => void;
 };
 
 /**
@@ -88,9 +98,6 @@ export type FileControlsProps = {
  * этот срок; ошибка не уходит по времени никогда (см. `useEffect` ниже).
  */
 const NOTICE_LIFETIME_MS = 7_000;
-
-/** Сколько нарушений физики показать в окне отказа: остальное — во вкладке «Проверка». */
-const PHYSICS_SHOWN = 5;
 
 const RESTORE_WARNING =
   'План уже изменён с момента открытия страницы. Восстановить черновик и потерять эти правки?';
@@ -115,7 +122,8 @@ function needsReplacementWarning(plan: PlanDocument, dirty: boolean, revision: n
   // The sample the app opens with, still untouched, is nobody's work: the first
   // «Открыть демо» of the tour must not ask whether to lose it.
   if (untouchedSample) return false;
-  return hasContent(plan) || (dirty && revision > 0);
+  // A restored draft or a new plan is dirty from the start; a saved one is not.
+  return dirty && (hasContent(plan) || revision > 0);
 }
 
 function replacementWarning(action: 'Новый' | 'Открыть', dirty: boolean): string {
@@ -123,8 +131,9 @@ function replacementWarning(action: 'Новый' | 'Открыть', dirty: bool
   return `${consequence} ${action === 'Новый' ? 'Создать новый план?' : 'Открыть другой файл?'}`;
 }
 
-function fileName(plan: PlanDocument): string {
-  return planFileName(plan, 'json');
+function fileName(plan: PlanDocument, variant: 'А' | 'Б' | null): string {
+  const name = planFileName(plan, 'json');
+  return variant === null ? name : name.replace(/\.json$/, `-вариант-${variant}.json`);
 }
 
 /** Хранилище браузера, если оно вообще доступно: приватный режим бросает. */
@@ -171,7 +180,7 @@ function handToBrowser(blob: Blob, name: string): void {
 
 export function FileControls({
   document: plan,
-  dirty,
+  dirty: activeDirty,
   revision,
   untouchedSample = false,
   read,
@@ -180,9 +189,16 @@ export function FileControls({
   onNew,
   onEditBoundary,
   onExported,
+  onShowValidation,
   storage: given,
   demoRequest = null,
+  variants = null,
+  onKeepVariant,
+  onSwitchVariant,
 }: FileControlsProps): React.JSX.Element {
+  // Replacing the plan drops both variants: unsaved edits of either one count.
+  const dirty = activeDirty || variants?.otherDirty === true;
+  const variant = variants?.active ?? null;
   const input = useRef<HTMLInputElement>(null);
   const openSequence = useRef(0);
   const activeDemoFetch = useRef<AbortController | null>(null);
@@ -221,6 +237,8 @@ export function FileControls({
   const fileMenu = useRef<HTMLDivElement>(null);
   const [assumptions, setAssumptions] = useState<string[]>([]);
   const [dropped, setDropped] = useState<string[]>([]);
+  // #138: значения атрибутов вне границ типа — план открыт, число исправляют в «Свойствах».
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [storage] = useState<DraftStorage | null>(() =>
     given === undefined ? browserStorage() : given,
   );
@@ -257,6 +275,7 @@ export function FileControls({
   const [versions, setVersions] = useState<PlanVersion[] | null>(null);
   const [versionLabel, setVersionLabel] = useState('');
   const [versionError, setVersionError] = useState<string | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
 
   useEffect(() => {
     if (storage === null) return;
@@ -299,6 +318,7 @@ export function FileControls({
     onReplace(opened.plan, origin);
     setAssumptions(opened.format === 'organizer' ? opened.assumptions : []);
     setDropped(opened.dropped);
+    setWarnings(opened.warnings);
     setNotice(
       opened.format === 'organizer' ? ORGANIZER_NOTE : `План «${opened.plan.name}» открыт.`,
     );
@@ -350,7 +370,10 @@ export function FileControls({
       // Документ не сменился: допущения прежнего файла уже неверны для сообщения
       // об отказе, а список полей вне формата относится к оставшемуся плану.
       setAssumptions([]);
-      showIssueError('План не открыт: файл не соответствует поддерживаемому формату.', opened.issues);
+      showIssueError(
+        limitRefusal(text, opened.issues) ?? 'План не открыт: файл не соответствует поддерживаемому формату.',
+        opened.issues,
+      );
       return;
     }
     accept(opened.value, 'file');
@@ -435,7 +458,9 @@ export function FileControls({
     // название уже правились. Нетронутый пустой план терять нечего.
     const current = fingerprint(encode, plan);
     const touched = current === null || current !== start.opening;
-    if ((hasContent(plan) || touched) && !window.confirm(RESTORE_WARNING)) return;
+    // The start sample, nothing edited since the page opened, is nobody's work.
+    const losesWork = touched || (hasContent(plan) && !untouchedSample);
+    if (losesWork && !window.confirm(RESTORE_WARNING)) return;
     openSequence.current += 1;
     const opened = read(draft.text);
     setOffered(null);
@@ -497,7 +522,7 @@ export function FileControls({
       return;
     }
 
-    handToBrowser(new Blob([encoded.value], { type: 'application/json' }), fileName(plan));
+    handToBrowser(new Blob([encoded.value], { type: 'application/json' }), fileName(plan, variant));
     // The file now holds this plan: the browser draft, kept against a closed tab,
     // would offer it back as «not saved» after the next reload. The first edit
     // after the save writes a new draft.
@@ -506,7 +531,7 @@ export function FileControls({
     setDraftAt(null);
     onExported();
     setErrorDetails([]);
-    setNotice(`Файл ${fileName(plan)} передан браузеру на скачивание.`);
+    setNotice(`Файл ${fileName(plan, variant)} передан браузеру на скачивание.`);
     setState({ status: 'done' });
   };
 
@@ -596,7 +621,7 @@ export function FileControls({
    * дублирует кнопку «Сохранить план» (#6): по этому пункту ведёт инструкция
    * в ZIP сдачи (demo/README.md).
    */
-  const exportItems: { key: 'json' | 'png' | 'svg' | 'csv'; label: string; hint: string }[] = [
+  const exportItems: { key: 'json' | 'png' | 'svg' | 'csv' | 'print'; label: string; hint: string }[] = [
     {
       key: 'json',
       label: 'JSON — файл плана',
@@ -605,17 +630,22 @@ export function FileControls({
     {
       key: 'png',
       label: 'PNG — картинка',
-      hint: 'Растровая картинка плана для презентации и переписки',
+      hint: 'Растровая картинка для презентации и переписки. В неё входят зоны, стены, оборудование и подписи включённых слоёв. Тепловая нагрузка и сектора камер не входят',
     },
     {
       key: 'svg',
       label: 'SVG — векторная картинка',
-      hint: 'Векторная картинка плана для согласования и печати',
+      hint: 'Векторная картинка для согласования и печати. В неё входят зоны, стены, оборудование и подписи включённых слоёв. Тепловая нагрузка и сектора камер не входят',
     },
     {
       key: 'csv',
       label: 'CSV — перечень инвентаризации',
       hint: 'Таблица для Excel: все объекты плана и выбранные в «Инвентаризации» столбцы атрибутов',
+    },
+    {
+      key: 'print',
+      label: 'Печать…',
+      hint: 'Печать плана на A4 или A3 в масштабе 1:50, 1:100 или по листу: с легендой, линейкой и штампом. Печатаются включённые слои',
     },
   ];
 
@@ -678,15 +708,16 @@ export function FileControls({
    */
   useEffect(() => {
     if (state.status !== 'done') return;
-    if (notice === null && dropped.length === 0 && assumptions.length === 0) return;
+    if (notice === null && dropped.length === 0 && assumptions.length === 0 && warnings.length === 0) return;
     const timer = window.setTimeout(() => {
       setState({ status: 'idle' });
       setNotice(null);
       setDropped([]);
       setAssumptions([]);
+      setWarnings([]);
     }, NOTICE_LIFETIME_MS);
     return () => window.clearTimeout(timer);
-  }, [state, notice, dropped, assumptions]);
+  }, [state, notice, dropped, assumptions, warnings]);
 
   const newPlan = (): void => {
     closeMenu(false);
@@ -702,6 +733,7 @@ export function FileControls({
     setDraftAt(null);
     setAssumptions([]);
     setDropped([]);
+    setWarnings([]);
     setNotice(null);
     setErrorDetails([]);
     setState({ status: 'idle' });
@@ -782,6 +814,7 @@ export function FileControls({
     (state.status === 'done' && notice !== null) ||
     draftError !== null ||
     dropped.length > 0 ||
+    warnings.length > 0 ||
     assumptions.length > 0;
 
   return (
@@ -849,6 +882,21 @@ export function FileControls({
             >
               Версии плана…
             </button>
+            {onKeepVariant === undefined || variants !== null ? null : (
+              <button
+                type="button"
+                role="menuitem"
+                className="files__menu-item"
+                title="Текущий план станет вариантом А, дальше правки идут в вариант Б. Каждый вариант сохраняется своим файлом."
+                data-testid="keep-variant"
+                onClick={() => {
+                  closeMenu(true);
+                  onKeepVariant();
+                }}
+              >
+                Запомнить как вариант
+              </button>
+            )}
             <div role="group" aria-labelledby="files-menu-export">
               <span id="files-menu-export" className="files__menu-caption">Экспорт</span>
               {exportItems.map((item) => (
@@ -864,6 +912,7 @@ export function FileControls({
                     if (item.key === 'json') save();
                     else if (item.key === 'png') exportPng();
                     else if (item.key === 'csv') exportCsv();
+                    else if (item.key === 'print') setPrintOpen(true);
                     else exportSvg();
                   }}
                 >
@@ -889,6 +938,28 @@ export function FileControls({
       >
         Сохранить
       </button>
+
+      {onSwitchVariant === undefined || variants === null ? null : (
+        <div style={{ display: 'contents' }} role="group" aria-label="Вариант перепланировки">
+          {(['А', 'Б'] as const).map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={`files__button${name === variants.active ? ' is-primary' : ''}`}
+              aria-pressed={name === variants.active}
+              data-testid={`variant-${name}`}
+              title={name === variants.active
+                ? `Открыт вариант ${name}. «Сохранить» запишет его в свой файл.`
+                : `Открыть вариант ${name}${variants.otherDirty ? ' (есть несохранённые правки)' : ''}`}
+              onClick={() => {
+                if (name !== variants.active) onSwitchVariant();
+              }}
+            >
+              Вариант {name}{name !== variants.active && variants.otherDirty ? ' •' : ''}
+            </button>
+          ))}
+        </div>
+      )}
 
       <input
         ref={input}
@@ -947,6 +1018,17 @@ export function FileControls({
         </details>
       )}
 
+      {warnings.length === 0 ? null : (
+        <details className="files__status" data-testid="attribute-warnings">
+          <summary>Значения вне границ или не даты ({warnings.length}) — исправьте в «Свойствах»</summary>
+          <ul>
+            {warnings.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+
       {assumptions.length === 0 ? null : (
         <details className="files__status" data-testid="organizer-assumptions">
           <summary>Параметры импорта ({assumptions.length})</summary>
@@ -984,6 +1066,16 @@ export function FileControls({
       ) : null}
     </div>
     )}
+
+    {printOpen ? (
+      <PrintDialog
+        plan={plan}
+        onClose={() => {
+          setPrintOpen(false);
+          fileTrigger.current?.focus();
+        }}
+      />
+    ) : null}
 
     {versions === null ? null : (
       <FileDialog
@@ -1089,9 +1181,12 @@ export function FileControls({
             <button
               type="button"
               className="files__button is-primary"
-              onClick={() => setBlocking(null)}
+              onClick={() => {
+                setBlocking(null);
+                onShowValidation?.();
+              }}
             >
-              Вернуться и исправить
+              Показать в «Проверке»
             </button>
             <button
               type="button"
@@ -1108,23 +1203,8 @@ export function FileControls({
         }
       >
         <p>
-          Файл не сохранён: в плане {blocking.length}{NBSP}
-          {blocking.length === 1 ? 'нарушение' : 'нарушения и больше'} правил физики — такого
-          отделения не бывает в натуре.
-        </p>
-        <ul className="file-dialog__list">
-          {blocking.slice(0, PHYSICS_SHOWN).map((entry, index) => (
-            <li key={`${entry.code}-${index}`}>{entry.message}</li>
-          ))}
-        </ul>
-        {blocking.length <= PHYSICS_SHOWN ? null : (
-          <p className="panel__note">
-            И ещё {blocking.length - PHYSICS_SHOWN}: весь список — во вкладке «Проверка».
-          </p>
-        )}
-        <p className="panel__note">
-          Сохранить с нарушениями всё
-          же можно: файл откроется и покажет их в проверке.
+          В плане {blocking.length}{NBSP}
+          {blocking.length === 1 ? 'нарушение' : 'нарушений'} физики. Сохранить всё равно?
         </p>
       </FileDialog>
     )}

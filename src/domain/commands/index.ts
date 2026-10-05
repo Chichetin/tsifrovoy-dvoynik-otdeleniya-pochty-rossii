@@ -50,6 +50,8 @@ export { newObject, newContentLayer, objectOfType, type ObjectSpot } from './new
  * import app, so the two are kept equal by hand.
  */
 const OUTER_WALL_THICKNESS_M = 0.25;
+/** Upper bound for a typed ceiling; a file with a higher ceiling still opens. */
+const MAX_CEILING_M = 10;
 
 /** Codes owned by this module. */
 export const COMMAND_ISSUE_CODES = {
@@ -222,6 +224,9 @@ function checkNumbers(ref: Ref, checks: { ok: boolean; field: string }[]): Resul
     })),
   );
 }
+
+/** Object coordinate limit, metres. */
+const MAX_COORD_M = 1000;
 
 function finitePoint(point: Point): boolean {
   return Number.isFinite(point[0]) && Number.isFinite(point[1]);
@@ -416,6 +421,16 @@ function putObject(plan: PlanDocument, object: PlanDocument['objects'][number]):
   if (existing !== undefined && existing.layerId !== object.layerId) {
     const source = checkLayerEditable(plan, existing.layerId, ref);
     if (!source.ok) return source;
+  }
+
+  // A far object ruins «Вписать»; an already-far object (old file) stays editable in place.
+  const moved = existing === undefined || existing.position.some((value, index) => value !== object.position[index]);
+  if (moved && finitePoint(object.position) && object.position.some((value) => Math.abs(value) > MAX_COORD_M)) {
+    return fail(
+      CONTRACT_ISSUE_CODES.SCHEMA_INVALID,
+      `Координата вне допустимого диапазона: допустимо от −${MAX_COORD_M} до ${MAX_COORD_M} м.`,
+      [ref],
+    );
   }
 
   const numbers = checkNumbers(ref, [
@@ -749,8 +764,12 @@ export function applyCommand(
     case 'room.setCeiling': {
       const height = command.ceilingHeight_m;
       const ref: Ref = { kind: 'room', id: plan.room.id };
-      if (!Number.isFinite(height) || height <= 0) {
-        return fail(COMMAND_ISSUE_CODES.CEILING_INVALID, 'Высота потолка — число больше нуля, в метрах.', [ref]);
+      if (!Number.isFinite(height) || height <= 0 || height > MAX_CEILING_M) {
+        return fail(
+          COMMAND_ISSUE_CODES.CEILING_INVALID,
+          `Высота потолка — от 0 до ${MAX_CEILING_M} м.`,
+          [ref],
+        );
       }
       // Outer walls are the outline made solid (D-134): they rise with the
       // ceiling. Partitions keep the height their own card gave them.

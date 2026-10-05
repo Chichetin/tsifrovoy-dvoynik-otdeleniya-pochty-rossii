@@ -17,6 +17,9 @@ COPY package.json package-lock.json ./
 RUN npm ci
 
 COPY . .
+# #136: SHA сборки. В образе нет .git, поэтому его передаёт выкатка (deploy-vm.sh).
+# Пусто — «Настройки» и /api/health честно говорят, что сборка неизвестна.
+ARG BUILD_SHA=
 # `npm run build` = tsc --noEmit + vite build: сломанные типы валят сборку образа.
 RUN npm run build && npm run build:server
 
@@ -26,6 +29,8 @@ WORKDIR /app
 # порт отдаёт Docker. PORT переопределяется окружением, STATIC_DIR указывает на
 # собранный SPA абсолютным путём, чтобы не зависеть от рабочего каталога.
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8080 STATIC_DIR=/app/dist
+ARG BUILD_SHA=
+ENV BUILD_SHA=${BUILD_SHA}
 
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm cache clean --force

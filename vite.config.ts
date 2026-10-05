@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 
@@ -17,6 +18,22 @@ export function resolveDevPort(raw: string | undefined): number {
   }
   return port;
 }
+
+/**
+ * #136: the build's short SHA for «Настройки». BUILD_SHA comes from the deploy
+ * (the Docker image has no .git); a local build asks git. No answer — empty,
+ * and the page says «неизвестна» instead of guessing.
+ */
+function buildSha(): string {
+  const given = process.env.BUILD_SHA?.trim();
+  if (given) return given;
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+  } catch {
+    return '';
+  }
+}
+process.env.VITE_BUILD_SHA = buildSha();
 
 export default defineConfig({
   plugins: [react()],
