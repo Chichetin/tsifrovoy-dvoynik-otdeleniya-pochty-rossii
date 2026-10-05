@@ -77,13 +77,16 @@ async function numberOf(page: Page, label: string): Promise<number> {
 }
 
 /**
- * Число белых непрозрачных пикселей в canvas слоя находок (предпоследний слой:
- * последним всегда стоит слой кольца фокуса, D-177): кайма контура и обводка маркеров.
+ * Число белых непрозрачных пикселей в canvas слоя находок: кайма контура и
+ * обводка маркеров. Слой берётся по маркеру находки, а не по номеру: слоёв
+ * сцены стало больше, и их порядок — не дело этой спеки.
  */
 async function whitePixels(page: Page): Promise<number> {
   return page.evaluate(() => {
-    const layers = document.querySelectorAll<HTMLCanvasElement>('.editor-canvas canvas');
-    const canvas = layers[layers.length - 2];
+    type Layer = { getCanvas(): { _canvas: HTMLCanvasElement } };
+    type Stage = { findOne(selector: string): { getLayer(): Layer | null } | undefined };
+    const stage = (window as unknown as { Konva?: { stages: Stage[] } }).Konva?.stages[0];
+    const canvas = stage?.findOne('.issue-marker')?.getLayer()?.getCanvas()._canvas;
     const context = canvas?.getContext('2d');
     if (canvas === undefined || context === null || context === undefined) return -1;
     const { data } = context.getImageData(0, 0, canvas.width, canvas.height);

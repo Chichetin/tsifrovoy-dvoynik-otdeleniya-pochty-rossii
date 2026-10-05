@@ -13,6 +13,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Page } from './fixtures';
+import { openSettings } from './settings';
 import { showTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
@@ -54,14 +55,14 @@ test('границы боковых панелей двигаются, а гла
   const eyeBox = (await eye.boundingBox())!;
   expect(eyeBox.y).toBeGreaterThanOrEqual(noticeBox.y + noticeBox.height);
   const shownScale = await page.getByTestId('canvas-scale').textContent();
-  const scale = async (): Promise<number> => Number(((await page.getByTestId('canvas-scale').textContent()) ?? '').match(/(\d+) px\/м/)?.[1]);
-  const workingScale = await scale();
+  const shownCanvas = (await canvas.boundingBox())!;
   await eye.click();
   await expect(left).toBeHidden();
   await expect(right).toBeHidden();
   await expect(page.locator('.shell__bar')).toBeHidden();
-  expect((await canvas.boundingBox())!.width).toBeGreaterThan(1200);
-  await expect.poll(scale).toBeGreaterThan(workingScale);
+  // #132: the eye only hides the interface — the canvas and the scale stay put.
+  expect(await canvas.boundingBox()).toEqual(shownCanvas);
+  await expect(page.getByTestId('canvas-scale')).toHaveText(shownScale ?? '');
   await page.keyboard.press('Escape');
   await expect(left).toBeVisible();
   await expect(page.locator('.shell__bar')).toBeVisible();
@@ -78,23 +79,24 @@ test('панели можно сжать до компактной ширины 
   const leftHandle = page.getByRole('separator', { name: 'Изменить ширину левой панели' });
   await leftHandle.focus();
   await page.keyboard.press('Home');
-  await expect(leftHandle).toHaveAttribute('aria-valuenow', '160');
+  await expect(leftHandle).toHaveAttribute('aria-valuenow', '10');
   const rightHandle = page.getByRole('separator', { name: 'Изменить ширину правой панели' });
   await rightHandle.focus();
   await page.keyboard.press('Home');
-  await expect(rightHandle).toHaveAttribute('aria-valuenow', '200');
+  await expect(rightHandle).toHaveAttribute('aria-valuenow', '12.5');
   await expect(page.locator('#side-panel-right').getByRole('tab', { name: 'Ассистент' })).toBeVisible();
   await expect(page.locator('#side-panel-right').getByRole('tab', { name: /Проверка/ })).toBeVisible();
   await page.reload();
-  await expect(leftHandle).toHaveAttribute('aria-valuenow', '160');
-  await expect(rightHandle).toHaveAttribute('aria-valuenow', '200');
+  await expect(leftHandle).toHaveAttribute('aria-valuenow', '10');
+  await expect(rightHandle).toHaveAttribute('aria-valuenow', '12.5');
 });
 
 test('при сужении холста готовый план вписывается, а увеличенный вид сохраняет масштаб', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
   const scale = async (): Promise<number> => {
-    const label = (await page.getByTestId('canvas-scale').textContent()) ?? '';
+    // The label shows percent; the exact px/m is in its tooltip.
+    const label = (await page.getByTestId('canvas-scale').getAttribute('title')) ?? '';
     return Number(label.match(/(\d+) px\/м/)?.[1]);
   };
   const dragEdge = async (name: string, delta: number): Promise<void> => {
@@ -161,7 +163,7 @@ async function expectOneRow(page: Page, reference: Layout, label: string): Promi
 // Different system fonts made the 1280/1460 header 13 px too wide on Linux.
 // A small letter-spacing increase reproduces that width pressure on Windows.
 for (const width of [1280, 1339, 1340, 1460, 1500]) {
-  test(`шапка сохраняет запас при более широких надписях — ${width}`, async ({ page }) => {
+  test(`шапка сохраняет запас при более широких надписях — ${width}`, async ({ page }, testInfo) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/');
     await page.getByRole('button', { name: 'Перегородка', exact: true }).click();
@@ -177,7 +179,7 @@ for (const width of [1280, 1339, 1340, 1460, 1500]) {
     expect(measured.overflow, `${width}: более широкие надписи остаются в окне`).toBeLessThanOrEqual(0);
     expect(measured.slack, `${width}: запас для отличий системных шрифтов`).toBeGreaterThanOrEqual(MIN_SLACK_PX);
     if (width === 1280 || width === 1460) {
-      await page.screenshot({ path: `docs/verification/2026-09-29-header-${width}.png` });
+      await page.screenshot({ path: testInfo.outputPath(`header-${width}.png`) });
     }
   });
 }
@@ -200,7 +202,7 @@ for (const size of [
       expect(reference.bar).toBeLessThanOrEqual(80);
       await expectOneRow(page, reference, 'новый план');
 
-      for (const name of ['Обзор', 'Линейка', 'Помещение', 'Зона', 'Перегородка', 'Проём', 'Выбор']) {
+      for (const name of ['Обзор', 'Линейка', 'Комната', 'Зона', 'Перегородка', 'Проём', 'Выбор']) {
         await page.getByRole('button', { name, exact: true }).click();
         await expect(page.getByRole('button', { name, exact: true })).toHaveAttribute('aria-pressed', 'true');
         await expectOneRow(page, reference, `инструмент «${name}»`);
@@ -260,9 +262,9 @@ test('плашка «Правка отклонена» — вне шапки и 
   await page.goto('/');
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
 
-  // Помещение выбирается кликом по полу; пустое название план не принимает (D-146).
-  await page.getByTestId('editor-canvas').click({ position: { x: 300, y: 200 } });
-  await page.getByLabel('Название плана').fill('   ');
+  // Пустое название план не принимает (D-146); поле названия — в «Настройках» (D-350).
+  const settings = await openSettings(page, 'План');
+  await settings.getByLabel('Название плана').fill('   ');
   const plaque = page.locator('.shell__error');
   await expect(plaque).toHaveAttribute('role', 'alert');
   await expect(plaque).toContainText('Правка отклонена');

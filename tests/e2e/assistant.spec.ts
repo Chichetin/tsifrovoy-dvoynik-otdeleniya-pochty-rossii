@@ -37,7 +37,8 @@ test('агент без сервера: вопрос → шаги → «Прим
 
   await showTab(page, 'Ассистент');
   await assistant.getByRole('button', { name: /^Применить: Рабочее место оператора/ }).click();
-  await expect(assistant.getByRole('status')).toContainText('Применено');
+  // The voice hint is a second, empty status region of the panel.
+  await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
   await expect(assistant.getByRole('button', { name: /^Применить:/ })).toBeDisabled();
   await showTab(page, 'Инвентаризация');
   await expect(rows).toHaveCount(54);
@@ -61,8 +62,8 @@ test('#32 без сервера: «где слепые пятна» → посм
   await assistant.getByLabel('Вопрос ассистенту').press('Enter');
   const answer = assistant.locator('.agent__answer');
   await expect(answer).toContainText('Без LLM');
-  // Numbers are the calculation's: 300 of 1 008 squares now, 72,1 % with the first variant.
-  await expect(answer).toContainText('Клиентские зоны видны камерами на 29,8 %, с этим вариантом — на 72,1 % (+42,3 п. п.).');
+  // Numbers are the calculation's for the demo cameras turned inward (#118): 93,8 % now, 97,7 % with the first variant.
+  await expect(answer).toContainText('Клиентские зоны видны камерами на 93,8 %, с этим вариантом — на 97,7 % (+3,9 п. п.).');
   // Existing cameras are named by their card label, not by id (#10); the id
   // still drives the click and is kept in the button's title/data-ref-id.
   const cameraButton = answer.getByRole('button', { name: 'Камера зала (вход)', exact: true });
@@ -77,20 +78,24 @@ test('#32 без сервера: «где слепые пятна» → посм
 
   // Asked → looked → applied, in that order, with nothing else in between.
   await assistant.getByRole('button', { name: /^Применить: Камера видеонаблюдения/ }).click();
-  await expect(assistant.getByRole('status')).toContainText('Применено');
+  // The voice hint is a second, empty status region of the panel.
+  await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
   await showTab(page, 'Слои');
-  const cameras = page.getByLabel('Слои').locator('.layers__item').filter({ has: page.getByLabel('Имя слоя Камеры и зоны обзора') });
+  const cameras = page
+    .getByLabel('Слои', { exact: true })
+    .locator('.layers__item')
+    .filter({ has: page.locator('.layers__name').getByText('Камеры и зоны обзора', { exact: true }) });
   await cameras.getByRole('button', { name: 'Показывать слой Камеры и зоны обзора' }).click();
   const table = cameras.getByRole('table', { name: 'Покрытие клиентских зон камерами' });
   // The layer counts the applied camera exactly as the assistant promised.
-  await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('72,1 %');
+  await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('97,7 %');
 
   const [download] = await Promise.all([page.waitForEvent('download'), exportPlan(page, 'JSON')]);
   const saved = testInfo.outputPath('camera-roundtrip.json');
   await download.saveAs(saved);
   await page.getByTestId('plan-file-input').setInputFiles(saved);
   await showTab(page, 'Слои');
-  await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('72,1 %');
+  await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('97,7 %');
 });
 
 test('агент с моделью: шаги потоком, id в тексте ведут на план, действие показывает вариант', async ({ page }) => {
@@ -116,6 +121,7 @@ test('агент с моделью: шаги потоком, id в тексте 
             { kind: 'apply-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
             { kind: 'open-panel', panel: 'metrics' },
           ],
+          proposals: [],
           refs: [{ kind: 'zone', id: 'z_client' }],
         },
       },
@@ -159,7 +165,7 @@ test.describe('ассистент в браузере', () => {
   test('вкладка открывает ассистента в правой колонке (D-249)', async ({ page }) => {
     await page.goto('/');
     const assistant = panel(page);
-    await showTab(page, 'Справочник');
+    await showTab(page, 'Площади');
     await expect(assistant).toBeHidden();
     await expect(page.getByRole('button', { name: 'Открыть ассистента' })).toHaveCount(0);
 
@@ -271,7 +277,8 @@ test.describe('ассистент в браузере', () => {
     await panel(page).locator('.advice__more summary').click();
     await expect(panel(page).locator('.advice__more')).toContainText('rule_workplace_min');
     await expect(panel(page).locator('.advice__more')).toContainText('по текущей расстановке');
-    await expect(panel(page).locator('.advice__more')).toContainText('не норматив Почты');
+    // The rule is named as the team's (#100 dropped the repeated «не норматив Почты»).
+    await expect(panel(page).locator('.advice__more')).toContainText('Правило команды');
 
     // Скамья ожидания: по всему помещению — только там, где скамьи уже стоят
     // или требует правило (ожидание, очередь, комната персонала), не у окон.

@@ -179,7 +179,9 @@ test.describe('перечень оборудования', () => {
     // Разрез по зонам — тоже по именам.
     const zones = panel(page).locator('table').nth(1);
     await expect(zones).toContainText('Клиентский зал');
-    await expect(zones).toContainText('z_client');
+    // id не в тексте, а в подсказке ссылки на зону.
+    await expect(zones).not.toContainText('z_client');
+    await expect(zones.getByRole('button', { name: 'Клиентский зал', exact: true })).toHaveAttribute('title', 'z_client');
 
     // Находка проверки называет объект, о котором она.
     await showTab(page, 'Проверка');

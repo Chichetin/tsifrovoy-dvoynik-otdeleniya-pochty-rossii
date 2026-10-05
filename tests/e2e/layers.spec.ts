@@ -10,14 +10,24 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Page , exportPlan, expectUnsavedEdits } from './fixtures';
+import { closeSettings, openSettings, settingsDialog } from './settings';
 import { showTab, sideTab } from './side-tabs';
 import type { PlanDocument } from '../../src/contracts/model';
 
-const panel = (page: Page) => page.getByLabel('Слои');
+/**
+ * D-350: the «Слои» tab shows, hides and locks a layer; adding, renaming,
+ * ordering and deleting a layer live in «Настройки» → «Слои».
+ */
+const panel = (page: Page) => page.getByLabel('Слои', { exact: true });
 const layerItem = (page: Page, name: string) =>
-  panel(page).locator('.layers__item').filter({ has: page.getByLabel(`Имя слоя ${name}`) });
+  panel(page)
+    .locator('.layers__item')
+    .filter({ has: page.locator('.layers__name').getByText(name, { exact: true }) });
+const setup = (page: Page) => settingsDialog(page).getByRole('region', { name: 'Настройка слоёв' });
+const setupItem = (page: Page, name: string) =>
+  setup(page).locator('.layers__item').filter({ has: page.getByLabel(`Имя слоя ${name}`, { exact: true }) });
 
-const card = (page: Page) => page.getByLabel('Свойства');
+const card = (page: Page) => page.locator('aside[data-tour="side-right"]').getByRole('region', { name: 'Свойства' });
 
 type Point = { x: number; y: number };
 
@@ -172,10 +182,10 @@ test.describe('слои в браузере', () => {
     await expect(status.getByRole('table', { name: 'Состояния объектов, слой Состояние оборудования' }).locator('tbody tr')).toHaveCount(1);
     if (process.env.UPDATE_SNAPSHOTS === '1') {
       await status.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: join(process.cwd(), 'docs', 'verification', '2026-09-30-equipment-status-1280.png') });
+      await page.screenshot({ path: test.info().outputPath('equipment-status-1280.png') });
       await page.setViewportSize({ width: 1440, height: 900 });
       await status.scrollIntoViewIfNeeded();
-      await page.screenshot({ path: join(process.cwd(), 'docs', 'verification', '2026-09-30-equipment-status-1440.png') });
+      await page.screenshot({ path: test.info().outputPath('equipment-status-1440.png') });
     }
     const saved = await savePlan(page);
     const objects = (JSON.parse(saved) as { objects: { id: string; attributes: Record<string, unknown> }[] }).objects;
@@ -255,14 +265,16 @@ test.describe('слои в браузере', () => {
       .getByRole('button', { name: 'Запереть слой Основной' })
       .click();
 
-    // Новый обычный слой.
-    await panel(page).getByRole('button', { name: 'Добавить слой' }).click();
-    const created = panel(page).locator('.layers__item').filter({ hasText: 'обычный слой' });
+    // Новый обычный слой — в «Настройках».
+    await openSettings(page, 'Слои');
+    await setup(page).getByRole('button', { name: 'Добавить слой' }).click();
+    const created = setup(page).locator('.layers__item').filter({ hasText: 'обычный слой' });
     await expect(created).toHaveCount(2);
 
-    // Имя слоя правится на месте.
-    await panel(page).getByLabel('Имя слоя Слой 7').fill('Перепланировка');
-    await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toBeVisible();
+    // Имя слоя правится там же, на месте.
+    await setup(page).getByLabel('Имя слоя Слой 7').fill('Перепланировка');
+    await expect(setup(page).getByLabel('Имя слоя Перепланировка')).toBeVisible();
+    await closeSettings(page);
 
     // Скрытие: объект пропадает с холста, но не из инвентаризации и проверок.
     await layerItem(page, 'Основной')
@@ -277,18 +289,22 @@ test.describe('слои в браузере', () => {
       .click();
 
     // Удаление слоя переносит содержимое в другой слой, а не стирает его.
-    await layerItem(page, 'Основной')
+    await openSettings(page, 'Слои');
+    await setupItem(page, 'Основной')
       .getByRole('button', { name: 'Удалить слой Основной' })
       .click();
-    await expect(panel(page).getByLabel('Имя слоя Основной')).toHaveCount(0);
+    await expect(setup(page).getByLabel('Имя слоя Основной')).toHaveCount(0);
+    await closeSettings(page);
+    await expect(layerItem(page, 'Основной')).toHaveCount(0);
     await expect(inventoryRows).toHaveCount(1);
     await expect(layerItem(page, 'Перепланировка').locator('.layers__meta')).toContainText(
       'зон 1, объектов 1',
     );
 
-    // Порядок слоёв меняется стрелками и уезжает в файл вместе с планом.
+    // Порядок слоёв меняется стрелками в «Настройках» и уезжает в файл вместе с планом.
+    await openSettings(page, 'Слои');
     const names = (): Promise<string[]> =>
-      panel(page)
+      setup(page)
         .locator('.layers__name')
         .evaluateAll((inputs) => inputs.map((input) => (input as HTMLInputElement).value));
     expect(await names()).toEqual([
@@ -299,7 +315,7 @@ test.describe('слои в браузере', () => {
       'Состояние оборудования',
       'Перепланировка',
     ]);
-    await layerItem(page, 'Перепланировка')
+    await setupItem(page, 'Перепланировка')
       .getByRole('button', { name: 'Поднять слой Перепланировка' })
       .click();
     expect(await names()).toEqual([
@@ -312,17 +328,20 @@ test.describe('слои в браузере', () => {
     ]);
 
     // Все правки слоёв переживают сохранение и повторное открытие.
+    await closeSettings(page);
     const saved = await savePlan(page);
     page.once('dialog', (dialog) => void dialog.accept());
     await page.getByRole('button', { name: 'Файл' }).click();
     await page.getByRole('menuitem', { name: 'Создать новый' }).click();
-    await expect(panel(page).getByLabel('Имя слоя Перепланировка')).toHaveCount(0);
+    await expect(layerItem(page, 'Перепланировка')).toHaveCount(0);
 
     await page.getByTestId('plan-file-input').setInputFiles({
       name: 'layers.json',
       mimeType: 'application/json',
       buffer: Buffer.from(saved),
     });
+    await expect(layerItem(page, 'Перепланировка')).toHaveCount(1);
+    await openSettings(page, 'Слои');
     expect(await names()).toEqual([
       'Камеры и зоны обзора',
       'Тепловая нагрузка зон',
@@ -331,6 +350,7 @@ test.describe('слои в браузере', () => {
       'Перепланировка',
       'Состояние оборудования',
     ]);
+    await closeSettings(page);
     await expect(inventoryRows).toHaveCount(1);
 
     expect(errors).toEqual([]);
@@ -338,31 +358,28 @@ test.describe('слои в браузере', () => {
 
   test('последний слой удалить нельзя', async ({ page }) => {
     await page.goto('/');
-    await showTab(page, 'Слои');
+    await openSettings(page, 'Слои');
 
     // Информационные слои — тоже слои: удаляем все, кроме одного.
-    for (const name of ['Камеры и зоны обзора', 'Тепловая нагрузка зон', 'Сотрудники по зонам']) {
-      await layerItem(page, name).getByRole('button', { name: `Удалить слой ${name}` }).click();
+    for (const name of ['Камеры и зоны обзора', 'Тепловая нагрузка зон', 'Сотрудники по зонам', 'Очередь по зонам', 'Состояние оборудования']) {
+      await setupItem(page, name).getByRole('button', { name: `Удалить слой ${name}` }).click();
     }
-    await layerItem(page, 'Очередь по зонам')
-      .getByRole('button', { name: 'Удалить слой Очередь по зонам' })
-      .click();
-    await layerItem(page, 'Состояние оборудования')
-      .getByRole('button', { name: 'Удалить слой Состояние оборудования' })
-      .click();
 
-    const remaining = panel(page).locator('.layers__item');
+    const remaining = setup(page).locator('.layers__item');
     await expect(remaining).toHaveCount(1);
     await expect(
-      layerItem(page, 'Основной').getByRole('button', { name: 'Удалить слой Основной' }),
+      setupItem(page, 'Основной').getByRole('button', { name: 'Удалить слой Основной' }),
     ).toBeDisabled();
 
     // Удалённый слой камер добавляется снова: его прежний id ушёл в отставку,
     // новый получает следующий номер, а не отказ.
-    await panel(page).getByLabel('Тип нового слоя').selectOption({ label: 'Камеры и зоны обзора' });
-    await panel(page).getByRole('button', { name: 'Добавить слой' }).click();
-    await expect(layerItem(page, 'Камеры и зоны обзора')).toHaveCount(1);
+    await setup(page).getByLabel('Тип нового слоя').selectOption({ label: 'Камеры и зоны обзора' });
+    await setup(page).getByRole('button', { name: 'Добавить слой' }).click();
+    await expect(setupItem(page, 'Камеры и зоны обзора')).toHaveCount(1);
     await expect(page.locator('.shell__error')).toHaveCount(0);
+    await closeSettings(page);
+    await showTab(page, 'Слои');
+    await expect(layerItem(page, 'Камеры и зоны обзора')).toHaveCount(1);
   });
 
   test('информационные слои: источник чисел объяснён, план не меняется', async ({ page }) => {
@@ -401,8 +418,8 @@ test.describe('слои в браузере', () => {
 
     // Поле, которое рисует слой, в карточке зоны без подсказки условности (D-281):
     // имя зоны в таблице слоя — ссылка на саму зону, карточка открывается по ней.
-    await heat.getByRole('button', { name: 'Зона 1' }).click();
-    await page.getByRole('button', { name: 'Свойства выбранного' }).click();
+    // The table row header, not the zone-load list above it: both name the zone.
+    await heat.getByRole('rowheader').getByRole('button', { name: 'Зона 1' }).click();
     await expect(card(page).getByLabel('Загрузка зоны, %')).toBeVisible();
     await expect(card(page).getByText('не измерение')).toHaveCount(0);
     await showTab(page, 'Слои');
@@ -587,9 +604,10 @@ test.describe('покрытие клиентских зон камерами (#3
 
     await cameras.getByRole('button', { name: 'Показывать слой Камеры и зоны обзора' }).click();
     await expect(table).toBeVisible();
-    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('29,8 %');
-    await expect(table.getByRole('row', { name: /Зона очереди/ })).toContainText('0 %');
-    await expect(table.getByRole('row', { name: /Зона ожидания/ })).toContainText('42,3 %');
+    // Demo cameras face inward (#118): the hall is almost covered, one blind spot stays.
+    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).toContainText('93,8 %');
+    await expect(table.getByRole('row', { name: /Зона очереди/ })).toContainText('100 %');
+    await expect(table.getByRole('row', { name: /Зона ожидания/ })).toContainText('95,9 %');
     await expect.poll(() => konvaCount(page, '.camera-blind')).toBe(1);
     // No «conditional numbers» caution next to the numbers, in any wording (D-281);
     // the catalog's own note in the collapsed «Что показывает слой» is not a caution.
@@ -602,13 +620,13 @@ test.describe('покрытие клиентских зон камерами (#3
     const queueButton = table.getByRole('button', { name: 'Зона очереди' });
     await queueButton.focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toBeVisible();
+    await expect(card(page)).toHaveAttribute('data-entity-id', 'z_queue');
     await showTab(page, 'Слои');
 
     // A wider, longer camera over the waiting zone: the share grows at once.
     await cameras.getByLabel('Угол обзора, Камера зоны ожидания (eq_26)').fill('180');
     await cameras.getByLabel('Дальность обзора, Камера зоны ожидания (eq_26)').fill('9');
-    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).not.toContainText('29,8 %');
+    await expect(table.getByRole('row', { name: /Все клиентские зоны/ })).not.toContainText('93,8 %');
     const grown = await table.getByRole('row', { name: /Все клиентские зоны/ }).textContent();
     await expectUnsavedEdits(page, true);
 

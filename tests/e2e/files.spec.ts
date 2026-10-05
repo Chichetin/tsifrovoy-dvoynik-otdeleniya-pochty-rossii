@@ -56,6 +56,11 @@ function inventoryRows(page: Page) {
   return page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
 }
 
+/** A link of the inventory: the same name also stands in hidden panels (findings, layers). */
+function inventoryLink(page: Page, text: string) {
+  return page.getByLabel('Инвентаризация').locator('.table__link', { hasText: text }).first();
+}
+
 async function openFile(page: Page, file: string): Promise<void> {
   await page.getByTestId('plan-file-input').setInputFiles(file);
 }
@@ -148,11 +153,12 @@ test.describe('файлы плана', () => {
     // Двенадцать объектов примера и его зоны — на месте и со своими id.
     await expect(inventoryRows(page)).toHaveCount(12);
     await expandInventoryRows(page);
-    await expect(page.locator('.table__link', { hasText: 'Клиентская зона' }).first()).toBeVisible();
+    await expect(inventoryLink(page, 'Клиентская зона')).toBeVisible();
     // Перечень свёрнут по умолчанию — первая строка с z_back стоит не среди
-    // первых трёх (z_back начинается с восьмого объекта примера).
+    // первых трёх (z_back начинается с восьмого объекта примера). Зона названа
+    // по имени, её id — в подсказке ссылки.
     await expandInventoryRows(page);
-    await expect(page.locator('.table__link', { hasText: 'z_back' }).first()).toBeVisible();
+    await expect(page.getByLabel('Инвентаризация').getByTitle('z_back', { exact: true }).first()).toBeVisible();
 
     // Объект примера открывается карточкой по своему идентификатору. Ссылку
     // берём в перечне: тот же объект назван и в находках проверки, а её панель
@@ -169,7 +175,8 @@ test.describe('файлы плана', () => {
     // Пользователю сказано, откуда план и что будет при сохранении.
     await expect(page.getByTestId('files-notice')).toContainText('формата организаторов');
     await expect(page.getByTestId('files-notice')).toContainText('формате редактора');
-    await expect(page.getByTestId('organizer-assumptions')).toContainText('Допущения импорта');
+    // #100 renamed the caption «Допущения импорта» → «Параметры импорта».
+    await expect(page.getByTestId('organizer-assumptions')).toContainText('Параметры импорта');
 
     // Зоны нарисованы: площадь помещения и свободный пол посчитаны от плана.
     await expect(page.getByTestId('room-free')).toContainText('м²');
@@ -213,7 +220,7 @@ test.describe('файлы плана', () => {
     await openFile(page, first);
     await expect(inventoryRows(page)).toHaveCount(12);
     await expandInventoryRows(page);
-    await expect(page.locator('.table__link', { hasText: 'Клиентская зона' }).first()).toBeVisible();
+    await expect(inventoryLink(page, 'Клиентская зона')).toBeVisible();
     // Это наш файл, а не пример: подпись про импорт больше не показывается.
     await expect(page.getByTestId('organizer-assumptions')).toHaveCount(0);
 
@@ -294,7 +301,7 @@ test.describe('файлы плана', () => {
     await offer.getByRole('button', { name: 'Восстановить' }).click();
     await expect(inventoryRows(page)).toHaveCount(12);
     await expandInventoryRows(page);
-    await expect(page.locator('.table__link', { hasText: 'Клиентская зона' }).first()).toBeVisible();
+    await expect(inventoryLink(page, 'Клиентская зона')).toBeVisible();
     await expect(offer).toHaveCount(0);
   });
 

@@ -157,19 +157,39 @@ async function savePlan(page: Page): Promise<SavedPlan> {
   return JSON.parse(readFileSync(await savePlanFile(page), 'utf8')) as SavedPlan;
 }
 
-/** Замкнутый контур: клики по вершинам и клик по первой точке, который замыкает. */
+/**
+ * Замкнутый контур: клики по вершинам и клик по первой точке, который замыкает.
+ * Внешний контур отделения рисуется из меню «Файл» и применяется кнопкой:
+ * инструмент «Комната» с #52 ставит прямоугольную комнату внутри отделения.
+ */
 async function drawRing(
   page: Page,
-  tool: 'Помещение' | 'Зона',
+  tool: 'Контур отделения' | 'Зона',
   ring: Pixel[],
   options: { alt?: boolean } = {},
 ): Promise<void> {
-  await page.getByRole('button', { name: tool, exact: true }).click();
+  if (tool === 'Контур отделения') {
+    await page.getByRole('button', { name: 'Файл' }).click();
+    await page.getByRole('menuitem', { name: 'Изменить внешний контур отделения…' }).click();
+  } else {
+    await page.getByRole('toolbar', { name: 'Инструменты плана' }).getByRole('button', { name: tool, exact: true }).click();
+  }
   for (const point of ring) await clickAt(page, point, options);
   const first = ring[0];
   if (first === undefined) throw new Error('пустой контур');
   await clickAt(page, first, options);
+  if (tool === 'Контур отделения') await page.getByRole('button', { name: 'Применить внешний контур' }).click();
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+}
+
+/**
+ * Проём ставится в два шага: клик по стене готовит черновик, кнопка
+ * «Установить проём» в левой колонке пишет его в план.
+ */
+async function placeOpening(page: Page, point: Pixel): Promise<void> {
+  await page.getByRole('button', { name: 'Проём', exact: true }).click();
+  await clickAt(page, point);
+  await page.getByRole('button', { name: 'Установить проём' }).click();
 }
 
 /** Доли сцены: тест не зависит от размера окна, а план — от порядка кликов. */
@@ -206,7 +226,7 @@ function ring(size: Rect, fractions: readonly (readonly [number, number])[]): Pi
  * (D-209) сдвинула бы вершины относительно кликов.
  */
 async function drawPlan(page: Page, size: Rect): Promise<void> {
-  await drawRing(page, 'Помещение', ring(size, ROOM), { alt: true });
+  await drawRing(page, 'Контур отделения', ring(size, ROOM), { alt: true });
   await page.keyboard.press('Escape');
   await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
   await page.keyboard.press('Escape');
@@ -431,7 +451,7 @@ test.describe('инструменты плана', () => {
 
     // Помещение из шаблона — 12 × 9 м; нарисованное считается по контуру.
     expect(await roomArea(page)).toBe('108,00\u00a0м²');
-    await drawRing(page, 'Помещение', ring(size, ROOM));
+    await drawRing(page, 'Контур отделения', ring(size, ROOM));
     const drawnRoom = await roomArea(page);
     expect(drawnRoom).not.toBe('108,00\u00a0м²');
 
@@ -508,7 +528,7 @@ test.describe('инструменты плана', () => {
       [0.1, 0.6],
     ] as const;
 
-    await drawRing(page, 'Помещение', ring(size, ROOM), { alt: true });
+    await drawRing(page, 'Контур отделения', ring(size, ROOM), { alt: true });
     await page.keyboard.press('Escape');
     await drawRing(page, 'Зона', ring(size, OUTER), { alt: true });
     await page.keyboard.press('Escape');
@@ -769,7 +789,6 @@ test.describe('инструменты плана', () => {
     page.on('pageerror', (error) => errors.push(error.message));
 
     const size = await openEditor(page);
-    const notice = page.getByTestId('plan-tools-notice');
 
     // Стартовый план — четыре наружные стены и один вход.
     const before = await savePlan(page);
@@ -796,11 +815,13 @@ test.describe('инструменты плана', () => {
     // Проём мимо любой стены: клик не теряется молча, а объясняется.
     await page.getByRole('button', { name: 'Проём', exact: true }).click();
     await clickAt(page, px(size, 0.2, 0.5));
-    await expect(notice).toContainText('нет стены');
+    await expect(page.getByTestId('opening-reason')).toContainText('нажмите на стену');
+    await expect(page.getByRole('button', { name: 'Установить проём' })).toBeDisabled();
     expect((await savePlan(page)).openings).toHaveLength(before.openings.length);
 
     // Проём по самой перегородке: встаёт на неё и держится в её пределах.
     await clickAt(page, px(size, 0.45, 0.5));
+    await page.getByRole('button', { name: 'Установить проём' }).click();
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     const withOpening = await savePlan(page);
@@ -838,9 +859,8 @@ test.describe('инструменты плана', () => {
     // Проём — клик по стене. Появляется сразу выделенным, шириной двери по
     // умолчанию: на плане у него нет ручки шире одной — только двигать вдоль
     // стены (D-267, п. 1).
-    await page.getByRole('button', { name: 'Проём', exact: true }).click();
     const openingPoint = px(size, 0.45, 0.5);
-    await clickAt(page, openingPoint);
+    await placeOpening(page, openingPoint);
     const withOpening = await savePlan(page);
     const opening = withOpening.openings.find(
       (entry) => !before.openings.some((old) => old.id === entry.id),
@@ -894,7 +914,7 @@ test.describe('инструменты плана', () => {
     const oldIds = before.walls.map((w) => w.id);
 
     // L-образный контур внутри стартовой коробки.
-    await drawRing(page, 'Помещение', [
+    await drawRing(page, 'Контур отделения', [
       px(size, 0.15, 0.15),
       px(size, 0.7, 0.15),
       px(size, 0.7, 0.5),
@@ -923,8 +943,7 @@ test.describe('инструменты плана', () => {
     expect(drawn.openings).toHaveLength(0);
 
     // Проём теперь ставится на свою стену: клик по середине верхнего ребра.
-    await page.getByRole('button', { name: 'Проём', exact: true }).click();
-    await clickAt(page, px(size, 0.42, 0.15));
+    await placeOpening(page, px(size, 0.42, 0.15));
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     const withOpening = await savePlan(page);
@@ -1098,8 +1117,9 @@ test.describe('инструменты плана', () => {
     await expect(card).toHaveAttribute('data-entity-id', 'room_main');
     await expect(hint).toBeVisible();
 
-    // Ушёл в поле карточки — выделение то же, подсказки нет.
-    await card.getByLabel('Название плана').click();
+    // Ушёл в карточку — выделение то же, подсказки нет. Полей у карточки
+    // помещения нет: нажатие по самой карточке.
+    await card.click();
     await expect(card).toHaveAttribute('data-entity-id', 'room_main');
     await expect(hint).toHaveCount(0);
 
