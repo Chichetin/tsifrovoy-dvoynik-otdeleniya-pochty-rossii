@@ -55,6 +55,9 @@ const RING_GAP_PX = 14;
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
 
+/** The wheel has stopped when no notch came for this long; then the app gets the view. */
+const WHEEL_SETTLE_MS = 150;
+
 /** Мировой контур в плоский список экранных координат для Konva. */
 function screenPoints(extent: Polygon, viewport: { origin: Point; scale: number }): number[] {
   return extent.flatMap((point) => modelToScreen(point, viewport));
@@ -96,22 +99,63 @@ export function EditorCanvas({
   // Zoom deltas add up exactly: exp(-a/k) * exp(-b/k) = exp(-(a+b)/k).
   const pendingZoom = useRef<{ deltaY: number; anchor: Point } | null>(null);
   const panFrame = useRef<number | null>(null);
+  // #190: a pan or a wheel moves the drawing, not the plan. Each step used to
+  // send the viewport to the app, which re-rendered every panel and
+  // re-projected every shape — on 1000 objects 0.1 s a step. Now a step only
+  // transforms the stage from `from`, the viewport the shapes are drawn with,
+  // to `to`, and the app gets the viewport once: when the button is released
+  // or the wheel stops. A pan is exact; a zoom scales strokes and text with the
+  // plan until the app draws them again at their own size.
+  const [moving, setMoving] = useState<{ from: Viewport; to: Viewport; drag: boolean } | null>(null);
+  const drawnViewport = useRef(session.viewport);
+  const movePending = useRef(false);
+  const wheelSettle = useRef<number | null>(null);
   useLayoutEffect(() => {
     liveViewport.current = session.viewport;
+    drawnViewport.current = session.viewport;
   }, [session.viewport]);
   useEffect(
     () => () => {
       if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
+      if (wheelSettle.current !== null) window.clearTimeout(wheelSettle.current);
     },
     [],
   );
   const applyViewport = useCallback(
     (next: Viewport): void => {
       liveViewport.current = next;
+      movePending.current = false;
+      if (wheelSettle.current !== null) window.clearTimeout(wheelSettle.current);
+      wheelSettle.current = null;
+      setMoving(null);
       onViewport(next);
     },
     [onViewport],
   );
+  /** Shows `next` on the stage only; `moveEnd` hands it to the app. */
+  const moveTo = useCallback((next: Viewport, drag: boolean): void => {
+    liveViewport.current = next;
+    movePending.current = true;
+    setMoving({ from: drawnViewport.current, to: next, drag });
+  }, []);
+  const panStep = useCallback(
+    (delta: Point): void => moveTo(panBy(liveViewport.current, delta), true),
+    [moveTo],
+  );
+  /** The view in progress reaches the app; without one, nothing happens. */
+  const moveEnd = useCallback((): void => {
+    if (movePending.current) applyViewport(liveViewport.current);
+  }, [applyViewport]);
+  // A move that the app has overtaken (F, a found object) is no longer on screen.
+  const moved = moving !== null && moving.from === session.viewport ? moving : null;
+  /** The viewport on the screen right now: the app's, or the one in progress. */
+  const view = moved?.to ?? session.viewport;
+  // The stage maps a point drawn for `session.viewport` to where `view` shows it.
+  const stageScale = view.scale / session.viewport.scale;
+  const stageAt: Point = [
+    view.origin[0] - stageScale * session.viewport.origin[0],
+    view.origin[1] - stageScale * session.viewport.origin[1],
+  ];
   const flushPan = useCallback((): void => {
     panFrame.current = null;
     const delta = pendingPan.current;
@@ -121,8 +165,11 @@ export function EditorCanvas({
     let next = liveViewport.current;
     if (delta[0] !== 0 || delta[1] !== 0) next = panBy(next, wheelPan(delta));
     if (zoom !== null) next = zoomByWheel(next, zoom.anchor, zoom.deltaY);
-    if (next !== liveViewport.current) applyViewport(next);
-  }, [applyViewport]);
+    if (next === liveViewport.current) return;
+    moveTo(next, false);
+    if (wheelSettle.current !== null) window.clearTimeout(wheelSettle.current);
+    wheelSettle.current = window.setTimeout(moveEnd, WHEEL_SETTLE_MS);
+  }, [moveTo, moveEnd]);
   /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
   const fitted = useRef<string | null>(null);
   /** Номер последнего запроса, подсветка которого уже погасла. */
@@ -219,9 +266,9 @@ export function EditorCanvas({
     (stage: Konva.Stage): Point | null => {
       const position = stage.getPointerPosition();
       if (position === null) return null;
-      return screenToModel([position.x, position.y], session.viewport);
+      return screenToModel([position.x, position.y], view);
     },
-    [session.viewport],
+    [view],
   );
 
   const emit = useCallback(
@@ -256,25 +303,24 @@ export function EditorCanvas({
       const from = panning.current;
       if (from !== null) {
         panning.current = [event.evt.clientX, event.evt.clientY];
-        applyViewport(
-          panBy(liveViewport.current, [event.evt.clientX - from[0], event.evt.clientY - from[1]]),
-        );
+        panStep([event.evt.clientX - from[0], event.evt.clientY - from[1]]);
         return;
       }
       emit('move', event);
     },
-    [emit, applyViewport],
+    [emit, panStep],
   );
 
   const handleUp = useCallback(
     (event: Konva.KonvaEventObject<PointerEvent>): void => {
       if (panning.current !== null) {
         panning.current = null;
+        moveEnd();
         return;
       }
       emit('up', event);
     },
-    [emit],
+    [emit, moveEnd],
   );
 
   const handleWheel = useCallback(
@@ -320,13 +366,13 @@ export function EditorCanvas({
       const bounds = event.currentTarget.getBoundingClientRect();
       onPointer({
         phase: 'move',
-        point: screenToModel([event.clientX - bounds.left, event.clientY - bounds.top], session.viewport),
+        point: screenToModel([event.clientX - bounds.left, event.clientY - bounds.top], view),
         shift: event.shiftKey,
         alt: event.altKey,
         button: 0,
       });
     },
-    [onPointer, session.tool, session.viewport],
+    [onPointer, session.tool, view],
   );
 
   const handleDrop = useCallback(
@@ -338,7 +384,7 @@ export function EditorCanvas({
       if (screen[0] < 0 || screen[1] < 0 || screen[0] > bounds.width || screen[1] > bounds.height) return;
       event.preventDefault();
       const pointer = {
-        point: screenToModel(screen, session.viewport),
+        point: screenToModel(screen, view),
         shift: event.shiftKey,
         alt: event.altKey,
         button: 0,
@@ -352,7 +398,7 @@ export function EditorCanvas({
       // exactly the same way as a real canvas click.
       onPointer({ phase: 'up', ...pointer });
     },
-    [onPointer, session.tool, session.viewport],
+    [onPointer, session.tool, view],
   );
 
   useEffect(() => {
@@ -368,15 +414,20 @@ export function EditorCanvas({
       const from = middleMousePanning.current;
       if (from === null) return;
       middleMousePanning.current = [event.clientX, event.clientY];
-      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      panStep([event.clientX - from[0], event.clientY - from[1]]);
     };
+    // Any release ends the pan's drawing-only part, also one outside the canvas.
     const onMouseUp = (event: MouseEvent): void => {
       if (event.button === 1 || middleMousePanning.current !== null) {
         event.preventDefault();
         middleMousePanning.current = null;
       }
+      moveEnd();
     };
+    // A press right after the wheel acts on the view the person sees: the app
+    // gets it first, before any layer reads the pointer.
     const onPointerDown = (event: PointerEvent): void => {
+      moveEnd();
       if (event.button !== 1) return;
       event.preventDefault();
       middleMousePanning.current = [event.clientX, event.clientY];
@@ -385,13 +436,14 @@ export function EditorCanvas({
       const from = middleMousePanning.current;
       if (from === null) return;
       middleMousePanning.current = [event.clientX, event.clientY];
-      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      panStep([event.clientX - from[0], event.clientY - from[1]]);
     };
     const onPointerUp = (event: PointerEvent): void => {
       if (event.button === 1 || middleMousePanning.current !== null) {
         event.preventDefault();
         middleMousePanning.current = null;
       }
+      moveEnd();
     };
     window.addEventListener('mousedown', onMouseDown, true);
     window.addEventListener('mousemove', onMouseMove, true);
@@ -407,7 +459,7 @@ export function EditorCanvas({
       window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', onPointerUp, true);
     };
-  }, [applyViewport]);
+  }, [panStep, moveEnd]);
 
   // Escape cancels the drawing in progress; with nothing in progress it clears
   // the selection. Both are what a drawing tool is expected to do.
@@ -447,8 +499,8 @@ export function EditorCanvas({
   }, [onPointer, onSelect]);
 
   const grid = useMemo(
-    () => (size.width > 0 ? gridLines(session.viewport, size) : null),
-    [session.viewport, size],
+    () => (size.width > 0 ? gridLines(view, size) : null),
+    [view, size],
   );
   // Grid and axes depend on the viewport and the canvas size only. Built on
   // every render, their `points` arrays would be "new" props for react-konva
@@ -464,22 +516,22 @@ export function EditorCanvas({
             <Line key={`h${y}`} points={[0, y, size.width, y]} stroke={GRID_COLOR} strokeWidth={1} />
           ))}
           <Line
-            points={[session.viewport.origin[0], 0, session.viewport.origin[0], size.height]}
+            points={[view.origin[0], 0, view.origin[0], size.height]}
             stroke={AXIS_COLOR}
             strokeWidth={1.5}
           />
           <Line
-            points={[0, session.viewport.origin[1], size.width, session.viewport.origin[1]]}
+            points={[0, view.origin[1], size.width, view.origin[1]]}
             stroke={AXIS_COLOR}
             strokeWidth={1.5}
           />
         </>
       ),
-    [grid, session.viewport, size.width, size.height],
+    [grid, view, size.width, size.height],
   );
   // Видимый кусок мира числами: на нём держится браузерная проверка «объект
   // действительно в кадре», которую по картинке не сделать.
-  const visible = size.width > 0 ? boundingBox(visibleExtent(session.viewport, size)) : null;
+  const visible = size.width > 0 ? boundingBox(visibleExtent(view, size)) : null;
   const ring = highlighted ? ringOf(focusExtent as Polygon, session.viewport) : null;
 
   return (
@@ -504,6 +556,14 @@ export function EditorCanvas({
         <Stage
           width={size.width}
           height={size.height}
+          // The view in progress transforms the whole drawing. During a drag
+          // pan shapes do not listen: a hover card placed from the pointer
+          // would drift, and a pan is not a click on what lies under it.
+          x={stageAt[0]}
+          y={stageAt[1]}
+          scaleX={stageScale}
+          scaleY={stageScale}
+          listening={moved?.drag !== true}
           onPointerDown={handleDown}
           onPointerMove={handleMove}
           onPointerUp={handleUp}
@@ -513,7 +573,15 @@ export function EditorCanvas({
           }
           style={{ background: BACKGROUND }}
         >
-          <Layer listening={false} name="grid">
+          {/* The grid follows the view by its own lines: the stage transform is undone for it. */}
+          <Layer
+            listening={false}
+            name="grid"
+            x={-stageAt[0] / stageScale}
+            y={-stageAt[1] / stageScale}
+            scaleX={1 / stageScale}
+            scaleY={1 / stageScale}
+          >
             {gridLayer}
           </Layer>
           {children}
@@ -554,9 +622,9 @@ export function EditorCanvas({
           <p
             className="editor-canvas__scale"
             data-testid="canvas-scale"
-            title={`${Math.round(session.viewport.scale)} px/м; 100 % — масштаб, с которого открывается пустой план`}
+            title={`${Math.round(view.scale)} px/м; 100 % — масштаб, с которого открывается пустой план`}
           >
-            Сетка {formatShort(grid.step_m, 2)} м · {Math.round((session.viewport.scale / DEFAULT_SCALE) * 100)} %
+            Сетка {formatShort(grid.step_m, 2)} м · {Math.round((view.scale / DEFAULT_SCALE) * 100)} %
           </p>
           <button
             type="button"
