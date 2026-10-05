@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
+import type { ObjectType } from '../contracts/model';
 import {
   isPlanPictogramVisible,
   planPictogram,
@@ -11,16 +12,15 @@ import {
 } from './plan-pictogram';
 
 describe('пиктограммы готового 2D-плана', () => {
-  test('важные для посетителя и сотрудника объекты получают узнаваемый знак', () => {
-    expect(planPictogram('ot_cashier_window')).toBe('cashier');
-    expect(planPictogram('ot_queue_terminal')).toBe('terminal');
-    expect(planPictogram('ot_parcel_rack')).toBe('rack');
-    expect(planPictogram('ot_camera')).toBe('camera');
-    expect(planPictogram('ot_bench')).toBe('seat');
+  test('знак берётся из поля pictogram типа справочника (D-376)', () => {
+    expect(planPictogram({ pictogram: 'cashier' })).toBe('cashier');
+    expect(planPictogram({ pictogram: 'stand' })).toBe('stand');
   });
 
-  test('новый тип без заранее придуманного символа не получает ложную иконку', () => {
-    expect(planPictogram('ot_team_custom')).toBeNull();
+  test('тип без поля pictogram и неизвестный тип не получают ложную иконку', () => {
+    expect(planPictogram({})).toBeNull();
+    expect(planPictogram(null)).toBeNull();
+    expect(planPictogram(undefined)).toBeNull();
   });
 
   test('значок уходит на слишком мелком масштабе', () => {
@@ -66,20 +66,52 @@ describe('пиктограммы готового 2D-плана', () => {
 describe('покрытие справочника значками', () => {
   const types = JSON.parse(
     readFileSync(join(process.cwd(), 'data', 'catalog', 'object-types.json'), 'utf8'),
-  ) as Array<{ id: string; label: string }>;
+  ) as ObjectType[];
 
   // Значок в библиотеке стоит рядом с названием, поэтому пустой значок — это
   // пустая строка в списке. До 22.09 своего знака не было у восьми типов:
   // компьютер, кассовый терминал, панель ОТС, розетка, пандус, электрощит,
   // вентиляция, водонагреватель.
   test('у каждого типа поставки есть свой знак', () => {
-    const without = types.filter((type) => planPictogram(type.id) === null).map((type) => type.label);
+    const without = types.filter((type) => planPictogram(type) === null).map((type) => type.label);
     expect(without).toEqual([]);
+  });
+
+  // Знаки до #208 задавал switch по id типа; справочник даёт ровно те же.
+  test('справочник даёт типам поставки те же знаки, что раньше давал код', () => {
+    const before: Record<string, string> = {
+    ot_workplace: 'workplace',
+    ot_chair: 'seat',
+    ot_bench: 'seat',
+    ot_cashier_window: 'cashier',
+    ot_payment_terminal: 'terminal',
+    ot_queue_terminal: 'terminal',
+    ot_mailbox: 'mailbox',
+    ot_info_display: 'display',
+    ot_media_panel: 'display',
+    ot_info_stand: 'stand',
+    ot_printer: 'printer',
+    ot_label_printer: 'printer',
+    ot_camera: 'camera',
+    ot_fire_sensor: 'sensor',
+    ot_parcel_rack: 'rack',
+    ot_goods_rack: 'rack',
+    ot_scales: 'scales',
+    ot_computer: 'computer',
+    ot_pos_terminal: 'pinpad',
+    ot_alarm_panel: 'alarm',
+    ot_socket: 'socket',
+    ot_ramp: 'ramp',
+    ot_switchboard: 'switchboard',
+    ot_hvac: 'hvac',
+    ot_water_heater: 'heater',
+    };
+    expect(Object.fromEntries(types.map((type) => [type.id, planPictogram(type)]))).toEqual(before);
   });
 
   test('каждый знак набора нарисован', () => {
     for (const type of types) {
-      const kind = planPictogram(type.id);
+      const kind = planPictogram(type);
       if (kind === null) continue;
       expect(PLAN_PICTOGRAM_PATHS[kind], type.label).toMatch(/^M/);
     }
@@ -87,6 +119,7 @@ describe('покрытие справочника значками', () => {
 
   // Табло, медиапанель и стенд навигации раньше делили один знак «экран».
   test('стенд навигации отличается от табло', () => {
-    expect(planPictogram('ot_info_stand')).not.toBe(planPictogram('ot_info_display'));
+    const byId = new Map(types.map((type) => [type.id, type]));
+    expect(planPictogram(byId.get('ot_info_stand'))).not.toBe(planPictogram(byId.get('ot_info_display')));
   });
 });

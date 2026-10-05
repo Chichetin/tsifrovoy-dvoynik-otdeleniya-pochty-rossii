@@ -197,7 +197,13 @@ describe('SVG плана', () => {
   });
 
   test('готовая SVG-картинка сохраняет смысловой значок объекта', () => {
-    const plan = loadFixture('minimal.json');
+    // The sign comes from the catalog type (D-376); the fixture type has none.
+    const fixture = loadFixture('minimal.json');
+    const plan = {
+      ...fixture,
+      catalog: { ...fixture.catalog, objectTypes: fixture.catalog.objectTypes.map((type) => ({ ...type, pictogram: 'workplace' as const })) },
+    };
+    expect(renderPlanSvg(fixture)).not.toContain('data-pictogram');
     const svg = renderPlanSvg(plan);
     expect(svg).toContain('data-pictogram="workplace"');
     expect(svg).toContain('<path d="M4 3H20V12H4Z');

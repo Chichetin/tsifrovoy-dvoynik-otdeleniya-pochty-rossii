@@ -11,7 +11,8 @@
  */
 
 import { useState } from 'react';
-import type { Catalog, Id, ObjectSymbol, PlanDocument } from '../../contracts/model';
+import { PLAN_PICTOGRAM_NAMES, type Catalog, type Id, type ObjectSymbol, type PlanDocument, type PlanPictogramName } from '../../contracts/model';
+import { PLAN_PICTOGRAM_PATHS } from '../../domain/plan-pictogram';
 import type { CommandSink } from '../../contracts/ui';
 import {
   addAttribute,
@@ -47,6 +48,30 @@ const SYMBOLS: { value: ObjectSymbol; label: string }[] = [
   { value: 'circle', label: 'круг' },
   { value: 'triangle', label: 'треугольник' },
 ];
+
+/** Names of the plan signs (D-376) in the «Знак на плане» list. */
+const PICTOGRAM_LABELS: Record<PlanPictogramName, string> = {
+  workplace: 'рабочее место',
+  seat: 'сиденье',
+  cashier: 'касса',
+  terminal: 'терминал',
+  mailbox: 'почтовый ящик',
+  display: 'экран',
+  printer: 'принтер',
+  camera: 'камера',
+  sensor: 'датчик',
+  rack: 'стеллаж',
+  scales: 'весы',
+  computer: 'компьютер',
+  pinpad: 'пинпад',
+  alarm: 'сигнализация',
+  socket: 'розетка',
+  ramp: 'пандус',
+  switchboard: 'электрощит',
+  hvac: 'вентиляция',
+  heater: 'водонагреватель',
+  stand: 'стенд',
+};
 
 /** Metres typed by a person: a comma is a decimal point; anything else is refused, not replaced. */
 function metres(value: string): number | null {
@@ -97,6 +122,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
   const [typeDepth, setTypeDepth] = useState('0.6');
   const [typeHeight, setTypeHeight] = useState('0.8');
   const [typeSymbol, setTypeSymbol] = useState<ObjectSymbol>('rect');
+  const [typePictogram, setTypePictogram] = useState<PlanPictogramName | ''>('');
   const [typeColor, setTypeColor] = useState('#4C6EF5');
   const [typePhysical, setTypePhysical] = useState(true);
 
@@ -180,6 +206,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
       physical: typePhysical,
       occupiesFloor: typePhysical,
       symbol: typeSymbol,
+      ...(typePictogram === '' ? {} : { pictogram: typePictogram }),
       color: typeColor,
     });
     if (apply(next)) {
@@ -307,6 +334,41 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="assistant__field">
+                Знак на плане
+                {/* Styles live in src/app; inline layout keeps the preview next to the list. */}
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  <select
+                    value={typePictogram}
+                    onChange={(e) => setTypePictogram(e.target.value as PlanPictogramName | '')}
+                    data-testid="catalog-type-pictogram"
+                  >
+                    <option value="">нет</option>
+                    {PLAN_PICTOGRAM_NAMES.map((name) => (
+                      <option key={name} value={name}>
+                        {PICTOGRAM_LABELS[name]}
+                      </option>
+                    ))}
+                  </select>
+                  <svg
+                    className="library__swatch library__swatch--icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    data-testid="catalog-type-pictogram-preview"
+                  >
+                    {typePictogram === '' ? null : (
+                      <path
+                        d={PLAN_PICTOGRAM_PATHS[typePictogram]}
+                        fill="none"
+                        stroke={typeColor}
+                        strokeWidth={1.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                  </svg>
+                </span>
               </label>
               <label className="assistant__field">
                 Цвет

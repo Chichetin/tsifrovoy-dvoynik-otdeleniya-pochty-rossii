@@ -81,11 +81,12 @@ function captionHeight(text: string, width: number): number {
 export function zoneCaptionBoxes(plan: PlanDocument, viewport: Viewport): Map<string, CaptionBox> {
   const visible = new Set(plan.layers.filter((layer) => layer.visible).map((layer) => layer.id));
   const obstacles: CaptionBox[] = [];
+  const types = new Map(plan.catalog.objectTypes.map((type) => [type.id, type]));
   for (const object of plan.objects) {
     if (!visible.has(object.layerId)) continue;
     const bounds = boundingBox(footprint(object).map((point) => modelToScreen(point, viewport)));
     obstacles.push({ x: bounds.minX, y: bounds.minY, width: bounds.maxX - bounds.minX, height: bounds.maxY - bounds.minY });
-    const kind = planPictogram(object.typeId);
+    const kind = planPictogram(types.get(object.typeId));
     const label = objectLabel(object, viewport, kind === null ? 0 : CAPTION_ICON_SPACE_PX);
     if (label === null) {
       const [w, h] = object.size_m.map((size) => size * viewport.scale);

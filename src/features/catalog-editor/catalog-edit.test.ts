@@ -67,6 +67,14 @@ describe('новый тип оборудования', () => {
     expect(validateCatalog(catalog).filter((i) => i.severity === 'error')).toEqual([]);
   });
 
+  test('знак на плане из формы попадает в тип; без знака поля нет (D-376)', () => {
+    const plan = loadPlan('minimal.json');
+    const withSign = addObjectType(plan.catalog, { ...safe, pictogram: 'rack' });
+    expect(withSign.catalog.objectTypes.find((t) => t.id === withSign.id)?.pictogram).toBe('rack');
+    const without = addObjectType(plan.catalog, safe);
+    expect(without.catalog.objectTypes.find((t) => t.id === without.id)).not.toHaveProperty('pictogram');
+  });
+
   test('применяется командой и после этого объект такого типа ставится', () => {
     const plan = loadPlan('minimal.json');
     const { catalog, id } = addObjectType(plan.catalog, safe);
