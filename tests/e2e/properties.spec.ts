@@ -277,7 +277,11 @@ test.describe('карточка свойств помещается в коло�
     test(`на ${width} px правый край каждого поля — внутри карточки`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/');
-      await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
+      // Центр холста — середина пустого помещения. Точка (300, 260) на 1280 px
+      // попадает к главному входу, и правило #104 отклоняет постановку.
+      const canvasBox = await page.getByTestId('editor-canvas').boundingBox();
+      if (canvasBox === null) throw new Error('холст не отрисован');
+      await placeFromLibrary(page, 'Рабочее место оператора', canvasBox.width / 2, canvasBox.height / 2);
       await selectPlacedObject(page);
       await expect(card(page).getByLabel('Y, м')).toBeVisible();
 

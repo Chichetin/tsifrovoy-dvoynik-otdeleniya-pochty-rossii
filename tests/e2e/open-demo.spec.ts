@@ -59,20 +59,33 @@ test('отказ замены и HTTP/JSON ошибки сохраняют от�
   await page.goto('/');
   await openDemo(page, 'Изменённый демо-план');
   await expect(page.getByTestId('files-notice')).toContainText(after.name);
-  page.once('dialog', (dialog) => void dialog.dismiss());
+  // Сохранённый план заменяется без вопроса (#141). Вопрос задаёт только
+  // несохранённая правка — делаем её.
+  await expandInventoryRows(page);
+  await page.locator('.table__link', { hasText: 'Рабочее место оператора' }).first().click();
+  const card = page.getByLabel('Свойства');
+  const editedId = await card.getAttribute('data-entity-id');
+  await card.getByLabel('Название', { exact: true }).fill('Демо — моя правка');
+  await card.getByLabel('Название', { exact: true }).press('Tab');
+  const edited = structuredClone(after);
+  edited.objects.find((object: { id: string }) => object.id === editedId).label = 'Демо — моя правка';
+  let asked = 0;
+  page.once('dialog', (dialog) => { asked += 1; void dialog.dismiss(); });
   await openDemo(page, 'Исходный демо-план');
-  expect((await save(page)).plan).toEqual(after);
+  await expect.poll(() => asked).toBe(1);
+  expect((await save(page)).plan).toEqual(edited);
+  // Дальше вопрос может быть или не быть: план сохранён. Ошибка загрузки всё
+  // равно оставляет открытый план.
+  page.on('dialog', (dialog) => void dialog.accept());
   await page.route('**/demo/before.json', (route) => route.fulfill({ status: 503, body: 'unavailable' }));
-  page.once('dialog', (dialog) => void dialog.accept());
   await openDemo(page, 'Исходный демо-план');
   await expect(page.locator('.files__error')).toContainText('HTTP 503');
-  expect((await save(page)).plan).toEqual(after);
+  expect((await save(page)).plan).toEqual(edited);
   await page.unroute('**/demo/before.json');
   await page.route('**/demo/before.json', (route) => route.fulfill({ body: '{broken' }));
-  page.once('dialog', (dialog) => void dialog.accept());
   await openDemo(page, 'Исходный демо-план');
   await expect(page.locator('.files__error')).toContainText('не соответствует');
-  expect((await save(page)).plan).toEqual(after);
+  expect((await save(page)).plan).toEqual(edited);
 });
 
 test('поздний запрос демо не заменяет более новый выбор', async ({ page }) => {
