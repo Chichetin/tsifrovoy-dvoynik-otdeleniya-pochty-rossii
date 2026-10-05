@@ -320,6 +320,8 @@ Timeout внешнего API — 15 с, не более одного повто�
 команды: `EditorSession.previewEdits` и `EquipmentLayerProps.previewEdits`
 (`EditsPreview`: `put` — объекты после правок, `removed` — удалённые `id`).
 `apply-edits` по щелчку человека применяет `commands` одним `batch`: один шаг отмены.
+`AgentExchange.draft` (#211) — ответ расчёта без LLM. Браузер считает его сразу после
+вопроса и показывает, пока сервер ждёт модель. Пришёл `answer` — он заменяет черновик.
 Новый `id` из `add`, который хранилище уже списало (D-019), UI выпускает заново.
 
 Инструмент `layout_zone` (#122) принимает `zoneId` и необязательный список `typeIds`.

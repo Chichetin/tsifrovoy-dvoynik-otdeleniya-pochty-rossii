@@ -118,6 +118,8 @@ describe('агент без модели', () => {
       args: { zoneId: 'z_waiting' },
     });
     expect(routeAgentQuery(before, 'Какие ошибки в плане?', false)[0]?.name).toBe('validate_plan');
+    // #211: the operator's question leads to the check and its main finding.
+    expect(routeAgentQuery(before, 'Что не так и что сделать?', false)[0]?.name).toBe('validate_plan');
     expect(routeAgentQuery(after, 'Что изменилось?', true)[0]?.name).toBe('compare_with_original');
     expect(routeAgentQuery(before, 'Расскажи про клиентский зал', false)[0]).toEqual({
       name: 'zone_details',
