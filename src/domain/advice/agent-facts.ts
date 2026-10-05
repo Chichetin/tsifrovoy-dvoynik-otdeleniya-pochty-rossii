@@ -11,7 +11,7 @@ import type { AgentToolState } from './agent-tools';
 import { cameraCandidateEffect } from './camera-placement';
 import { verifyWhyText, type WhyNumber, type WhyScope, type WhyUnit } from './explanation';
 
-type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent';
+type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent' | 'zone.load';
 /** Chat-only unit: the share of client zones seen by cameras (#32), not part of the advice contract. */
 type ChatUnit = FactUnit | 'percent';
 export type AgentFact = Omit<Fact, 'metric' | 'unit'> & {
@@ -42,6 +42,7 @@ const METRIC_LABELS: Record<ChatMetric, string> = {
   'zones.count': 'Количество зон',
   'equipment.violations': 'Нарушения правил комплектования',
   'coverage.percent': 'Доля клиентских зон, видимая камерами',
+  'zone.load': 'Загрузка зоны',
 };
 const PHASE_LABELS: Record<FactPhase, string> = {
   current: 'сейчас', before: 'было', after: 'стало', delta: 'изменение',
@@ -88,6 +89,18 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       const room = record(output.room);
       if (room !== null) areas(`${prefix}.room`, room, roomRefs, roomScope);
       add(`${prefix}.objects`, 'equipment.count', output.objectsTotal, roomRefs, roomScope);
+      // #217: before the zone areas — the facts budget must not cut them off.
+      const load = record(output.zoneLoad);
+      if (load !== null && load.unit === '%' && typeof load.threshold === 'number' && Array.isArray(load.zones)) {
+        for (const raw of load.zones) {
+          const zone = record(raw);
+          if (zone === null || typeof zone.zoneId !== 'string' || typeof zone.value !== 'number' || !state.plan.zones.some((z) => z.id === zone.zoneId)) continue;
+          const refs: Ref[] = [{ kind: 'zone', id: zone.zoneId }];
+          const status = zone.overloaded === true ? 'перегружена' : 'не перегружена';
+          const scope = `${subject(state, refs)}; ${status}, порог перегрузки ${String(load.threshold).replace('.', ',')} %`;
+          facts.push({ id: `${prefix}.${zone.zoneId}.load`, metric: 'zone.load', phase: 'current', value: zone.value, unit: 'percent', refs, scope });
+        }
+      }
       if (Array.isArray(output.zones)) {
         add(`${prefix}.zones`, 'zones.count', output.zones.length, roomRefs, roomScope);
         for (const raw of output.zones) {

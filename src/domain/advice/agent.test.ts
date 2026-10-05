@@ -153,6 +153,17 @@ describe('агент без модели', () => {
     expect(routeAgentQuery(before, 'Я перенес eq_1 — что изменилось?', false).some((call) => call.args.objectId !== undefined)).toBe(false);
     expect(routeAgentQuery(before, 'Я применил предложенное место для eq_1 — что изменилось?', true)[0]?.name).toBe('compare_with_original');
   }, 20_000);
+
+  test('#217: «Какие зоны перегружены?» — зона на пороге слоя тепла, с id и процентом', () => {
+    const answer = answerWithoutModel(before, null, 'Какие зоны перегружены?', 1, 'без LLM');
+    expect(answer.steps[0]?.tool).toBe('plan_overview');
+    expect(answer.text.split('\n\n')[0]).toBe('Перегружена зона «Зона очереди» (z_queue) — 100 %. Порог перегрузки — 100 %, как на слое «Тепловая нагрузка зон».');
+    expect(answer.actions).toContainEqual({ kind: 'focus', ref: { kind: 'zone', id: 'z_queue' } });
+    expect(answer.actions).toContainEqual({ kind: 'show-layer', layerId: 'l_lt_heat' });
+    // Below the threshold the answer names the most loaded zone instead.
+    const calm: PlanDocument = { ...before, zones: before.zones.map((zone) => (zone.id === 'z_queue' ? { ...zone, attributes: { ...zone.attributes, loadPercent: 60 } } : zone)) };
+    expect(answerWithoutModel(calm, null, 'Какая загрузка зон?', 1, 'без LLM').text).toContain('Перегруженных зон нет. Самая загруженная — «Клиентский зал» (z_client): 65 %.');
+  });
 });
 
 describe('ответ без модели называет зоны, типы и правило (критерий «ИИ-ассистент»)', () => {
