@@ -353,6 +353,9 @@ function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): Agent
       proposalId = proposal.id;
     }
     for (const zone of option.zones) addRef(state, { kind: 'zone', id: zone.id });
+    // #178: only what the move changes — room totals stay the same and would push
+    // the four options past the output budget, leaving the model without variants.
+    const changed = new Set(option.facts.filter((fact) => fact.phase === 'delta' && fact.value !== 0).map((fact) => fact.metric));
     return {
       kind: option.kind,
       proposalId,
@@ -362,7 +365,7 @@ function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): Agent
       ruleIds: option.ruleIds,
       wallGap_m: Number.isFinite(option.wallGap_m) ? round(option.wallGap_m) : null,
       newWarnings: option.warnings,
-      facts: Object.fromEntries(option.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
+      facts: Object.fromEntries(option.facts.filter((fact) => changed.has(fact.metric)).map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
       zoneEffects: option.zoneEffects.map((effect) => ({ zoneId: effect.zoneId, name: zoneName(state, effect.zoneId), free_m2: { before: round(effect.free_m2.before), after: round(effect.free_m2.after) }, objects: effect.objects })),
       coveragePercent: option.coverage === null ? null : { before: maybe(option.coverage.before), after: maybe(option.coverage.after) },
     };

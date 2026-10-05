@@ -6,9 +6,10 @@
 import { z } from 'zod';
 import type { Candidate, Fact, FactPhase, FactUnit, MetricCode, Recommendation } from '../../contracts/advice';
 import type { Id, Ref } from '../../contracts/model';
-import type { AgentToolRecord } from './agent-fallback';
+import { relocationParagraphs, type AgentToolRecord } from './agent-fallback';
 import type { AgentToolState } from './agent-tools';
 import { cameraCandidateEffect } from './camera-placement';
+import { verifyWhyText, type WhyScope } from './explanation';
 
 type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent';
 /** Chat-only unit: the share of client zones seen by cameras (#32), not part of the advice contract. */
@@ -225,18 +226,66 @@ export function renderAgentFact(fact: AgentFact): string {
   return `${fact.metricLabel ?? METRIC_LABELS[fact.metric]} — ${fact.scope}: ${number} ${unit} (${PHASE_LABELS[fact.phase]}).`;
 }
 
-const selectionSchema = z.object({ factIds: z.array(z.string().min(1)).min(1).max(12) }).strict();
-export type AgentFactSelection = { ok: true; text: string; refs: Ref[] } | { ok: false; reason: string };
+/** #178: «почему сюда» — 2–3 sentences; longer is a report, not a reason. */
+export const WHY_MAX_CHARS = 600;
+/** Opens the model's own paragraph, so the reader knows who wrote it. */
+export const WHY_LEAD = 'Почему так (текст LLM, id и числа сверены с расчётом): ';
 
-/** No free prose or value overrides can pass this boundary, even in words. */
-export function renderAgentFactSelection(input: unknown, facts: readonly AgentFact[], state: AgentToolState): AgentFactSelection {
+const selectionSchema = z.object({
+  factIds: z.array(z.string().min(1)).min(1).max(12),
+  why: z.string().trim().min(1).max(WHY_MAX_CHARS).optional(),
+}).strict();
+/** `why: true` — the facts held, the model's own text did not. */
+export type AgentFactSelection = { ok: true; text: string; refs: Ref[] } | { ok: false; reason: string; why?: true };
+
+/**
+ * What the «почему сюда» text may name: plan ids and names, every number the
+ * tools returned or the facts carry, and how many variants were offered.
+ */
+function whyScope(state: AgentToolState, facts: readonly AgentFact[], records: readonly AgentToolRecord[]): WhyScope {
+  const { plan } = state;
+  const numbers = facts.map((fact) => fact.value);
+  const collect = (value: unknown): void => {
+    if (typeof value === 'number' && Number.isFinite(value)) numbers.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (typeof value === 'object' && value !== null) Object.values(value).forEach(collect);
+  };
+  for (const entry of records) {
+    const output = record(entry.output);
+    if (output !== null && !('error' in output)) collect(output);
+  }
+  // A rule's own limits («не дальше 3 м от входа») are plan data, not the model's.
+  collect(plan.catalog.rules);
+  // Candidates of a placement and titled proposals (#122 layouts, #177 moves) are «Вариант N».
+  const variants = Math.max(
+    0,
+    ...[...state.recommendations.values()].map((recommendation) => recommendation.candidates.length),
+    ...state.proposals.map((proposal) => Number(/^Вариант (\d+)/.exec(proposal.title ?? '')?.[1] ?? 0)),
+  );
+  numbers.push(variants);
+  const { catalog } = plan;
+  return {
+    ids: new Set([...plan.zones, ...plan.objects, ...plan.layers, ...catalog.objectTypes, ...catalog.zoneTypes, ...catalog.rules].map((entry) => entry.id)),
+    rules: new Set(catalog.rules.map((rule) => rule.id)),
+    names: new Set([...plan.zones.map((zone) => zone.name), ...plan.objects.map((object) => object.label), ...plan.layers.map((layer) => layer.name), ...catalog.objectTypes.map((type) => type.label), ...catalog.zoneTypes.map((type) => type.label)]),
+    numbers,
+    variants,
+  };
+}
+
+/**
+ * No value overrides can pass this boundary. Free prose passes only as `why`
+ * (#178), after `verifyWhyText` found every id, number and variant in the
+ * calculation; it opens the answer, the chosen facts follow as code wrote them.
+ */
+export function renderAgentFactSelection(input: unknown, facts: readonly AgentFact[], state: AgentToolState, records: readonly AgentToolRecord[] = []): AgentFactSelection {
   let payload = input;
   if (typeof input === 'string') {
     try { payload = JSON.parse(input); }
     catch { return { ok: false, reason: 'Ожидался выбор рассчитанных фактов, а не свободный текст.' }; }
   }
   const parsed = selectionSchema.safeParse(payload);
-  if (!parsed.success) return { ok: false, reason: 'Ответ должен содержать только factIds рассчитанных фактов.' };
+  if (!parsed.success) return { ok: false, reason: `Ответ должен содержать только factIds рассчитанных фактов и, к вариантам места, why до ${WHY_MAX_CHARS} символов.` };
   const byId = new Map(facts.map((fact) => [fact.id, fact]));
   const selected: AgentFact[] = [];
   for (const id of parsed.data.factIds) {
@@ -258,5 +307,13 @@ export function renderAgentFactSelection(input: unknown, facts: readonly AgentFa
   }
   const refs = new Map<string, Ref>();
   for (const fact of selected) for (const ref of fact.refs) refs.set(`${ref.kind}:${ref.id}`, { ...ref });
-  return { ok: true, text: [...selected.map(renderAgentFact), ...notes].join('\n\n'), refs: [...refs.values()] };
+  let why: string[] = [];
+  if (parsed.data.why !== undefined) {
+    const checked = verifyWhyText(parsed.data.why, whyScope(state, facts, records));
+    if (!checked.ok) return { ok: false, reason: checked.issues.map((entry) => entry.message).join(' '), why: true };
+    why = [`${WHY_LEAD}${checked.value}`];
+  }
+  // The variants' own numbers follow the model's words, written by code (#178).
+  const variants = relocationParagraphs(state, records);
+  return { ok: true, text: [...why, ...variants, ...selected.map(renderAgentFact), ...notes].join('\n\n'), refs: [...refs.values()] };
 }

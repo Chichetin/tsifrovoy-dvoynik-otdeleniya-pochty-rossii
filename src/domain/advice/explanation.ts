@@ -343,6 +343,121 @@ export const verifyExplanation: VerifyExplanation = (input, recommendations) => 
   return { ok: true, value: verified };
 };
 
+/** #178: codes of the free-text «почему сюда» check. */
+export const WHY_ISSUE_CODES = {
+  /** The text compares variants, but the calculation offered none. */
+  NO_VARIANTS: 'WHY_NO_VARIANTS',
+  /** An id-shaped token that is not a zone, object, type, rule or layer of the plan. */
+  UNKNOWN_ID: 'WHY_UNKNOWN_ID',
+  /** A number that no calculated value rounds to. */
+  UNKNOWN_NUMBER: 'WHY_UNKNOWN_NUMBER',
+  /** «Вариант N» outside the variants the calculation offered. */
+  UNKNOWN_VARIANT: 'WHY_UNKNOWN_VARIANT',
+  /** A catalog rule called a norm. */
+  RULE_AS_NORM: 'WHY_RULE_AS_NORM',
+  /** A rule mentioned without whose rule it is. */
+  RULE_SOURCE_MISSING: 'WHY_RULE_SOURCE_MISSING',
+} as const;
+
+/** What a «почему сюда» text may name: everything here was produced by code or is in the plan. */
+export type WhyScope = {
+  /** Zone, object, type, rule and layer ids of the plan. */
+  ids: ReadonlySet<Id>;
+  /** Rule ids among `ids`: naming one is naming a rule. */
+  rules: ReadonlySet<Id>;
+  /** Names a text may quote: digits inside «Окно 2» are a name, not a number. */
+  names: ReadonlySet<string>;
+  /** Every value the calculation gave the model. */
+  numbers: readonly number[];
+  /** «Вариант N» is valid for 1 ≤ N ≤ variants. */
+  variants: number;
+};
+
+const ID_TOKEN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi;
+const QUOTED = /«([^«»]{1,120})»/g;
+/** «name» (id) — the chat shows the plan's name for the id instead (D-320). */
+const ID_AFTER = new RegExp(`^\\s*\\(${ID_TOKEN.source}\\)`, 'i');
+const VARIANT_NUMBERS = /вариант[а-яё]*\s+(?:№\s*)?(\d+(?:\s*(?:и|или|—|–|-)\s*\d+)*)/gi;
+const VARIANT_ORDINALS = /(перв|втор|трет|четв[её]рт|пят)[а-яё]*\s+вариант/gi;
+const ORDINALS: Record<string, number> = { перв: 1, втор: 2, трет: 3, четвёрт: 4, четверт: 4, пят: 5 };
+/** A decimal comma or point; thousands only by the non-breaking spaces `formatNumber` writes. */
+const NUMBER = /\d+(?:[\u00A0\u202F]\d{3})*(?:[.,]\d+)?/g;
+const NORM_CLAIM = /(?<!не\s)норматив/i;
+const RULE_WORD = /(?<![а-яё])правил(?:о|а|у|ом|е|ам|ами|ах)?(?![а-яё])/i;
+const RULE_SOURCE = /правил[а-яё]*\s+команды|организатор/i;
+
+/**
+ * A number in the text matches a value if the value rounds to it at the
+ * text's own precision: «12,3» and «12» both stand for 12,34. The sign is
+ * the sentence's business («выросла на», «−0,5»), the size is the code's.
+ */
+function matchesValue(token: string, values: readonly number[]): boolean {
+  const normal = token.replace(/[\u00A0\u202F]/g, '').replace(',', '.');
+  const number = Number(normal);
+  const decimals = normal.includes('.') ? normal.length - normal.indexOf('.') - 1 : 0;
+  const tolerance = 0.5 * 10 ** -decimals + 1e-9;
+  return values.some((value) => Math.abs(Math.abs(value) - number) <= tolerance);
+}
+
+/**
+ * #178: the model's own words about why one variant beats another. The model
+ * may write the sentence, but not a fact: every id must exist in the plan,
+ * every number must be a value the calculation produced (at the precision
+ * written), every «вариант N» must have been offered, and a catalog rule is
+ * the team's rule or the organizers', never a norm of the Post. Any miss
+ * refuses the whole text — the person then reads the calculation «без LLM».
+ */
+export function verifyWhyText(text: string, scope: WhyScope): Result<string> {
+  // One paragraph: the chat splits answers on blank lines.
+  const clean = text.replace(/\s*\n\s*/g, ' ').trim();
+  const issues: Issue[] = [];
+  if (scope.variants === 0) {
+    issues.push(issue(WHY_ISSUE_CODES.NO_VARIANTS, 'Обоснование сравнивает варианты, а расчёт вариантов места не давал.'));
+  }
+
+  const ids = [...clean.matchAll(ID_TOKEN)].map((match) => match[0]);
+  for (const id of new Set(ids)) {
+    if (!scope.ids.has(id)) issues.push(issue(WHY_ISSUE_CODES.UNKNOWN_ID, `Обоснование называет «${id}», а в плане такого id нет.`));
+  }
+
+  // Digits of an id or of a known name are not numbers; the name next to an
+  // id is replaced on screen by the plan's own name (D-320), so it goes too.
+  let rest = clean
+    .replace(QUOTED, (whole, name: string, offset: number, all: string) =>
+      scope.names.has(name.trim()) || ID_AFTER.test(all.slice(offset + whole.length)) ? ' ' : whole)
+    .replace(ID_TOKEN, ' ');
+
+  const variants: number[] = [];
+  rest = rest.replace(VARIANT_NUMBERS, (_whole, list: string) => {
+    variants.push(...(list.match(/\d+/g) ?? []).map(Number));
+    return ' ';
+  });
+  for (const match of rest.matchAll(VARIANT_ORDINALS)) {
+    variants.push(ORDINALS[match[1]!.toLowerCase()] ?? 0);
+  }
+  for (const variant of new Set(variants)) {
+    if (variant < 1 || variant > scope.variants) {
+      issues.push(issue(WHY_ISSUE_CODES.UNKNOWN_VARIANT, `Обоснование называет вариант ${variant}, а расчёт дал вариантов: ${scope.variants}.`));
+    }
+  }
+
+  for (const token of new Set(rest.match(NUMBER) ?? [])) {
+    if (!matchesValue(token, scope.numbers)) {
+      issues.push(issue(WHY_ISSUE_CODES.UNKNOWN_NUMBER, `Числа ${token} нет в расчёте.`));
+    }
+  }
+
+  if (NORM_CLAIM.test(clean)) {
+    issues.push(issue(WHY_ISSUE_CODES.RULE_AS_NORM, 'Обоснование называет правило нормативом: правила справочника — правила команды, не норматив Почты.'));
+  }
+  const rule = ids.some((id) => scope.rules.has(id)) || RULE_WORD.test(clean);
+  if (rule && !RULE_SOURCE.test(clean)) {
+    issues.push(issue(WHY_ISSUE_CODES.RULE_SOURCE_MISSING, 'Обоснование упоминает правило, но не говорит, что это правило команды, не норматив Почты.'));
+  }
+
+  return issues.length > 0 ? { ok: false, issues } : { ok: true, value: clean };
+}
+
 /**
  * #69: the advice answer without a model — the calculation explains itself
  * with the same codes, facts and check. One function for the server (provider
