@@ -587,6 +587,21 @@ body {
 }
 
 /* The widest reading is reserved, so the segments after it do not jump. */
+.canvas-hint {
+  position: absolute;
+  bottom: 3rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  margin: 0;
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.25rem;
+  background: rgb(255 255 255 / 92%);
+  color: var(--text);
+  font-size: 0.8125rem;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+}
+
 .canvas-status__cursor {
   min-width: 21ch;
 }
@@ -1599,6 +1614,8 @@ body {
 .library__label {
   flex: 1;
   min-width: 0;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 
 .library__size {
@@ -1610,7 +1627,7 @@ body {
 
 /* At the compact sidebar widths, put dimensions below the name instead of
    letting the two columns collide. Tables retain readable columns and scroll. */
-@container (max-width: 14.375rem) {
+@container (max-width: 16.5rem) {
   .library__item {
     display: grid;
     grid-template-columns: 0.75rem minmax(0, 1fr);
@@ -1757,7 +1774,8 @@ span.inventory__num {
   font-size: 0.75rem;
 }
 
-.inventory__table td {
+.inventory__table td,
+.inventory__table td .table__link {
   vertical-align: top;
   overflow-wrap: break-word;
   hyphens: auto;
@@ -3265,3 +3283,17 @@ span.inventory__num {
 }
 
 .props__geometry { border: 0; padding: 0; margin: 0; min-width: 0; }
+
+/* #141: at 1100 px and below the saved mark keeps only its check or dot (the
+   text stays for screen readers and in the tooltip), so the plan name gets
+   the width instead of an ellipsis after four letters. */
+@media (max-width: 1100px) {
+  .shell__doc-state-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}

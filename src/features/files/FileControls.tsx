@@ -16,9 +16,8 @@
  * our format, not theirs.
  *
  * Replacing a plan with unsaved edits asks first — the store reports `dirty`,
- * it does not decide. Replacing a plan that already has zones or objects in it
- * asks too, saved or not: a file opened a minute ago is clean by `dirty` and is
- * still the user's work.
+ * it does not decide. A saved plan, or a file just opened, is clean and is
+ * replaced without asking (#141).
  *
  * The draft offer blocks writing only until the user does something with the
  * document — starts a new plan, opens a file, or makes the first edit. From
@@ -116,7 +115,8 @@ function needsReplacementWarning(plan: PlanDocument, dirty: boolean, revision: n
   // The sample the app opens with, still untouched, is nobody's work: the first
   // «Открыть демо» of the tour must not ask whether to lose it.
   if (untouchedSample) return false;
-  return hasContent(plan) || (dirty && revision > 0);
+  // A restored draft or a new plan is dirty from the start; a saved one is not.
+  return dirty && (hasContent(plan) || revision > 0);
 }
 
 function replacementWarning(action: 'Новый' | 'Открыть', dirty: boolean): string {
