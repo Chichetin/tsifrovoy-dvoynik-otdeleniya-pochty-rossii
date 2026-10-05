@@ -344,6 +344,11 @@ export function EquipmentLayer({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
+  // #169: the dragged shape rides on the small selection layer, so the
+  // thousand-shape layer is not repainted on every pointer step. It goes back
+  // to the same place among its siblings before the drop is committed.
+  // A Map, like the guard above: handlers built during render may not touch a ref.
+  const [lifted] = useState(() => new Map<Konva.Node, { parent: Konva.Container; index: number }>());
   // Konva nodes live in state so event callbacks can update them without a
   // React render on every pointer move. They are assigned once on mount.
   const [hoverLearned, setHoverLearned] = useState(hasLearnedEquipmentSelection);
@@ -831,6 +836,14 @@ export function EquipmentLayer({
         }
         onDragStart={(event) => {
           hideHover();
+          const node = event.target;
+          const top = node.getStage()?.findOne<Konva.Layer>('.equipment-selection');
+          if (top !== undefined && node.parent !== null && lifted.size === 0) {
+            lifted.set(node, { parent: node.parent, index: node.zIndex() });
+            const at = node.absolutePosition();
+            node.moveTo(top);
+            node.absolutePosition(at);
+          }
           beginGesture(event, object.id);
           onGesturePreview?.({ objectId: object.id, position: object.position });
         }}
@@ -856,6 +869,15 @@ export function EquipmentLayer({
           });
         }}
         onDragEnd={(event) => {
+          const node = event.target;
+          const lift = lifted.get(node);
+          if (lift !== undefined) {
+            lifted.delete(node);
+            const at = node.absolutePosition();
+            node.moveTo(lift.parent);
+            node.zIndex(Math.min(lift.index, lift.parent.children.length - 1));
+            node.absolutePosition(at);
+          }
           const next = { ...object, position: movedTo(event.target, event.evt, 'drop').position };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
@@ -1033,6 +1055,104 @@ export function EquipmentLayer({
     );
   };
 
+  /** One caption badge; null when the object is too small on screen to carry a name. */
+  const renderCaption = (object: Equipment): React.JSX.Element | null => {
+    const kind = pictograms ? planPictogram(object.typeId) : null;
+    const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
+    const label = objectLabel(shown(object), viewport, iconSpace);
+    if (label === null) return null;
+    // The symbol and the name share one badge. A separate floating
+    // marker used to cover the caption on the busy demo plan.
+    const fit = fitCaption(label.text, label.fontSize, iconSpace, label.width, label.lines);
+    const height = Math.max(fit.lines * LABEL_LINE_PX + 4, iconSpace === 0 ? 0 : 22);
+    return (
+      <Group
+        key={`label-${object.id}`}
+        name={`label-${object.id}`}
+        // Поворот — вокруг центра объекта, поэтому точка задаётся
+        // центром, а смещение уводит бирку в её левый верхний угол.
+        // Так неповёрнутая подпись стоит ровно там же, где стояла.
+        x={label.x}
+        y={label.y}
+        offsetX={fit.width / 2}
+        offsetY={height / 2}
+        rotation={label.rotation}
+        listening={false}
+      >
+        {/* D-363: a dark glass tag, the icon on the type's own colour. */}
+        <Rect
+          width={fit.width}
+          height={height}
+          fill="#17232E"
+          opacity={0.88}
+          stroke="#FFFFFF"
+          strokeWidth={0.75}
+          cornerRadius={Math.min(6, height / 2)}
+          listening={false}
+          perfectDrawEnabled={false}
+        />
+        {kind === null ? null : (
+          <Group name={`plan-pictogram-caption-${object.id}`} x={11} y={height / 2} listening={false}>
+            <Rect
+              x={-9}
+              y={-9}
+              width={18}
+              height={18}
+              fill={findObjectType(plan.catalog, object.typeId)?.color ?? FALLBACK_COLOR}
+              cornerRadius={5}
+              listening={false}
+            />
+            <EquipmentPictogram
+              kind={kind}
+              width={20}
+              height={20}
+              opacity={1}
+              color="#FFFFFF"
+            />
+          </Group>
+        )}
+        <Text
+          x={iconSpace}
+          width={fit.width - iconSpace}
+          height={height}
+          text={label.text}
+          fontSize={label.fontSize}
+          lineHeight={LABEL_LINE_PX / label.fontSize}
+          fontFamily="system-ui, sans-serif"
+          fill="#FFFFFF"
+          align="center"
+          verticalAlign="middle"
+          // Always by word (D-216): a one-line caption too long for
+          // its box loses whole words to the ellipsis, never a
+          // half-word — «Стеллаж…», not «Стелл…».
+          wrap="word"
+          ellipsis
+          padding={1}
+        />
+      </Group>
+    );
+  };
+
+  // #169: a drag step changes only the gesture's objects. The other elements are
+  // reused as they are, so React skips them and Konva gets no prop updates; on a
+  // plan of 1000 objects that was the whole cost of a step. Anything else that
+  // the elements read starts a new cache.
+  const elementCache = useMemo(
+    () => ({ objects: new Map<Id, React.JSX.Element>(), labels: new Map<Id, React.JSX.Element | null>() }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the keys are what the cached elements read
+    [plan, session, viewport, captions, pictograms, hoverCard, hoverBox, hoverTitle, hoverRule,
+      hoverHint, hoverLearned, onCommand, onSelect, onSelectMany, onGesturePreview],
+  );
+  const inGesture = (object: Equipment): boolean =>
+    gesture !== null && (gesture.id === object.id || (gesture.delta !== undefined && group.has(object.id)));
+  const cached = <T,>(object: Equipment, store: Map<Id, T>, draw: (object: Equipment) => T): T => {
+    if (inGesture(object)) return draw(object);
+    if (store.has(object.id)) return store.get(object.id) as T;
+    const element = draw(object);
+    store.set(object.id, element);
+    return element;
+  };
+
   // Larger footprints first: a camera on a desk is drawn and pressed above the desk (#134).
   const drawOrder = useMemo(
     () => [...plan.objects].sort((a, b) => b.size_m[0] * b.size_m[1] - a.size_m[0] * a.size_m[1]),
@@ -1053,7 +1173,7 @@ export function EquipmentLayer({
       <Layer name="equipment">
         {drawOrder
           .filter((object) => visibleLayers.has(object.layerId))
-          .map((object) => render(object, false))}
+          .map((object) => cached(object, elementCache.objects, (shape) => render(shape, false)))}
 
         {previewObject === null ? null : render(previewObject, true)}
 
@@ -1086,82 +1206,7 @@ export function EquipmentLayer({
             rectangle is. Objects too small on screen stay uncaptioned. */}
         {plan.objects
           .filter((object) => captions && visibleLayers.has(object.layerId))
-          .map((object) => {
-            const kind = pictograms ? planPictogram(object.typeId) : null;
-            const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
-            const label = objectLabel(shown(object), viewport, iconSpace);
-            if (label === null) return null;
-            // The symbol and the name share one badge. A separate floating
-            // marker used to cover the caption on the busy demo plan.
-            const fit = fitCaption(label.text, label.fontSize, iconSpace, label.width, label.lines);
-            const height = Math.max(fit.lines * LABEL_LINE_PX + 4, iconSpace === 0 ? 0 : 22);
-            return (
-              <Group
-                key={`label-${object.id}`}
-                name={`label-${object.id}`}
-                // Поворот — вокруг центра объекта, поэтому точка задаётся
-                // центром, а смещение уводит бирку в её левый верхний угол.
-                // Так неповёрнутая подпись стоит ровно там же, где стояла.
-                x={label.x}
-                y={label.y}
-                offsetX={fit.width / 2}
-                offsetY={height / 2}
-                rotation={label.rotation}
-                listening={false}
-              >
-                {/* D-363: a dark glass tag, the icon on the type's own colour. */}
-                <Rect
-                  width={fit.width}
-                  height={height}
-                  fill="#17232E"
-                  opacity={0.88}
-                  stroke="#FFFFFF"
-                  strokeWidth={0.75}
-                  cornerRadius={Math.min(6, height / 2)}
-                  listening={false}
-                  perfectDrawEnabled={false}
-                />
-                {kind === null ? null : (
-                  <Group name={`plan-pictogram-caption-${object.id}`} x={11} y={height / 2} listening={false}>
-                    <Rect
-                      x={-9}
-                      y={-9}
-                      width={18}
-                      height={18}
-                      fill={findObjectType(plan.catalog, object.typeId)?.color ?? FALLBACK_COLOR}
-                      cornerRadius={5}
-                      listening={false}
-                    />
-                    <EquipmentPictogram
-                      kind={kind}
-                      width={20}
-                      height={20}
-                      opacity={1}
-                      color="#FFFFFF"
-                    />
-                  </Group>
-                )}
-                <Text
-                  x={iconSpace}
-                  width={fit.width - iconSpace}
-                  height={height}
-                  text={label.text}
-                  fontSize={label.fontSize}
-                  lineHeight={LABEL_LINE_PX / label.fontSize}
-                  fontFamily="system-ui, sans-serif"
-                  fill="#FFFFFF"
-                  align="center"
-                  verticalAlign="middle"
-                  // Always by word (D-216): a one-line caption too long for
-                  // its box loses whole words to the ellipsis, never a
-                  // half-word — «Стеллаж…», not «Стелл…».
-                  wrap="word"
-                  ellipsis
-                  padding={1}
-                />
-              </Group>
-            );
-          })}
+          .map((object) => cached(object, elementCache.labels, renderCaption))}
 
       </Layer>
 
