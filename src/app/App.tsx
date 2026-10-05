@@ -925,7 +925,6 @@ export function App(): React.JSX.Element {
             aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
             code "Shift+Slash". */}
         <div className="shell__aux">
-          <AssistantLauncher variant="header" onOpen={() => showRightTab('assistant')} />
           <button
             type="button"
             className="shell__quiet shell__help"
@@ -1253,9 +1252,7 @@ export function App(): React.JSX.Element {
           {view === '3d' ? (
             <View3D document={shownDocument} selection={selection} onSelect={select} />
           ) : null}
-          {view === '2d' ? (
-            <AssistantLauncher variant="floating" onOpen={() => showRightTab('assistant')} />
-          ) : null}
+          {view === '2d' ? <AssistantLauncher onOpen={() => showRightTab('assistant')} /> : null}
         </main>
 
         <div
