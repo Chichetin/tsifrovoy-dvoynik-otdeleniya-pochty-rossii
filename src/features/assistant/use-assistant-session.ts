@@ -1,10 +1,10 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../../contracts/advice';
 import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import type { Command } from '../../contracts/commands';
 import type { Id, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../contracts/ui';
-import { candidateObjectForInsert, proposalCommands } from '../../domain/advice';
+import { candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
 import { requestAgent, turnsOf } from './agent-client';
 
@@ -22,6 +22,72 @@ function editGhostsOf(commands: readonly Command[]): EditsPreview {
     put: commands.flatMap((command) => (command.type === 'object.put' ? [command.object] : [])),
     removed: commands.flatMap((command) => (command.type === 'object.delete' ? [command.id] : [])),
   };
+}
+
+/** #176: hints are on until the person turns them off. The one place to change the default. */
+export const HINTS_DEFAULT_ENABLED = true;
+/** #176: a hint waits for the plan to settle — after a drag ends, not at each of its steps. */
+export const HINTS_DEBOUNCE_MS = 600;
+const HINTS_STORAGE_KEY = 'ops-twin.assistant-hints.v1';
+/** Hints kept on screen, newest first. */
+const HINTS_KEPT = 5;
+
+/** A hint as shown: the calculation, its text and the two documents it compares. */
+export type ShownHint = EditHint & { id: string; text: string; before: PlanDocument; after: PlanDocument };
+export type HintsView = { enabled: boolean; hints: readonly ShownHint[]; unseen: number };
+
+function storedHintsEnabled(): boolean {
+  try {
+    const value = window.localStorage.getItem(HINTS_STORAGE_KEY);
+    return value === null ? HINTS_DEFAULT_ENABLED : value === 'on';
+  } catch {
+    return HINTS_DEFAULT_ENABLED;
+  }
+}
+
+/*
+ * The hints of the session live outside React state so the panel can read them
+ * without the app passing new props: the session hook writes, `useEditHints`
+ * reads. There is one assistant session per page.
+ */
+let hintsView: HintsView | null = null;
+const hintsListeners = new Set<() => void>();
+
+function readHints(): HintsView {
+  hintsView ??= { enabled: storedHintsEnabled(), hints: [], unseen: 0 };
+  return hintsView;
+}
+
+function writeHints(change: (view: HintsView) => HintsView): void {
+  hintsView = change(readHints());
+  for (const listener of hintsListeners) listener();
+}
+
+function subscribeHints(listener: () => void): () => void {
+  hintsListeners.add(listener);
+  return () => hintsListeners.delete(listener);
+}
+
+export function setHintsEnabled(enabled: boolean): void {
+  try {
+    window.localStorage.setItem(HINTS_STORAGE_KEY, enabled ? 'on' : 'off');
+  } catch {
+    // Private mode: the switch works until the page is closed.
+  }
+  writeHints((view) => ({ enabled, hints: enabled ? view.hints : [], unseen: enabled ? view.unseen : 0 }));
+}
+
+export function markHintsSeen(): void {
+  if (readHints().unseen !== 0) writeHints((view) => ({ ...view, unseen: 0 }));
+}
+
+export function clearHints(): void {
+  writeHints((view) => ({ ...view, hints: [], unseen: 0 }));
+}
+
+/** The hints and their switch, for the panel. */
+export function useEditHints(): HintsView {
+  return useSyncExternalStore(subscribeHints, readHints, readHints);
 }
 
 /**
@@ -49,7 +115,7 @@ export function useAssistantSession({
   baseline: PlanDocument;
   /** The plan of the comparison file, if one is loaded. */
   comparisonBase: PlanDocument | null;
-  current: () => { document: PlanDocument; contentRevision: number; retired: Iterable<Id> };
+  current: () => { document: PlanDocument; contentRevision: number; retired: Iterable<Id>; variants?: { active: string } | null };
   dispatch: (command: Command) => Result<PlanDocument>;
   dispatchAndSelect: (command: Command) => Result<PlanDocument>;
   setPreview: (candidate: Candidate | null) => void;
@@ -70,6 +136,51 @@ export function useAssistantSession({
   const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const chatSequence = useRef(0);
+
+  // #176, mode A: after the plan settles, code compares it with the last
+  // settled plan and says what this edit caused. No model, no network.
+  const hints = useEditHints();
+  const hintBase = useRef<{ snapshot: EditHintSnapshot; variant: string | undefined } | null>(null);
+  const hintSequence = useRef(0);
+  const settleHints = useCallback(() => {
+    const state = current();
+    const plan = state.document;
+    const variant = state.variants?.active;
+    const base = hintBase.current;
+    if (base !== null && base.snapshot.plan === plan) return;
+    const snapshot = editHintSnapshot(plan);
+    hintBase.current = { snapshot, variant };
+    // A first look, another file or the other variant: a new starting point, not an edit.
+    if (base === null || base.snapshot.plan.id !== plan.id || base.variant !== variant) return;
+    const shown = readHints().hints;
+    // Undo went back to where a hint started: that hint and the newer ones are void.
+    const undone = shown.findIndex((entry) => entry.before === plan);
+    if (undone !== -1) {
+      writeHints((view) => ({ ...view, hints: view.hints.slice(undone + 1), unseen: Math.max(0, view.unseen - (undone + 1)) }));
+      return;
+    }
+    const hint = editHint(base.snapshot, snapshot);
+    if (hint === null) return;
+    const text = editHintText(hint);
+    const repeated = shown.some((entry) => entry.text === text);
+    hintSequence.current += 1;
+    const entry: ShownHint = { ...hint, id: `hint-${hintSequence.current}`, text, before: base.snapshot.plan, after: plan };
+    writeHints((view) => {
+      // The same hint is not doubled: the old copy gives way to the new one.
+      const kept = [entry, ...view.hints.filter((old) => old.text !== text)].slice(0, HINTS_KEPT);
+      return { ...view, hints: kept, unseen: Math.min(kept.length, repeated ? view.unseen : view.unseen + 1) };
+    });
+  }, [current]);
+
+  useEffect(() => {
+    if (!hints.enabled) {
+      hintBase.current = null;
+      return;
+    }
+    // The starting point is taken at once; an edit waits for the plan to settle.
+    const timer = window.setTimeout(settleHints, hintBase.current === null ? 0 : HINTS_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [document, hints.enabled, settleHints]);
 
   const ask = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
@@ -255,7 +366,26 @@ export function useAssistantSession({
   const forget = useCallback(() => {
     resetAdvice();
     clearChat();
+    hintBase.current = null;
+    clearHints();
   }, [resetAdvice, clearChat]);
 
-  return { advice, adviceState, exchanges, actionStatus, ask, askAgent, runAction, resetAdvice, clearChat, forget };
+  return {
+    advice,
+    adviceState,
+    exchanges,
+    actionStatus,
+    ask,
+    askAgent,
+    runAction,
+    resetAdvice,
+    clearChat,
+    forget,
+    hints: hints.hints,
+    hintsEnabled: hints.enabled,
+    /** Hints not seen yet — the number for the assistant button (#180). */
+    hintCount: hints.unseen,
+    setHintsEnabled,
+    markHintsSeen,
+  };
 }
