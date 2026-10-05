@@ -32,6 +32,7 @@ import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
@@ -926,14 +927,6 @@ export function App(): React.JSX.Element {
         <div className="shell__aux">
           <button
             type="button"
-            className="files__button shell__assistant"
-            title="Ассистент: где поставить, чего не хватает, что изменилось"
-            onClick={() => showRightTab('assistant')}
-          >
-            Ассистент
-          </button>
-          <button
-            type="button"
             className="shell__quiet shell__help"
             aria-label="Горячие клавиши"
             aria-keyshortcuts="?"
@@ -1259,6 +1252,7 @@ export function App(): React.JSX.Element {
           {view === '3d' ? (
             <View3D document={shownDocument} selection={selection} onSelect={select} />
           ) : null}
+          {view === '2d' ? <AssistantLauncher onOpen={() => showRightTab('assistant')} /> : null}
         </main>
 
         <div

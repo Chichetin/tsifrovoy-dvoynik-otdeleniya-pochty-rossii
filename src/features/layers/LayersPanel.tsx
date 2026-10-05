@@ -683,7 +683,7 @@ export function LayersPanel({
         })}
       </ul>
       {setup ? null : (
-        <p className="panel__note">Добавить, переименовать, упорядочить и удалить слои — в «Настройках» у названия плана.</p>
+        <p className="panel__note">Состав слоёв — в «Настройках» ⚙.</p>
       )}
     </section>
   );
