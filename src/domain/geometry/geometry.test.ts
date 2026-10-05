@@ -5,6 +5,7 @@
  */
 
 import { describe, expect, test } from 'vitest';
+import { measurePlan, zoneOverview } from '../metrics';
 import type { Equipment, Opening, PlanDocument, Point, Polygon, Viewport, Wall } from '../../contracts/model';
 import {
   contains,
@@ -547,6 +548,18 @@ describe('умные направляющие и расстояния при п�
     objects,
     catalog: { version: '1', objectTypes: [], zoneTypes: [], layerTypes: [], rules: [] },
     extensions: {},
+  });
+
+  test('карточка зоны учитывает вложенные объекты и одну находку с несколькими ссылками один раз', () => {
+    const document = plan([equipment({ id: 'item', zoneId: 'child' })]);
+    document.zones = [
+      { id: 'parent', name: 'Зал', typeId: 'client', polygon: document.room.boundary, parentId: null, layerId: 'l_base', attributes: {} },
+      { id: 'child', name: 'Ожидание', typeId: 'waiting', polygon: [[0,0],[5,0],[5,5],[0,5]], parentId: 'parent', layerId: 'l_base', attributes: {} },
+    ];
+    const cards = zoneOverview(document, [{ code: 'TEST', severity: 'warning', message: 'Одна находка',
+      refs: [{ kind: 'object', id: 'item' }, { kind: 'zone', id: 'child' }] }], measurePlan(document));
+    expect(cards.get('parent')).toEqual({ area_m2: 100, objects: 1, findings: 1 });
+    expect(cards.get('child')).toEqual({ area_m2: 25, objects: 1, findings: 1 });
   });
 
   test('направляющие соседа — края и центр его повёрнутой рамки, без самого перемещаемого', () => {
