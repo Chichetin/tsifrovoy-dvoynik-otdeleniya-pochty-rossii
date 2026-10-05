@@ -1238,12 +1238,14 @@ export function EquipmentLayer({
               const [x2, y2] = modelToScreen(gap.to, viewport);
               // Two short gaps put both labels on the same spot: the second one
               // steps down by its own height so both numbers stay readable.
-              const wall = gesture.gaps?.wall ?? null;
-              const [wx, wy] = wall === null ? [Infinity, Infinity] : modelToScreen(midpoint(wall.from, wall.to), viewport);
               const crowded =
                 kind === 'object' &&
-                Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
-                Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
+                gesture.gaps!.axes.some((wall) => {
+                  if (wall === null) return false;
+                  const [wx, wy] = modelToScreen(midpoint(wall.from, wall.to), viewport);
+                  return Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
+                    Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
+                });
               // A distant wall can be outside the view. Keep the number visible
               // on the same dimension line without changing the measured gap.
               const halfWidth = GAP_LABEL_WIDTH_PX / 2 + 4;
