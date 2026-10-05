@@ -161,13 +161,11 @@ describe('панель инструментов плана', () => {
     expect(screen.getByRole('button', { name: 'Комната' }).getAttribute('title')).toContain('два противоположных угла');
   });
 
-  it('подсказка панорамирования называет тачпад и среднюю кнопку', () => {
-    const { onTool } = show(null);
-    fireEvent.click(screen.getByRole('button', { name: 'Обзор' }));
-
-    expect(onTool).toHaveBeenCalledWith({ kind: 'pan' });
-    expect(screen.getByRole('button', { name: 'Обзор' }).getAttribute('title')).toContain(
-      'свайп двумя пальцами на тачпаде',
+  it('отдельного «Обзора» нет, «Выбор» называет пробел для сдвига вида (#115)', () => {
+    show(null);
+    expect(screen.queryByRole('button', { name: 'Обзор' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Выбор' }).getAttribute('title')).toContain(
+      'пробел + перетаскивание',
     );
   });
 
@@ -187,7 +185,7 @@ describe('панель инструментов плана', () => {
     expect(gaps).toHaveLength(1);
     expect(gaps[0]!.getAttribute('aria-hidden')).toBe('true');
     expect(gaps[0]!.hasAttribute('tabindex')).toBe(false);
-    // Он стоит между инструментами, которые план не меняют («Выбор», «Обзор»,
+    // Он стоит между инструментами, которые план не меняют («Выбор»,
     // «Линейка»), и теми, что создают геометрию (D-256).
     expect(gaps[0]!.previousElementSibling?.textContent).toBe('Линейка');
     expect(gaps[0]!.nextElementSibling?.textContent).toBe('Комната');
