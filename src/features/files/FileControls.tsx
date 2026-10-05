@@ -83,6 +83,13 @@ export type FileControlsProps = {
   storage?: DraftStorage | null;
   /** App bridges the first-run tour to the same file-opening controller. */
   demoRequest?: { id: number; variant: DemoPlan } | null;
+  /**
+   * #38: variants А and Б of one redesign. `null` — one plan. Each variant is
+   * saved as its own ordinary plan file, with the variant in the file name.
+   */
+  variants?: { active: 'А' | 'Б'; otherDirty: boolean } | null;
+  onKeepVariant?: () => void;
+  onSwitchVariant?: () => void;
 };
 
 /**
@@ -124,8 +131,9 @@ function replacementWarning(action: 'Новый' | 'Открыть', dirty: bool
   return `${consequence} ${action === 'Новый' ? 'Создать новый план?' : 'Открыть другой файл?'}`;
 }
 
-function fileName(plan: PlanDocument): string {
-  return planFileName(plan, 'json');
+function fileName(plan: PlanDocument, variant: 'А' | 'Б' | null): string {
+  const name = planFileName(plan, 'json');
+  return variant === null ? name : name.replace(/\.json$/, `-вариант-${variant}.json`);
 }
 
 /** Хранилище браузера, если оно вообще доступно: приватный режим бросает. */
@@ -172,7 +180,7 @@ function handToBrowser(blob: Blob, name: string): void {
 
 export function FileControls({
   document: plan,
-  dirty,
+  dirty: activeDirty,
   revision,
   untouchedSample = false,
   read,
@@ -184,7 +192,13 @@ export function FileControls({
   onShowValidation,
   storage: given,
   demoRequest = null,
+  variants = null,
+  onKeepVariant,
+  onSwitchVariant,
 }: FileControlsProps): React.JSX.Element {
+  // Replacing the plan drops both variants: unsaved edits of either one count.
+  const dirty = activeDirty || variants?.otherDirty === true;
+  const variant = variants?.active ?? null;
   const input = useRef<HTMLInputElement>(null);
   const openSequence = useRef(0);
   const activeDemoFetch = useRef<AbortController | null>(null);
@@ -508,7 +522,7 @@ export function FileControls({
       return;
     }
 
-    handToBrowser(new Blob([encoded.value], { type: 'application/json' }), fileName(plan));
+    handToBrowser(new Blob([encoded.value], { type: 'application/json' }), fileName(plan, variant));
     // The file now holds this plan: the browser draft, kept against a closed tab,
     // would offer it back as «not saved» after the next reload. The first edit
     // after the save writes a new draft.
@@ -517,7 +531,7 @@ export function FileControls({
     setDraftAt(null);
     onExported();
     setErrorDetails([]);
-    setNotice(`Файл ${fileName(plan)} передан браузеру на скачивание.`);
+    setNotice(`Файл ${fileName(plan, variant)} передан браузеру на скачивание.`);
     setState({ status: 'done' });
   };
 
@@ -868,6 +882,21 @@ export function FileControls({
             >
               Версии плана…
             </button>
+            {onKeepVariant === undefined || variants !== null ? null : (
+              <button
+                type="button"
+                role="menuitem"
+                className="files__menu-item"
+                title="Текущий план станет вариантом А, дальше правки идут в вариант Б. Каждый вариант сохраняется своим файлом."
+                data-testid="keep-variant"
+                onClick={() => {
+                  closeMenu(true);
+                  onKeepVariant();
+                }}
+              >
+                Запомнить как вариант
+              </button>
+            )}
             <div role="group" aria-labelledby="files-menu-export">
               <span id="files-menu-export" className="files__menu-caption">Экспорт</span>
               {exportItems.map((item) => (
@@ -909,6 +938,28 @@ export function FileControls({
       >
         Сохранить
       </button>
+
+      {onSwitchVariant === undefined || variants === null ? null : (
+        <div style={{ display: 'contents' }} role="group" aria-label="Вариант перепланировки">
+          {(['А', 'Б'] as const).map((name) => (
+            <button
+              key={name}
+              type="button"
+              className={`files__button${name === variants.active ? ' is-primary' : ''}`}
+              aria-pressed={name === variants.active}
+              data-testid={`variant-${name}`}
+              title={name === variants.active
+                ? `Открыт вариант ${name}. «Сохранить» запишет его в свой файл.`
+                : `Открыть вариант ${name}${variants.otherDirty ? ' (есть несохранённые правки)' : ''}`}
+              onClick={() => {
+                if (name !== variants.active) onSwitchVariant();
+              }}
+            >
+              Вариант {name}{name !== variants.active && variants.otherDirty ? ' •' : ''}
+            </button>
+          ))}
+        </div>
+      )}
 
       <input
         ref={input}

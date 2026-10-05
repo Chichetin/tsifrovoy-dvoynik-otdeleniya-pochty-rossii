@@ -604,3 +604,58 @@ describe('физика — граница правки (D-286)', () => {
     expect(store.getState().document.objects).toHaveLength(3);
   });
 });
+
+describe('варианты А и Б (#38)', () => {
+  const moveTo = (position: [number, number]): void => {
+    const object = store.getState().document.objects[0]!;
+    store.getState().dispatch({ type: 'object.put', object: { ...object, position } });
+  };
+
+  test('«Запомнить как вариант»: правки идут в Б, Б не сохранён, А чист', () => {
+    store.getState().keepVariant();
+
+    expect(store.getState().variants).toEqual({ active: 'Б', otherDirty: false });
+    expect(store.getState().dirty).toBe(true);
+  });
+
+  test('переключение не теряет правок и не смешивает undo', () => {
+    moveTo([3, 3]);
+    store.getState().keepVariant();
+    moveTo([9, 4]);
+
+    store.getState().switchVariant();
+    expect(store.getState().variants).toEqual({ active: 'А', otherDirty: true });
+    expect(store.getState().document.objects[0]!.position).toEqual([3, 3]);
+    store.getState().redo();
+    expect(store.getState().document.objects[0]!.position).toEqual([3, 3]);
+
+    moveTo([4, 4]);
+    store.getState().switchVariant();
+    expect(store.getState().document.objects[0]!.position).toEqual([9, 4]);
+    store.getState().undo();
+    expect(store.getState().document.objects[0]!.position).toEqual([3, 3]);
+
+    store.getState().switchVariant();
+    expect(store.getState().document.objects[0]!.position).toEqual([4, 4]);
+    store.getState().undo();
+    expect(store.getState().document.objects[0]!.position).toEqual([3, 3]);
+  });
+
+  test('сохранение одного варианта не делает чистым другой', () => {
+    moveTo([3, 3]);
+    store.getState().keepVariant();
+    store.getState().markExported(store.getState().revision);
+    expect(store.getState().dirty).toBe(false);
+
+    store.getState().switchVariant();
+    expect(store.getState().dirty).toBe(true);
+    expect(store.getState().variants).toEqual({ active: 'А', otherDirty: false });
+  });
+
+  test('replaceDocument убирает второй вариант', () => {
+    store.getState().keepVariant();
+    store.getState().replaceDocument(minimalPlan(), 'file');
+
+    expect(store.getState().variants).toBeNull();
+  });
+});
