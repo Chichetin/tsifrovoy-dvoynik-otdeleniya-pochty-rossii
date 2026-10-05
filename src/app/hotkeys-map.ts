@@ -31,7 +31,7 @@ const rotationStep = `${formatShort(ROTATION_SNAP_DEG, 1)}°`;
 export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
   {
     title: 'Вид',
-    entries: [{ keys: 'F', description: 'Вписать план в окно' }],
+    entries: [{ keys: 'F', description: 'Показать план целиком' }],
   },
   {
     title: 'Инструменты',
