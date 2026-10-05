@@ -40,6 +40,10 @@ import {
   zoneFit,
 } from './placement';
 import { calculateAdvice } from './index';
+import { applyCommand } from '../commands';
+import { measurePlan } from '../metrics';
+import { comparePlans } from './compare';
+import { findRelocations } from './relocation';
 
 const DESK: ObjectType = {
   id: 'ot_desk',
@@ -959,5 +963,77 @@ describe('A-fit: минимум — не запрет, расстановка п
     const candidates = values(withRule, 'ot_parcel_rack', null, [2, 4]);
     expect(candidates.length).toBeGreaterThan(0);
     for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_storage');
+  });
+});
+
+describe('#177: место для стоящего объекта', () => {
+  function relocations(document: PlanDocument, objectId: string) {
+    const result = findRelocations(document, { objectId, zoneId: null });
+    if (!result.ok) throw new Error(JSON.stringify(result.issues));
+    return result.value.options;
+  }
+
+  test('объект не мешает сам себе: в зале 4×1 стол встаёт поверх своего старого следа', () => {
+    // Без самого стола справа и слева от него места нет: 1,3 м < 1,4 м.
+    const desk = object('eq_desk', 'ot_desk', [2, 0.5], [1.4, 0.8], { height_m: 0.75, attributes: { inventoryNumber: 'INV-7' } });
+    const document = plan({ room: { id: 'room_main', boundary: [[0, 0], [4, 0], [4, 1], [0, 1]], ceilingHeight_m: 3 }, objects: [desk] });
+    const options = relocations(document, 'eq_desk');
+    const moves = options.filter((option) => option.kind === 'move');
+    expect(moves.length).toBeGreaterThan(0);
+    for (const move of moves) {
+      expect(move.object.id).toBe('eq_desk');
+      expect(move.object.attributes).toEqual(desk.attributes);
+      expect(Math.hypot(move.object.position[0] - 2, move.object.position[1] - 0.5)).toBeGreaterThanOrEqual(PLACEMENT_SEARCH.minSeparation_m - TOLERANCE.coordinate_m);
+    }
+  });
+
+  test('«оставить как есть» — последний вариант, без команды и с теми же показателями', () => {
+    const document = plan({ objects: [object('eq_desk', 'ot_desk', [5, 4], [1.4, 0.8])] });
+    const options = relocations(document, 'eq_desk');
+    const keep = options[options.length - 1]!;
+    expect(keep.kind).toBe('keep');
+    expect(keep.command).toBeNull();
+    expect(keep.object).toEqual(document.objects[0]);
+    expect(options.filter((option) => option.kind === 'keep')).toHaveLength(1);
+    expect(options.length).toBeLessThanOrEqual(PLACEMENT_SEARCH.maxCandidates + 1);
+    const metrics = (option: (typeof options)[number]) => option.facts.map((fact) => `${fact.metric}.${fact.phase}`);
+    for (const option of options) expect(metrics(option)).toEqual(metrics(keep));
+    for (const fact of keep.facts) if (fact.phase === 'delta') expect(fact.value).toBe(0);
+  });
+
+  test('каждый перенос — одна команда object.put без новых ошибок, числа совпадают с measurePlan и comparePlans', () => {
+    const document = plan({ objects: [object('eq_desk', 'ot_desk', [5, 4], [1.4, 0.8]), object('eq_block', 'ot_block', [2, 2], [1, 1])] });
+    const known = new Set(errors(validatePlan(document)).map((entry) => entry.code + entry.refs.map((ref) => ref.id).join()));
+    for (const option of relocations(document, 'eq_desk').filter((entry) => entry.kind === 'move')) {
+      expect(option.command?.type).toBe('object.put');
+      const applied = applyCommand(document, option.command!);
+      if (!applied.ok) throw new Error(JSON.stringify(applied.issues));
+      expect(errors(validatePlan(applied.value)).filter((entry) => !known.has(entry.code + entry.refs.map((ref) => ref.id).join()))).toEqual([]);
+      const compared = comparePlans(document, applied.value);
+      const before = measurePlan(document);
+      const after = measurePlan(applied.value);
+      if (!compared.ok || !before.ok || !after.ok) throw new Error('план не измерен');
+      expect(option.facts.map((fact) => fact.value)).toEqual(compared.value[0]!.facts.map((fact) => fact.value));
+      const free = (phase: string) => option.facts.find((fact) => fact.metric === 'area.free' && fact.phase === phase)!.value;
+      expect(free('before')).toBeCloseTo(before.value.room.free_m2, 6);
+      expect(free('after')).toBeCloseTo(after.value.room.free_m2, 6);
+    }
+  });
+
+  test('приоритет: без точки первый перенос у стены, переносы — раньше «оставить как есть»', () => {
+    const document = plan({ objects: [object('eq_desk', 'ot_desk', [5, 4], [1.4, 0.8])] });
+    const options = relocations(document, 'eq_desk');
+    expect(options[0]!.kind).toBe('move');
+    expect(options[0]!.wallGap_m).toBeLessThanOrEqual(TOLERANCE.coordinate_m);
+    expect(options[options.length - 1]!.wallGap_m).toBeGreaterThan(options[0]!.wallGap_m);
+    const warnings = options.filter((option) => option.kind === 'move').map((option) => option.warnings);
+    expect(warnings).toEqual([...warnings].sort((a, b) => a - b));
+  });
+
+  test('закреплённый объект: только «оставить как есть»; нет объекта — ошибка', () => {
+    const document = plan({ objects: [object('eq_desk', 'ot_desk', [5, 4], [1.4, 0.8], { locked: true })] });
+    expect(relocations(document, 'eq_desk').map((option) => option.kind)).toEqual(['keep']);
+    const missing = findRelocations(document, { objectId: 'eq_none', zoneId: null });
+    expect(missing.ok ? null : missing.issues[0]!.code).toBe(PLACEMENT_ISSUE_CODES.OBJECT_MISSING);
   });
 });

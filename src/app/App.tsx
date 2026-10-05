@@ -46,7 +46,7 @@ import { duplicateObjects, rotateObjects } from '../features/equipment/selection
 import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
-import { historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
+import { editorHotkey, historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
@@ -280,6 +280,9 @@ export function App(): React.JSX.Element {
   // #105: the object whose «Изменить форму» switch is on. It belongs to one
   // selection: picking something else, or nothing, puts it back to «off».
   const [reshapeFor, setReshapeFor] = useState<Id | null>(null);
+  // #167: the wall whose «Изменить перегородку» switch is on, and the tool it
+  // was turned on under. Another selection or another tool turns it off.
+  const [wallEdit, setWallEdit] = useState<{ id: Id; tool: Tool['kind'] } | null>(null);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -330,6 +333,14 @@ export function App(): React.JSX.Element {
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
     setReshapeFor(null);
   }
+  if (wallEdit !== null && !(selection?.kind === 'wall' && selection.id === wallEdit.id && tool.kind === wallEdit.tool)) {
+    setWallEdit(null);
+  }
+  const selectedWallId = selection?.kind === 'wall' ? selection.id : null;
+  const changeWallEdit = useCallback(
+    (on: boolean) => setWallEdit(on && selectedWallId !== null ? { id: selectedWallId, tool: tool.kind } : null),
+    [selectedWallId, tool.kind],
+  );
   const quickObject =
     selection !== null && selection.kind === 'object' && selected.size <= 1
       ? document.objects.find((entry) => entry.id === selection.id)
@@ -759,6 +770,32 @@ export function App(): React.JSX.Element {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [document, objectMenu, openObjectMenu, selection, view, viewport]);
+
+  // #182: bare keys for the toolbar tools, «Изменить перегородку» and the assistant.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const hotkey = editorHotkey(event);
+      if (hotkey === null || event.repeat || objectMenu !== null || view !== '2d') return;
+      if (window.document.querySelector('[aria-modal="true"]') !== null) return;
+      if (hotkey.action === 'tool') {
+        event.preventDefault();
+        setTool({ kind: hotkey.tool });
+      } else if (hotkey.action === 'wall-edit') {
+        if (selectedWallId === null) return;
+        event.preventDefault();
+        changeWallEdit(wallEdit === null);
+      } else {
+        event.preventDefault();
+        showRightTab('assistant');
+        // The panel may mount after this render: focus the question field once it is there.
+        window.setTimeout(() => window.document.querySelector<HTMLElement>('textarea[name="agent-question"]')?.focus(), 50);
+        const [question] = selectionQuestions(document, selection);
+        if (question !== undefined) askAgent(question);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [askAgent, changeWallEdit, document, objectMenu, selectedWallId, selection, showRightTab, view, wallEdit]);
 
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {
@@ -1192,6 +1229,8 @@ export function App(): React.JSX.Element {
                 draft={drawingRoom ? internalRoom.draft : planTool.draft}
                 draftCursor={drawingRoom ? null : planTool.cursor}
                 rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
+                wallEditing={wallEdit !== null}
+                onWallEditingChange={changeWallEdit}
                 onCommand={dispatch}
                 onSelect={select}
               />
@@ -1301,6 +1340,8 @@ export function App(): React.JSX.Element {
                   session={session}
                   onCommand={dispatch}
                   gesturePreview={gesturePreview}
+                  wallEditing={wallEdit !== null}
+                  onWallEditingChange={changeWallEdit}
                 />
               </div>
             </div>

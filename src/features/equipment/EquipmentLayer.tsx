@@ -344,8 +344,9 @@ export function EquipmentLayer({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
-  // #169: the dragged shape rides on the small selection layer, so the
-  // thousand-shape layer is not repainted on every pointer step. It goes back
+  // #169, #171: the dragged shape, the other members of its group and their
+  // captions ride on the small selection layer, so the thousand-shape layer is
+  // not repainted on every pointer step. They go back
   // to the same place among its siblings before the drop is committed.
   // A Map, like the guard above: handlers built during render may not touch a ref.
   const [lifted] = useState(() => new Map<Konva.Node, { parent: Konva.Container; index: number }>());
@@ -713,6 +714,35 @@ export function EquipmentLayer({
     }
   };
 
+  /** Moves the shapes and captions a drag of `id` changes onto the selection layer. */
+  const liftGesture = (node: Konva.Node, id: Id): void => {
+    const top = node.getStage()?.findOne<Konva.Layer>('.equipment-selection');
+    const parent = node.parent;
+    if (top === undefined || parent === null || lifted.size > 0) return;
+    const ids = isGroup && group.has(id) ? [id, ...movable.map((member) => member.id)] : [id];
+    const names = new Set(ids.flatMap((member) => [`equipment-${member}`, `label-${member}`]));
+    // Direct children only: a ghost of the agent's preview carries the same name.
+    const nodes = parent.children.filter((child) => names.has(child.name()));
+    for (const child of nodes) lifted.set(child, { parent, index: child.zIndex() });
+    for (const child of nodes) {
+      const at = child.absolutePosition();
+      child.moveTo(top);
+      child.absolutePosition(at);
+    }
+  };
+
+  /** Puts lifted nodes back in their old order; the lowest index first keeps each index valid. */
+  const dropGesture = (): void => {
+    const entries = [...lifted.entries()].sort((a, b) => a[1].index - b[1].index);
+    lifted.clear();
+    for (const [child, { parent, index }] of entries) {
+      const at = child.absolutePosition();
+      child.moveTo(parent);
+      child.zIndex(Math.min(index, parent.children.length - 1));
+      child.absolutePosition(at);
+    }
+  };
+
   /** How far the handle was grabbed from its centre; zero outside a gesture. */
   const grabOf = (): Point => guard.started?.grab ?? [0, 0];
 
@@ -836,14 +866,7 @@ export function EquipmentLayer({
         }
         onDragStart={(event) => {
           hideHover();
-          const node = event.target;
-          const top = node.getStage()?.findOne<Konva.Layer>('.equipment-selection');
-          if (top !== undefined && node.parent !== null && lifted.size === 0) {
-            lifted.set(node, { parent: node.parent, index: node.zIndex() });
-            const at = node.absolutePosition();
-            node.moveTo(top);
-            node.absolutePosition(at);
-          }
+          liftGesture(event.target, object.id);
           beginGesture(event, object.id);
           onGesturePreview?.({ objectId: object.id, position: object.position });
         }}
@@ -869,15 +892,7 @@ export function EquipmentLayer({
           });
         }}
         onDragEnd={(event) => {
-          const node = event.target;
-          const lift = lifted.get(node);
-          if (lift !== undefined) {
-            lifted.delete(node);
-            const at = node.absolutePosition();
-            node.moveTo(lift.parent);
-            node.zIndex(Math.min(lift.index, lift.parent.children.length - 1));
-            node.absolutePosition(at);
-          }
+          dropGesture();
           const next = { ...object, position: movedTo(event.target, event.evt, 'drop').position };
           if (isGroup && group.has(object.id)) {
             commitGroup(event.target, object, next);
@@ -1333,6 +1348,8 @@ export function EquipmentLayer({
                       stroke={GAP_STROKE}
                       strokeWidth={1}
                       cornerRadius={3}
+                      // D-187: no stage-sized buffer copy per label on every drag step.
+                      perfectDrawEnabled={false}
                     />
                     <Text
                       width={GAP_LABEL_WIDTH_PX}
