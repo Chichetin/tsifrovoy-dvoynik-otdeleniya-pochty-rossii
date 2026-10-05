@@ -9,7 +9,9 @@
  * to stay visible and clickable, and its own fill must win.
  *
  * The selected shape grows handles: vertices of a ring, both ends of a wall,
- * the middle of an opening. A drag is one gesture and one command — the shape
+ * the middle of an opening. A wall shows its handles only while the
+ * «Изменить перегородку» switch of its card is on (#167): a click that only
+ * meant to select it cannot bend it. A drag is one gesture and one command — the shape
  * follows the pointer locally and only the release dispatches `zone.put`,
  * `room.set`, `wall.put` or `opening.put`, so undo returns the whole gesture.
  * A ring dragged into a self-intersection is drawn red and never committed.
@@ -91,9 +93,17 @@ export function PlanGeometryLayer({
   draft,
   draftCursor = null,
   rectangleCorners,
+  wallEditing = false,
+  onWallEditingChange,
   onCommand,
   onSelect,
-}: PlanGeometryLayerProps & { draftCursor?: Point | null; rectangleCorners?: Point[] }): React.JSX.Element {
+}: PlanGeometryLayerProps & {
+  draftCursor?: Point | null;
+  rectangleCorners?: Point[];
+  /** #167: the «Изменить перегородку» switch of the selected wall. */
+  wallEditing?: boolean;
+  onWallEditingChange?: (on: boolean) => void;
+}): React.JSX.Element {
   const { viewport, selection } = session;
   // While a drawing tool is active the click belongs to the tool: the shape
   // under the pointer must not steal the selection from what was just drawn,
@@ -101,20 +111,32 @@ export function PlanGeometryLayer({
   // a T-junction on a neighbour's edge would insert a vertex instead.
   const picking = session.tool.kind === 'select' || session.tool.kind === 'pan';
   const pick = (ref: Ref): (() => void) | undefined => (picking ? () => onSelect(ref) : undefined);
-  const openingDrag = useRef<Konva.Node | null>(null);
-  const canceledOpeningDrag = useRef(false);
+  // The handle of an opening or a wall being dragged: Escape stops the
+  // gesture, and the plan keeps the shape it had before it.
+  const handleDrag = useRef<Konva.Node | null>(null);
+  const canceledHandleDrag = useRef(false);
+  const draggingWall = useRef(false);
+  const endWallEditing = useRef(onWallEditingChange);
+  useEffect(() => {
+    endWallEditing.current = onWallEditingChange;
+  }, [onWallEditingChange]);
   const [editing, setEditing] = useState<Editing | null>(null);
   const isSelected = (kind: string, id: Id): boolean =>
     selection?.kind === kind && selection.id === id;
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || openingDrag.current === null || isTextTarget(event.target)) return;
+      if (event.key !== 'Escape' || handleDrag.current === null || isTextTarget(event.target)) return;
       event.preventDefault(); event.stopImmediatePropagation();
-      canceledOpeningDrag.current = true;
-      openingDrag.current.stopDrag();
-      openingDrag.current = null;
+      canceledHandleDrag.current = true;
+      // Read before stopDrag: Konva fires dragend inside it, and that resets the flag.
+      const wall = draggingWall.current;
+      handleDrag.current.stopDrag();
+      handleDrag.current = null;
+      draggingWall.current = false;
       setEditing(null);
+      // #167: Escape also turns «Изменить перегородку» off; the wall stays selected.
+      if (wall) endWallEditing.current?.(false);
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
@@ -143,7 +165,7 @@ export function PlanGeometryLayer({
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (!isDeleteKey(event.key) || isTextTarget(event.target)) return;
-      if (openingDrag.current !== null) { event.preventDefault(); return; }
+      if (handleDrag.current !== null) { event.preventDefault(); return; }
       const intent = deleteIntent(selection, plan);
       if (intent === null) return;
       event.preventDefault();
@@ -404,7 +426,12 @@ export function PlanGeometryLayer({
           stroke={SELECTED_STROKE}
           strokeWidth={1.5}
           draggable
-          onDragStart={() => setNotice(null)}
+          onDragStart={(event) => {
+            handleDrag.current = event.target;
+            canceledHandleDrag.current = false;
+            draggingWall.current = true;
+            setNotice(null);
+          }}
           onDragMove={(event) => {
             const snapOff = altOf(event.evt);
             const point = handleWorld(event.target, snapOff, withoutWall(wall.id));
@@ -415,6 +442,9 @@ export function PlanGeometryLayer({
             const moved = moveWallEnd(wall, end, handleWorld(event.target, snapOff, withoutWall(wall.id)));
             setEditing(null);
             event.target.position({ x, y });
+            handleDrag.current = null;
+            draggingWall.current = false;
+            if (canceledHandleDrag.current) return;
             const result = onCommand({ type: 'wall.put', wall: moved });
             if (result.ok) setNotice(null);
           }}
@@ -435,7 +465,7 @@ export function PlanGeometryLayer({
         stroke={SELECTED_STROKE}
         strokeWidth={1.5}
         draggable
-        onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
+        onDragStart={(event) => { handleDrag.current = event.target; canceledHandleDrag.current = false; setNotice(null); }}
         onDragMove={(event) =>
           setEditing({
             kind: 'opening',
@@ -446,8 +476,8 @@ export function PlanGeometryLayer({
           const moved = moveOpeningTo(opening, wall, nodeWorld(event.target));
           setEditing(null);
           event.target.position({ x, y });
-          openingDrag.current = null;
-          if (canceledOpeningDrag.current) return;
+          handleDrag.current = null;
+          if (canceledHandleDrag.current) return;
           const result = onCommand({ type: 'opening.put', opening: moved });
           if (result.ok) setNotice(null);
         }}
@@ -475,12 +505,12 @@ export function PlanGeometryLayer({
         return <Group key={edge}>
           {Math.hypot(shiftX, shiftY) < 0.01 ? null : <Line points={[actualX, actualY, x, y]} stroke={SELECTED_STROKE} strokeWidth={1} dash={[2, 2]} listening={false} />}
           <Circle name={`opening-resize-${edge}`} x={x} y={y} radius={6} fill="#FFF3BF" stroke={SELECTED_STROKE} strokeWidth={2} hitStrokeWidth={12} draggable
-          onDragStart={(event) => { openingDrag.current = event.target; canceledOpeningDrag.current = false; setNotice(null); }}
+          onDragStart={(event) => { handleDrag.current = event.target; canceledHandleDrag.current = false; setNotice(null); }}
           onDragMove={(event) => setEditing({ kind: 'opening', opening: resizeOpening(opening, wall, edge, edgePoint(event.target)) })}
           onDragEnd={(event) => {
             const resized = resizeOpening(opening, wall, edge, edgePoint(event.target));
-            setEditing(null); event.target.position({ x, y }); openingDrag.current = null;
-            if (canceledOpeningDrag.current) return;
+            setEditing(null); event.target.position({ x, y }); handleDrag.current = null;
+            if (canceledHandleDrag.current) return;
             const result = onCommand({ type: 'opening.put', opening: resized });
             if (result.ok) setNotice(null);
           }} />
@@ -744,7 +774,7 @@ export function PlanGeometryLayer({
             selectedZone.polygon,
             !lockedLayers.has(selectedZone.layerId),
           )}
-      {!picking || selectedWall === undefined ? null : wallHandles(selectedWall)}
+      {!picking || !wallEditing || selectedWall === undefined ? null : wallHandles(selectedWall)}
       {!picking || selectedOpening === undefined || selectedOpeningWall === undefined
         ? null
         : openingHandles(selectedOpening, selectedOpeningWall)}
