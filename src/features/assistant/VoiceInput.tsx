@@ -46,26 +46,42 @@ const NO_SPEECH_MS = 8000;
 const MAX_MS = 60000;
 /** A voice error message hides itself after this time; the next error starts it again. */
 const ERROR_MS = 1500;
+/** The message stays fully visible this long, then fades out until ERROR_MS. */
+const ERROR_SOLID_MS = 500;
 
 const INSECURE_TEXT = 'Микрофон не включится: браузер даёт его только по HTTPS или на localhost, а эта страница открыта по HTTP. Введите вопрос текстом.';
 const NO_SPEECH_TEXT = 'Речь не услышана. Проверьте, что микрофон включён, нажмите кнопку и скажите вопрос ещё раз.';
+const SITE_DENIED_TEXT = 'Нет доступа к микрофону. Разрешите микрофон для этого сайта (значок слева в адресной строке) и нажмите кнопку ещё раз.';
+const SYSTEM_DENIED_TEXT = 'Windows не даёт браузеру микрофон. Откройте Параметры Windows → Конфиденциальность и защита → Микрофон и разрешите доступ классическим приложениям, затем нажмите кнопку ещё раз.';
+const SERVICE_DENIED_TEXT = 'Браузер не разрешил распознавание речи. Откройте страницу в Google Chrome или введите вопрос текстом.';
+const NO_MIC_TEXT = 'Микрофон не найден или занят другой программой. Подключите микрофон или введите вопрос текстом.';
 
-function errorText(code: string): string | null {
+/**
+ * The message for a failed microphone request, or null to try recognition anyway.
+ * Chrome says «Permission denied by system» when the OS, not the site setting, denies the microphone.
+ */
+function microphoneErrorText(error: unknown): string | null {
+  const name = error instanceof DOMException || error instanceof Error ? error.name : '';
+  const message = error instanceof Error || error instanceof DOMException ? error.message : '';
+  if (name === 'NotAllowedError') return /system/i.test(message) ? SYSTEM_DENIED_TEXT : SITE_DENIED_TEXT;
+  if (name === 'NotFoundError' || name === 'NotReadableError') return NO_MIC_TEXT;
+  return null;
+}
+
+/** `micGranted`: getUserMedia gave the microphone, so a later `not-allowed` is the recognition service. */
+function errorText(code: string, micGranted: boolean): string | null {
   switch (code) {
     case 'aborted':
       return null;
     case 'not-allowed':
-      return window.isSecureContext
-        ? 'Нет доступа к микрофону. Разрешите микрофон для этого сайта (значок слева в адресной строке) и нажмите кнопку ещё раз.'
-        : INSECURE_TEXT;
+      if (!window.isSecureContext) return INSECURE_TEXT;
+      return micGranted ? SERVICE_DENIED_TEXT : SITE_DENIED_TEXT;
     case 'service-not-allowed':
-      return window.isSecureContext
-        ? 'Браузер не разрешил распознавание речи. Откройте страницу в Google Chrome или введите вопрос текстом.'
-        : INSECURE_TEXT;
+      return window.isSecureContext ? SERVICE_DENIED_TEXT : INSECURE_TEXT;
     case 'network':
       return 'Сервис распознавания речи недоступен. Браузер распознаёт речь через интернет: проверьте сеть или откройте страницу в Google Chrome. Вопрос можно ввести текстом.';
     case 'audio-capture':
-      return 'Микрофон не найден или занят другой программой. Подключите микрофон или введите вопрос текстом.';
+      return NO_MIC_TEXT;
     case 'no-speech':
       return NO_SPEECH_TEXT;
     case 'language-not-supported':
@@ -85,7 +101,10 @@ type Props = {
 /** The microphone button and its messages. Renders nothing without the Web Speech API. */
 export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null {
   const [listening, setListening] = useState(false);
-  const [error, setErrorState] = useState<string | null>(null);
+  const [error, setErrorState] = useState<{ text: string; key: number } | null>(null);
+  // True from the click until recognition starts: a second click does not ask twice.
+  const [starting, setStarting] = useState(false);
+  const mounted = useRef(true);
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const timers = useRef<{ silence?: number; max?: number }>({});
@@ -95,7 +114,8 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
   function setError(text: string | null): void {
     window.clearTimeout(errorTimer.current);
     errorTimer.current = text === null ? undefined : window.setTimeout(() => setErrorState(null), ERROR_MS);
-    setErrorState(text);
+    // A new key mounts a new element: the fade starts again and the alert is read again.
+    setErrorState((current) => (text === null ? null : { text, key: (current?.key ?? 0) + 1 }));
   }
 
   function clearTimers(): void {
@@ -104,8 +124,10 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
     timers.current = {};
   }
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
       clearTimers();
       window.clearTimeout(errorTimer.current);
       const instance = recognition.current;
@@ -114,19 +136,47 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
       instance.onerror = null;
       instance.onend = null;
       instance.abort();
-    },
-    [],
-  );
+    };
+  }, []);
 
   const Recognition = recognitionConstructor();
   if (Recognition === null) return null;
 
-  function start(Ctor: SpeechRecognitionConstructor): void {
+  /**
+   * Asks for the microphone first: the browser shows its usual prompt, and the
+   * error tells a site setting from an OS one. The tracks stop at once — the
+   * recognition opens its own stream. Without mediaDevices it listens as is.
+   */
+  async function start(Ctor: SpeechRecognitionConstructor): Promise<void> {
     setError(null);
     if (!window.isSecureContext) {
       setError(INSECURE_TEXT);
       return;
     }
+    let micGranted = false;
+    if (navigator.mediaDevices?.getUserMedia !== undefined) {
+      setStarting(true);
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+        micGranted = true;
+      } catch (reason) {
+        const text = microphoneErrorText(reason);
+        if (text !== null) {
+          if (mounted.current) {
+            setStarting(false);
+            setError(text);
+          }
+          return;
+        }
+      }
+      if (!mounted.current) return;
+      setStarting(false);
+    }
+    listen(Ctor, micGranted);
+  }
+
+  function listen(Ctor: SpeechRecognitionConstructor, micGranted: boolean): void {
     let heard = false;
     let failed = false;
     const instance = new Ctor();
@@ -152,7 +202,7 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
     };
     instance.onerror = (event) => {
       failed = true;
-      setError(errorText(event.error));
+      setError(errorText(event.error, micGranted));
     };
     instance.onend = () => {
       clearTimers();
@@ -187,7 +237,12 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
         title={listening
           ? 'Нажмите, чтобы закончить. Запись закончится сама после паузы.'
           : 'Голосовой ввод: речь распознаёт браузер (в Chrome — сервис Google, нужен интернет)'}
-        onClick={() => (listening ? recognition.current?.stop() : start(Recognition))}
+        aria-busy={starting}
+        onClick={() => {
+          if (starting) return;
+          if (listening) recognition.current?.stop();
+          else void start(Recognition);
+        }}
       >
         <span className="voice__icon" aria-hidden="true">
           {listening ? (
@@ -207,7 +262,16 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
       </button>
       <span className="agent__sr" role="status" aria-atomic="true">{listening ? 'Слушаю. Скажите вопрос.' : ''}</span>
       {/* Over the form, not in it: the message appears and hides without moving the layout. */}
-      {error === null ? null : <p className="files__error agent__voice-error" role="alert">{error}</p>}
+      {error === null ? null : (
+        <p
+          key={error.key}
+          className="files__error agent__voice-error"
+          role="alert"
+          style={{ animationDuration: `${ERROR_MS - ERROR_SOLID_MS}ms`, animationDelay: `${ERROR_SOLID_MS}ms` }}
+        >
+          {error.text}
+        </p>
+      )}
     </>
   );
 }

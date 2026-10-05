@@ -54,4 +54,16 @@
   border-radius: var(--radius-m);
   background: var(--color-danger-soft);
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+  /* Duration and delay come from ERROR_MS and ERROR_SOLID_MS (VoiceInput.tsx). */
+  animation-name: voice-error-fade;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes voice-error-fade {
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent__voice-error { animation: none; }
 }
