@@ -127,7 +127,7 @@ describe('факты чата связаны с метрикой и предме
     expect(shared[0]!.id).not.toBe(shared[1]!.id);
     expect(shared[0]!.value).not.toBe(shared[1]!.value);
     for (const fact of shared) {
-      expect(renderAgentFact(fact)).toContain('до середины ограничивающего прямоугольника');
+      expect(renderAgentFact(fact)).toContain('Расстояние от варианта до центра зоны');
       const rendered = renderAgentFactSelection({ factIds: [fact.id] }, facts, state);
       expect(rendered.ok).toBe(true);
       if (rendered.ok) expect(rendered.text).toContain(fact.scope);
@@ -139,7 +139,9 @@ describe('факты чата связаны с метрикой и предме
     runAgentTool(state, 'find_place', { typeId: 'ot_bench', zoneId: null });
     const count = collectAgentFacts(state, []).find((f) => f.metric === 'equipment.count')!;
     expect(count.value).toBe(before.objects.filter((o) => o.typeId === 'ot_bench').length);
-    expect(count.scope).toContain('ot_bench');
+    // #210: the type reads by its name, its raw id stays out of the text.
+    expect(count.scope).toContain('«Скамья для ожидания»');
+    expect(count.scope).not.toContain('ot_bench');
     expect(count.scope).not.toContain('без вложенных зон');
     expect(count.scope).not.toContain('rule_bench_min');
   });
@@ -154,7 +156,7 @@ describe('факты чата связаны с метрикой и предме
     expect([...state.recommendations.values()][0]!.candidates).toEqual([]);
     const count = collectAgentFacts(state, []).find((f) => f.metric === 'equipment.count')!;
     expect(renderAgentFact(count)).toContain(type.label);
-    expect(renderAgentFact(count)).toContain(type.id);
+    expect(renderAgentFact(count)).not.toContain(type.id);
   });
 
   test('произвольные поля, сообщения ошибок и атрибуты не становятся доказательствами', () => {
@@ -185,7 +187,7 @@ describe('факты чата связаны с метрикой и предме
     const facts = collectAgentFacts(state, [{ name: 'list_objects', output }]);
     expect(facts).toHaveLength(1);
     expect(facts[0]!.value).toBe(before.objects.filter((o) => o.typeId === 'ot_workplace' && o.zoneId === 'z_client').length);
-    expect(renderAgentFact(facts[0]!)).toContain('ot_workplace');
+    expect(renderAgentFact(facts[0]!)).toContain('«Рабочее место оператора»');
     expect(renderAgentFact(facts[0]!)).toContain('z_client');
   });
 

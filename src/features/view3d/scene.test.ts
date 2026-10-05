@@ -4,6 +4,7 @@
  * footprint in both views and moving it in the plan moves it in the scene.
  */
 
+import { declutterLabels } from './label-declutter';
 import { describe, expect, test } from 'vitest';
 import type {
   Catalog,
@@ -485,4 +486,14 @@ describe('шаг посетителя', () => {
     expect(visitorStep([1, 2], [1, 0], [0, 0], 0.1, [])).toEqual([1, 2]);
     expect(visitorStep([1, 2], [1, 0], [0, 1], NaN, [])).toEqual([1, 2]);
   });
+});
+
+test('подписи зон: вторая уходит по вертикали ровно настолько, чтобы не наезжать; первая на месте (#218)', () => {
+  const shifts = declutterLabels([
+    { x: 100, y: 100, width: 120, height: 30 },
+    { x: 150, y: 110, width: 100, height: 30 },
+    { x: 400, y: 100, width: 50, height: 30 },
+  ]);
+  // The second box clears the first by the smaller move: down by 100 + 30 + 2 − 110 = 22 px, not up by 42.
+  expect(shifts).toEqual([0, 22, 0]);
 });

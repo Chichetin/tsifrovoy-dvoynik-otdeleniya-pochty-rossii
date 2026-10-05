@@ -13,7 +13,7 @@ import type { Command } from '../../contracts/commands';
 import type { Equipment, Id, PlanDocument, Zone } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import { applyCommand } from '../commands';
-import { buildInventory, markObject, walkActEntries, walkRoute } from './index';
+import { buildInventory, inventoryObjectLink, inventoryLinkTarget, resolveInventoryLink, markObject, walkActEntries, walkRoute } from './index';
 
 function loadPlan(name: string): PlanDocument {
   const path = join(process.cwd(), 'src', 'contracts', 'fixtures', name);
@@ -262,5 +262,39 @@ describe('обход для инвентаризации', () => {
     expect(walkActEntries({ ...plan, objects: [first] })).toEqual([
       { id: first.id, mark: 'не проверен', foundNumber: null },
     ]);
+  });
+});
+
+describe('ссылка на предмет инвентаризации', () => {
+  test('сохраняет идентификаторы с пробелами, кириллицей и знаками URL', () => {
+    const target = { planId: 'план 1 & 2', objectId: 'объект/#3' };
+    const link = inventoryObjectLink('https://example.org/editor/', target);
+    expect(link).not.toBeNull();
+    expect(inventoryLinkTarget(new URL(link!).search)).toEqual(target);
+  });
+
+  test('в наклейку не попадают пароль, старые параметры и фрагмент исходного адреса', () => {
+    const link = inventoryObjectLink('https://user:password@example.org/editor/?token=private#draft', {
+      planId: 'p1', objectId: 'eq1',
+    });
+    expect(link).toBe('https://example.org/editor/?plan=p1&object=eq1');
+    expect(inventoryObjectLink('javascript:alert(1)', { planId: 'p1', objectId: 'eq1' })).toBeNull();
+    expect(inventoryObjectLink('not a URL', { planId: 'p1', objectId: 'eq1' })).toBeNull();
+  });
+
+  test('не принимает пустые или неоднозначные идентификаторы', () => {
+    for (const search of ['', '?object=eq1', '?plan=p1&object=', '?plan=p1&plan=p2&object=eq1', '?plan=p1&object=eq1&object=eq2']) {
+      expect(inventoryLinkTarget(search)).toBeNull();
+    }
+    expect(inventoryObjectLink('https://example.org/', { planId: '', objectId: 'eq1' })).toBeNull();
+  });
+
+  test('одинаковый id предмета в другом плане не выбирается', () => {
+    const plan = loadPlan('nested.json');
+    const object = plan.objects[0]!;
+    const target = { planId: plan.id, objectId: object.id };
+    expect(resolveInventoryLink(plan, target)).toEqual({ status: 'found', object });
+    expect(resolveInventoryLink({ ...plan, id: 'other-plan' }, target)).toEqual({ status: 'different-plan' });
+    expect(resolveInventoryLink({ ...plan, objects: [] }, target)).toEqual({ status: 'missing-object' });
   });
 });

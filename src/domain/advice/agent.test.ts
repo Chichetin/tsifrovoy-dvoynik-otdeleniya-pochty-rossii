@@ -118,6 +118,8 @@ describe('агент без модели', () => {
       args: { zoneId: 'z_waiting' },
     });
     expect(routeAgentQuery(before, 'Какие ошибки в плане?', false)[0]?.name).toBe('validate_plan');
+    // #211: the operator's question leads to the check and its main finding.
+    expect(routeAgentQuery(before, 'Что не так и что сделать?', false)[0]?.name).toBe('validate_plan');
     expect(routeAgentQuery(after, 'Что изменилось?', true)[0]?.name).toBe('compare_with_original');
     expect(routeAgentQuery(before, 'Расскажи про клиентский зал', false)[0]).toEqual({
       name: 'zone_details',
@@ -143,6 +145,14 @@ describe('агент без модели', () => {
     expect(answer.actions.some((action) => action.kind === 'apply-candidate')).toBe(true);
     expect(answer.recommendations[0]?.scenario).toBe('place');
   });
+
+  test('#178: вопрос из подсказки «Предложить место» — перенос стоящего объекта; «я перенес» — не просьба', () => {
+    const answer = answerWithoutModel(before, null, 'Предложить место для eq_1: куда перенести и почему?', 1, 'без LLM');
+    expect(answer.steps[0]?.tool).toBe('find_place');
+    expect(answer.text).toContain('Вариант 1 — ');
+    expect(routeAgentQuery(before, 'Я перенес eq_1 — что изменилось?', false).some((call) => call.args.objectId !== undefined)).toBe(false);
+    expect(routeAgentQuery(before, 'Я применил предложенное место для eq_1 — что изменилось?', true)[0]?.name).toBe('compare_with_original');
+  }, 20_000);
 });
 
 describe('ответ без модели называет зоны, типы и правило (критерий «ИИ-ассистент»)', () => {
@@ -168,8 +178,8 @@ describe('ответ без модели называет зоны, типы и 
     expect(text).toContain('rule_bench_min');
     // The rationale already says «Правило команды» — the mark is not repeated.
     expect(text).toContain('(rule_bench_min, справочник проекта)');
-    // One paragraph per recommendation: the chat splits on blank lines.
-    expect(text.split('\n\n')).toHaveLength(2);
+    // #210: the action line first, then one paragraph per recommendation.
+    expect(text.split('\n\n')).toHaveLength(3);
   });
 
   test('правило команды без слов «Правило команды» в обосновании получает полную пометку', () => {
@@ -215,8 +225,9 @@ describe('ответ без модели называет зоны, типы и 
     const { text } = answer(before, 'куда поставить стеллаж для посылок?');
     expect(text).toContain('«Хранение и посылки» (z_storage)');
     expect(text).toContain('правил для этого типа в справочнике нет');
-    // The note named the zone; «Место в зоне …» does not repeat it.
-    expect(text.split('(z_storage)')).toHaveLength(2);
+    // #210: the action line and the note name the zone; «Место в зоне …» does not repeat it.
+    expect(text.startsWith('Поставьте «Стеллаж для посылок» в зону «Хранение и посылки» (z_storage)')).toBe(true);
+    expect(text.split('(z_storage)')).toHaveLength(3);
     expect(text).toContain('не названа');
   });
 
@@ -224,8 +235,9 @@ describe('ответ без модели называет зоны, типы и 
     const query = 'Куда поставить информационное табло?';
     expect(routeAgentQuery(crowded, query, false).map((call) => [call.name, call.args.zoneId])).toEqual([['check_equipment', 'z_client']]);
     const result = answerWithoutModel(crowded, null, query, 1, 'без LLM');
-    expect(result.text.startsWith('Ставить ещё одно «Центральное информационное табло» в зону «Клиентский зал» (z_client)')).toBe(true);
-    expect(result.text.split('\n\n')[0]).toContain('не рекомендуется');
+    // #210: the action line first — remove the extra one; the refusal follows it.
+    expect(result.text.startsWith('Уберите лишнее «Центральное информационное табло» из зоны «Клиентский зал» (z_client): 3 → 2 шт.')).toBe(true);
+    expect(result.text.split('\n\n')[1]).toMatch(/^Ставить ещё одно «Центральное информационное табло» в зону «Клиентский зал» \(z_client\).*не рекомендуется/);
     expect(result.text).toContain('rule_info_display_max');
     expect(result.text).toContain('Сначала уберите лишнее');
     expect(result.text).toContain('Учтены: «Табло над зоной ожидания» (eq_7), «Табло над зоной очереди» (eq_8), «Лишнее табло» (eq_extra_display).');
@@ -264,7 +276,9 @@ describe('ответ без модели называет зоны, типы и 
     const query = 'Куда поставить информационное табло?';
     expect(routeAgentQuery(plan, query, false)[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_info_display', zoneId: null } });
     const result = answerWithoutModel(plan, null, query, 1, 'без LLM');
-    expect(result.text.split('\n\n')[0]).toContain('не рекомендуется');
+    // #210: the action line «Уберите лишнее …» first, the refusal right after it.
+    expect(result.text.split('\n\n')[0]).toContain('Уберите лишнее');
+    expect(result.text.split('\n\n')[1]).toContain('не рекомендуется');
     expect(result.text).not.toContain('Место найдено');
     expect(result.actions.some((action) => action.kind === 'apply-candidate')).toBe(false);
   });

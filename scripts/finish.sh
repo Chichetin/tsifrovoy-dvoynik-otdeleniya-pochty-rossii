@@ -26,8 +26,11 @@ for try in 1 2 3; do
     [ -e node_modules ] || npm ci --silent || die "npm ci не прошёл"
     npm run build >/dev/null || die "build красный после merge origin/main"
   fi
+  # Заголовок — из своих коммитов ветки, не из свежего main после merge (#209).
+  title="$(git log -1 --no-merges --format=%s origin/main..HEAD)"
+  [ -n "$title" ] || die "в ветке нет своих коммитов относительно origin/main — MR не создаю"
   git push -q -u origin HEAD -o merge_request.create -o merge_request.target=main \
-    -o merge_request.title="$(git log -1 --no-merges --format=%s)" \
+    -o merge_request.title="$title" \
     -o merge_request.description="Closes #$n"
   iid="$(bash scripts/gitlab-mr.sh list | grep -B2 "ветка $branch\$" | sed -n 's/^MR !\([0-9]*\).*/\1/p')"
   [ -n "$iid" ] || die "MR для $branch не найден"

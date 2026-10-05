@@ -19,6 +19,7 @@ import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
 import { checkAgentEdits, relocationProposal } from './agent-edits';
+import { ruleSourceLabel } from './agent-fallback';
 import { layoutZone } from './layout';
 import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
@@ -251,10 +252,15 @@ function recommendationView(state: AgentToolState, recommendation: Recommendatio
       facts: Object.fromEntries(candidate.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
     })),
     changes: recommendation.changes.slice(0, 20).map((change) => ({ kind: change.kind, id: change.ref.id, name: state.names.nameOf(change.ref) })),
-    ruleIds: recommendation.ruleIds,
+    rules: ruleSources(state.plan, recommendation.ruleIds),
     assumptions: recommendation.assumptions,
     limitations: recommendation.limitations,
   };
+}
+
+/** #178: rules with whose they are — the words the model must use for them. */
+function ruleSources(plan: PlanDocument, ids: readonly Id[]): { id: Id; source: string }[] {
+  return plan.catalog.rules.filter((rule) => ids.includes(rule.id)).map((rule) => ({ id: rule.id, source: ruleSourceLabel(rule) }));
 }
 
 function remember(state: AgentToolState, recommendations: Recommendation[]): void {
@@ -353,6 +359,9 @@ function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): Agent
       proposalId = proposal.id;
     }
     for (const zone of option.zones) addRef(state, { kind: 'zone', id: zone.id });
+    // #178: only what the move changes — room totals stay the same and would push
+    // the four options past the output budget, leaving the model without variants.
+    const changed = new Set(option.facts.filter((fact) => fact.phase === 'delta' && fact.value !== 0).map((fact) => fact.metric));
     return {
       kind: option.kind,
       proposalId,
@@ -362,13 +371,13 @@ function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): Agent
       ruleIds: option.ruleIds,
       wallGap_m: Number.isFinite(option.wallGap_m) ? round(option.wallGap_m) : null,
       newWarnings: option.warnings,
-      facts: Object.fromEntries(option.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
+      facts: Object.fromEntries(option.facts.filter((fact) => changed.has(fact.metric)).map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
       zoneEffects: option.zoneEffects.map((effect) => ({ zoneId: effect.zoneId, name: zoneName(state, effect.zoneId), free_m2: { before: round(effect.free_m2.before), after: round(effect.free_m2.after) }, objects: effect.objects })),
       coveragePercent: option.coverage === null ? null : { before: maybe(option.coverage.before), after: maybe(option.coverage.after) },
     };
   });
   return {
-    output: { objectId, options, note: 'Переносы показаны на плане призраками; инвентарный номер и атрибуты объекта не меняются. Применит человек кнопкой «Применить правки», отмена — Ctrl+Z.' },
+    output: { objectId, options, rules: ruleSources(state.plan, [...new Set(options.flatMap((option) => option.ruleIds))]), note: 'Переносы показаны на плане призраками; инвентарный номер и атрибуты объекта не меняются. Применит человек кнопкой «Применить правки», отмена — Ctrl+Z.' },
     step: { tool: 'find_place', label: `${label}: переносов ${options.length - 1}`, ok: true },
   };
 }

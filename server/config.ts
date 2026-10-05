@@ -32,6 +32,8 @@ export type ServerConfig = {
   rateLimit: { max: number; windowMs: number };
   /** #136: short git SHA of the build (BUILD_SHA), or null when unknown. */
   build: string | null;
+  /** #205: why a configured endpoint was refused, for the startup log; null otherwise. */
+  llmRefused: string | null;
 };
 
 export type Env = Record<string, string | undefined>;
@@ -47,6 +49,32 @@ function text(value: string | undefined): string | null {
 }
 
 /**
+ * #205: the organizers allow Qwen, DeepSeek, GigaChat and YandexGPT only. The
+ * endpoint host must be one of theirs, or the assistant answers without a
+ * model. Loopback stays open: the tests run a local stub provider there.
+ */
+export const ALLOWED_LLM_HOSTS = [
+  'api.deepseek.com',
+  'dashscope.aliyuncs.com',
+  'dashscope-intl.aliyuncs.com',
+  'llm.api.cloud.yandex.net',
+  'gigachat.devices.sberbank.ru',
+];
+const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '[::1]'];
+
+/** Why the endpoint is refused, or null when its host is allowed. */
+export function llmEndpointRefusal(endpoint: string): string | null {
+  let host: string;
+  try {
+    host = new URL(endpoint).hostname;
+  } catch {
+    return 'LLM_ENDPOINT — не адрес URL';
+  }
+  if (ALLOWED_LLM_HOSTS.includes(host) || LOOPBACK_HOSTS.includes(host)) return null;
+  return `хост ${host} не из разрешённых организаторами (Qwen, DeepSeek, GigaChat, YandexGPT)`;
+}
+
+/**
  * The LLM half is all-or-nothing: an endpoint without a key, or a key without a
  * model, would fail on the first request of the demo. Missing pieces mean «no
  * provider», which is a supported mode, not an error.
@@ -56,6 +84,7 @@ export function readLlmConfig(env: Env): LlmConfig | null {
   const model = text(env.LLM_MODEL);
   const apiKey = text(env.LLM_API_KEY);
   if (endpoint === null || model === null || apiKey === null) return null;
+  if (llmEndpointRefusal(endpoint) !== null) return null;
 
   return {
     provider: text(env.LLM_PROVIDER) ?? 'unknown',
@@ -65,6 +94,11 @@ export function readLlmConfig(env: Env): LlmConfig | null {
     timeoutMs: positiveInt(env.LLM_TIMEOUT_MS, 20_000),
     maxOutputTokens: positiveInt(env.LLM_MAX_OUTPUT_TOKENS, 800),
   };
+}
+
+function endpointRefusal(env: Env): string | null {
+  const endpoint = text(env.LLM_ENDPOINT);
+  return endpoint === null ? null : llmEndpointRefusal(endpoint);
 }
 
 export function readConfig(env: Env): ServerConfig {
@@ -78,6 +112,7 @@ export function readConfig(env: Env): ServerConfig {
       windowMs: positiveInt(env.ADVICE_RATE_WINDOW_MS, 60_000),
     },
     build: text(env.BUILD_SHA),
+    llmRefused: endpointRefusal(env),
   };
 }
 
@@ -89,7 +124,9 @@ export function describeConfig(config: ServerConfig): Record<string, unknown> {
     staticDir: config.staticDir,
     llm:
       config.llm === null
-        ? 'не настроен: ассистент работает без модели'
+        ? config.llmRefused === null
+          ? 'не настроен: ассистент работает без модели'
+          : `отклонён: ${config.llmRefused}; ассистент работает без модели`
         : {
             provider: config.llm.provider,
             endpoint: config.llm.endpoint,

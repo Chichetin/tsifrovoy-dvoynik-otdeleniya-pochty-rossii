@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import type { Equipment } from '../../contracts/model';
-import { PASTE_OFFSET_M, copyOffset, duplicateObjects, pasteObjects, repeatOffset, rotateDelta, rotateObjects } from './selection-edit';
+import { footprint } from '../../domain/geometry';
+import { PASTE_OFFSET_M, copyOffset, duplicateObjects, pasteObjects, repeatOffset, rotateDelta, rotateObjects, groupCenter } from './selection-edit';
 
 const chair: Equipment = {
   id: 'eq_1',
@@ -60,4 +61,22 @@ it('] и [ поворачивают на 1° по и против часовой
   expect(rotateDelta('KeyR', true)).toBe(-15);
   expect(rotateObjects([chair], 1)[0]!.rotation_deg).toBe(1);
   expect(rotateObjects([chair], -1)[0]!.rotation_deg).toBe(359);
+});
+
+it('группа поворачивается целиком вокруг общего центра: контуры не расходятся (#207)', () => {
+  const desk = { ...chair, id: 'eq_d', position: [4, 3] as [number, number], size_m: [2, 0.6] as [number, number] };
+  const group = [chair, desk];
+  const pivot = groupCenter(group);
+  const turned = rotateObjects(group, 90);
+  // Every corner of the turned set is the old corner turned clockwise about the pivot.
+  const turn = ([x, y]: readonly number[]): [number, number] => [pivot[0] + (y! - pivot[1]), pivot[1] - (x! - pivot[0])];
+  for (const [index, object] of group.entries()) {
+    const expected = footprint(object).map(turn);
+    const actual = footprint(turned[index]!);
+    for (const point of expected) {
+      expect(actual.some(([x, y]) => Math.abs(x - point[0]) < 0.011 && Math.abs(y - point[1]) < 0.011)).toBe(true);
+    }
+  }
+  expect(groupCenter(turned)[0]).toBeCloseTo(pivot[0], 1);
+  expect(groupCenter(turned)[1]).toBeCloseTo(pivot[1], 1);
 });

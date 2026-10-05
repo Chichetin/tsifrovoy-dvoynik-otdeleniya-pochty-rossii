@@ -109,7 +109,7 @@ test('у типа со знаком в строке стоит его знак, 
   for (const type of types) {
     const icon = document.querySelector(`[data-testid="library-icon-${type.id}"] path`);
     expect(icon, type.label).not.toBeNull();
-    expect(icon?.getAttribute('d')).toBe(PLAN_PICTOGRAM_PATHS[planPictogram(type.id)!]);
+    expect(icon?.getAttribute('d')).toBe(PLAN_PICTOGRAM_PATHS[planPictogram(type)!]);
   }
 });
 
