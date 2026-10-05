@@ -64,9 +64,11 @@ export type ObjectShapeLayerProps = {
   onEditingChange?: (id: Id | null) => void;
   /**
    * #105: the object whose «Изменить форму» switch is on. A double click opens
-   * the vertex mode only on this one; without the switch the click does nothing.
+   * the vertex mode on this one. #226: a double click on another object asks
+   * the app to turn the switch on for it, and the vertex mode opens at once.
    */
   reshapeFor?: Id | null;
+  onReshapeRequest?: (id: Id) => void;
 };
 
 /** The object a double click landed on, by its group's name on the equipment layer. */
@@ -91,6 +93,7 @@ export function ObjectShapeLayer({
   onCommand,
   onEditingChange,
   reshapeFor = null,
+  onReshapeRequest,
 }: ObjectShapeLayerProps): React.JSX.Element {
   const { viewport, selection, tool } = session;
   const [editingId, setEditingId] = useState<Id | null>(null);
@@ -139,7 +142,8 @@ export function ObjectShapeLayer({
       if (groupNode?.isAncestorOf(event.target)) return;
       const id = objectIdUnder(event.target);
       const target = id === null ? undefined : plan.objects.find((item) => item.id === id);
-      if (target === undefined || !editable(target) || id !== reshapeFor) return;
+      if (target === undefined || !editable(target)) return;
+      if (id !== reshapeFor) onReshapeRequest?.(target.id);
       setEditingId(id);
       setNotice(SHAPE_EDIT_NOTICE);
     };

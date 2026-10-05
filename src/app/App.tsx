@@ -427,6 +427,14 @@ export function App(): React.JSX.Element {
     },
     [select, leaveAssistant],
   );
+  // #226: a double click on an object turns «Изменить форму» on for it.
+  const reshapeObject = useCallback(
+    (id: Id) => {
+      planSelect({ kind: 'object', id });
+      setReshapeFor(id);
+    },
+    [planSelect],
+  );
   const planSelectMany = useCallback(
     (ids: readonly Id[]) => {
       selectMany(ids);
@@ -1274,6 +1282,7 @@ export function App(): React.JSX.Element {
                 onCommand={dispatch}
                 onEditingChange={setShapeEditingId}
                 reshapeFor={reshapeFor}
+                onReshapeRequest={reshapeObject}
               />
               <InformationLayer document={document} session={session} />
               {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
