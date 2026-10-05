@@ -365,7 +365,8 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (hasBefore && /измен|было|стало|сравн|эффект|разниц|до и после/.test(text)) {
     return [{ name: 'compare_with_original', args: {} }, { name: 'open_panel', args: { panel: 'metrics' } }];
   }
-  if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт/.test(text)) {
+  // #211: «что не так и что сделать?» asks for the plan check and its main finding.
+  if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт|что не так|что исправ|что (?:нужно |надо )?сделать|проблем/.test(text)) {
     return [{ name: 'validate_plan', args: {} }, { name: 'open_panel', args: { panel: 'validation' } }];
   }
   if (/не хват|нехват|лишн|комплект|недостат|избыт|чего нет|отсутств|сколько нужно/.test(text)) {
