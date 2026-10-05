@@ -203,7 +203,7 @@ describe('SVG плана', () => {
     expect(svg).toContain('<path d="M4 3H20V12H4Z');
   });
 
-  test('название зоны — бледнее и до объектов, чтобы не спорить с оборудованием', () => {
+  test('заливка зоны — под объектами, подписи — поверх и одним размером', () => {
     const plan = loadFixture('nested.json');
     const svg = renderPlanSvg(plan);
     const zone = plan.zones[0];
@@ -212,10 +212,13 @@ describe('SVG плана', () => {
     const zoneLabel = svg.indexOf(`>${zone.name}</text>`);
     const objectGroup = svg.indexOf(`data-id="${object.id}"`);
     expect(zoneLabel).toBeGreaterThan(-1);
-    expect(zoneLabel).toBeLessThan(objectGroup);
+    const zoneShape = svg.indexOf(`data-id="${zone.id}"`);
+    expect(zoneShape).toBeGreaterThan(-1);
+    expect(objectGroup).toBeGreaterThan(zoneShape);
+    expect(zoneLabel).toBeGreaterThan(objectGroup);
     // Поведение, а не константы оформления: подпись зоны бледнее подписи
-    // объекта и крупнее её — иначе она либо спорит с оборудованием, либо
-    // теряется на фоне. Точные числа менять можно, соотношение — нет.
+    // объекта. После #143 подписи имеют один размер и размещаются поверх
+    // фигур, чтобы стены и оборудование не закрывали текст.
     const attr = (tag: string, name: string): number => {
       const start = tag.indexOf(`${name}="`);
       if (start < 0) return Number.NaN;
@@ -228,7 +231,8 @@ describe('SVG плана', () => {
     const objectTag = svg.slice(svg.lastIndexOf('<text', objectLabel), objectLabel);
     expect(attr(zoneTag, 'fill-opacity')).toBeLessThan(1);
     expect(attr(zoneTag, 'fill-opacity')).toBeLessThan(attr(objectTag, 'fill-opacity'));
-    expect(attr(zoneTag, 'font-size')).toBeGreaterThan(attr(objectTag, 'font-size'));
+    expect(attr(zoneTag, 'font-size')).toBeGreaterThan(0);
+    expect(attr(zoneTag, 'font-size')).toBe(attr(objectTag, 'font-size'));
   });
 
   test('цвет из справочника экранируется как всё из документа', () => {
