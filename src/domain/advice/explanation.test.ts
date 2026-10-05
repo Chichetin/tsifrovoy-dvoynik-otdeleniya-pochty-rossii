@@ -463,10 +463,15 @@ describe('#69: ход агента без сети — модель выбира
 
 describe('#178: «почему сюда» — свободный текст модели, id и числа проверяет код', () => {
   const scope: WhyScope = {
-    ids: new Set(['z_waiting', 'eq_6', 'rule_bench_min']),
-    rules: new Set(['rule_bench_min']),
-    names: new Set(['Скамья ожидания 1']),
-    numbers: [15.27, 16.07, 0.38, 3],
+    ids: new Set(['z_waiting', 'eq_6', 'rule_bench_min', 'rule_queue_terminal_entrance']),
+    rules: new Set(['rule_bench_min', 'rule_queue_terminal_entrance']),
+    shown: new Set(['z_waiting', 'eq_6']),
+    names: new Map([['z_waiting', 'Зона ожидания'], ['eq_6', 'Скамья ожидания 1']]),
+    numbers: [
+      { value: 15.27, unit: 'm2' },
+      { value: 16.07, unit: 'm2' },
+      ...[0.38, 3, 2.96, 6.62, 8, 2.05].map((value) => ({ value, unit: 'm' as const })),
+    ],
     variants: 3,
   };
   const codes = (text: string): string[] => {
@@ -478,8 +483,29 @@ describe('#178: «почему сюда» — свободный текст мо
     expect(codes('Вариант 1 лучше: «Скамья ожидания 1» (eq_6) остаётся в z_waiting, свободно 15,3 → 16,07 м², зазор 0,38 м; по правилу rule_bench_min (правило команды, не норматив Почты).')).toEqual([]);
   });
 
+  test('тире после «Вариант N» — не список вариантов: число после него сверяется как число', () => {
+    expect(codes('Вариант 1 — 2,96 м до входа против 6,62 м сейчас.')).toEqual([]);
+    expect(codes('Вариант 2 — 8 м переноса, зато ближе ко входу.')).toEqual([]);
+  });
+
   test('выдуманное число', () => {
     expect(codes('Вариант 1 освободит 12,5 м².')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('число с единицей сверяется только со значениями этой единицы', () => {
+    expect(codes('Вариант 1 освободит 8 м².')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('текст в кавычках перед id правила остаётся на экране и сверяется', () => {
+    expect(codes('Вариант 1 лучше: «терминал не дальше 5 м от входа» (rule_queue_terminal_entrance) — правило из материалов организаторов.')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('целое число в тексте — только для целого значения: «2» не округление 2,05', () => {
+    expect(codes('Вариант 2 — 2 м до входа.')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('отношение словами — собственный расчёт модели', () => {
+    expect(codes('Вариант 2 в 3 раза ближе ко входу.')).toEqual([WHY_ISSUE_CODES.WORD_NUMBER]);
   });
 
   test('несуществующий id', () => {

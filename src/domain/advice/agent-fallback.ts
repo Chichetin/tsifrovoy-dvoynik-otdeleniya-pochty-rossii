@@ -92,6 +92,11 @@ function ruleSource(rule: Rule): string {
   return /^правило команды/i.test(rule.rationale) ? `${rule.id}, ${sourceLabel(rule)}` : `${rule.id}; ${sourceLabel(rule)}`;
 }
 
+/** #178: whose rule it is, in the words an answer must use for it. */
+export function ruleSourceLabel(rule: Rule): string {
+  return rule.source === 'organizer-material' ? 'материалы организаторов' : 'правило команды, не норматив Почты';
+}
+
 function sourceLabel(rule: Rule): string {
   if (rule.source === 'organizer-material') return 'материалы организаторов';
   return 'справочник проекта';
@@ -329,8 +334,11 @@ function editCalls(plan: PlanDocument, text: string): AgentToolCall[] {
   }];
 }
 
-/** #178: «предложить место», «куда перенести» — a new place for an object that stands. */
-const RELOCATE_INTENT = /предлож[а-я]*\s+(?:[а-я]+\s+)?мест|куда\s+(?:перенес|перестав|передвин|перемест)|перенес|(?:нов|друг)[а-я]*\s+мест/;
+/**
+ * #178: «предложить место», «куда перенести» — a new place for an object that
+ * stands. Only a request: «я перенес eq_1» is a report of an edit, not a question.
+ */
+const RELOCATE_INTENT = /предлож[а-я]*\s+(?:[а-я]+\s+)?мест|куда\s+(?:перенест|перестав|передвин|перемест)|(?<![а-я])перенес(?:и|ите|ти)(?![а-я])|(?:нов|друг)[а-я]*\s+мест/;
 
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
@@ -555,7 +563,7 @@ function relocationText(state: AgentToolState, output: RelocationView): string[]
   const rules = plan.catalog.rules.filter((rule) => ruleIds.includes(rule.id));
   const ruleLine = rules.length === 0
     ? []
-    : [`Правила справочника: ${rules.map((rule) => `${rule.id} (${rule.source === 'organizer-material' ? 'материалы организаторов' : 'правило команды, не норматив Почты'})`).join('; ')}.`];
+    : [`Правила справочника: ${rules.map((rule) => `${rule.id} (${ruleSourceLabel(rule)})`).join('; ')}.`];
   const actions = moves === 0 ? [] : ['«Показать вариант N» рисует перенос на плане полупрозрачно, «Применить вариант N» переносит объект одной командой, отмена — Ctrl+Z.'];
   return [head, ...lines, ...ruleLine, ...actions];
 }

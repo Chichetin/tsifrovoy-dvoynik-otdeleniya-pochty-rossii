@@ -9,7 +9,7 @@ import type { Id, Ref } from '../../contracts/model';
 import { relocationParagraphs, type AgentToolRecord } from './agent-fallback';
 import type { AgentToolState } from './agent-tools';
 import { cameraCandidateEffect } from './camera-placement';
-import { verifyWhyText, type WhyScope } from './explanation';
+import { verifyWhyText, type WhyNumber, type WhyScope, type WhyUnit } from './explanation';
 
 type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent';
 /** Chat-only unit: the share of client zones seen by cameras (#32), not part of the advice contract. */
@@ -238,36 +238,61 @@ const selectionSchema = z.object({
 /** `why: true` — the facts held, the model's own text did not. */
 export type AgentFactSelection = { ok: true; text: string; refs: Ref[] } | { ok: false; reason: string; why?: true };
 
+/** Tools whose results are the variants a «почему сюда» text compares. */
+const VARIANT_TOOLS = new Set(['find_place', 'layout_zone']);
+/** Where a variant stands is not a reason; leaving coordinates out keeps the numbers few. */
+const POSE_KEYS = new Set(['position_m', 'rotation_deg']);
+const UNITS: readonly WhyUnit[] = ['m', 'm2', 'percent', 'count'];
+
+/** The unit a tool output key names: `free_m2`, `wallGap_m`, `coveragePercent`, `area.free.after`. */
+function keyUnit(key: string, inherited: WhyUnit): WhyUnit {
+  if (/_m2$|^area\./.test(key)) return 'm2';
+  if (/_m$|^placement\.distance|^layout\./.test(key)) return 'm';
+  if (/percent|^coverage\./i.test(key)) return 'percent';
+  return inherited;
+}
+
 /**
- * What the «почему сюда» text may name: plan ids and names, every number the
- * tools returned or the facts carry, and how many variants were offered.
+ * What the «почему сюда» text may name: plan ids and names, the facts offered,
+ * the numbers of the tools that gave the variants, and how many variants there are.
  */
 function whyScope(state: AgentToolState, facts: readonly AgentFact[], records: readonly AgentToolRecord[]): WhyScope {
   const { plan } = state;
-  const numbers = facts.map((fact) => fact.value);
-  const collect = (value: unknown): void => {
-    if (typeof value === 'number' && Number.isFinite(value)) numbers.push(value);
-    else if (Array.isArray(value)) value.forEach(collect);
-    else if (typeof value === 'object' && value !== null) Object.values(value).forEach(collect);
+  const numbers: WhyNumber[] = facts.map((fact) => ({ value: fact.value, unit: fact.unit }));
+  // A value without a unit in its key or beside it (`{value, unit}`) is a count.
+  const collect = (value: unknown, unit: WhyUnit): void => {
+    if (typeof value === 'number' && Number.isFinite(value)) numbers.push({ value, unit });
+    else if (Array.isArray(value)) for (const entry of value) collect(entry, unit);
+    else if (typeof value === 'object' && value !== null) {
+      const own = UNITS.find((entry) => entry === (value as { unit?: unknown }).unit) ?? unit;
+      for (const [key, entry] of Object.entries(value)) if (!POSE_KEYS.has(key)) collect(entry, keyUnit(key, own));
+    }
   };
   for (const entry of records) {
     const output = record(entry.output);
-    if (output !== null && !('error' in output)) collect(output);
+    if (VARIANT_TOOLS.has(entry.name) && output !== null && !('error' in output)) collect(output, 'count');
   }
   // A rule's own limits («не дальше 3 м от входа») are plan data, not the model's.
-  collect(plan.catalog.rules);
+  collect(plan.catalog.rules, 'count');
   // Candidates of a placement and titled proposals (#122 layouts, #177 moves) are «Вариант N».
   const variants = Math.max(
     0,
     ...[...state.recommendations.values()].map((recommendation) => recommendation.candidates.length),
     ...state.proposals.map((proposal) => Number(/^Вариант (\d+)/.exec(proposal.title ?? '')?.[1] ?? 0)),
   );
-  numbers.push(variants);
+  numbers.push({ value: variants, unit: 'count' });
   const { catalog } = plan;
   return {
     ids: new Set([...plan.zones, ...plan.objects, ...plan.layers, ...catalog.objectTypes, ...catalog.zoneTypes, ...catalog.rules].map((entry) => entry.id)),
     rules: new Set(catalog.rules.map((rule) => rule.id)),
-    names: new Set([...plan.zones.map((zone) => zone.name), ...plan.objects.map((object) => object.label), ...plan.layers.map((layer) => layer.name), ...catalog.objectTypes.map((type) => type.label), ...catalog.zoneTypes.map((type) => type.label)]),
+    shown: new Set([...plan.zones, ...plan.objects].map((entry) => entry.id)),
+    names: new Map([
+      ...plan.zones.map((zone) => [zone.id, zone.name] as const),
+      ...plan.objects.map((object) => [object.id, object.label] as const),
+      ...plan.layers.map((layer) => [layer.id, layer.name] as const),
+      ...catalog.objectTypes.map((type) => [type.id, type.label] as const),
+      ...catalog.zoneTypes.map((type) => [type.id, type.label] as const),
+    ]),
     numbers,
     variants,
   };
