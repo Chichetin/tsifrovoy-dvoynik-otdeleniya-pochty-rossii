@@ -5,7 +5,7 @@
   "llm": {
     "provider": "deepseek-via-yandex-ai-studio",
     "model": "gpt://<folder_ID>/deepseek-v4-flash",
-    "date": "2026-10-04"
+    "date": "2026-10-06"
   },
   "generatedBy": "npx tsx demo/build.ts",
   "planId": "plan_demo_ops_synthetic",
@@ -627,6 +627,10 @@
         {
           "kind": "zone",
           "id": "z_entrance"
+        },
+        {
+          "kind": "object",
+          "id": "eq_1"
         }
       ],
       "candidates": [
@@ -684,7 +688,7 @@
               "id": "adv_ot_queue_terminal_1.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 114.481426,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -710,12 +714,51 @@
               "id": "adv_ot_queue_terminal_1.equipment.count.after",
               "metric": "equipment.count",
               "phase": "after",
-              "value": 2,
+              "value": 1,
               "unit": "count",
               "refs": [
                 {
                   "kind": "room",
                   "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.layout.entrance.current",
+              "metric": "layout.entrance",
+              "phase": "current",
+              "value": 6.618912,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.layout.entrance.after",
+              "metric": "layout.entrance",
+              "phase": "after",
+              "value": 2.247221,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_1.layout.entrance.delta",
+              "metric": "layout.entrance",
+              "phase": "delta",
+              "value": -4.371692,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
                 }
               ]
             }
@@ -775,7 +818,7 @@
               "id": "adv_ot_queue_terminal_2.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 114.481426,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -801,12 +844,51 @@
               "id": "adv_ot_queue_terminal_2.equipment.count.after",
               "metric": "equipment.count",
               "phase": "after",
-              "value": 2,
+              "value": 1,
               "unit": "count",
               "refs": [
                 {
                   "kind": "room",
                   "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_2.layout.entrance.current",
+              "metric": "layout.entrance",
+              "phase": "current",
+              "value": 6.618912,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_2.layout.entrance.after",
+              "metric": "layout.entrance",
+              "phase": "after",
+              "value": 1.627882,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_2.layout.entrance.delta",
+              "metric": "layout.entrance",
+              "phase": "delta",
+              "value": -4.99103,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
                 }
               ]
             }
@@ -866,7 +948,7 @@
               "id": "adv_ot_queue_terminal_3.area.free.after",
               "metric": "area.free",
               "phase": "after",
-              "value": 114.481426,
+              "value": 114.731426,
               "unit": "m2",
               "refs": [
                 {
@@ -892,12 +974,51 @@
               "id": "adv_ot_queue_terminal_3.equipment.count.after",
               "metric": "equipment.count",
               "phase": "after",
-              "value": 2,
+              "value": 1,
               "unit": "count",
               "refs": [
                 {
                   "kind": "room",
                   "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.layout.entrance.current",
+              "metric": "layout.entrance",
+              "phase": "current",
+              "value": 6.618912,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.layout.entrance.after",
+              "metric": "layout.entrance",
+              "phase": "after",
+              "value": 2.10238,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_queue_terminal_3.layout.entrance.delta",
+              "metric": "layout.entrance",
+              "phase": "delta",
+              "value": -4.516533,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "object",
+                  "id": "eq_1"
                 }
               ]
             }
@@ -961,7 +1082,7 @@
           "id": "adv_ot_queue_terminal_1.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 114.481426,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -987,12 +1108,51 @@
           "id": "adv_ot_queue_terminal_1.equipment.count.after",
           "metric": "equipment.count",
           "phase": "after",
-          "value": 2,
+          "value": 1,
           "unit": "count",
           "refs": [
             {
               "kind": "room",
               "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.layout.entrance.current",
+          "metric": "layout.entrance",
+          "phase": "current",
+          "value": 6.618912,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.layout.entrance.after",
+          "metric": "layout.entrance",
+          "phase": "after",
+          "value": 2.247221,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_1.layout.entrance.delta",
+          "metric": "layout.entrance",
+          "phase": "delta",
+          "value": -4.371692,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
             }
           ]
         },
@@ -1026,7 +1186,7 @@
           "id": "adv_ot_queue_terminal_2.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 114.481426,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1052,12 +1212,51 @@
           "id": "adv_ot_queue_terminal_2.equipment.count.after",
           "metric": "equipment.count",
           "phase": "after",
-          "value": 2,
+          "value": 1,
           "unit": "count",
           "refs": [
             {
               "kind": "room",
               "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_2.layout.entrance.current",
+          "metric": "layout.entrance",
+          "phase": "current",
+          "value": 6.618912,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_2.layout.entrance.after",
+          "metric": "layout.entrance",
+          "phase": "after",
+          "value": 1.627882,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_2.layout.entrance.delta",
+          "metric": "layout.entrance",
+          "phase": "delta",
+          "value": -4.99103,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
             }
           ]
         },
@@ -1091,7 +1290,7 @@
           "id": "adv_ot_queue_terminal_3.area.free.after",
           "metric": "area.free",
           "phase": "after",
-          "value": 114.481426,
+          "value": 114.731426,
           "unit": "m2",
           "refs": [
             {
@@ -1117,12 +1316,51 @@
           "id": "adv_ot_queue_terminal_3.equipment.count.after",
           "metric": "equipment.count",
           "phase": "after",
-          "value": 2,
+          "value": 1,
           "unit": "count",
           "refs": [
             {
               "kind": "room",
               "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.layout.entrance.current",
+          "metric": "layout.entrance",
+          "phase": "current",
+          "value": 6.618912,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.layout.entrance.after",
+          "metric": "layout.entrance",
+          "phase": "after",
+          "value": 2.10238,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_queue_terminal_3.layout.entrance.delta",
+          "metric": "layout.entrance",
+          "phase": "delta",
+          "value": -4.516533,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "object",
+              "id": "eq_1"
             }
           ]
         }
@@ -1134,7 +1372,8 @@
         "Размеры и высота взяты из справочника: Терминал управления очередью, Тип: перечень оборудования ОПС (материал организаторов). Перечень требует размещение у входа, радиус не более 3 м — правило rule_queue_terminal_entrance. .",
         "Перебор: сетка 0.1 м, углы 0 и 90°, не более 60000 проверок, кольцами от указанной точки.",
         "Точку указали вручную: варианты ранжируются по близости к ней, а не к стене.",
-        "Перечень оборудования ОПС: терминал управления очередью размещается у входа, радиус не более 3 м. (материалы организаторов, rule_queue_terminal_entrance)"
+        "Перечень оборудования ОПС: терминал управления очередью размещается у входа, радиус не более 3 м. (материалы организаторов, rule_queue_terminal_entrance)",
+        "Вариант применяется переносом стоящего объекта «Терминал электронной очереди» (eq_1): id, инвентарный номер и атрибуты сохраняются, число объектов этого типа не меняется. Расстояние до входа — от центра объекта до центра входа."
       ],
       "reasonCodes": [
         "placement.available"
@@ -1449,6 +1688,7 @@
       "factIds": [
         "adv_place_ot_queue_terminal_z_entrance.area.free.current",
         "adv_place_ot_queue_terminal_z_entrance.equipment.count.current",
+        "adv_ot_queue_terminal_1.placement.distance",
         "adv_ot_queue_terminal_1.area.free.current",
         "adv_ot_queue_terminal_1.area.free.after",
         "adv_ot_queue_terminal_1.equipment.count.current",
@@ -1469,7 +1709,7 @@
   "texts": {
     "adv_rule_bench_min_z_waiting_missing": "Не хватает оборудования: 1 при минимуме 2. Разница: 1.",
     "adv_place_ot_bench_z_waiting": "Место найдено: Скамья для ожидания, размер 1,60 × 0,50 м, центр 2,20; 2,00, поворот 0°. Свободная площадь: 114,73 → 113,93 м². Объектов этого типа: 3 → 4.",
-    "adv_place_ot_queue_terminal_z_entrance": "Место найдено: Терминал управления очередью, размер 0,50 × 0,50 м, центр 7,90; 2,10, поворот 0°. Свободная площадь: 114,73 → 114,48 м². Объектов этого типа: 1 → 2.",
+    "adv_place_ot_queue_terminal_z_entrance": "Место найдено: Терминал управления очередью, размер 0,50 × 0,50 м, центр 7,90; 2,10, поворот 0°. Свободная площадь: 114,73 → 114,73 м². Объектов этого типа: 1 → 1.",
     "adv_compare": "Планировка изменилась. Свободная площадь: 114,73 → 113,93 м² (−0,80 м²). Изменения объектов: добавлено 1, перемещено 1."
   },
   "applied": [
