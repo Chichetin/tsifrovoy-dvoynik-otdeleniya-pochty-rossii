@@ -558,7 +558,7 @@ export function FileControls({
    */
   const exportSvg = (): void => {
     exportSequence.current += 1;
-    handToBrowser(new Blob([renderPlanSvg(plan)], { type: 'image/svg+xml' }), svgFileName(plan));
+    handToBrowser(new Blob([renderPlanSvg(plan, { overlays: true })], { type: 'image/svg+xml' }), svgFileName(plan));
     // Own result state, like «Сохранить»: otherwise a stale «План не открыт…»
     // would stay on screen next to a file that downloaded fine.
     setErrorDetails([]);
@@ -630,12 +630,12 @@ export function FileControls({
     {
       key: 'png',
       label: 'PNG — картинка',
-      hint: 'Растровая картинка для презентации и переписки. В неё входят зоны, стены, оборудование и подписи включённых слоёв. Тепловая нагрузка и сектора камер не входят',
+      hint: 'Растровая картинка для презентации и переписки. В неё входят зоны, стены, оборудование, подписи и информационные слои, которые включены, с легендой и маркеры находок проверки',
     },
     {
       key: 'svg',
       label: 'SVG — векторная картинка',
-      hint: 'Векторная картинка для согласования и печати. В неё входят зоны, стены, оборудование и подписи включённых слоёв. Тепловая нагрузка и сектора камер не входят',
+      hint: 'Векторная картинка для согласования и печати. В неё входят зоны, стены, оборудование, подписи и информационные слои, которые включены, с легендой и маркеры находок проверки',
     },
     {
       key: 'csv',

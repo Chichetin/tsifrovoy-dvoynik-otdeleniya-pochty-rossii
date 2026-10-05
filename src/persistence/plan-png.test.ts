@@ -84,7 +84,7 @@ describe('renderPlanPng', () => {
     const blob = await renderPlanPng(plan);
 
     expect(blob).toBe(blobResult);
-    const svg = renderPlanSvg(plan);
+    const svg = renderPlanSvg(plan, { overlays: true });
     expect(svgBlobs).toHaveLength(1);
     expect(await svgBlobs[0]!.text()).toBe(svg);
     expect(svgBlobs[0]!.type).toBe('image/svg+xml');

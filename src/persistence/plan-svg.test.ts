@@ -105,6 +105,38 @@ describe('SVG плана', () => {
     expect(renderPlanSvg(plan)).toMatch(new RegExp(`data-id="${object.id}"><polygon[^>]+fill="#A15C00"`));
   });
 
+  test('#216: включённый слой нагрузки — в картинке с легендой, выключенный — нет', () => {
+    const base = loadFixture('nested.json');
+    const types = JSON.parse(readFileSync(join(process.cwd(), 'data', 'catalog', 'layer-types.json'), 'utf8')) as LayerType[];
+    const heat = types.find((entry) => entry.id === 'lt_heat')!;
+    const zone = base.zones[0]!;
+    const withHeat = (visible: boolean): PlanDocument => ({
+      ...base,
+      catalog: { ...base.catalog, layerTypes: [...base.catalog.layerTypes, heat] },
+      layers: [...base.layers, { id: 'l_heat', name: heat.label, visible, locked: false, order: 99, typeId: heat.id }],
+      zones: base.zones.map((entry) => entry.id === zone.id ? { ...entry, attributes: { ...entry.attributes, loadPercent: 80 } } : entry),
+    });
+
+    const shown = renderPlanSvg(withHeat(true), { overlays: true });
+    expect(shown).toContain(`data-layer="l_heat" data-zone="${zone.id}"`);
+    expect(shown).toContain(`${heat.label}: 0\u00A0% … 100\u00A0%`);
+    expect(shown).toContain('80\u00A0%');
+
+    const hidden = renderPlanSvg(withHeat(false), { overlays: true });
+    expect(hidden).not.toContain('data-layer="l_heat"');
+    expect(hidden).not.toContain(heat.label);
+    // Print and other callers without the option get the plain plan.
+    expect(renderPlanSvg(withHeat(true))).not.toContain('data-layer="l_heat"');
+  });
+
+  test('#216: маркеры находок — в картинке с оверлеями, у каждой затронутой сущности', () => {
+    const plan = loadFixture('collision.json');
+    const svg = renderPlanSvg(plan, { overlays: true });
+    expect(svg).toContain('data-marker="');
+    expect(svg).toContain('Находки проверки');
+    expect(renderPlanSvg(plan)).not.toContain('data-marker="');
+  });
+
   test('повёрнутый объект стоит на картинке там же, где его отпечаток в модели', () => {
     // 37°, а не 90: у прямоугольника углы при +90 и −90 совпадают, и тест на
     // фикстуре с 90° не отличил бы обратный знак поворота.
