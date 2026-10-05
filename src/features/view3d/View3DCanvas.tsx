@@ -60,7 +60,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
-import { EYE_HEIGHT_M, type VisitorResult } from './visitor';
+import { EYE_HEIGHT_M, visitorStep, type VisitorResult } from './visitor';
 import { isSelected, type Scene, type SceneLabel, type SceneModel, type ScenePrism } from './scene';
 
 type Props = { scene: Scene; visitor: VisitorResult; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
@@ -222,6 +222,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     const current = stage.current;
     if (!current || lost || !visitorMode || !('pose' in visitor)) return;
     const { position, heading } = visitor.pose;
+    current.controls.enabled = false;
     current.camera.position.set(position[0], position[1], EYE_HEIGHT_M);
     current.controls.target.set(position[0] + heading[0] * 3, position[1] + heading[1] * 3, EYE_HEIGHT_M);
     current.camera.lookAt(current.controls.target);
@@ -231,11 +232,12 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
 
   const enterVisitor = (): void => {
     const current = stage.current;
-    if (!current) return;
+    if (!current || visitorRef.current || !('pose' in visitor)) return;
     saved.current = { position: current.camera.position.clone(), target: current.controls.target.clone() };
     current.controls.enabled = false;
     visitorRef.current = true;
     setVisitorMode(true);
+    current.renderer.domElement.focus();
   };
 
   const leaveVisitor = (): void => {
@@ -252,7 +254,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     current.render();
   };
 
-  // Key F: back to the default overview, also from the visitor's view.
+  // F restores the saved overview while walking; otherwise it fits the plan.
   const sceneRef = useRef(scene);
   useEffect(() => {
     sceneRef.current = scene;
@@ -260,12 +262,102 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
   const fitView = useCallback((): void => {
     const current = stage.current;
     if (!current) return;
+    const restore = visitorRef.current && saved.current !== null;
     visitorRef.current = false;
     setVisitorMode(false);
     current.controls.enabled = true;
-    frame(current, sceneRef.current);
+    if (restore && saved.current !== null) {
+      current.camera.position.copy(saved.current.position);
+      current.controls.target.copy(saved.current.target);
+      current.controls.update();
+    } else frame(current, sceneRef.current);
     current.render();
   }, []);
+
+  useEffect(() => {
+    const current = stage.current;
+    if (!current || !visitorMode || lost) return;
+    const canvas = current.renderer.domElement;
+    const overviewLabel = canvas.getAttribute('aria-label')!;
+    canvas.setAttribute('aria-label', 'Сцена 3D глазами посетителя: WASD и стрелки — ходить; перетаскивание — смотреть; F — обзор');
+    const walls = scene.prisms.filter((prism) => (prism.kind === 'wall' || prism.openingKind === 'window') &&
+      prism.base_m < EYE_HEIGHT_M && prism.base_m + prism.height_m > 0).map((prism) => prism.polygon);
+    const direction = current.camera.getWorldDirection(new Vector3());
+    let yaw = Math.atan2(direction.y, direction.x);
+    let pitch = Math.asin(Math.max(-1, Math.min(1, direction.z)));
+    const keys = new Set<string>();
+    let raf = 0;
+    let last = 0;
+    let pointer: { id: number; x: number; y: number } | null = null;
+    const look = (): void => {
+      const position = current.camera.position;
+      current.controls.target.set(position.x + Math.cos(yaw) * Math.cos(pitch) * 3,
+        position.y + Math.sin(yaw) * Math.cos(pitch) * 3, EYE_HEIGHT_M + Math.sin(pitch) * 3);
+      current.camera.lookAt(current.controls.target);
+      current.render();
+    };
+    const tick = (now: number): void => {
+      raf = 0;
+      if (keys.size === 0 || !visitorRef.current || stage.current !== current || document.activeElement !== canvas) return;
+      const axis = (positive: string[], negative: string[]): number =>
+        Number(positive.some((key) => keys.has(key))) - Number(negative.some((key) => keys.has(key)));
+      const input: [number, number] = [axis(['KeyD', 'ArrowRight'], ['KeyA', 'ArrowLeft']),
+        axis(['KeyW', 'ArrowUp'], ['KeyS', 'ArrowDown'])];
+      if (input[0] === 0 && input[1] === 0) return;
+      const position = visitorStep([current.camera.position.x, current.camera.position.y],
+        [Math.cos(yaw), Math.sin(yaw)], input, (now - last) / 1000, walls,
+        keys.has('ShiftLeft') || keys.has('ShiftRight'));
+      last = now;
+      current.camera.position.set(position[0], position[1], EYE_HEIGHT_M);
+      look();
+      raf = requestAnimationFrame(tick);
+    };
+    const onDown = (event: KeyboardEvent): void => {
+      if (document.activeElement !== canvas || event.ctrlKey || event.metaKey || event.altKey ||
+        !/^(Key[WASD]|Arrow(Up|Down|Left|Right)|Shift(Left|Right))$/.test(event.code)) return;
+      event.preventDefault(); event.stopImmediatePropagation(); keys.add(event.code);
+      if (raf === 0 && !event.code.startsWith('Shift')) { last = performance.now(); raf = requestAnimationFrame(tick); }
+    };
+    const onUp = (event: KeyboardEvent): void => { keys.delete(event.code); };
+    const releasePointer = (): void => {
+      if (pointer !== null && canvas.hasPointerCapture(pointer.id)) canvas.releasePointerCapture(pointer.id);
+      pointer = null;
+    };
+    const stop = (): void => { keys.clear(); cancelAnimationFrame(raf); raf = 0; releasePointer(); };
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.button !== 0) return;
+      canvas.focus(); canvas.setPointerCapture(event.pointerId);
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    };
+    const onPointerMove = (event: PointerEvent): void => {
+      if (pointer === null || pointer.id !== event.pointerId) return;
+      yaw -= (event.clientX - pointer.x) * 0.005;
+      pitch = Math.max(-1.3, Math.min(1.3, pitch - (event.clientY - pointer.y) * 0.005));
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY }; look();
+    };
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', releasePointer);
+    canvas.addEventListener('pointercancel', releasePointer);
+    canvas.addEventListener('blur', stop);
+    window.addEventListener('blur', stop);
+    document.addEventListener('visibilitychange', stop);
+    window.addEventListener('keydown', onDown, true);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      stop();
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerup', releasePointer);
+      canvas.removeEventListener('pointercancel', releasePointer);
+      canvas.removeEventListener('blur', stop);
+      window.removeEventListener('blur', stop);
+      document.removeEventListener('visibilitychange', stop);
+      canvas.setAttribute('aria-label', overviewLabel);
+      window.removeEventListener('keydown', onDown, true);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, [visitorMode, generation, lost, scene]);
 
   // By key code, so the Russian layout works too.
   useEffect(() => {
@@ -317,6 +409,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
       />
       {lost ? null : (
         <div className="view3d__tools">
+          {visitorMode ? <p role="status">WASD или стрелки — ходить; Shift — быстрее; перетаскивание мышью — смотреть; F — вернуться к обзору.</p> : null}
           <button
             type="button"
             className="files__button"
@@ -351,6 +444,7 @@ function createStage(container: HTMLDivElement): Stage {
   renderer.shadowMap.type = PCFShadowMap;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.domElement.dataset['testid'] = 'view3d-canvas';
+  renderer.domElement.tabIndex = 0;
   renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание вращает, колесо приближает');
   container.appendChild(renderer.domElement);
 

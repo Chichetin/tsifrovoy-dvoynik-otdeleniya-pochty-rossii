@@ -4,14 +4,34 @@
  * code only applies the result.
  */
 
-import type { Opening, PlanDocument, Point } from '../../contracts/model';
-import { openingCentre } from '../../domain/geometry';
+import type { Opening, PlanDocument, Point, Polygon } from '../../contracts/model';
+import { intersects, openingCentre } from '../../domain/geometry';
 
 export const EYE_HEIGHT_M = 1.6;
 const STEP_INSIDE_M = 0.6;
 
 export type VisitorPose = { position: Point; heading: Point };
 export type VisitorResult = { pose: VisitorPose } | { reason: string };
+
+/** A swept 30 cm footprint prevents crossing thin walls between frames. */
+export function visitorStep(position: Point, heading: Point, input: Point, seconds: number,
+  walls: readonly Polygon[], fast = false): Point {
+  if (![...position, ...heading, ...input, seconds].every(Number.isFinite) || seconds <= 0) return position;
+  const magnitude = Math.hypot(...input);
+  const headingLength = Math.hypot(...heading);
+  if (magnitude === 0 || headingLength === 0) return position;
+  const distance = 1.4 * (fast ? 2 : 1) * Math.min(seconds, 0.1) / Math.max(1, magnitude);
+  const dx = (heading[0] * input[1] + heading[1] * input[0]) / headingLength * distance;
+  const dy = (heading[1] * input[1] - heading[0] * input[0]) / headingLength * distance;
+  const next: Point = [position[0] + dx, position[1] + dy];
+  const radius = 0.15;
+  const left = Math.min(position[0], next[0]) - radius;
+  const right = Math.max(position[0], next[0]) + radius;
+  const bottom = Math.min(position[1], next[1]) - radius;
+  const top = Math.max(position[1], next[1]) + radius;
+  const swept: Polygon = [[left, bottom], [right, bottom], [right, top], [left, top]];
+  return walls.some((wall) => intersects(swept, wall)) ? position : next;
+}
 
 /** Entrance first, then the first door. Windows are not a way in. */
 function pickOpening(openings: Opening[]): Opening | undefined {

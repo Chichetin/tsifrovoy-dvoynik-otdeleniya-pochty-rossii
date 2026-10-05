@@ -17,6 +17,7 @@ import type {
 import { SCHEMA_VERSION } from '../../contracts/model';
 import { footprint, rotateOffset } from '../../domain/geometry';
 import { buildScene, type ScenePrism } from './scene';
+import { visitorStep } from './visitor';
 
 const catalog: Catalog = {
   version: '1.0.0',
@@ -455,3 +456,33 @@ function coversX(polygon: Polygon, x: number): boolean {
   const xs = polygon.map(([px]) => px);
   return Math.min(...xs) < x && x < Math.max(...xs);
 }
+
+describe('шаг посетителя', () => {
+  test('скорость не зависит от числа кадров; вправо — поперёк взгляда', () => {
+    let position: [number, number] = [0, 0];
+    for (let frame = 0; frame < 10; frame += 1) position = visitorStep(position, [1, 0], [0, 1], 0.1, []);
+    expect(position[0]).toBeCloseTo(1.4);
+    const right = visitorStep([0, 0], [1, 0], [1, 0], 0.1, []);
+    expect(right[0]).toBe(0);
+    expect(right[1]).toBeCloseTo(-0.14);
+    const diagonal = visitorStep([0, 0], [1, 0], [1, 1], 0.1, []);
+    expect(Math.hypot(...diagonal)).toBeCloseTo(0.14);
+    expect(visitorStep([0, 0], [1, 0], [0, 1], 0.1, [], true)[0]).toBeCloseTo(0.28);
+  });
+
+  test('тонкая стена блокирует весь путь шага, а свободный дверной промежуток пропускает', () => {
+    const wall: Polygon = [[1, -2], [1.02, -2], [1.02, 2], [1, 2]];
+    expect(visitorStep([0.7, 0], [1, 0], [0, 1], 0.1, [wall], true)).toEqual([0.7, 0]);
+    const doorway: Polygon[] = [
+      [[1, -2], [1.02, -2], [1.02, -0.6], [1, -0.6]],
+      [[1, 0.6], [1.02, 0.6], [1.02, 2], [1, 2]],
+    ];
+    expect(visitorStep([0.85, 0], [1, 0], [0, 1], 0.1, doorway, true)[0]).toBeGreaterThan(1.02);
+  });
+
+  test('пауза вкладки не превращается в скачок; нет ввода — нет перемещения', () => {
+    expect(visitorStep([0, 0], [1, 0], [0, 1], 10, [])[0]).toBeCloseTo(0.14);
+    expect(visitorStep([1, 2], [1, 0], [0, 0], 0.1, [])).toEqual([1, 2]);
+    expect(visitorStep([1, 2], [1, 0], [0, 1], NaN, [])).toEqual([1, 2]);
+  });
+});
