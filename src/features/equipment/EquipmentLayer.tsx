@@ -22,6 +22,7 @@ import { takenIds } from '../../domain/commands';
 import { activeObjectColor, objectColorValue } from '../../domain/object-color';
 import {
   SNAP,
+  boundingBox,
   dragObstacles,
   guideObjects,
   footprint,
@@ -42,6 +43,7 @@ import { CAPTION_ICON_SPACE_PX, LABEL_LINE_PX, objectLabel } from './object-labe
 import {
   arrowDelta,
   duplicateObjects,
+  groupCenter,
   marqueeHits,
   moveObjects,
   pasteObjects,
@@ -116,8 +118,16 @@ type Gaps = { wall: Gap | null; object: Gap | null; axes: (Gap | null)[]; width:
  * follow by the same offset in model metres, from their own positions.
  * `lines` — what the move snapped to, `gaps` — how far the object is from the
  * nearest wall and neighbour; both are drawn on the selection layer.
+ * `turn` is set while the group handle turns the movable members about `pivot` (#207).
  */
-type Gesture = { id: string; object: Equipment; delta?: Point; lines?: SnapLines; gaps?: Gaps };
+type Gesture = {
+  id: string;
+  object: Equipment;
+  delta?: Point;
+  turn?: { pivot: Point; deg: number };
+  lines?: SnapLines;
+  gaps?: Gaps;
+};
 
 /**
  * A marquee in progress, in stage pixels. `width`/`height` are the stage's:
@@ -341,6 +351,7 @@ export function EquipmentLayer({
   const isGroup = members.length > 1;
   // A locked layer neither drags nor moves by key; its members stay put.
   const movable = members.filter((object) => object.locked !== true && !lockedLayers.has(object.layerId));
+  const movableIds = new Set(movable.map((object) => object.id));
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const press = useRef<{ from: Point; shift: boolean } | null>(null);
   const layerRef = useRef<Konva.Layer>(null);
@@ -567,11 +578,16 @@ export function EquipmentLayer({
       if (event.altKey) return;
 
       // R поворачивает по часовой на фиксированный шаг, Shift+R — против; как
-      // ручка поворота на холсте, только у одиночного видимого объекта на
-      // разблокированном слое — у группы своей ручки поворота тоже нет.
+      // ручка поворота на холсте. Группа поворачивается целиком вокруг общего
+      // центра одной командой (#207); заблокированные члены стоят на месте.
       const rotation = rotateDelta(event.code, event.shiftKey);
       if (rotation !== null) {
-        if (!isGroup && !selectedLocked) {
+        if (isGroup) {
+          if (movable.length > 0) {
+            event.preventDefault();
+            onCommand({ type: 'batch', commands: rotateObjects(movable, rotation).map(put) });
+          }
+        } else if (!selectedLocked) {
           event.preventDefault();
           const [rotated] = rotateObjects([selectedObject], rotation);
           if (rotated !== undefined) onCommand(put(rotated));
@@ -762,6 +778,10 @@ export function EquipmentLayer({
 
   const shown = (object: Equipment): Equipment => {
     if (gesture === null) return object;
+    if (gesture.turn !== undefined) {
+      if (!movableIds.has(object.id)) return object;
+      return rotateObjects([object], gesture.turn.deg, gesture.turn.pivot)[0] ?? object;
+    }
     if (gesture.id === object.id) return gesture.object;
     if (gesture.delta === undefined || !group.has(object.id) || object.locked === true || lockedLayers.has(object.layerId)) {
       return object;
@@ -1070,6 +1090,77 @@ export function EquipmentLayer({
     );
   };
 
+  /**
+   * The group's one handle (#207): above the frame of the movable members, it
+   * turns them all about the frame's centre; one batch per finished turn.
+   */
+  const renderGroupRotationHandle = (): React.JSX.Element | null => {
+    const anchor = movable.find((object) => object.id === selectedObject?.id) ?? movable[0];
+    if (anchor === undefined) return null;
+    const gap_m = ROTATION_GAP_PX / viewport.scale;
+    const pivot = groupCenter(movable);
+    const restOf = (objects: readonly Equipment[]): Point => [
+      groupCenter(objects)[0],
+      boundingBox(objects.flatMap((object) => footprint(object))).maxY + gap_m,
+    ];
+    const rest = restOf(movable);
+    const [x, y] = modelToScreen(rest, viewport);
+    const [fx, fy] = modelToScreen([rest[0], rest[1] - gap_m], viewport);
+    const turnOf = (pointer: Point, shift: boolean): number => rotationFromHandle(pivot, pointer, shift, 0);
+    return (
+      <Fragment key="rotate-group">
+        <Line points={[fx, fy, x, y]} stroke={SELECTED_STROKE} strokeWidth={1} listening={false} />
+        <Circle
+          name="handle-rotate-group"
+          x={x}
+          y={y}
+          radius={ROTATE_RADIUS_PX}
+          fill={ROTATE_FILL}
+          stroke={SELECTED_STROKE}
+          strokeWidth={1.5}
+          draggable
+          onMouseEnter={(event) => setCursor(event, 'grab')}
+          onMouseLeave={(event) => setCursor(event, 'default')}
+          onPointerDown={(event) => {
+            event.cancelBubble = true;
+          }}
+          onDragStart={(event) => beginGesture(event, anchor.id)}
+          onDragMove={(event) => {
+            const pointer = worldPointer(event);
+            if (pointer === null) return;
+            setGesture({ id: anchor.id, object: anchor, turn: { pivot, deg: turnOf(pointer, event.evt.shiftKey) } });
+          }}
+          onDragEnd={(event) => {
+            const pointer = worldPointer(event);
+            const deg = pointer === null ? (gesture?.turn?.deg ?? 0) : turnOf(pointer, event.evt.shiftKey);
+            setGesture(null);
+            onGesturePreview?.(null);
+            const turned = rotateObjects(movable, deg, pivot);
+            const accepted =
+              guard.finish() && deg !== 0 && onCommand({ type: 'batch', commands: turned.map(put) }).ok;
+            const [nx, ny] = modelToScreen(accepted ? restOf(turned) : rest, viewport);
+            event.target.position({ x: nx, y: ny });
+          }}
+        />
+        <Path
+          name="handle-rotate-group-icon"
+          x={x}
+          y={y}
+          offsetX={12}
+          offsetY={12}
+          scaleX={ROTATE_ICON_SCALE}
+          scaleY={ROTATE_ICON_SCALE}
+          data={ROTATE_ICON}
+          stroke={SELECTED_STROKE}
+          strokeWidth={2.4}
+          lineCap="round"
+          lineJoin="round"
+          listening={false}
+        />
+      </Fragment>
+    );
+  };
+
   /** One caption badge; null when the object is too small on screen to carry a name. */
   const renderCaption = (object: Equipment): React.JSX.Element | null => {
     const kind = pictograms ? planPictogram(object.typeId) : null;
@@ -1242,7 +1333,8 @@ export function EquipmentLayer({
         )}
 
         {/* A locked layer shows the selection but offers nothing to pull; a
-            group has no handles — it moves, it is not resized or turned.
+            group has one handle — the turn about its centre (#207); it is
+            not resized.
             Настенный прибор показывает только ручку поворота (D-228): тянуть
             размер камеры или датчика нечем — их габариты не планировочное
             решение, а характеристика изделия. */}
@@ -1263,6 +1355,7 @@ export function EquipmentLayer({
                 : RESIZE_HANDLES.map((handle) => renderResizeHandle(selectedObject, handle))),
               renderRotationHandle(selectedObject),
             ]}
+        {picking && isGroup ? renderGroupRotationHandle() : null}
 
         {/* What the move snapped to: a guide (a neighbour's edge, a wall's
             face) in one colour, a grid node in another. Drawn across the stage
