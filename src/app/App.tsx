@@ -165,6 +165,7 @@ export function App(): React.JSX.Element {
   const contentRevision = useStore(store, (state) => state.contentRevision);
   const selection = useStore(store, (state) => state.selection);
   const dirty = useStore(store, (state) => state.dirty);
+  const variants = useStore(store, (state) => state.variants);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
   const [roomMode, setRoomMode] = useState<'internal' | 'boundary'>('internal');
@@ -1113,6 +1114,12 @@ export function App(): React.JSX.Element {
             store.getState().markExported(revision);
           }}
           onShowValidation={() => showRightTab('validation')}
+          variants={variants}
+          onKeepVariant={() => store.getState().keepVariant()}
+          onSwitchVariant={() => {
+            store.getState().switchVariant();
+            setTool({ kind: 'select' });
+          }}
         />
         </div>
       </header>
