@@ -284,9 +284,10 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
       ) : (
         <ol ref={history} className="agent__history" aria-label="Диалог с ассистентом">
           {exchanges.map((exchange) => {
-            const answer = exchange.answer;
+            // #211: until the model's answer comes, the calculation's draft stands in.
+            const answer = exchange.answer ?? exchange.draft ?? null;
             const stale = answer !== null && answer.revision !== revision;
-            const pending = answer === null && exchange.error === null;
+            const pending = exchange.answer === null && exchange.error === null;
             return (
               <li key={exchange.id} className="agent__exchange">
                 <p className="agent__question"><span className="agent__who">Вопрос</span>{exchange.question}</p>
