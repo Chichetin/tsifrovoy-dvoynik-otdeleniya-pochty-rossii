@@ -16,6 +16,7 @@ import {
   grabOffset,
   handlePoint,
   resizeFromPointer,
+  rotationFromHandle,
   rotationFromPointer,
   rotationHandlePoint,
   snapPosition,
@@ -80,6 +81,17 @@ describe('поворот за ручку', () => {
     expect(rotationFromPointer([5, 5], at(38), true, 0)).toBe(45);
     expect(rotationFromPointer([5, 5], at(-3), true, 0)).toBe(0);
     expect(rotationFromPointer([5, 5], at(91), true, 0)).toBe(90);
+  });
+
+  test('ручка без Shift: у оси угол точный, дальше ±4° — свободный', () => {
+    const at = (deg: number): [number, number] => [
+      5 + 3 * Math.sin((deg * Math.PI) / 180),
+      5 + 3 * Math.cos((deg * Math.PI) / 180),
+    ];
+    expect(rotationFromHandle([5, 5], at(-3), false, 0)).toBe(0);
+    expect(rotationFromHandle([5, 5], at(93.5), false, 0)).toBe(90);
+    expect(rotationFromHandle([5, 5], at(185), false, 0)).toBe(185);
+    expect(rotationFromHandle([5, 5], at(37), true, 0)).toBe(30);
   });
 
   test('указатель в центре не меняет угол', () => {
