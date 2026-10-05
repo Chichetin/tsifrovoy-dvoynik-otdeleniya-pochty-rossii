@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import {
-  expect,
+  expect as baseExpect,
   test,
   type Locator,
   type Page,
@@ -25,6 +25,11 @@ import {
 import { encodePlan } from '../../src/persistence/codec';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 import { showTab } from './side-tabs';
+
+// Первый кадр без GPU (SwiftShader) собирает шейдеры 7-12 с, пока машина занята:
+// предел в 5 с по умолчанию ловит не поломку, а медленный старт.
+const expect = baseExpect.configure({ timeout: 60_000 });
+test.describe.configure({ timeout: 180_000 });
 
 const SWIFTSHADER_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const NO_WEBGL_ARGS = ['--disable-webgl', '--disable-3d-apis'];
