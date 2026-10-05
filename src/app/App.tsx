@@ -10,7 +10,7 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
  * recomputed from the document, never stored beside it.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
 import type { Candidate } from '../contracts/advice';
@@ -169,8 +169,28 @@ export function App(): React.JSX.Element {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
   const [planOnly, setPlanOnly] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  // Only hides or shows the interface; the viewport and canvas size stay as they are.
-  const togglePlanOnly = useCallback((): void => setPlanOnly((value) => !value), []);
+  // #224: hidden interface gives the whole window to the canvas. The canvas
+  // corner moves, so the viewport moves by the same pixels in the same frame:
+  // every point of the plan stays where it was on the screen.
+  const planOnlyFrom = useRef<DOMRect | null>(null);
+  const [planOnlyShift, setPlanOnlyShift] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const togglePlanOnly = useCallback((): void => {
+    planOnlyFrom.current = canvasRef.current?.getBoundingClientRect() ?? null;
+    setPlanOnly((value) => !value);
+  }, []);
+  useLayoutEffect(() => {
+    const before = planOnlyFrom.current;
+    planOnlyFrom.current = null;
+    const after = canvasRef.current?.getBoundingClientRect();
+    if (before === null || after === undefined) return;
+    const dx = before.left - after.left;
+    const dy = before.top - after.top;
+    if (dx !== 0 || dy !== 0) {
+      setViewport((current) => ({ ...current, origin: [current.origin[0] + dx, current.origin[1] + dy] }));
+    }
+    // The eye and captions buttons keep their place on the screen.
+    setPlanOnlyShift(planOnly ? { top: dy, right: after.right - before.right } : { top: 0, right: 0 });
+  }, [planOnly]);
   useEffect(() => {
     if (!planOnly) return;
     const onEscape = (event: KeyboardEvent): void => {
@@ -1112,6 +1132,7 @@ export function App(): React.JSX.Element {
           className="shell__canvas"
           data-view={view}
           ref={canvasRef}
+          style={{ '--plan-only-top': `${planOnlyShift.top}px`, '--plan-only-right': `${planOnlyShift.right}px` } as React.CSSProperties}
           // The silhouette follows the pointer: outside the canvas there is none (#26).
           onPointerLeave={() => placementGhost.publish(null)}
           onDragLeave={(event) => {

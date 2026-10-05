@@ -477,11 +477,16 @@ body {
   background: var(--color-accent);
 }
 
+/* #224: the canvas takes the whole window. App moves the viewport by the
+   shift of the canvas corner, so the plan stays in place on the screen. */
 .shell--plan-only .shell__bar,
 .shell__body--plan-only > .shell__side,
 .shell__body--plan-only > .shell__resize {
-  /* visibility keeps the layout: the canvas does not grow or move. */
-  visibility: hidden;
+  display: none;
+}
+
+.shell__body--plan-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shell__side {
@@ -523,8 +528,8 @@ body {
 
 .shell__plan-only-toggle {
   position: absolute;
-  top: calc(var(--strip-row) + 0.75rem);
-  right: 0.75rem;
+  top: calc(var(--strip-row) + 0.75rem + var(--plan-only-top, 0px));
+  right: calc(0.75rem + var(--plan-only-right, 0px));
   z-index: 20;
   display: grid;
   place-items: center;
@@ -540,7 +545,7 @@ body {
 
 /* Under the «show only the plan» button; D-362. */
 .shell__captions-toggle {
-  top: calc(var(--strip-row) + 3.25rem);
+  top: calc(var(--strip-row) + 3.25rem + var(--plan-only-top, 0px));
 }
 
 .shell__plan-only-toggle:hover,
