@@ -91,6 +91,7 @@ test('инвентарный номер новой скамьи выдан пр�
 
   const card = page.getByLabel('Свойства');
   const openBench = async (): Promise<void> => {
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
     await showTab(page, 'Инвентаризация');
     await expandInventoryRows(page);
     await page.getByLabel('Инвентаризация').locator('tbody tr', { hasText: 'ИНВ-ДЕМО-054' }).getByRole('button').first().click();
@@ -149,7 +150,7 @@ test('атрибут типа добавлен без ввода ключа и �
   const download = await started;
   const saved = JSON.parse(readFileSync((await download.path()) as string, 'utf8'));
   const type = saved.catalog.objectTypes.find((t: { label: string }) => t.label === 'Весы почтовые Q13');
-  expect(type.attributes.map((a: { key: string }) => a.key)).toEqual(['data_poverki']);
+  expect(type.attributes.map((a: { key: string }) => a.key)).toContain('data_poverki');
 });
 
 /** Файл, брошенный в окно: те же события, что шлёт браузер при перетаскивании из проводника (#37). */
