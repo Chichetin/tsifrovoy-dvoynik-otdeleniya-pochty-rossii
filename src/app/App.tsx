@@ -13,11 +13,10 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
-import type { AdviceRequest, AdviceResponse, Candidate } from '../contracts/advice';
-import type { AgentAnswer, AgentExchange, AssistantAction } from '../contracts/advice-chat';
+import type { Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
-import type { AssistantPanelRequest, EditorSession, EditsPreview, RequestState, Tool } from '../contracts/ui';
+import type { EditorSession, Tool } from '../contracts/ui';
 import { buildInventory } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
@@ -30,13 +29,12 @@ import {
   type ObjectMount,
 } from '../domain/object-mount';
 import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
-import { candidateObjectForInsert, proposalCommands } from '../domain/advice';
+import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
-import { requestAdvice } from '../features/assistant/advice-client';
-import { requestAgent, turnsOf } from '../features/assistant/agent-client';
+import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
 import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
 import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
@@ -140,18 +138,6 @@ function initialPanelWidths(): PanelWidths {
   } catch {
     return fallback;
   }
-}
-
-function candidateOf(answer: AgentAnswer, recommendationId: Id, candidateId: Id): Candidate | null {
-  return answer.recommendations.find((entry) => entry.id === recommendationId)?.candidates.find((entry) => entry.id === candidateId) ?? null;
-}
-
-/** #126: what the plan shows before «Применить правки»: objects as they would stand, ids to delete. */
-function editGhostsOf(commands: readonly Command[]): EditsPreview {
-  return {
-    put: commands.flatMap((command) => (command.type === 'object.put' ? [command.object] : [])),
-    removed: commands.flatMap((command) => (command.type === 'object.delete' ? [command.id] : [])),
-  };
 }
 
 export function App(): React.JSX.Element {
@@ -287,22 +273,12 @@ export function App(): React.JSX.Element {
   const [focus, setFocus] = useState<EditorSession['focus']>(null);
   const [preview, setPreview] = useState<Candidate | null>(null);
   // #126: ghosts of the agent's edits, for the plan revision they were built on.
-  const [editGhosts, setEditGhosts] = useState<{ revision: number; preview: EditsPreview } | null>(null);
+  const [editGhosts, setEditGhosts] = useState<EditGhosts | null>(null);
   // D-290: the object in shape mode; the equipment layer hides its handles.
   const [shapeEditingId, setShapeEditingId] = useState<string | null>(null);
   // #105: the object whose «Изменить форму» switch is on. It belongs to one
   // selection: picking something else, or nothing, puts it back to «off».
   const [reshapeFor, setReshapeFor] = useState<Id | null>(null);
-  const [advice, setAdvice] = useState<AdviceResponse | null>(null);
-  // A response belongs to the latest request, not merely to a plan revision.
-  // A new plan starts at revision 0 too, so comparing revisions cannot reject
-  // a late answer from the document that was open before «Новый».
-  const adviceRequestSequence = useRef(0);
-  // D-258: the conversation with the plan agent — interface state, never in
-  // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
-  const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
-  const [agentActionStatus, setAgentActionStatus] = useState<string | null>(null);
-  const agentSequence = useRef(0);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -312,7 +288,6 @@ export function App(): React.JSX.Element {
    * этого числа пересоздаёт холст, и вид считается заново.
    */
   const [documentEpoch, setDocumentEpoch] = useState(0);
-  const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
 
   // D-249: which tab each side column shows — a fact about this browser,
   // kept in localStorage like the tour (D-195), never in the plan. The value
@@ -528,20 +503,25 @@ export function App(): React.JSX.Element {
     () => ({ shown: pictograms, onToggle: () => setPictograms((shown) => !shown) }),
     [pictograms],
   );
+  // D-275: a placement into a hidden group shows that group — otherwise the
+  // new object is invisible and the next click places a duplicate.
+  const revealPlaced = useCallback(
+    (placed: Equipment) => {
+      const scope = mountScopeLayer(store.getState().document.layers);
+      if (scope !== undefined) setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
+    },
+    [store],
+  );
   // D-279: a drawn shape is a placement too — into a hidden group it shows that group.
   const dispatchPlanCommand = useCallback(
     (command: Command): Result<PlanDocument> => {
       const result = dispatchAndSelect(command);
       if (result.ok && tool.kind === 'shape.draw' && command.type === 'object.put') {
-        const scope = mountScopeLayer(store.getState().document.layers);
-        if (scope !== undefined) {
-          const placed = command.object;
-          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
-        }
+        revealPlaced(command.object);
       }
       return result;
     },
-    [dispatchAndSelect, store, tool],
+    [dispatchAndSelect, revealPlaced, tool],
   );
   const planTool = usePlanToolController({ document, session, onCommand: dispatchPlanCommand }, documentEpoch);
   const dispatchInternalRoom = useCallback((command: Command): Result<PlanDocument> => {
@@ -593,17 +573,11 @@ export function App(): React.JSX.Element {
       // through to the room selection layer after React re-renders.
       if (result.ok && tool.kind === 'object.place' && command.type === 'object.put') {
         placedType.current = tool.typeId;
-        // D-275: a placement into a hidden group shows that group — otherwise
-        // the new object is invisible and the next click places a duplicate.
-        const scope = mountScopeLayer(store.getState().document.layers);
-        if (scope !== undefined) {
-          const placed = command.object;
-          setHiddenMounts((current) => revealMountOf(current, scope.id, placed));
-        }
+        revealPlaced(command.object);
       }
       return result;
     },
-    [dispatchAndSelect, store, tool],
+    [dispatchAndSelect, revealPlaced, tool],
   );
   const equipmentTool = useEquipmentToolController({
     document,
@@ -674,37 +648,6 @@ export function App(): React.JSX.Element {
     [issues],
   );
 
-  const askAssistant = useCallback(
-    (request: AssistantPanelRequest, query?: string) => {
-      const sequence = ++adviceRequestSequence.current;
-      setAdviceState({ status: 'loading' });
-      // Ответ привязан к ревизии запроса: панель сама скажет, что он устарел,
-      // если план успели поправить, пока сервер считал.
-      // The panel knows no document history and sends the current plan as
-      // "before"; only the app knows the real one.
-      const grounded: AdviceRequest =
-        request.scenario === 'compare' ? { ...request, before: comparison.source?.plan ?? baseline } : request;
-      const asked = { plan: document, revision: contentRevision, request: grounded, ...(query === undefined ? {} : { query }) };
-      void requestAdvice(asked).then((result) => {
-        // The document may have been replaced, or another request may have
-        // started while this one was in flight. In either case this answer no
-        // longer owns the panel.
-        if (sequence !== adviceRequestSequence.current) return;
-        if (!result.ok) {
-          setAdvice(null);
-          setAdviceState({
-            status: 'error',
-            message: result.issues.map((issue) => issue.message).join('; '),
-          });
-          return;
-        }
-        setAdvice(result.value);
-        setAdviceState({ status: 'done' });
-      });
-    },
-    [baseline, comparison.source, contentRevision, document],
-  );
-
   // D-258: ring on the plan without selecting — the agent points, the
   // person decides what to pick.
   const highlight = useCallback((ref: Ref) => {
@@ -712,44 +655,32 @@ export function App(): React.JSX.Element {
     setFocus({ ref, sequence: focusSequence.current });
   }, []);
 
-  const askAgent = useCallback(
-    (question: string) => {
-      const sequence = ++agentSequence.current;
-      const id = `ask-${sequence}`;
-      const update = (change: (exchange: AgentExchange) => AgentExchange): void => {
-        if (sequence !== agentSequence.current) return;
-        setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
-      };
-      setAgentActionStatus(null);
-      setExchanges((previous) => [...previous, { id, question, revision: contentRevision, steps: [], answer: null, error: null }]);
-      const input = { plan: document, revision: contentRevision, query: question, history: turnsOf(exchanges), before: baseline };
-      void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
-        if (sequence !== agentSequence.current) return;
-        if (!result.ok) {
-          update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
-          return;
-        }
-        const answer = result.value;
-        update((exchange) => ({ ...exchange, answer }));
-        // The agent shows what it found: the offered variant ghosted on the
-        // plan, otherwise a ring round the first entity of the answer.
-        const offered = answer.actions.find((action) => action.kind === 'preview-candidate');
-        const candidate = offered === undefined ? null : candidateOf(answer, offered.recommendationId, offered.candidateId);
-        const edits = answer.actions.find((action) => action.kind === 'preview-edits');
-        const proposal = edits === undefined ? undefined : answer.proposals.find((entry) => entry.id === edits.proposalId);
-        if (proposal !== undefined) {
-          const current = store.getState();
-          setEditGhosts({ revision: answer.revision, preview: editGhostsOf(proposalCommands(current.document, proposal, current.retired)) });
-        } else if (candidate !== null) {
-          setPreview(candidate);
-          if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
-        } else if (answer.refs[0] !== undefined) {
-          highlight(answer.refs[0]);
-        }
-      });
-    },
-    [baseline, contentRevision, document, exchanges, highlight, store],
-  );
+  const {
+    advice,
+    adviceState,
+    exchanges,
+    actionStatus: agentActionStatus,
+    ask: askAssistant,
+    askAgent,
+    runAction: runAssistantAction,
+    resetAdvice,
+    clearChat,
+    forget: forgetAdvice,
+  } = useAssistantSession({
+    document,
+    revision: contentRevision,
+    baseline,
+    comparisonBase: comparison.source?.plan ?? null,
+    current: store.getState,
+    dispatch,
+    dispatchAndSelect,
+    setPreview,
+    setEditGhosts,
+    highlight,
+    focusOn,
+    showLeftTab,
+    showRightTab,
+  });
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
   // for the selected one. The actions are the commands the keys already run;
@@ -820,120 +751,6 @@ export function App(): React.JSX.Element {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [document, objectMenu, openObjectMenu, selection, view, viewport]);
-
-  const runAgentAction = useCallback(
-    (action: AssistantAction, answer: AgentAnswer) => {
-      if (answer.revision !== store.getState().contentRevision) {
-        setAgentActionStatus('План изменился после ответа — спросите заново.');
-        return;
-      }
-      switch (action.kind) {
-        case 'focus': {
-          const exists = action.ref.kind === 'zone' ? document.zones.some((zone) => zone.id === action.ref.id) : document.objects.some((object) => object.id === action.ref.id);
-          if (!exists) {
-            setAgentActionStatus(`«${action.ref.id}» больше нет в плане.`);
-            return;
-          }
-          focusOn(action.ref);
-          setAgentActionStatus(null);
-          return;
-        }
-        case 'preview-candidate':
-        case 'apply-candidate': {
-          const candidate = candidateOf(answer, action.recommendationId, action.candidateId);
-          if (candidate === null) {
-            setAgentActionStatus('Вариант не найден в ответе — спросите заново.');
-            return;
-          }
-          if (action.kind === 'preview-candidate') {
-            setPreview(candidate);
-            if (candidate.object.zoneId !== null) highlight({ kind: 'zone', id: candidate.object.zoneId });
-            setAgentActionStatus('Вариант показан на плане полупрозрачно.');
-            return;
-          }
-          // The one edit an answer can lead to: the person pressed the button,
-          // and the variant goes in as an ordinary command with its undo step.
-          const current = store.getState();
-          const object = candidateObjectForInsert(current.document, candidate, current.retired);
-          const result = dispatchAndSelect({ type: 'object.put', object });
-          setPreview(null);
-          setAgentActionStatus(
-            result.ok
-              ? `Применено: «${candidate.object.label}» поставлен на план. Отменить — Ctrl+Z.`
-              : `Не применено: ${result.issues.map((issue) => issue.message).join('; ')}`,
-          );
-          return;
-        }
-        case 'show-layer': {
-          const layer = document.layers.find((entry) => entry.id === action.layerId);
-          if (layer === undefined) {
-            setAgentActionStatus('Слоя больше нет в плане.');
-            return;
-          }
-          if (!layer.visible) dispatch({ type: 'layer.put', layer: { ...layer, visible: true } });
-          showLeftTab('layers');
-          setAgentActionStatus(`Слой «${layer.name}» включён.`);
-          return;
-        }
-        case 'open-panel':
-          showRightTab(action.panel);
-          return;
-        case 'preview-edits':
-        case 'apply-edits': {
-          const proposal = answer.proposals.find((entry) => entry.id === action.proposalId);
-          if (proposal === undefined || proposal.commands.length === 0) {
-            setAgentActionStatus('Правки не найдены в ответе — спросите заново.');
-            return;
-          }
-          // Preview and apply mint the same ids: a retired id is replaced in both (D-019).
-          const current = store.getState();
-          const commands = proposalCommands(current.document, proposal, current.retired);
-          if (action.kind === 'preview-edits') {
-            setPreview(null);
-            setEditGhosts({ revision: answer.revision, preview: editGhostsOf(commands) });
-            setAgentActionStatus('Правки показаны на плане полупрозрачно, удаляемое обведено красным.');
-            return;
-          }
-          // Like «Подтвердить» in «Проверка» (#105): one command, one undo step.
-          const result = dispatch({ type: 'batch', commands });
-          // A refused batch leaves the plan as it was: the ghosts stay to explain it.
-          if (result.ok) setEditGhosts(null);
-          const added = editGhostsOf(commands).put.filter((object) => !current.document.objects.some((entry) => entry.id === object.id));
-          setAgentActionStatus(
-            result.ok
-              ? `Применено правок: ${commands.length}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Отменить — Ctrl+Z.`
-              : `Не применено, план не изменён: ${result.issues.map((issue) => issue.message).join('; ')}`,
-          );
-          return;
-        }
-      }
-    },
-    [dispatch, dispatchAndSelect, document, focusOn, highlight, store, showLeftTab, showRightTab],
-  );
-
-  const clearChat = useCallback(() => {
-    agentSequence.current += 1;
-    setExchanges([]);
-    setAgentActionStatus(null);
-    setPreview(null);
-    setEditGhosts(null);
-  }, []);
-
-  // A recommendation belongs to the plan it was computed for: after «Открыть»
-  // or «Новый» its ids point at objects that no longer exist, and «план
-  // изменился» is too mild a warning for that — the answer goes away entirely.
-  const forgetAdvice = useCallback(() => {
-    // Invalidates an in-flight answer before clearing the visible one. Without
-    // this, «Новый» briefly clears the panel and the old answer repopulates it.
-    adviceRequestSequence.current += 1;
-    setAdvice(null);
-    setAdviceState({ status: 'idle' });
-    setPreview(null);
-    setEditGhosts(null);
-    agentSequence.current += 1;
-    setExchanges([]);
-    setAgentActionStatus(null);
-  }, []);
 
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {
@@ -1497,7 +1314,7 @@ export function App(): React.JSX.Element {
                   exchanges={exchanges}
                   actionStatus={agentActionStatus}
                   onAskAgent={askAgent}
-                  onAgentAction={runAgentAction}
+                  onAgentAction={runAssistantAction}
                   onClearChat={clearChat}
                   selection={selection}
                   comparisonBusy={comparison.loading}
@@ -1505,18 +1322,12 @@ export function App(): React.JSX.Element {
                   comparison={<ComparisonPanel current={document} baseline={baseline} source={comparison.source}
                     loading={comparison.loading} error={comparison.error} onFocus={focusOn}
                     onLoad={async (file) => {
-                      adviceRequestSequence.current += 1;
-                      setAdvice(null);
-                      setAdviceState({ status: 'idle' });
-                      setPreview(null);
+                      resetAdvice();
                       await comparison.load(file);
                     }}
                     onClear={() => {
                       comparison.clear();
-                      adviceRequestSequence.current += 1;
-                      setAdvice(null);
-                      setAdviceState({ status: 'idle' });
-                      setPreview(null);
+                      resetAdvice();
                     }} />}
                 />
               ),
