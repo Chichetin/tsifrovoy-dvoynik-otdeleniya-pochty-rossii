@@ -52,6 +52,21 @@ async function nodeOnPage(page: Page, name: string): Promise<Screen> {
 }
 
 /**
+ * A plan point in metres on the page, read from the view the canvas publishes
+ * (`data-visible`: «minX,minY,maxX,maxY», D-130). Screen Y is down, model Y up.
+ */
+async function worldOnPage(page: Page, x: number, y: number): Promise<Screen> {
+  const box = await page.locator('.editor-canvas canvas').first().boundingBox();
+  const raw = await page.getByTestId('editor-canvas').getAttribute('data-visible');
+  if (box === null || raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX, maxY] = raw.split(',').map(Number) as [number, number, number, number];
+  return {
+    x: box.x + ((x - minX) / (maxX - minX)) * box.width,
+    y: box.y + ((maxY - y) / (maxY - minY)) * box.height,
+  };
+}
+
+/**
  * #105: vertices are edited only for the object whose «Изменить форму» switch is on,
  * so the object is selected and the switch turned on before the double click.
  */
@@ -178,16 +193,15 @@ test('форма вершиной → новый тип → объект это�
   await page.locator('.library__item', { hasText: RACK }).first().click();
   await page.getByRole('button', { name: 'Нарисовать свою фигуру' }).click();
   await expect(page.getByTestId('shape-draw-hint')).toContainText(RACK);
-  const canvas = await page.getByTestId('editor-canvas').boundingBox();
-  if (canvas === null) throw new Error('холст не виден');
   // Свободный пол демо-плана (склад у восточной стены, примерно 12,3–14,6 м по
   // X и 1,0–3,3 м по Y): многоугольник поверх чужого объёма физика не пропустит
-  // (D-286), а здесь под фигуру 90 × 90 px места хватает.
-  const base = { x: canvas.x + canvas.width * 0.786, y: canvas.y + canvas.height * 0.604 };
+  // (D-286), а здесь под фигуру 2 × 2 м места хватает. Точки — в метрах: место
+  // плана на холсте зависит от вписывания (#233).
   await page.keyboard.down('Alt');
-  for (const [dx, dy] of [[0, 0], [90, 0], [90, 40], [40, 40], [40, 90], [0, 90]] as const) {
+  for (const [x, y] of [[12.5, 3.1], [14.5, 3.1], [14.5, 2.2], [13.4, 2.2], [13.4, 1.1], [12.5, 1.1]] as const) {
     await settle(page);
-    await page.mouse.click(base.x + dx, base.y + dy);
+    const point = await worldOnPage(page, x, y);
+    await page.mouse.click(point.x, point.y);
   }
   await page.keyboard.up('Alt');
   await page.keyboard.press('Enter');

@@ -19,6 +19,13 @@ export const SCALE_LIMITS = { min: 4, max: 400 } as const;
 /** Free space left around the plan when fitting it into the canvas. */
 const FIT_PADDING_PX = 32;
 
+/**
+ * Band kept free under a fitted plan (#233): the minimap (bottom-left, 48 px
+ * up, about 131 px tall), the scale panel and the assistant avatar
+ * (bottom-right) sit there, so a fitted plan never lies under them.
+ */
+export const OVERLAY_RESERVE_PX = 188;
+
 /** Fallback when a plan has no extent at all — a fresh, empty document. */
 export const DEFAULT_SCALE = 48;
 
@@ -99,16 +106,20 @@ export function zoomByWheel(viewport: Viewport, anchor: Point, deltaY: number): 
 }
 
 /**
- * Places the given world extent into the canvas with a margin. An empty or
- * degenerate extent keeps a usable default instead of dividing by zero.
+ * Places the given world extent into the canvas with a margin and a free band
+ * at the bottom for the overlays. A short canvas gives the band at most a
+ * third of its height. An empty or degenerate extent keeps a usable default
+ * instead of dividing by zero.
  */
 export function fitToExtent(
   extent: Polygon,
   canvas: CanvasSize,
   padding = FIT_PADDING_PX,
+  bottomReserve = OVERLAY_RESERVE_PX,
 ): Viewport {
+  const reserve = Math.max(0, Math.min(bottomReserve, canvas.height / 3));
   const usableWidth = Math.max(1, canvas.width - padding * 2);
-  const usableHeight = Math.max(1, canvas.height - padding * 2);
+  const usableHeight = Math.max(1, canvas.height - padding * 2 - reserve);
 
   if (extent.length === 0) {
     return { scale: DEFAULT_SCALE, origin: [padding, canvas.height - padding] };
@@ -129,7 +140,7 @@ export function fitToExtent(
   const centreY = (box.minY + box.maxY) / 2;
   return {
     scale,
-    origin: [canvas.width / 2 - centreX * scale, canvas.height / 2 + centreY * scale],
+    origin: [canvas.width / 2 - centreX * scale, (canvas.height - reserve) / 2 + centreY * scale],
   };
 }
 
