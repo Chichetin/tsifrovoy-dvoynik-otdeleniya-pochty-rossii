@@ -94,7 +94,8 @@ test.describe('сквозной сценарий редактора', () => {
     await page.getByTestId('plan-file-input').setInputFiles(saved as string);
     await expect(inventoryRows).toBeVisible();
     await expect(page.locator('.table__link', { hasText: placed }).first()).toBeVisible();
-    await expect(page.locator('.table__link', { hasText: 'z_1' }).first()).toBeVisible();
+    // Зона названа словами, её id — в подсказке ссылки (#105).
+    await expect(page.locator('.table__link[title="z_1"]').first()).toBeVisible();
     await expectUnsavedEdits(page, false);
 
     await testInfo.attach('сохранённый план', { body: text, contentType: 'application/json' });
