@@ -168,7 +168,10 @@ export type ObjectType = {
    * app. Absent or not found — the 3D view draws the box from size and height.
    */
   model3d?: string;
-  /** Sign of the type on the 2D plan and in SVG (D-376). Absent — no sign. */
+  /**
+   * Sign of the type on the 2D plan and in SVG (D-376). Absent — the sign of
+   * the team catalog's type with the same id, otherwise no sign.
+   */
   pictogram?: PlanPictogramName;
   color: string;
   attributes: AttributeDef[];

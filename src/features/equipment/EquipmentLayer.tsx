@@ -815,7 +815,7 @@ export function EquipmentLayer({
     const type = findObjectType(plan.catalog, object.typeId);
     const current = shown(object);
     const hasCaption = captions && objectLabel(current, viewport,
-      pictograms && planPictogram(object.typeId) !== null ? CAPTION_ICON_SPACE_PX : 0) !== null;
+      pictograms && planPictogram(type) !== null ? CAPTION_ICON_SPACE_PX : 0) !== null;
     const [x, y] = modelToScreen(current.position, viewport);
     const hitRadius = smallHitRadius(current.size_m[0] * viewport.scale, current.size_m[1] * viewport.scale);
     // Alt during the drag turns snapping off (D-208). The drop reuses what the
@@ -957,7 +957,7 @@ export function EquipmentLayer({
           // The sign stays upright whatever the object's rotation, like the lock.
           <Group rotation={-current.rotation_deg} listening={false}>
             <EquipmentPictogram
-              kind={pictograms ? planPictogram(object.typeId) : null}
+              kind={pictograms ? planPictogram(type) : null}
               width={current.size_m[0] * viewport.scale}
               height={current.size_m[1] * viewport.scale}
               opacity={ghost ? 0.45 : 0.9}
@@ -1163,7 +1163,7 @@ export function EquipmentLayer({
 
   /** One caption badge; null when the object is too small on screen to carry a name. */
   const renderCaption = (object: Equipment): React.JSX.Element | null => {
-    const kind = pictograms ? planPictogram(object.typeId) : null;
+    const kind = pictograms ? planPictogram(findObjectType(plan.catalog, object.typeId)) : null;
     const iconSpace = kind === null ? 0 : CAPTION_ICON_SPACE_PX;
     const label = objectLabel(shown(object), viewport, iconSpace);
     if (label === null) return null;

@@ -33,6 +33,8 @@ export type NewObjectType = {
   physical: boolean;
   occupiesFloor: boolean;
   symbol: ObjectType['symbol'];
+  /** Sign on the plan (D-376); absent — no sign. */
+  pictogram?: ObjectType['pictogram'];
   color: string;
 };
 
@@ -121,6 +123,7 @@ export function addObjectType(catalog: Catalog, input: NewObjectType): { catalog
     physical: input.physical,
     occupiesFloor: input.occupiesFloor,
     symbol: input.symbol,
+    ...(input.pictogram === undefined ? {} : { pictogram: input.pictogram }),
     color: input.color,
     attributes: [],
     provenance: TEAM_ASSUMPTION_PROVENANCE,
