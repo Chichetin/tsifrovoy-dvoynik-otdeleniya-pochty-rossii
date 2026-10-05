@@ -176,7 +176,7 @@ export function explainFinding(plan: PlanDocument, issue: ValidationIssue): Find
       method: physics.detail,
       rationale: null,
       params: [],
-      sourceNote: `Правило физики плана (${physics.id}). ${TEAM_NOTE}`,
+      sourceNote: `Правило физики плана. ${TEAM_NOTE}`,
       ruleId: physics.id,
     };
   }
