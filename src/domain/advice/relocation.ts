@@ -7,7 +7,7 @@
  * `cameraCoverage`). Nothing here edits the document.
  */
 
-import type { Fact } from '../../contracts/advice';
+import type { Fact, Recommendation } from '../../contracts/advice';
 import type { Command } from '../../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Result } from '../../contracts/model';
 import { applyCommand } from '../commands';
@@ -122,4 +122,81 @@ export function findRelocations(plan: PlanDocument, request: RelocationRequest):
   // The plan was measured above, so comparing it with itself cannot fail.
   options.push(option(`${current.id}.keep`, plan, current, null, 0)!);
   return { ok: true, value: { objectId: current.id, options } };
+}
+
+/**
+ * #203: a `place` recommendation applied as a move of an object that already
+ * stands. The search offered spots for one more object of the type; a person
+ * drags the existing one there instead. Each candidate's forecast is then the
+ * move's, not the addition's: the plan with the object moved is measured
+ * (`comparePlans`), the count of the type stays the same, and the distance to
+ * the entrance is added «было → стало» when a rule of the type measures it.
+ * Ids of the recommendation, candidates and facts stay as they were, so an
+ * explanation chosen for the search still points at existing facts. A spot the
+ * object cannot be moved to is dropped; none left is an error, not a silent
+ * «места нет». Nothing here edits the document.
+ */
+export function asRelocation(plan: PlanDocument, recommendation: Recommendation, objectId: Id): Result<Recommendation> {
+  const current = plan.objects.find((entry) => entry.id === objectId);
+  if (current === undefined) {
+    return { ok: false, issues: [{ code: PLACEMENT_ISSUE_CODES.OBJECT_MISSING, severity: 'error', message: `Объекта «${objectId}» нет в плане.`, refs: [{ kind: 'object', id: objectId }] }] };
+  }
+  const count = (document: PlanDocument): number => document.objects.filter((entry) => entry.typeId === current.typeId).length;
+  const objectRef = { kind: 'object', id: objectId } as const;
+
+  const candidates: Recommendation['candidates'] = [];
+  for (const candidate of recommendation.candidates) {
+    const { position, rotation_deg } = candidate.object;
+    const applied = applyCommand(plan, { type: 'object.put', object: { ...current, position, rotation_deg } });
+    if (!applied.ok) continue;
+    const compared = comparePlans(plan, applied.value);
+    if (!compared.ok) return compared;
+    const measured = compared.value[0]!.facts;
+    const value = (metric: Fact['metric'], phase: Fact['phase'], prefix: string): number | undefined =>
+      measured.find((fact) => fact.metric === metric && fact.phase === phase && fact.id.startsWith(prefix))?.value;
+    const freeAfter = value('area.free', 'after', 'adv_compare.area.free');
+    if (freeAfter === undefined) continue;
+    const facts: Fact[] = candidate.facts.map((fact) => {
+      if (fact.metric === 'area.free' && fact.phase === 'after') return { ...fact, value: freeAfter };
+      if (fact.metric === 'equipment.count' && fact.phase === 'after') return { ...fact, value: count(applied.value) };
+      if (fact.metric === 'equipment.count' && fact.phase === 'current') return { ...fact, value: count(plan) };
+      return fact;
+    });
+    const entrance = `adv_compare.entrance.${objectId}`;
+    const was = value('layout.entrance', 'before', entrance);
+    const now = value('layout.entrance', 'after', entrance);
+    const shift = value('layout.entrance', 'delta', entrance);
+    if (was !== undefined && now !== undefined && shift !== undefined) {
+      facts.push(
+        { id: `${candidate.id}.layout.entrance.current`, metric: 'layout.entrance', phase: 'current', value: was, unit: 'm', refs: [objectRef] },
+        { id: `${candidate.id}.layout.entrance.after`, metric: 'layout.entrance', phase: 'after', value: now, unit: 'm', refs: [objectRef] },
+        { id: `${candidate.id}.layout.entrance.delta`, metric: 'layout.entrance', phase: 'delta', value: shift, unit: 'm', refs: [objectRef] },
+      );
+    }
+    candidates.push({ ...candidate, facts });
+  }
+
+  if (recommendation.candidates.length > 0 && candidates.length === 0) {
+    return { ok: false, issues: [{ code: 'RELOCATION_IMPOSSIBLE', severity: 'error', message: `Объект «${objectId}» нельзя перенести ни в одно из найденных мест.`, refs: [objectRef] }] };
+  }
+  const own = new Set(recommendation.candidates.flatMap((candidate) => candidate.facts.map((fact) => fact.id)));
+  const facts: Fact[] = [
+    ...recommendation.facts
+      .filter((fact) => !own.has(fact.id))
+      .map((fact) => (fact.metric === 'equipment.count' && fact.phase === 'current' ? { ...fact, value: count(plan) } : fact)),
+    ...candidates.flatMap((candidate) => candidate.facts),
+  ];
+  return {
+    ok: true,
+    value: {
+      ...recommendation,
+      refs: recommendation.refs.some((ref) => ref.kind === 'object' && ref.id === objectId) ? recommendation.refs : [...recommendation.refs, objectRef],
+      candidates,
+      facts,
+      assumptions: [
+        ...recommendation.assumptions,
+        `Вариант применяется переносом стоящего объекта «${current.label}» (${objectId}): id, инвентарный номер и атрибуты сохраняются, число объектов этого типа не меняется. Расстояние до входа — от центра объекта до центра входа.`,
+      ],
+    },
+  };
 }
