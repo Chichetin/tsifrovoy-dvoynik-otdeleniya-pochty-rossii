@@ -231,6 +231,7 @@ test.describe('холст показывает то, о чём спрашива�
 
     // Проверка нашла его: сотрудник видит название, а стабильный `id` остаётся
     // в структурном атрибуте ссылки и не загромождает подпись (D-235).
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
     await showTab(page, 'Проверка');
     const finding = page
       .getByLabel('Проверка плана')
@@ -251,6 +252,8 @@ test.describe('холст показывает то, о чём спрашива�
     await panAway(page);
     expect(await sees(page, OUTSIDE.x, OUTSIDE.y)).toBe(false);
 
+    // После #222 вкладки скрыты, пока объект выделен: снимаем выделение.
+    await page.keyboard.press('Escape');
     await showTab(page, 'Инвентаризация');
     await page
       .getByLabel('Инвентаризация')
@@ -262,6 +265,8 @@ test.describe('холст показывает то, о чём спрашива�
 
     // Объект, который и так виден целиком, вид не дёргает: масштаб тот же.
     const settled = await scale(page);
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
+    await showTab(page, 'Инвентаризация');
     await page
       .getByLabel('Инвентаризация')
       .getByRole('button', { name: MOVED_LABEL, exact: true })
