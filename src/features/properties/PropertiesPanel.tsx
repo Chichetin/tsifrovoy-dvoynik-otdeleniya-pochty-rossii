@@ -434,18 +434,15 @@ export function PropertiesPanel({
             onChange={(event) => {
               // Смена типа переименовывает зону в название типа — одной
               // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
-              // связи нет: правка имени тип не трогает. Переименовываем только
-              // типовое имя (пустое, подпись прежнего типа, «Зона N» новой
-              // зоны); введённое руками сохраняется (D-265).
+              // связи нет: правка имени тип не трогает. Ручное название тоже
+              // заменяется (D-265).
               const typeId = event.target.value;
               const renamed = findZoneType(plan.catalog, typeId);
-              const current = zone.name.trim();
-              const generic = current === '' || current === type?.label || /^Зона \d+$/.test(current);
               setDraft((draft) => without(draft, 'name'));
               commit('typeId', {
                 ...zone,
                 typeId,
-                name: renamed !== null && generic ? renamed.label : zone.name,
+                name: renamed === null ? zone.name : renamed.label,
               });
             }}
           >
