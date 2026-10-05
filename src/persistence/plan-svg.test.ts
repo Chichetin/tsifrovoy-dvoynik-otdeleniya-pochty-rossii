@@ -11,6 +11,7 @@ import type { LayerType, PlanDocument, Point } from '../contracts/model';
 import { footprint } from '../domain/geometry';
 import { decodePlan } from './codec';
 import { renderPlanSvg, svgFileName } from './plan-svg';
+import { printLayout, renderPrintPage, rulerLengthM, svgExtentM } from './plan-print';
 
 function loadFixture(name: string): PlanDocument {
   const result = decodePlan(readFileSync(join(process.cwd(), 'src', 'contracts', 'fixtures', name), 'utf8'));
@@ -254,5 +255,19 @@ describe('SVG плана', () => {
   test('имя файла — из названия плана', () => {
     expect(svgFileName({ ...loadFixture('minimal.json'), name: 'ОПС 12 / зал' })).toBe('ОПС-12-зал.svg');
     expect(svgFileName({ ...loadFixture('minimal.json'), name: '   ' })).toBe('plan.svg');
+  });
+
+  test('печать: 1:100 даёт 10 мм на метр, большой план не помещается, линейка круглая', () => {
+    const layout = printLayout([10, 6], 'A4', 'landscape', 100);
+    expect(layout.mmPerM).toBe(10);
+    expect(layout.drawingMm).toEqual([100, 60]);
+    expect(layout.fits).toBe(true);
+    expect(printLayout([30, 6], 'A4', 'landscape', 50).fits).toBe(false);
+    expect(printLayout([30, 6], 'A4', 'landscape', 'fit').fits).toBe(true);
+    expect(rulerLengthM(10, 60)).toBe(5);
+    const plan = loadFixture('minimal.json');
+    const [w] = svgExtentM(renderPlanSvg(plan));
+    const page = renderPrintPage(plan, { format: 'A3', orientation: 'landscape', scale: 100, date: new Date(2026, 9, 5) });
+    expect(page).toContain(`width="${(w * 10).toFixed(2)}mm"`);
   });
 });

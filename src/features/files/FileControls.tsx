@@ -55,6 +55,7 @@ import {
 } from '../../persistence/inventory-csv';
 import { limitRefusal } from './limit-message';
 import { FileDialog } from './FileDialog';
+import { PrintDialog } from './PrintDialog';
 import { DEMO_PLANS, readDemoText, type DemoPlan } from './demo-plan';
 
 export type FileControlsProps = {
@@ -260,6 +261,7 @@ export function FileControls({
   const [versions, setVersions] = useState<PlanVersion[] | null>(null);
   const [versionLabel, setVersionLabel] = useState('');
   const [versionError, setVersionError] = useState<string | null>(null);
+  const [printOpen, setPrintOpen] = useState(false);
 
   useEffect(() => {
     if (storage === null) return;
@@ -605,7 +607,7 @@ export function FileControls({
    * дублирует кнопку «Сохранить план» (#6): по этому пункту ведёт инструкция
    * в ZIP сдачи (demo/README.md).
    */
-  const exportItems: { key: 'json' | 'png' | 'svg' | 'csv'; label: string; hint: string }[] = [
+  const exportItems: { key: 'json' | 'png' | 'svg' | 'csv' | 'print'; label: string; hint: string }[] = [
     {
       key: 'json',
       label: 'JSON — файл плана',
@@ -625,6 +627,11 @@ export function FileControls({
       key: 'csv',
       label: 'CSV — перечень инвентаризации',
       hint: 'Таблица для Excel: все объекты плана и выбранные в «Инвентаризации» столбцы атрибутов',
+    },
+    {
+      key: 'print',
+      label: 'Печать…',
+      hint: 'Печать плана на A4 или A3 в масштабе 1:50, 1:100 или по листу: с легендой, линейкой и штампом. Печатаются включённые слои',
     },
   ];
 
@@ -876,6 +883,7 @@ export function FileControls({
                     if (item.key === 'json') save();
                     else if (item.key === 'png') exportPng();
                     else if (item.key === 'csv') exportCsv();
+                    else if (item.key === 'print') setPrintOpen(true);
                     else exportSvg();
                   }}
                 >
@@ -1007,6 +1015,16 @@ export function FileControls({
       ) : null}
     </div>
     )}
+
+    {printOpen ? (
+      <PrintDialog
+        plan={plan}
+        onClose={() => {
+          setPrintOpen(false);
+          fileTrigger.current?.focus();
+        }}
+      />
+    ) : null}
 
     {versions === null ? null : (
       <FileDialog
