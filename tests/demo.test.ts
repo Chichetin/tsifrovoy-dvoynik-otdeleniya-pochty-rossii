@@ -82,9 +82,7 @@ test('вопрос о составе зоны ведёт к зоне, даже �
   });
   // «Весы» stem to three letters, below the type threshold: the question used to fall to plan_overview.
   expect(routeAgentQuery(plan, 'Где поставить ещё весы?', false)[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_scales' } });
-  // #150: a question outside the supported calculation scenarios asks for
-  // clarification rather than silently routing to the whole-plan overview.
-  expect(routeAgentQuery(plan, 'Покажи весь план', false)).toEqual([]);
+  expect(routeAgentQuery(plan, 'Покажи весь план', false)[0]?.name).toBe('plan_overview');
 });
 
 test('стартовый план совпадает с исходным демо из ZIP и показывает находки (#111)', () => {

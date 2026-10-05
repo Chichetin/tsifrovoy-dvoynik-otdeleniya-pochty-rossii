@@ -1449,6 +1449,7 @@
       "factIds": [
         "adv_place_ot_queue_terminal_z_entrance.area.free.current",
         "adv_place_ot_queue_terminal_z_entrance.equipment.count.current",
+        "adv_ot_queue_terminal_1.placement.distance",
         "adv_ot_queue_terminal_1.area.free.current",
         "adv_ot_queue_terminal_1.area.free.after",
         "adv_ot_queue_terminal_1.equipment.count.current",
