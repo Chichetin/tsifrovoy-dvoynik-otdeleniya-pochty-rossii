@@ -39,4 +39,11 @@
 клиентских зон, нет пятна, зона не клиентская или указана точка — обычный `findPlacements`.
 `placement.ts` для этого экспортирует `verify`, `reserveId`, `issueKey`. Пробный объект типа — `objectOfType` из `domain/commands`.
 
+**Место для стоящего объекта (#177).** `relocation.ts`: `findRelocations(plan, { objectId, zoneId, anchor? })`
+ищет место без самого объекта, с его размером и контуром; места ближе `minSeparation_m` к текущему
+не считаются (`searchPlacements`, `avoid`). Перенос — одна команда `object.put` с тем же `id` и
+атрибутами, без новых ошибок `validatePlan`. До трёх переносов и последним «оставить как есть» с теми
+же показателями: зоны, правила, зазор до стены, факты `comparePlans`, площадь и объекты зон, покрытие
+камерами. В чате — `find_place` с `objectId`, переносы — предложения правок (`relocationProposal`).
+
 [Карта проекта и владельцы](../../../docs/project-structure.md) · [Контракты](../../../docs/contracts-v1.md)
