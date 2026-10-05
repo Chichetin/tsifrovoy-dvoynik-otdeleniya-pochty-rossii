@@ -108,20 +108,24 @@ function boxOf(polygon: Polygon): Box {
  * Greedy, in priority order (object labels first, then zone names), like the
  * canvas: a label is drawn at the first candidate spot that touches no drawn
  * label, no other object and no wall; if none is free, it is not drawn —
- * except a layer value (`always`), which takes its first spot.
+ * except a layer value (`always`): it takes the first spot clear of drawn
+ * labels, else its first spot.
  */
 function placeAll(requests: LabelRequest[], obstacles: Box[]): PlacedLabel[] {
   const taken: Box[] = [];
   const placed: PlacedLabel[] = [];
   for (const request of requests) {
+    const clearOfLabels = (at: Point): boolean => {
+      const box = grow(labelBox(at, request.text), LABEL_GAP_M);
+      return !taken.some((other) => boxesOverlap(box, other));
+    };
     const free = request.candidates.find((at) => {
       const box = grow(labelBox(at, request.text), LABEL_GAP_M);
-      return !(
-        taken.some((other) => boxesOverlap(box, other)) ||
-        obstacles.some((other) => other !== request.own && boxesOverlap(box, other))
-      );
+      return clearOfLabels(at) && !obstacles.some((other) => other !== request.own && boxesOverlap(box, other));
     });
-    const at = free ?? (request.always === true ? request.candidates[0] : undefined);
+    // A layer value with no free spot still avoids drawn labels if it can.
+    const fallback = request.always === true ? (request.candidates.find(clearOfLabels) ?? request.candidates[0]) : undefined;
+    const at = free ?? fallback;
     if (at === undefined) continue;
     taken.push(grow(labelBox(at, request.text), LABEL_GAP_M));
     placed.push({ at, text: request.text, fill: request.fill, opacity: request.opacity, weight: request.weight, halo: request.always === true });
@@ -191,7 +195,8 @@ function layerColor(type: LayerType): string {
 /**
  * Heat areas: the deepest zone with a value paints each point (D-138). A zone's
  * path holds its own ring and the rings of its nearest painted descendants;
- * `evenodd` turns those into holes.
+ * `evenodd` turns those into holes. The canvas does the same with a clipper:
+ * features/layers/heat-regions.ts.
  */
 function heatPaths(zones: Zone[], attribute: string): { zoneId: Id; value: number; d: string }[] {
   const byId = new Map(zones.map((zone) => [zone.id, zone]));
@@ -253,6 +258,8 @@ type Overlay = {
   defs: string[];
   heat: string[];
   sectors: string[];
+  /** Camera sectors in metres: they take part in the picture's extent, as the canvas draws them whole. */
+  sectorShapes: Polygon[];
   values: LabelRequest[];
   markers: Marker[];
   legend: LegendRow[];
@@ -260,7 +267,7 @@ type Overlay = {
 
 /** What the canvas shows over the plan: visible information layers and finding markers. */
 function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
-  const overlay: Overlay = { defs: [], heat: [], sectors: [], values: [], markers: findingMarkers(plan), legend: [] };
+  const overlay: Overlay = { defs: [], heat: [], sectors: [], sectorShapes: [], values: [], markers: findingMarkers(plan), legend: [] };
   const rect = (fill: string) => (x: number, y: number): string =>
     `<rect x="${n(x)}" y="${n(y - 0.08)}" width="0.16" height="0.16" fill="${esc(fill)}"/>`;
   const active = plan.layers
@@ -315,7 +322,7 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
       overlay.legend.push({
         swatch: (x, y) => values.map((value, index) => rect(value.color)(x + index * 0.2, y)).join(''),
         swatchWidth: values.length * 0.2 - 0.04,
-        text: `${type.label}: ${values.map((value) => value.label).join(', ')}`,
+        text: type.label,
       });
       continue;
     }
@@ -326,6 +333,7 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
       const angle = numberAttribute(object.attributes, representation.angleAttribute) ?? representation.angle_deg;
       const range = numberAttribute(object.attributes, representation.rangeAttribute) ?? representation.range_m;
       const sector = viewSector(object.position, object.rotation_deg, angle, range);
+      overlay.sectorShapes.push(sector);
       const color = esc(representation.color);
       overlay.sectors.push(`<polygon points="${points(sector)}" fill="${color}" fill-opacity="0.22" stroke="${color}" stroke-width="0.01" data-layer="${esc(id)}" data-sector="${esc(object.id)}"/>`);
     }
@@ -438,6 +446,7 @@ export function renderPlanSvg(plan: PlanDocument, options: PlanSvgOptions = {}):
       const box = labelBox(p.at, p.text);
       return [[box.x, box.y], [box.x + box.width, box.y + box.height]] as Polygon;
     }),
+    ...(overlay?.sectorShapes ?? []),
     ...(overlay?.markers ?? []).map(({ at }) =>
       [[at[0] - MARKER_R_M, at[1] - MARKER_R_M], [at[0] + MARKER_R_M, at[1] + MARKER_R_M]] as Polygon,
     ),
