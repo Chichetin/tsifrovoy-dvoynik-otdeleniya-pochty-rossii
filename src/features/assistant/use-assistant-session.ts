@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { AdviceRequest, AdviceResponse, Candidate } from '../../contracts/advice';
-import type { AgentAnswer, AssistantAction } from '../../contracts/advice-chat';
+import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import type { Command } from '../../contracts/commands';
 import type { Id, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../contracts/ui';
-import { candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
+import { answerWithoutModel, candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
-import { draftAnswer, requestAgent, turnsOf, type ChatExchange } from './agent-client';
+import { requestAgent, turnsOf } from './agent-client';
 
 type OpenPanel = Extract<AssistantAction, { kind: 'open-panel' }>['panel'];
 
@@ -26,6 +26,8 @@ function editGhostsOf(commands: readonly Command[]): EditsPreview {
 
 /** #176: hints are on until the person turns them off. The one place to change the default. */
 export const HINTS_DEFAULT_ENABLED = true;
+/** #211: the note under the draft — the calculation is shown, the model is still writing. */
+export const DRAFT_REASON = 'расчёт показан сразу; модель ещё пишет объяснение — ответ обновится.';
 /** #176: a hint waits for the plan to settle — after a drag ends, not at each of its steps. */
 export const HINTS_DEBOUNCE_MS = 600;
 const HINTS_STORAGE_KEY = 'ops-twin.assistant-hints.v1';
@@ -156,7 +158,7 @@ export function useAssistantSession({
   const adviceSequence = useRef(0);
   // D-258: the conversation with the plan agent — interface state, never in
   // the plan file. Its own sequence drops a late answer after «Новый»/«Открыть».
-  const [exchanges, setExchanges] = useState<ChatExchange[]>([]);
+  const [exchanges, setExchanges] = useState<AgentExchange[]>([]);
   const [actionStatus, setActionStatus] = useState<string | null>(null);
   const chatSequence = useRef(0);
 
@@ -285,34 +287,40 @@ export function useAssistantSession({
     (question: string) => {
       const sequence = ++chatSequence.current;
       const id = `ask-${sequence}`;
-      const update = (change: (exchange: ChatExchange) => ChatExchange): void => {
+      const update = (change: (exchange: AgentExchange) => AgentExchange): void => {
         if (sequence !== chatSequence.current) return;
         setExchanges((previous) => previous.map((exchange) => (exchange.id === id ? change(exchange) : exchange)));
       };
       setActionStatus(null);
       setExchanges((previous) => [...previous, { id, question, revision, steps: [], answer: null, error: null }]);
-      const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
-      const request = requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] })));
-      // #211: the request is on the wire; the calculation answers in the page
-      // meanwhile, so numbers and variants show in a second, not after the model.
+      // #211: the calculation answers at once, in the browser; the model's
+      // answer replaces it when it comes. After the question is on screen.
+      let draft: AgentAnswer | undefined;
       window.setTimeout(() => {
         if (sequence !== chatSequence.current) return;
-        let draft: AgentAnswer;
         try {
-          draft = draftAnswer(input);
+          draft = answerWithoutModel(document, baseline, question, revision, DRAFT_REASON);
         } catch {
           return;
         }
-        update((exchange) => (exchange.answer === null && exchange.error === null ? { ...exchange, draft } : exchange));
+        const shown = draft;
+        update((exchange) => (exchange.answer === null ? { ...exchange, draft: shown } : exchange));
       }, 0);
-      void request.then((result) => {
+      const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
+      void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
         if (sequence !== chatSequence.current) return;
         if (!result.ok) {
           update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
           return;
         }
-        const answer = result.value;
-        update((exchange) => ({ ...exchange, answer, draft: undefined }));
+        // Without the model, the server's answer may stand on the few tools the
+        // model ran before it failed; a draft whose calculation understood the
+        // question (it ran tools) answers the question itself.
+        const answer =
+          result.value.mode !== 'llm' && draft !== undefined && draft.steps.length > 0
+            ? { ...draft, ...(result.value.fallbackReason === undefined ? {} : { fallbackReason: result.value.fallbackReason }) }
+            : result.value;
+        update((exchange) => ({ ...exchange, answer }));
         // The agent shows what it found: the offered variant ghosted on the
         // plan, otherwise a ring round the first entity of the answer.
         const offered = answer.actions.find((action) => action.kind === 'preview-candidate');

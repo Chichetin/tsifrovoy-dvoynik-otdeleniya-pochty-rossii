@@ -14,7 +14,7 @@ import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
 import { QUOTED_ID_PATTERN, WHY_LEAD } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
-import { draftOf, stopAgent } from './agent-client';
+import { stopAgent } from './agent-client';
 import './agent-chat.css';
 import { VoiceInput } from './VoiceInput';
 
@@ -265,9 +265,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
   // The result of the button just pressed outranks the stale note: after
   // «Применить» the plan has changed precisely because the person applied it.
   const status = working
-    ? latest !== undefined && draftOf(latest) !== undefined
-      ? 'Расчёт готов. LLM пишет объяснение…'
-      : 'Ассистент работает с планом…'
+    ? 'Ассистент работает с планом…'
     : actionStatus ?? (latestStale ? 'План изменился после ответа — спросите заново, действия отключены.' : '');
 
   function submit(text: string): void {
@@ -296,11 +294,10 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
       ) : (
         <ol ref={history} className="agent__history" aria-label="Диалог с ассистентом">
           {exchanges.map((exchange) => {
-            const pending = exchange.answer === null && exchange.error === null;
-            // #211: the calculation shows at once; the server's answer replaces it.
-            const draft = pending ? (draftOf(exchange) ?? null) : null;
-            const answer = exchange.answer ?? draft;
+            // #211: until the model's answer comes, the calculation's draft stands in.
+            const answer = exchange.answer ?? exchange.draft ?? null;
             const stale = answer !== null && answer.revision !== revision;
+            const pending = exchange.answer === null && exchange.error === null;
             return (
               <li key={exchange.id} className="agent__exchange">
                 <p className="agent__question"><span className="agent__who">Вопрос</span>{exchange.question}</p>
@@ -310,9 +307,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                   <div className={`agent__answer${answer.mode === 'llm' ? '' : ' is-fallback'}`}>
                     <AnswerText text={answer.text} plan={plan} names={names} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
                     <p className="agent__mode">
-                      {draft !== null
-                        ? 'Расчёт готов. Объяснение LLM ещё пишется — оно заменит этот текст.'
-                        : answer.mode !== 'llm'
+                      {answer.mode !== 'llm'
                         ? `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`
                         : answer.text.includes(WHY_LEAD)
                           ? 'LLM выбрала рассчитанные факты и написала «почему так». Код сверил в этом тексте каждый id, число и номер варианта с расчётом; остальной текст сформирован кодом.'
@@ -347,7 +342,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                               key={index}
                               type="button"
                               className={action.kind === 'apply-candidate' || action.kind === 'apply-edits' ? 'files__button is-primary' : 'files__button'}
-                              disabled={stale || (working && draft === null)}
+                              disabled={stale || working}
                               onClick={() => onAction(action, answer)}
                             >
                               {actionLabel(action, answer, names)}

@@ -343,8 +343,6 @@ const RELOCATE_INTENT = /(?<![а-я])предлож(?:и|ите|ить)\s+(?:[а
 
 /** #195: a question about the whole plan. */
 const PLAN_OVERVIEW = /весь план|всего плана|сводк|обзор план|покажи план|общ[а-я]* картин/;
-/** #211: a question about what is wrong with the plan and what to do about it. */
-const PLAN_REVIEW = /не так|что (?:мне |нам )?(?:с)?делать|что исправ|что поправ|что улучш|проблем|замечани/;
 
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
@@ -370,7 +368,8 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (hasBefore && /измен|было|стало|сравн|эффект|разниц|до и после/.test(text)) {
     return [{ name: 'compare_with_original', args: {} }, { name: 'open_panel', args: { panel: 'metrics' } }];
   }
-  if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт/.test(text)) {
+  // #211: «что не так и что сделать?» asks for the plan check and its main finding.
+  if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт|что не так|что исправ|что (?:нужно |надо )?сделать|проблем/.test(text)) {
     return [{ name: 'validate_plan', args: {} }, { name: 'open_panel', args: { panel: 'validation' } }];
   }
   if (/не хват|нехват|лишн|комплект|недостат|избыт|чего нет|отсутств|сколько нужно/.test(text)) {
@@ -395,10 +394,6 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   }
   // #195: «покажи весь план», «сводка» — the overview of the plan.
   if (PLAN_OVERVIEW.test(text)) return [{ name: 'plan_overview', args: {} }];
-  // #211: «что не так и что сделать» — the plan check; `reviewCalls` adds the action.
-  if (PLAN_REVIEW.test(text)) {
-    return [{ name: 'validate_plan', args: {} }, { name: 'open_panel', args: { panel: 'validation' } }];
-  }
   // #150: no scenario fits — no calls; the answer says so and lists what the calculation can do.
   return [];
 }
