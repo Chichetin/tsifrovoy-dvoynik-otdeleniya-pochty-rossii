@@ -18,6 +18,7 @@ import type { PlanDocument, Ref } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { hideNamedIds, placementZonePath, renderExplanation } from '../../domain/advice';
 import { AgentChat } from './AgentChat';
+import { EditHints } from './EditHints';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
@@ -203,6 +204,8 @@ export function AssistantPanel({
   return (
     <section className="panel assistant" aria-label="Ассистент">
       <h2 className="panel__title">Ассистент</h2>
+
+      <EditHints names={names} onFocus={onFocus} onExplain={onAskAgent} />
 
       {onAskAgent === undefined || onAgentAction === undefined ? null : (
         <>
