@@ -86,14 +86,37 @@ export function rotateDelta(code: string, shift: boolean): number | null {
   return shift ? -ROTATION_SNAP_DEG : ROTATION_SNAP_DEG;
 }
 
-/** Набор, повёрнутый на `deltaDeg`; остальные поля не трогаются. */
-export function rotateObjects(objects: readonly Equipment[], deltaDeg: number): Equipment[] {
-  return objects.map((object) => ({
-    ...object,
+/** Центр рамки вокруг контуров набора — ось поворота группы (#207). */
+export function groupCenter(objects: readonly Equipment[]): Point {
+  const box = boundingBox(objects.flatMap((object) => footprint(object)));
+  return [(box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2];
+}
+
+/**
+ * Набор, повёрнутый на `deltaDeg` по часовой; остальные поля не трогаются.
+ * Один объект поворачивается на месте. Группа поворачивается целиком вокруг
+ * `pivot` (по умолчанию — `groupCenter`): каждый центр уходит по дуге, как
+ * у жёсткой фигуры (#207).
+ */
+export function rotateObjects(
+  objects: readonly Equipment[],
+  deltaDeg: number,
+  pivot: Point | null = objects.length > 1 ? groupCenter(objects) : null,
+): Equipment[] {
+  const angle = (deltaDeg * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return objects.map((object) => {
     // `|| 0` убирает «-0», как и в transform.ts: карточка не должна печатать
     // минус там, где угол на самом деле нулевой.
-    rotation_deg: normalizeAngle(object.rotation_deg + deltaDeg) || 0,
-  }));
+    const rotation_deg = normalizeAngle(object.rotation_deg + deltaDeg) || 0;
+    if (pivot === null) return { ...object, rotation_deg };
+    // Clockwise in a Y-up model: +Y turns toward +X, as rotation_deg does (D-010).
+    const dx = object.position[0] - pivot[0];
+    const dy = object.position[1] - pivot[1];
+    const position = snapPosition([pivot[0] + dx * cos + dy * sin, pivot[1] - dx * sin + dy * cos]);
+    return { ...object, position, rotation_deg };
+  });
 }
 
 /** Объекты — `eq_<n>`; правило выдачи одно на весь план (`nextFreeId`, D-198). */
