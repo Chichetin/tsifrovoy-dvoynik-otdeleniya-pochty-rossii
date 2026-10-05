@@ -466,6 +466,17 @@ describe('FileControls: восстановление поверх открыто
     expect(onReplace).toHaveBeenCalledTimes(1);
     expect((onReplace.mock.calls[0]?.[0] as PlanDocument).objects).toHaveLength(1);
   });
+
+  test('нетронутый стартовый план не спрашивает: зоны и объекты есть, но это не работа человека', () => {
+    const storage = fakeStorage(draftOf(empty, 'Пустой черновик'));
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { onReplace } = renderControls({ storage, document: filled, dirty: false, untouchedSample: true });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Восстановить' }));
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onReplace).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('FileControls: меню «Экспорт»', () => {
