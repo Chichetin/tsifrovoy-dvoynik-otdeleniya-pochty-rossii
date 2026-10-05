@@ -76,15 +76,13 @@ export function isHotkeysMapHotkey(event: HotkeyEvent): boolean {
 
 /** #182: действие «голой» клавиши редактора: инструмент панели, правка перегородки, ассистент. */
 export type EditorHotkey =
-  | { action: 'tool'; tool: 'select' | 'pan' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
+  | { action: 'tool'; tool: 'select' | 'measure' | 'room.draw' | 'zone.draw' | 'wall.draw' | 'opening.place' }
   | { action: 'wall-edit' }
   | { action: 'assistant' };
 
 const TOOL_BY_CODE: Record<string, Extract<EditorHotkey, { action: 'tool' }>['tool']> = {
   Digit1: 'select',
   KeyV: 'select',
-  Digit2: 'pan',
-  KeyH: 'pan',
   Digit3: 'measure',
   KeyM: 'measure',
   Digit4: 'room.draw',
@@ -96,7 +94,7 @@ const TOOL_BY_CODE: Record<string, Extract<EditorHotkey, { action: 'tool' }>['to
 };
 
 /**
- * Инструменты (1–7, V H M W O), E — правка перегородки, A — ассистент. По коду
+ * Инструменты (1, 3–7, V M W O), E — правка перегородки, A — ассистент. По коду
  * клавиши: русская раскладка работает так же. Любой модификатор (в том числе
  * Shift: Shift+7 на русской раскладке — это «?») оставляет нажатие другим.
  * Поле ввода и диалог клавишу не отдают.

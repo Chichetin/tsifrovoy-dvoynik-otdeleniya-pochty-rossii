@@ -23,26 +23,15 @@ import type { PlanToolsProps, ToolKind } from '../../contracts/ui';
 import { setNotice, useNotice } from './notice';
 
 /**
- * Первые три инструмента («Выбор», «Обзор», «Линейка») ничего не меняют в
+ * Первые два инструмента («Выбор», «Линейка») ничего не меняют в
  * плане — они меняют, что видно, что выделено и что измерено; остальные
  * создают геометрию плана. Разделитель между группами рисует стиль
  * (`toolbar__group-gap`), а не пустая кнопка — граница видна и без hover.
  */
-const VIEW_TOOL_COUNT = 3;
+const VIEW_TOOL_COUNT = 2;
 
 const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: string; hint: string; key: string }[] = [
-  { key: '1 или V', kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
-  {
-    key: '2 или H',
-    kind: 'pan',
-    // D-248: «Рука» не говорит, что произойдёт — инструмент двигает и
-    // масштабирует вид, а не хватает план рукой; «Обзор» короче
-    // «Панорамирования» и не путается с «Помещением» на слух.
-    label: 'Обзор',
-    hint:
-      'Двигать вид плана: средняя кнопка мыши или свайп двумя пальцами на тачпаде; ' +
-      'колесо и Ctrl+колесо — масштаб',
-  },
+  { key: '1 или V', kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; пробел + перетаскивание — двигать вид; Alt — без привязки' },
   {
     key: '3 или M',
     kind: 'measure',
@@ -141,8 +130,8 @@ function editingHint(selection: Ref | null): string | null {
 }
 
 /**
- * D-282: the handles of the selected shape answer «Выбор» and «Обзор» (the
- * geometry layer picks under both); a door just placed stays selected under
+ * D-282: the handles of the selected shape answer «Выбор» (the
+ * geometry layer picks under it); a door just placed stays selected under
  * «Проём» and is slid along its wall there before Enter finishes it (D-267).
  * Every other tool owns the click, so its hint, not this one, is what applies.
  */
@@ -192,7 +181,7 @@ export function PlanTools({
           >
             {tool.label}
           </button>
-          {/* Разрыв сегментированного вида между «Выбор/Обзор» и инструментами
+          {/* Разрыв сегментированного вида между «Выбор/Линейка» и инструментами
               создания: последние не относятся к сегменту с общей рамкой. */}
           {index === VIEW_TOOL_COUNT - 1 ? (
             <span className="toolbar__group-gap" aria-hidden="true" />
