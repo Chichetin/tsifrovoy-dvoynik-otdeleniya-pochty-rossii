@@ -373,7 +373,7 @@
       "parentId": "z_client",
       "layerId": "l_base",
       "attributes": {
-        "loadPercent": 70,
+        "loadPercent": 100,
         "queueLength": 7,
         "staffCount": 0
       }
