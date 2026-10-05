@@ -18,6 +18,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Circle, Group, Layer, Line, Stage } from 'react-konva';
 import { flushSync } from 'react-dom';
 import Konva from 'konva';
+import { PlanMinimap } from './PlanMinimap';
+import { ZONE_OVERVIEW_SCALE } from './ZoneOverviewLayer';
 import type { Point, Polygon, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
 import { boundingBox, modelToScreen, screenToModel } from '../../domain/geometry';
@@ -261,7 +263,11 @@ export function EditorCanvas({
     if (handledFocus.current === focus.sequence) return;
     handledFocus.current = focus.sequence;
 
-    const next = focusViewport(focusExtent, session.viewport, size);
+    const detail = session.viewport.scale < ZONE_OVERVIEW_SCALE &&
+      (focus.ref.kind === 'zone' || focus.ref.kind === 'object')
+      ? zoomAt(session.viewport, [size.width / 2, size.height / 2], ZONE_OVERVIEW_SCALE * 1.25 / session.viewport.scale)
+      : session.viewport;
+    const next = focusViewport(focusExtent, detail, size);
     if (next !== session.viewport) onViewport(next);
   }, [focus, focusExtent, onViewport, session.viewport, size]);
 
@@ -701,8 +707,9 @@ export function EditorCanvas({
           </Layer>
         </Stage>
       ) : null}
-      {/* Подпись и кнопки масштаба держатся вместе в одном углу: каждый угол,
-          занятый накладкой, — это угол помещения, куда не поставить объект. */}
+      {/* Подпись и кнопка держатся вместе в одном углу: каждый угол, занятый
+          накладкой, — это угол помещения, куда не поставить объект. */}
+      {size.width > 0 && size.height > 0 ? <PlanMinimap document={plan} viewport={session.viewport} size={size} onViewport={applyViewport} /> : null}
       {grid === null ? null : (
         <div className="editor-canvas__hud">
           <p

@@ -37,6 +37,7 @@ import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { ZoneOverviewLayer, ZONE_OVERVIEW_SCALE } from '../features/editor/ZoneOverviewLayer';
 import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
 import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
 import { placementGhost } from '../features/equipment/placement-ghost';
@@ -739,6 +740,13 @@ export function App(): React.JSX.Element {
   const health = useMemo(() => planHealth(issues), [issues]);
   const [healthRequest, setHealthRequest] = useState(0);
   const metrics = useMemo(() => measurePlan(document), [document]);
+  const zoneOverviewActive = viewport.scale < ZONE_OVERVIEW_SCALE;
+  const overviewDocument = useMemo(() => {
+    if (!zoneOverviewActive) return shownDocument;
+    const visibleLayers = new Set(shownDocument.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+    const summarized = new Set(shownDocument.zones.filter((zone) => visibleLayers.has(zone.layerId)).map((zone) => zone.id));
+    return { ...shownDocument, objects: shownDocument.objects.filter((object) => object.zoneId === null || !summarized.has(object.zoneId)) };
+  }, [shownDocument, zoneOverviewActive]);
 
   // D-249: the one live signal a tab keeps while its panel is hidden — how
   // many findings «Проверка» has, red when any of them is a real error (the
@@ -1273,7 +1281,10 @@ export function App(): React.JSX.Element {
               {/* После оборудования — иначе объект, вставший на подпись, закрывает
                   название зоны целиком; полупрозрачность не даёт подписи закрыть
                   сам объект. */}
-              <ZoneNameLayer document={shownDocument} viewport={viewport} />
+              {zoneOverviewActive
+                ? <ZoneOverviewLayer document={document} viewport={viewport} issues={issues} metrics={metrics}
+                    onFocus={tool.kind === 'select' || tool.kind === 'pan' ? focusOn : undefined} />
+                : <ZoneNameLayer document={shownDocument} viewport={viewport} />}
               {/* Правка формы объекта (D-279) — над оборудованием: её ручки
                   должны перехватывать жест раньше переноса и размера объекта. */}
               <ObjectShapeLayer
@@ -1284,7 +1295,7 @@ export function App(): React.JSX.Element {
                 reshapeFor={reshapeFor}
                 onReshapeRequest={reshapeObject}
               />
-              <InformationLayer document={document} session={session} />
+              {zoneOverviewActive ? null : <InformationLayer document={document} session={session} />}
               {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
                   откажет, причина рядом (#26). Над объектами, под линейкой. */}
               <PlacementGhostLayer active={tool.kind === 'object.place'} viewport={viewport} />
@@ -1298,7 +1309,7 @@ export function App(): React.JSX.Element {
               {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                   тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
               <IssueLayer
-                issues={issues}
+                issues={zoneOverviewActive ? [] : issues}
                 focus={selection}
                 viewport={viewport}
                 // Маркер ловит клик только в «Выбор»/«Обзор»: во время рисования
@@ -1323,7 +1334,7 @@ export function App(): React.JSX.Element {
               <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             </Layer>
             <EquipmentLayer
-              document={shownDocument}
+              document={overviewDocument}
               session={session}
               issues={issues}
               onCommand={dispatch}
