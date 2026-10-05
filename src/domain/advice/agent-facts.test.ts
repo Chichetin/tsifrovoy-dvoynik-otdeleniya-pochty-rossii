@@ -127,7 +127,7 @@ describe('факты чата связаны с метрикой и предме
     expect(shared[0]!.id).not.toBe(shared[1]!.id);
     expect(shared[0]!.value).not.toBe(shared[1]!.value);
     for (const fact of shared) {
-      expect(renderAgentFact(fact)).toContain('до середины ограничивающего прямоугольника');
+      expect(renderAgentFact(fact)).toContain('Расстояние от варианта до центра зоны');
       const rendered = renderAgentFactSelection({ factIds: [fact.id] }, facts, state);
       expect(rendered.ok).toBe(true);
       if (rendered.ok) expect(rendered.text).toContain(fact.scope);
