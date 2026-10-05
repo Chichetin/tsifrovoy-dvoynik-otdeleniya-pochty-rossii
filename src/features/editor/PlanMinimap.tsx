@@ -25,14 +25,14 @@ export function PlanMinimap({ document: plan, viewport, size, onViewport }: {
     const screen = modelToScreen(point, viewport);
     onViewport(panBy(viewport, [size.width/2-screen[0], size.height/2-screen[1]]));
   };
-  return <div className="editor-canvas__minimap" style={{ position: 'absolute', left: 12, bottom: 48, zIndex: 2 }}>
+  return <div className="editor-canvas__minimap" style={{ position: 'absolute', left: 12, bottom: 48, zIndex: 2, pointerEvents: 'none' }}>
     <button type="button" aria-expanded={visible} aria-controls="plan-minimap" onClick={() => setVisible(!visible)}
-      style={{ background: '#FFF', border: '1px solid #ADB5BD', borderRadius: 4, padding: '4px 8px' }}>
+      style={{ background: '#FFF', border: '1px solid #ADB5BD', borderRadius: 4, padding: '4px 8px', pointerEvents: 'auto' }}>
       {visible ? 'Скрыть мини-карту' : 'Мини-карта'}
     </button>
     {visible ? <svg id="plan-minimap" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} width={WIDTH} height={HEIGHT}
       role="application" aria-label="Мини-карта плана. Клик или перетаскивание — перейти; стрелки — двигать вид" tabIndex={0}
-      style={{ display: 'block', background: '#FFF', border: '1px solid #ADB5BD', borderRadius: 4, touchAction: 'none', cursor: 'crosshair' }}
+      style={{ display: 'block', pointerEvents: 'auto', background: '#FFF', border: '1px solid #ADB5BD', borderRadius: 4, touchAction: 'none', cursor: 'crosshair' }}
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.preventDefault(); event.currentTarget.focus(); event.currentTarget.setPointerCapture(event.pointerId); moveTo(event);

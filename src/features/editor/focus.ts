@@ -141,5 +141,5 @@ export function focusViewport(
     (box.maxX - box.minX) * viewport.scale <= usableWidth &&
     (box.maxY - box.minY) * viewport.scale <= usableHeight;
 
-  return fitsAsIs ? centreOn(extent, viewport.scale, canvas) : fitToExtent(extent, canvas, margin);
+  return fitsAsIs ? centreOn(extent, viewport.scale, canvas) : fitToExtent(extent, canvas, margin, 0);
 }

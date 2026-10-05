@@ -10,6 +10,7 @@ import { describe, expect, test } from 'vitest';
 import type { Point, Polygon, Viewport } from '../../contracts/model';
 import { modelToScreen, screenToModel } from '../../domain/geometry';
 import {
+  OVERLAY_RESERVE_PX,
   SCALE_LIMITS,
   clampScale,
   fitToExtent,
@@ -115,9 +116,23 @@ describe('вписывание плана', () => {
     }
   });
 
-  test('план оказывается по центру холста', () => {
+  test('план оказывается по центру холста над полосой мини-карты', () => {
     const viewport = fitToExtent(room, canvas);
-    closeTo(modelToScreen([10.4 / 2, 7.5 / 2], viewport), [canvas.width / 2, canvas.height / 2], 6);
+    closeTo(
+      modelToScreen([10.4 / 2, 7.5 / 2], viewport),
+      [canvas.width / 2, (canvas.height - OVERLAY_RESERVE_PX) / 2],
+      6,
+    );
+    closeTo(modelToScreen([10.4 / 2, 7.5 / 2], fitToExtent(room, canvas, 32, 0)), [canvas.width / 2, canvas.height / 2], 6);
+  });
+
+  test('#233: вписанный план не заходит под мини-карту и кнопку ассистента', () => {
+    for (const size of [canvas, { width: 664, height: 671 }, { width: 1200, height: 400 }]) {
+      const viewport = fitToExtent(room, size);
+      for (const point of room) {
+        expect(modelToScreen(point, viewport)[1]).toBeLessThanOrEqual(size.height - Math.min(OVERLAY_RESERVE_PX, size.height / 3) + 1e-6);
+      }
+    }
   });
 
   test('узкий холст вписывает по стеснённой стороне', () => {
