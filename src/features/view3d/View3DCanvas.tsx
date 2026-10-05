@@ -62,6 +62,7 @@ import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
 import { EYE_HEIGHT_M, visitorStep, type VisitorResult } from './visitor';
 import { isSelected, type Scene, type SceneLabel, type SceneModel, type ScenePrism } from './scene';
+import './viewpoint-tools.css';
 
 type Props = { scene: Scene; visitor: VisitorResult; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
 
@@ -408,24 +409,40 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
         style={lost ? { display: 'none' } : undefined}
       />
       {lost ? null : (
-        <div className="view3d__tools">
-          {visitorMode ? <p role="status">WASD или стрелки — ходить; Shift — быстрее; перетаскивание мышью — смотреть; F — вернуться к обзору.</p> : null}
-          <button
-            type="button"
-            className="files__button"
-            onClick={enterVisitor}
-            disabled={!('pose' in visitor)}
-            aria-pressed={visitorMode}
-            title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
-          >
-            Глазами посетителя
-          </button>
-          <button type="button" className="files__button" onClick={leaveVisitor} disabled={!visitorMode}>
-            Обзор
-          </button>
-          <button type="button" className="files__button" onClick={savePicture}>
+        <div className="view3d__tools view3d__tools--grouped">
+          <fieldset className="view3d__viewpoints" onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+            const index = buttons.indexOf(event.target as HTMLButtonElement);
+            if (index < 0) return;
+            event.preventDefault(); event.stopPropagation();
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 :
+              (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+            buttons[next]?.focus();
+          }}>
+            <legend>Точка зрения</legend>
+            <div className="view3d__viewpoint-buttons">
+              <button type="button" className="files__button" onClick={() => { if (visitorMode) leaveVisitor(); }}
+                aria-pressed={!visitorMode} title="Посмотреть на весь план со стороны">
+                Обзор
+              </button>
+              <button
+                type="button"
+                className="files__button"
+                onClick={() => { if (!visitorMode) enterVisitor(); }}
+                disabled={!('pose' in visitor)}
+                aria-pressed={visitorMode}
+                aria-description={'pose' in visitor ? undefined : visitor.reason}
+                title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
+              >
+                Глазами посетителя
+              </button>
+            </div>
+          </fieldset>
+          <button type="button" className="files__button view3d__download" onClick={savePicture}>
             Скачать картинку 3D
           </button>
+          {visitorMode ? <p className="view3d__walk-help" role="status">Нажмите на сцену. WASD или стрелки — ходить; Shift — быстрее; перетаскивание мышью — смотреть; F — вернуться к обзору.</p> : null}
           {saveError === null ? null : (
             <p className="view3d__status" role="alert" data-testid="view3d-save-error">
               {saveError}
