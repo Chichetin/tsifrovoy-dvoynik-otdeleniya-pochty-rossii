@@ -11,7 +11,7 @@
  *
  * Fitting is a view decision too, so it lives here, next to the only place that
  * knows the size of the canvas in pixels: a replaced document opens fitted, and
- * after that the view belongs to the user until they ask for «Вписать».
+ * after that the view belongs to the user until they press F.
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
@@ -148,7 +148,7 @@ export function EditorCanvas({
   }, []);
 
   /**
-   * Вписать весь план: помещение вместе с тем, что вынесено за его стены.
+   * Показать весь план (клавиша F): помещение вместе с тем, что вынесено за его стены.
    * По границе помещения вписывать нельзя — объект, о котором как раз кричит
    * проверка, остался бы за кадром.
    */
@@ -547,8 +547,8 @@ export function EditorCanvas({
           </Layer>
         </Stage>
       ) : null}
-      {/* Подпись и кнопка держатся вместе в одном углу: каждый угол, занятый
-          накладкой, — это угол помещения, куда не поставить объект. */}
+      {/* Подпись и кнопки масштаба держатся вместе в одном углу: каждый угол,
+          занятый накладкой, — это угол помещения, куда не поставить объект. */}
       {grid === null ? null : (
         <div className="editor-canvas__hud">
           <p
@@ -577,15 +577,6 @@ export function EditorCanvas({
             onClick={() => zoomStep(ZOOM_STEP)}
           >
             +
-          </button>
-          <button
-            type="button"
-            className="editor-canvas__fit"
-            data-testid="canvas-fit"
-            title="Показать план целиком (клавиша F)"
-            onClick={fitPlan}
-          >
-            Вписать
           </button>
         </div>
       )}

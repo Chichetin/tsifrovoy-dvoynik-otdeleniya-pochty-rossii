@@ -97,7 +97,7 @@ async function panAway(page: Page): Promise<void> {
 }
 
 test.describe('холст показывает то, о чём спрашивают', () => {
-  test('открытый план виден целиком, «Вписать» возвращает его после зума', async ({ page }) => {
+  test('открытый план виден целиком, клавиша F возвращает его после зума', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
@@ -116,12 +116,12 @@ test.describe('холст показывает то, о чём спрашива�
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
     const zoomed = await scale(page);
 
-    // Кнопка возвращает весь план…
-    await page.getByTestId('canvas-fit').click();
+    // Клавиша F возвращает весь план…
+    await page.keyboard.press('KeyF');
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(true);
     expect(await scale(page)).toBeLessThan(zoomed);
 
-    // …и то же делает клавиша F.
+    // …и повторно после нового зума.
     await page.mouse.move((box?.x ?? 0) + 200, (box?.y ?? 0) + 200);
     for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, -240);
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
@@ -156,16 +156,16 @@ test.describe('холст показывает то, о чём спрашива�
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(true);
 
     // Накладки собраны в правый нижний угол, левый принадлежит плану: раньше
-    // кнопка «Вписать» перехватывала здесь клики, и объект было не поставить.
+    // накладка в левом углу перехватывала здесь клики, и объект было не поставить.
     const corner = await page.evaluate(
       ([cx, cy]) => document.elementFromPoint(cx as number, cy as number)?.closest('[data-testid]')?.getAttribute('data-testid') ?? null,
       [x + 20, y + height - 20],
     );
     expect(corner).toBe('editor-canvas');
 
-    const fit = await page.getByTestId('canvas-fit').boundingBox();
-    expect(fit).not.toBeNull();
-    expect((fit as { x: number }).x).toBeGreaterThan(x + width / 2);
+    const zoomIn = await page.getByTestId('canvas-zoom-in').boundingBox();
+    expect(zoomIn).not.toBeNull();
+    expect((zoomIn as { x: number }).x).toBeGreaterThan(x + width / 2);
 
     expect(errors).toEqual([]);
   });
@@ -200,7 +200,7 @@ test.describe('холст показывает то, о чём спрашива�
     await page.keyboard.up('Control');
     await expect.poll(() => scale(page)).toBeGreaterThan(beforeCtrlWheel);
 
-    await page.getByTestId('canvas-fit').click();
+    await page.keyboard.press('KeyF');
     const beforeMiddleDrag = await target.getAttribute('data-visible');
     const middleScale = await scale(page);
     await page.mouse.move(centre.x, centre.y);
@@ -268,8 +268,8 @@ test.describe('холст показывает то, о чём спрашива�
     await expect(canvas(page)).toHaveAttribute('data-focus', `object:${id}`);
     expect(await scale(page)).toBe(settled);
 
-    // «Вписать» после всего этого возвращает и помещение, и уехавший объект.
-    await page.getByTestId('canvas-fit').click();
+    // Клавиша F после всего этого возвращает и помещение, и уехавший объект.
+    await page.keyboard.press('KeyF');
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(true);
     expect(await sees(page, OUTSIDE.x, OUTSIDE.y)).toBe(true);
 
