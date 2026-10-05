@@ -45,7 +45,7 @@ import { duplicateObjects, rotateObjects } from '../features/equipment/selection
 import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
-import { historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
+import { editorHotkey, historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
@@ -762,6 +762,32 @@ export function App(): React.JSX.Element {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [document, objectMenu, openObjectMenu, selection, view, viewport]);
+
+  // #182: bare keys for the toolbar tools, «Изменить перегородку» and the assistant.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const hotkey = editorHotkey(event);
+      if (hotkey === null || event.repeat || objectMenu !== null || view !== '2d') return;
+      if (window.document.querySelector('[aria-modal="true"]') !== null) return;
+      if (hotkey.action === 'tool') {
+        event.preventDefault();
+        setTool({ kind: hotkey.tool });
+      } else if (hotkey.action === 'wall-edit') {
+        if (selectedWallId === null) return;
+        event.preventDefault();
+        changeWallEdit(wallEdit === null);
+      } else {
+        event.preventDefault();
+        showRightTab('assistant');
+        // The panel may mount after this render: focus the question field once it is there.
+        window.setTimeout(() => window.document.querySelector<HTMLElement>('textarea[name="agent-question"]')?.focus(), 50);
+        const [question] = selectionQuestions(document, selection);
+        if (question !== undefined) askAgent(question);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [askAgent, changeWallEdit, document, objectMenu, selectedWallId, selection, showRightTab, view, wallEdit]);
 
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {

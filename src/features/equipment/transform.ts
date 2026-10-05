@@ -22,6 +22,9 @@ export const MIN_SIZE_M = 0.1;
 /** Shift snaps the angle to multiples of this. */
 export const ROTATION_SNAP_DEG = 15;
 
+/** `[` and `]` turn the selected object by this small step. */
+export const ROTATION_FINE_STEP_DEG = 1;
+
 /** Without Shift, a handle angle this close to 0/90/180/270° lands exactly on the axis. */
 export const AXIS_SNAP_DEG = 4;
 
