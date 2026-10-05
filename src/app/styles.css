@@ -1281,6 +1281,10 @@ body {
   min-height: 0;
 }
 
+.side-tabs[hidden] {
+  display: none;
+}
+
 .side-tabs__list {
   display: grid;
   flex: none;
@@ -1402,6 +1406,12 @@ body {
   border-left-width: 4px;
   border-radius: var(--radius-m);
   background: var(--color-surface);
+}
+
+.shell__props--alone {
+  /* #222: the card is the column's only content. */
+  flex: 1 1 auto;
+  max-height: none;
 }
 
 .shell__props-band {
