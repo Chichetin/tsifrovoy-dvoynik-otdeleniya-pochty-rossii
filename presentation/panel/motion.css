@@ -1,0 +1,6 @@
+/* Variant C motion: one pale scan line (linear, constant) and a soft pulse of the progress square. Transform and opacity only. */
+.bg::after{animation:scan 11s linear infinite}
+@keyframes scan{from{transform:translateY(-240px)}to{transform:translateY(1320px)}}
+#rail i.on:last-of-type{animation:none}
+@media (prefers-reduced-motion:reduce){.bg::after{animation:none;opacity:0}}
+.static .bg::after{animation:none;opacity:0}
