@@ -343,6 +343,158 @@ export const verifyExplanation: VerifyExplanation = (input, recommendations) => 
   return { ok: true, value: verified };
 };
 
+/** #178: codes of the free-text «почему сюда» check. */
+export const WHY_ISSUE_CODES = {
+  /** The text compares variants, but the calculation offered none. */
+  NO_VARIANTS: 'WHY_NO_VARIANTS',
+  /** An id-shaped token that is not a zone, object, type, rule or layer of the plan. */
+  UNKNOWN_ID: 'WHY_UNKNOWN_ID',
+  /** A number that no calculated value rounds to. */
+  UNKNOWN_NUMBER: 'WHY_UNKNOWN_NUMBER',
+  /** «Вариант N» outside the variants the calculation offered. */
+  UNKNOWN_VARIANT: 'WHY_UNKNOWN_VARIANT',
+  /** «в 2 раза», «вдвое», «три»: a ratio or a number in words, which no check can match. */
+  WORD_NUMBER: 'WHY_WORD_NUMBER',
+  /** A catalog rule called a norm. */
+  RULE_AS_NORM: 'WHY_RULE_AS_NORM',
+  /** A rule mentioned without whose rule it is. */
+  RULE_SOURCE_MISSING: 'WHY_RULE_SOURCE_MISSING',
+} as const;
+
+export type WhyUnit = 'm' | 'm2' | 'percent' | 'count';
+/** A value the calculation gave the model, with the unit it is in. */
+export type WhyNumber = { value: number; unit: WhyUnit };
+
+/** What a «почему сюда» text may name: everything here was produced by code or is in the plan. */
+export type WhyScope = {
+  /** Zone, object, type, rule and layer ids of the plan. */
+  ids: ReadonlySet<Id>;
+  /** Rule ids among `ids`: naming one is naming a rule. */
+  rules: ReadonlySet<Id>;
+  /** Zones and objects: in «name» (id) the chat shows the plan's name instead (D-320). */
+  shown: ReadonlySet<Id>;
+  /** Plan names by id: digits inside «Окно 2» are a name, not a number. */
+  names: ReadonlyMap<Id, string>;
+  /** Every value the calculation gave the model. */
+  numbers: readonly WhyNumber[];
+  /** «Вариант N» is valid for 1 ≤ N ≤ variants. */
+  variants: number;
+};
+
+const ID_TOKEN = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi;
+const QUOTED = /«([^«»]{1,120})»/g;
+const ID_AFTER = new RegExp(`^\\s*\\((${ID_TOKEN.source})\\)`, 'i');
+/** A variant number is whole; lists only with «и», «или», a range only as «1–3» without spaces. */
+const VARIANT_NUMBER = String.raw`\d+(?!\d|[.,]\d)`;
+const VARIANT_NUMBERS = new RegExp(String.raw`вариант[а-яё]*\s+(?:№\s*)?(${VARIANT_NUMBER}(?:(?:\s+(?:и|или)\s+|[–-])${VARIANT_NUMBER})*)`, 'gi');
+/** «в 2 раза», «вдвое», «треть», «три»: a ratio or a number in words is the model's own sum. */
+const WORD_NUMBER = new RegExp(String.raw`(?<![а-я])(?:раза?|в(?:дво|тро|четвер|пятер)[еоа]|\S*кратн\S*|\S*половин\S*|трет(?:ь|и|ью|ей)|` +
+  String.raw`нол(?:ь|я|ем)|нул(?:ь|я|ем)|од(?:ин|на|но|ного|ной|ному|ним|ну|ном)|дв(?:а|е|ух|ум|умя)|тр(?:и|ех|ем|емя)|четыр(?:е|ех|ем|ьмя)|` +
+  String.raw`(?:пят|шест|сем|восем|девят|десят)(?:ь|и|ью)|восьм(?:и|ью)|\S+надцат(?:ь|и|ью)|(?:двадцат|тридцат)(?:ь|и|ью)|сорок|` +
+  String.raw`\S+десят|девяност[оа]|сто|двест[иа]|трист[аео]|тысяч\S*|полтор(?:а|ы|ум))(?![а-я])`, 'i');
+const VARIANT_ORDINALS = /(перв|втор|трет|четв[её]рт|пят)[а-яё]*\s+вариант/gi;
+const ORDINALS: Record<string, number> = { перв: 1, втор: 2, трет: 3, четвёрт: 4, четверт: 4, пят: 5 };
+/** A decimal comma or point; thousands only by the non-breaking spaces `formatNumber` writes. */
+const NUMBER = /\d+(?:[\u00A0\u202F]\d{3})*(?:[.,]\d+)?/g;
+const NORM_CLAIM = /(?<!не\s)норматив/i;
+const RULE_WORD = /(?<![а-яё])правил(?:о|а|у|ом|е|ам|ами|ах)?(?![а-яё])/i;
+const RULE_SOURCE = /правил[а-яё]*\s+команды|организатор/i;
+/** The unit written right after a number; m² before m. No unit — any value may match. */
+const UNITS: [RegExp, WhyUnit][] = [
+  [/^\s*(?:м²|м2|кв\.\s*м)/i, 'm2'],
+  [/^\s*м(?:етр[а-яё]*)?(?![а-яё])/i, 'm'],
+  [/^\s*(?:%|п\.\s*п\.|процент)/i, 'percent'],
+  [/^\s*шт/i, 'count'],
+];
+
+/**
+ * A number in the text matches a value if the value rounds to it at the
+ * text's own precision: «12,3» stands for 12,34. A whole number stands only
+ * for a whole value — «5» for 4,57 is a guess, not a rounding. A unit after
+ * the number narrows the values to that unit: «5 м» is not five objects. The
+ * sign is the sentence's business («выросла на», «−0,5»), the size is the code's.
+ */
+function matchesValue(token: string, unit: WhyUnit | null, values: readonly WhyNumber[]): boolean {
+  const normal = token.replace(/[\u00A0\u202F]/g, '').replace(',', '.');
+  const number = Number(normal);
+  const decimals = normal.includes('.') ? normal.length - normal.indexOf('.') - 1 : 0;
+  const tolerance = 0.5 * 10 ** -decimals + 1e-9;
+  return values.some((entry) =>
+    (unit === null || entry.unit === unit) &&
+    (decimals > 0 || Math.abs(entry.value - Math.round(entry.value)) < 0.005) &&
+    Math.abs(Math.abs(entry.value) - number) <= tolerance);
+}
+
+/**
+ * #178: the model's own words about why one variant beats another. The model
+ * may write the sentence, but not a fact: every id must exist in the plan,
+ * every number must be a value the calculation produced (at the precision
+ * written), every «вариант N» must have been offered, and a catalog rule is
+ * the team's rule or the organizers', never a norm of the Post. Any miss
+ * refuses the whole text — the person then reads the calculation «без LLM».
+ */
+export function verifyWhyText(text: string, scope: WhyScope): Result<string> {
+  // One paragraph: the chat splits answers on blank lines.
+  const clean = text.replace(/\s*\n\s*/g, ' ').trim();
+  const issues: Issue[] = [];
+  if (scope.variants === 0) {
+    issues.push(issue(WHY_ISSUE_CODES.NO_VARIANTS, 'Обоснование сравнивает варианты, а расчёт вариантов места не давал.'));
+  }
+
+  const ids = [...clean.matchAll(ID_TOKEN)].map((match) => match[0]);
+  for (const id of new Set(ids)) {
+    if (!scope.ids.has(id)) issues.push(issue(WHY_ISSUE_CODES.UNKNOWN_ID, `Обоснование называет «${id}», а в плане такого id нет.`));
+  }
+
+  // Digits of an id or of a plan name are not numbers. Before a zone or object
+  // id the chat shows the plan's name instead of the quoted text (D-320); before
+  // a rule, type or layer id the quoted text stays on screen, so it is checked.
+  const names = new Set(scope.names.values());
+  let rest = clean
+    .replace(QUOTED, (whole, name: string, offset: number, all: string) => {
+      const id = ID_AFTER.exec(all.slice(offset + whole.length))?.[1];
+      const known = id === undefined ? names.has(name.trim()) : scope.shown.has(id) || scope.names.get(id) === name.trim();
+      return known ? ' ' : whole;
+    })
+    .replace(ID_TOKEN, ' ');
+
+  const variants: number[] = [];
+  rest = rest.replace(VARIANT_NUMBERS, (_whole, list: string) => {
+    variants.push(...(list.match(/\d+/g) ?? []).map(Number));
+    return ' ';
+  });
+  for (const match of rest.matchAll(VARIANT_ORDINALS)) {
+    variants.push(ORDINALS[match[1]!.toLowerCase()] ?? 0);
+  }
+  for (const variant of new Set(variants)) {
+    if (variant < 1 || variant > scope.variants) {
+      issues.push(issue(WHY_ISSUE_CODES.UNKNOWN_VARIANT, `Обоснование называет вариант ${variant}, а расчёт дал вариантов: ${scope.variants}.`));
+    }
+  }
+
+  const unknown = new Set<string>();
+  for (const match of rest.matchAll(NUMBER)) {
+    const after = rest.slice(match.index + match[0].length);
+    const unit = UNITS.find(([pattern]) => pattern.test(after));
+    if (!matchesValue(match[0], unit?.[1] ?? null, scope.numbers)) unknown.add(`${match[0]}${unit === undefined ? '' : ` ${unit[0].exec(after)![0].trim()}`}`);
+  }
+  for (const token of unknown) issues.push(issue(WHY_ISSUE_CODES.UNKNOWN_NUMBER, `Числа ${token} нет в расчёте.`));
+  const word = WORD_NUMBER.exec(rest.toLowerCase().replaceAll('ё', 'е'))?.[0];
+  if (word !== undefined) {
+    issues.push(issue(WHY_ISSUE_CODES.WORD_NUMBER, `Обоснование пишет число или отношение словами («${word}»): числа — только цифрами из расчёта, отношения код не считал.`));
+  }
+
+  if (NORM_CLAIM.test(clean)) {
+    issues.push(issue(WHY_ISSUE_CODES.RULE_AS_NORM, 'Обоснование называет правило нормативом: правила справочника — правила команды, не норматив Почты.'));
+  }
+  const rule = ids.some((id) => scope.rules.has(id)) || RULE_WORD.test(clean);
+  if (rule && !RULE_SOURCE.test(clean)) {
+    issues.push(issue(WHY_ISSUE_CODES.RULE_SOURCE_MISSING, 'Обоснование упоминает правило, но не говорит, что это правило команды, не норматив Почты.'));
+  }
+
+  return issues.length > 0 ? { ok: false, issues } : { ok: true, value: clean };
+}
+
 /**
  * #69: the advice answer without a model — the calculation explains itself
  * with the same codes, facts and check. One function for the server (provider
