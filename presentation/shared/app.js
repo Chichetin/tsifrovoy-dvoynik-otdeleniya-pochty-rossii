@@ -30,6 +30,7 @@
   let step = 0;
   let back = { id: main[0].id, step: 0 };
   let startedAt = 0;
+  let entered = false;
 
   const maxStep = (slide) => Math.max(0, ...[...slide.querySelectorAll('[data-step]')].map((el) => Number(el.dataset.step)));
 
@@ -84,7 +85,8 @@
     step = Math.max(0, Math.min(wantedStep, maxStep(target)));
     if (!startedAt && target !== main[0]) startedAt = Date.now();
     render();
-    if (target !== previous) motion?.enter(target, previous, dir);
+    if (target !== previous || !entered) motion?.enter(target, target === previous ? null : previous, dir);
+    entered = true;
     if (step) motion?.step(target, step, 0);
   }
 

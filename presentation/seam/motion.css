@@ -1,0 +1,21 @@
+/* Variant A motion: ambient glow, the seam that slides between slides, and the finding pulse.
+   Only transform and opacity move. */
+.seam{transform:translateX(var(--seam,960px));transition:transform .52s var(--ease-io)}
+.bg::before{animation:drift 26s var(--ease-io) infinite alternate}
+@keyframes drift{from{transform:translate3d(-3%,-2%,0)}to{transform:translate3d(4%,3%,0)}}
+.s-effect .term{transition:transform .9s var(--ease-io)}
+.s-effect .dim{transition:transform .9s var(--ease-io)}
+.s-effect .trigger.on ~ .dimension .term{transform:translateX(655.5px)}
+.s-effect .trigger.on ~ .dimension .dim{transform:scaleX(.34)}
+.s-ai .node.gate{transition:box-shadow .4s var(--ease-out),border-color .4s var(--ease-out)}
+.s-ai .node.gate.on{box-shadow:0 0 0 2px var(--accent),0 0 48px var(--glow)}
+.s-chain .link-card{transition:opacity .32s var(--ease-out),transform .32s var(--ease-out),visibility 0s}
+.s-chain .link-card.done{opacity:.62}
+.q.done,.col.done{opacity:.72}
+@media (prefers-reduced-motion:reduce){
+  .bg::before{animation:none}
+  .seam{transition:none}
+  .s-effect .term,.s-effect .dim{transition:none}
+}
+.static .bg::before{animation:none}
+.static .s-effect .term,.static .s-effect .dim{transition:none}

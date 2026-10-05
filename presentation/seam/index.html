@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Цифровой двойник ОПС — защита</title>
+  <link rel="stylesheet" href="../shared/base.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="motion.css">
+  <script src="../shared/slides.js" defer></script>
+  <script src="../shared/motion-core.js" defer></script>
+  <script src="motion.js" defer></script>
+  <script src="../shared/app.js" defer></script>
+</head>
+<body data-variant="seam">
+  <div class="deck-viewport">
+    <main class="deck-stage" id="stage" data-seconds="420" aria-label="Презентация: цифровой двойник ОПС">
+      <div class="bg" aria-hidden="true"></div>
+      <div class="seam" aria-hidden="true"></div>
+      <header class="chrome">
+        <img class="logo" src="../assets/brand/pochtatech.png" alt="Почтатех">
+        <img class="seal" src="../assets/brand/innopolis.png" alt="Университет Иннополис">
+        <span class="chrome-title">Цифровой двойник ОПС · ИИ-бланки</span>
+      </header>
+      <!-- slides are inserted here by ../shared/slides.js -->
+      <footer class="chrome-foot">
+        <span id="timer" aria-label="Таймер">07:00</span>
+        <div id="rail" aria-hidden="true"></div>
+        <span id="counter" aria-live="off"></span>
+      </footer>
+    </main>
+    <div id="notes" role="note"></div>
+  </div>
+  <div id="announce" class="sr-only" role="status"></div>
+  <noscript>Для показа слайдов включите JavaScript.</noscript>
+</body>
+</html>

@@ -1,0 +1,51 @@
+/* Shared base: fixed 1920×1080 stage (frontend-slides viewport rules) and the classes the motion code relies on.
+   Variants add design in styles.css and motion in motion.css. */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--stage-bg,#000)}
+.deck-viewport{position:fixed;inset:0;overflow:hidden;background:var(--stage-bg,#000)}
+.deck-stage{position:absolute;left:0;top:0;width:1920px;height:1080px;overflow:hidden;transform-origin:0 0;background:var(--bg)}
+.slide{position:absolute;inset:0;width:1920px;height:1080px;overflow:hidden;visibility:hidden;opacity:0;pointer-events:none}
+.slide.active{visibility:visible;opacity:1;pointer-events:auto;z-index:2}
+.slide.leaving{visibility:visible;opacity:1;z-index:1}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.speaker-note{display:none}
+img,svg{max-width:none;display:block}
+
+/* steps: app.js sets .on; CSS transitions do the fade */
+[data-step]{opacity:0;visibility:hidden;transform:translateY(16px);transition:opacity .32s var(--ease-out),transform .32s var(--ease-out),visibility 0s .32s}
+[data-step].on{opacity:1;visibility:visible;transform:none;transition:opacity .32s var(--ease-out),transform .32s var(--ease-out),visibility 0s}
+/* mask lines: text slides up from behind its own line box */
+.ln{display:block;overflow:hidden;padding-bottom:.1em;margin-bottom:-.1em}
+.ln>span{display:block}
+/* SVG strokes: pathLength is 1, so one dash covers the whole stroke */
+[data-draw]{stroke-dasharray:1;stroke-dashoffset:1}
+[data-draw].drawn{stroke-dashoffset:0;transition:stroke-dashoffset var(--draw-ms,800ms) var(--ease-out) var(--draw-delay,0ms)}
+[data-ping],[data-packet]{opacity:0;transform-box:fill-box;transform-origin:center}
+/* connector layer built by motion-core */
+[data-links]{position:relative}
+.links{position:absolute;left:0;top:0;overflow:visible;pointer-events:none}
+.links .link{fill:none}
+/* plan art */
+.twin .bx{opacity:0;transform:translateY(14px);transition:opacity .4s var(--ease-out) calc(300ms + var(--i) * 50ms),transform .5s var(--ease-out) calc(300ms + var(--i) * 50ms)}
+.twin.on .bx{opacity:1;transform:none}
+.twin .v2d,.twin .v3d{transform-box:view-box}
+
+/* static copy for export or print: every step visible, nothing moves */
+.static [data-step],.static [data-step].on{opacity:1;visibility:visible;transform:none;transition:none}
+.static [data-draw]{stroke-dashoffset:0}
+.static .twin .bx{opacity:1;transform:none;transition:none}
+@media print{
+  html,body{width:1920px;height:auto;overflow:visible}
+  .deck-viewport{position:static;overflow:visible}
+  .deck-stage{position:static;width:auto;height:auto;transform:none!important;overflow:visible}
+  .slide{position:relative;visibility:visible!important;opacity:1!important;break-after:page}
+  [data-step]{opacity:1!important;visibility:visible!important;transform:none!important}
+  [data-draw]{stroke-dashoffset:0!important}
+  .twin .bx{opacity:1!important;transform:none!important}
+}
+/* reduced motion: keep fades, drop movement */
+@media (prefers-reduced-motion:reduce){
+  [data-step],[data-step].on{transform:none;transition:opacity .2s linear,visibility 0s}
+  [data-draw].drawn{transition:none}
+  .twin .bx{transform:none;transition:opacity .2s linear}
+}
