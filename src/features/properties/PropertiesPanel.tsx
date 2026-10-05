@@ -111,7 +111,13 @@ export function PropertiesPanel({
   session,
   onCommand,
   gesturePreview,
-}: PropertiesPanelProps): React.JSX.Element {
+  wallEditing = false,
+  onWallEditingChange,
+}: PropertiesPanelProps & {
+  /** #167: the «Изменить перегородку» switch; without a handler it is not shown. */
+  wallEditing?: boolean;
+  onWallEditingChange?: (on: boolean) => void;
+}): React.JSX.Element {
   const [errors, setErrors] = useState<Errors>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
   const liveGesture = useSyncExternalStore(
@@ -434,18 +440,15 @@ export function PropertiesPanel({
             onChange={(event) => {
               // Смена типа переименовывает зону в название типа — одной
               // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
-              // связи нет: правка имени тип не трогает. Переименовываем только
-              // типовое имя (пустое, подпись прежнего типа, «Зона N» новой
-              // зоны); введённое руками сохраняется (D-265).
+              // связи нет: правка имени тип не трогает. Ручное название тоже
+              // заменяется (D-265).
               const typeId = event.target.value;
               const renamed = findZoneType(plan.catalog, typeId);
-              const current = zone.name.trim();
-              const generic = current === '' || current === type?.label || /^Зона \d+$/.test(current);
               setDraft((draft) => without(draft, 'name'));
               commit('typeId', {
                 ...zone,
                 typeId,
-                name: renamed !== null && generic ? renamed.label : zone.name,
+                name: renamed === null ? zone.name : renamed.label,
               });
             }}
           >
@@ -752,11 +755,35 @@ export function PropertiesPanel({
         </div>
 
         {/* Концы стены тянутся на плане: править их числами здесь значило бы
-            держать две правды об одной геометрии. */}
+            держать две правды об одной геометрии. Ручки концов есть только при
+            включённом переключателе (#167): выбор стены её не меняет. */}
         <p className="props__hint">
           Длина {formatLength(length)}, от ({formatNumber(wall.from[0])}; {formatNumber(wall.from[1])}) до (
-          {formatNumber(wall.to[0])}; {formatNumber(wall.to[1])}); концы тянутся на плане
+          {formatNumber(wall.to[0])}; {formatNumber(wall.to[1])})
         </p>
+        {onWallEditingChange === undefined ? null : (
+          <label
+            className="props__line"
+            title="Без галочки перегородку можно только выбрать. С галочкой на её концах появляются ручки. Снимается при другом выборе, смене инструмента и по Esc."
+          >
+            <input
+              type="checkbox"
+              checked={wallEditing}
+              onChange={(event) => onWallEditingChange(event.target.checked)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' && wallEditing) onWallEditingChange(false);
+              }}
+            />
+            {' '}Изменить перегородку
+          </label>
+        )}
+        {onWallEditingChange === undefined ? null : (
+          <p className="props__hint">
+            {wallEditing
+              ? 'Тяните ручку на конце перегородки; Alt — без привязки. Ctrl+Z отменяет правку.'
+              : 'Включите «Изменить перегородку», чтобы тянуть её концы на плане.'}
+          </p>
+        )}
         <p className="props__hint">
           {openings.length === 0
             ? 'Проёмов нет; инструмент «Проём» ставит их кликом по стене'

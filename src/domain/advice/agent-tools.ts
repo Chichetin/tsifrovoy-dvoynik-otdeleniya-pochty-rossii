@@ -18,10 +18,11 @@ import { buildInventory } from '../inventory';
 import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
-import { checkAgentEdits } from './agent-edits';
+import { checkAgentEdits, relocationProposal } from './agent-edits';
 import { layoutZone } from './layout';
 import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
+import { findRelocations } from './relocation';
 import { calculateAdvice } from './index';
 
 export type AgentToolState = {
@@ -61,7 +62,7 @@ const argSchemas = {
   plan_overview: z.object({}).passthrough(),
   zone_details: z.object({ zoneId: z.string().min(1) }),
   list_objects: z.object({ typeId: nullableId, zoneId: nullableId }),
-  find_place: z.object({ typeId: z.string().min(1), zoneId: nullableId }),
+  find_place: z.object({ typeId: nullableId, zoneId: nullableId, objectId: nullableId }),
   check_equipment: z.object({ zoneId: nullableId }),
   validate_plan: z.object({}).passthrough(),
   compare_with_original: z.object({}).passthrough(),
@@ -97,11 +98,10 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'find_place',
     description:
-      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало.',
+      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало. С objectId — новое место для уже стоящего объекта: до трёх проверенных переносов и вариант «оставить как есть», у каждого зона, правила, зазор до стены, свободная площадь, объекты зон и покрытие камерами было → стало; переносы видны призраками, применит человек.',
     parameters: {
       type: 'object',
-      properties: { typeId: { type: 'string' }, zoneId: { type: ['string', 'null'] } },
-      required: ['typeId'],
+      properties: { typeId: { type: ['string', 'null'] }, zoneId: { type: ['string', 'null'] }, objectId: { type: ['string', 'null'] } },
     },
   },
   {
@@ -334,6 +334,45 @@ function overview(state: AgentToolState): AgentToolOutcome {
   };
 }
 
+/** #177: options for an object that already stands; moves become edit proposals. */
+function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): AgentToolOutcome {
+  const object = state.plan.objects.find((entry) => entry.id === objectId);
+  const label = `Поиск места: «${object?.label ?? objectId}»${zoneId === null ? '' : ` в зоне «${zoneName(state, zoneId) ?? zoneId}»`}`;
+  const found = findRelocations(state.plan, { objectId, zoneId });
+  if (!found.ok) return fail('find_place', label, found.issues.map((issue) => issue.message).join('; ') || 'Расчёт не выполнен.');
+  addRef(state, { kind: 'object', id: objectId });
+  const maybe = (value: number | null): number | null => (value === null ? null : round(value));
+  const options = found.value.options.map((option, index) => {
+    const zones = option.zones.map((zone) => zone.name).join(' → ') || null;
+    let proposalId: Id | null = null;
+    if (option.command !== null) {
+      const proposal = relocationProposal(state.plan, option, `relocate${state.proposals.length + 1}`, `Вариант ${index + 1}: ${zones === null ? 'вне зон' : `зона «${zones}»`}`);
+      state.proposals.push(proposal);
+      addAction(state, { kind: 'preview-edits', proposalId: proposal.id });
+      addAction(state, { kind: 'apply-edits', proposalId: proposal.id });
+      proposalId = proposal.id;
+    }
+    for (const zone of option.zones) addRef(state, { kind: 'zone', id: zone.id });
+    return {
+      kind: option.kind,
+      proposalId,
+      zones: option.zones,
+      position_m: option.object.position.map(round),
+      rotation_deg: option.object.rotation_deg,
+      ruleIds: option.ruleIds,
+      wallGap_m: Number.isFinite(option.wallGap_m) ? round(option.wallGap_m) : null,
+      newWarnings: option.warnings,
+      facts: Object.fromEntries(option.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
+      zoneEffects: option.zoneEffects.map((effect) => ({ zoneId: effect.zoneId, name: zoneName(state, effect.zoneId), free_m2: { before: round(effect.free_m2.before), after: round(effect.free_m2.after) }, objects: effect.objects })),
+      coveragePercent: option.coverage === null ? null : { before: maybe(option.coverage.before), after: maybe(option.coverage.after) },
+    };
+  });
+  return {
+    output: { objectId, options, note: 'Переносы показаны на плане призраками; инвентарный номер и атрибуты объекта не меняются. Применит человек кнопкой «Применить правки», отмена — Ctrl+Z.' },
+    step: { tool: 'find_place', label: `${label}: переносов ${options.length - 1}`, ok: true },
+  };
+}
+
 /**
  * Runs one tool call. Unknown tools and malformed arguments are answered with
  * an error for the model, never thrown: the loop continues and can recover.
@@ -403,7 +442,9 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
     }
 
     case 'find_place': {
-      const { typeId, zoneId } = argSchemas.find_place.parse(rawArgs);
+      const { typeId, zoneId, objectId } = argSchemas.find_place.parse(rawArgs);
+      if (objectId !== null) return relocate(state, objectId, zoneId);
+      if (typeId === null) return fail(name, 'Поиск места', 'Нужен typeId нового объекта или objectId стоящего.');
       const typeLabel = state.names.objectTypeLabel(typeId);
       if (typeLabel === null) return fail(name, 'Тип оборудования не найден', `Типа «${typeId}» нет в справочнике. Типы — в plan_overview.catalogTypes.`);
       if (zoneId !== null && zoneName(state, zoneId) === null) return fail(name, 'Зона не найдена', `Зоны «${zoneId}» нет в плане.`);

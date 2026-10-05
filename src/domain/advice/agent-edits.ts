@@ -22,6 +22,7 @@ import { editRejection } from '../physics';
 import { validatePlan } from '../validation';
 import { candidateObjectForInsert } from './candidate-object';
 import { findPlacements, issueKey } from './placement';
+import type { RelocationOption } from './relocation';
 
 const cm = (value: number): number => Math.round(value * 100) / 100;
 
@@ -162,4 +163,22 @@ export function proposalCommands(plan: PlanDocument, proposal: AgentEditProposal
     }
     return { type: 'object.put', object: { ...command.object, id: nextFreeId('eq_', taken) } };
   });
+}
+
+/** #177: a move from `findRelocations` as a proposal — one `object.put`, one undo step. */
+export function relocationProposal(plan: PlanDocument, option: RelocationOption, id: Id, title: string): AgentEditProposal {
+  const before = plan.objects.find((object) => object.id === option.object.id)!;
+  const applied = option.command === null ? null : applyCommand(plan, option.command);
+  const after = applied?.ok === true ? applied.value : plan;
+  const was = validatePlan(plan);
+  const now = after === plan ? was : validatePlan(after);
+  return {
+    id,
+    title,
+    commands: option.command === null ? [] : [option.command],
+    changes: [{ op: 'move', id: before.id, typeId: before.typeId, label: before.label, before: pose(before), after: pose(option.object) }],
+    rejected: [],
+    facts: effectFacts(id, plan, after, 0, 0),
+    findings: { errors: { before: count(was, true), after: count(now, true) }, warnings: { before: count(was, false), after: count(now, false) } },
+  };
 }
