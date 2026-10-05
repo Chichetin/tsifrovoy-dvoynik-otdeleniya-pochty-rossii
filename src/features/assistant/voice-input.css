@@ -40,5 +40,18 @@
 .voice__label { grid-area: 1 / 1; white-space: nowrap; }
 .voice__label.is-hidden { visibility: hidden; }
 
-/* The message goes under the row: the buttons and the hint do not move. */
-.agent__voice-error { order: 1; flex-basis: 100%; margin: 0; }
+/* The message floats above the sticky question form (its containing block):
+   it appears and hides by itself (ERROR_MS) and never moves the layout. */
+.agent__voice-error {
+  position: absolute;
+  bottom: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius-m);
+  background: var(--color-danger-soft);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.15);
+}

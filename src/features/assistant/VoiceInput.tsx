@@ -44,6 +44,8 @@ const SILENCE_MS = 2500;
 const NO_SPEECH_MS = 8000;
 /** One question is never longer than this. */
 const MAX_MS = 60000;
+/** A voice error message hides itself after this time; the next error starts it again. */
+const ERROR_MS = 1500;
 
 const INSECURE_TEXT = 'Микрофон не включится: браузер даёт его только по HTTPS или на localhost, а эта страница открыта по HTTP. Введите вопрос текстом.';
 const NO_SPEECH_TEXT = 'Речь не услышана. Проверьте, что микрофон включён, нажмите кнопку и скажите вопрос ещё раз.';
@@ -83,10 +85,18 @@ type Props = {
 /** The microphone button and its messages. Renders nothing without the Web Speech API. */
 export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null {
   const [listening, setListening] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setErrorState] = useState<string | null>(null);
   const recognition = useRef<SpeechRecognitionLike | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const timers = useRef<{ silence?: number; max?: number }>({});
+  // Separate from the session timers: onend clears those right after onerror shows a message.
+  const errorTimer = useRef<number | undefined>(undefined);
+
+  function setError(text: string | null): void {
+    window.clearTimeout(errorTimer.current);
+    errorTimer.current = text === null ? undefined : window.setTimeout(() => setErrorState(null), ERROR_MS);
+    setErrorState(text);
+  }
 
   function clearTimers(): void {
     window.clearTimeout(timers.current.silence);
@@ -97,6 +107,7 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
   useEffect(
     () => () => {
       clearTimers();
+      window.clearTimeout(errorTimer.current);
       const instance = recognition.current;
       if (instance === null) return;
       instance.onresult = null;
@@ -195,6 +206,7 @@ export function VoiceInput({ onText, onDone }: Props): React.JSX.Element | null 
         </span>
       </button>
       <span className="agent__sr" role="status" aria-atomic="true">{listening ? 'Слушаю. Скажите вопрос.' : ''}</span>
+      {/* Over the form, not in it: the message appears and hides without moving the layout. */}
       {error === null ? null : <p className="files__error agent__voice-error" role="alert">{error}</p>}
     </>
   );
