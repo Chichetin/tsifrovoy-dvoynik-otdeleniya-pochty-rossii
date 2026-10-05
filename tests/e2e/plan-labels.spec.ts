@@ -40,7 +40,7 @@ for (const width of [1280, 1440]) {
     // At a small scale captions yield to icons; they must return when refitted.
     await page.mouse.wheel(0, 1500);
     await expect.poll(() => caption(page, 'eq_41')).toBeNull();
-    await page.getByRole('button', { name: 'Вписать', exact: true }).click();
+    await page.keyboard.press('KeyF');
     await expect.poll(() => caption(page, 'eq_41')).toMatch(/^(Стеллаж посылок|Посылки) 1$/);
     const downloading = page.waitForEvent('download');
     await exportPlan(page, 'JSON'); await passPhysicsBlock(page);
