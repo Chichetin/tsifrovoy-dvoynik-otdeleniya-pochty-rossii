@@ -257,3 +257,4 @@
 | D-374 | 2026-10-04 | #127: голосовой ввод — Web Speech API браузера (ru-RU). Звук обрабатывает браузер (Chrome отправляет его в Google). Нужен HTTPS или localhost. |
 | D-375 | 2026-10-05 | #124: отметки обхода для инвентаризации — атрибуты объекта `inventoryCheck` (present / missing / other-number / broken) и `inventoryFoundNumber`. Формат файла не меняется. |
 | D-376 | 2026-10-05 | #202: `ObjectType.pictogram` из `PLAN_PICTOGRAM_NAMES`. Нет поля — знак типа с тем же id из data/catalog/object-types.json (читает только plan-pictogram), иначе нет. |
+| D-377 | 2026-10-05 | #178: к вариантам места модель пишет `why` своими словами; код сверяет каждый id, число и номер варианта с расчётом, иначе «без LLM». Заменяет в D-303 «только factIds»; уточняет D-258, D-302. |
