@@ -31,10 +31,32 @@ export const HINTS_DEBOUNCE_MS = 600;
 const HINTS_STORAGE_KEY = 'ops-twin.assistant-hints.v1';
 /** Hints kept on screen, newest first. */
 const HINTS_KEPT = 5;
+/** Settled edits remembered for undo: an undo that reaches one of them takes its hint back. */
+const HINTS_HISTORY = 30;
 
-/** A hint as shown: the calculation, its text and the two documents it compares. */
-export type ShownHint = EditHint & { id: string; text: string; before: PlanDocument; after: PlanDocument };
-export type HintsView = { enabled: boolean; hints: readonly ShownHint[]; unseen: number };
+/** A hint as shown: the calculation and its text. `seq` grows with every new hint. */
+export type ShownHint = EditHint & { id: string; seq: number; text: string };
+/** `clearedThrough` — hints up to this `seq` were cleared by «Очистить». */
+export type HintsView = { enabled: boolean; hints: readonly ShownHint[]; unseen: number; clearedThrough: number };
+
+/**
+ * One settled edit: its hint, the snapshot it started from and every document
+ * seen on the way (the start included). Undo lands on one of them.
+ */
+type HintRecord = { hint: ShownHint; start: EditHintSnapshot; path: readonly PlanDocument[] };
+
+/** Newest first, one copy of each text, without the cleared ones. */
+function visibleHints(history: readonly HintRecord[], clearedThrough: number): ShownHint[] {
+  const seen = new Set<string>();
+  const shown: ShownHint[] = [];
+  for (const { hint } of history) {
+    if (hint.seq <= clearedThrough || seen.has(hint.text)) continue;
+    seen.add(hint.text);
+    shown.push(hint);
+    if (shown.length === HINTS_KEPT) break;
+  }
+  return shown;
+}
 
 function storedHintsEnabled(): boolean {
   try {
@@ -54,7 +76,7 @@ let hintsView: HintsView | null = null;
 const hintsListeners = new Set<() => void>();
 
 function readHints(): HintsView {
-  hintsView ??= { enabled: storedHintsEnabled(), hints: [], unseen: 0 };
+  hintsView ??= { enabled: storedHintsEnabled(), hints: [], unseen: 0, clearedThrough: 0 };
   return hintsView;
 }
 
@@ -74,15 +96,16 @@ export function setHintsEnabled(enabled: boolean): void {
   } catch {
     // Private mode: the switch works until the page is closed.
   }
-  writeHints((view) => ({ enabled, hints: enabled ? view.hints : [], unseen: enabled ? view.unseen : 0 }));
+  writeHints((view) => ({ ...view, enabled, hints: enabled ? view.hints : [], unseen: enabled ? view.unseen : 0 }));
 }
 
 export function markHintsSeen(): void {
   if (readHints().unseen !== 0) writeHints((view) => ({ ...view, unseen: 0 }));
 }
 
+/** Hides the hints on screen; the hook still knows their edits, so an undo does not bring a reverse hint. */
 export function clearHints(): void {
-  writeHints((view) => ({ ...view, hints: [], unseen: 0 }));
+  writeHints((view) => ({ ...view, hints: [], unseen: 0, clearedThrough: Math.max(view.clearedThrough, view.hints[0]?.seq ?? 0) }));
 }
 
 /** The hints and their switch, for the panel. */
@@ -141,42 +164,87 @@ export function useAssistantSession({
   // settled plan and says what this edit caused. No model, no network.
   const hints = useEditHints();
   const hintBase = useRef<{ snapshot: EditHintSnapshot; variant: string | undefined } | null>(null);
+  // Documents seen since the last settled one: an undo may land on any of them.
+  const hintPath = useRef<PlanDocument[]>([]);
+  const hintHistory = useRef<HintRecord[]>([]);
   const hintSequence = useRef(0);
+
+  const forgetHints = useCallback(() => {
+    hintBase.current = null;
+    hintPath.current = [];
+    hintHistory.current = [];
+    clearHints();
+  }, []);
+
   const settleHints = useCallback(() => {
     const state = current();
     const plan = state.document;
     const variant = state.variants?.active;
     const base = hintBase.current;
+    const path = hintPath.current;
+    hintPath.current = [];
     if (base !== null && base.snapshot.plan === plan) return;
+    // Another variant is another plan: its hints are not about this one.
+    if (base !== null && base.variant !== variant) forgetHints();
     const snapshot = editHintSnapshot(plan);
     hintBase.current = { snapshot, variant };
-    // A first look, another file or the other variant: a new starting point, not an edit.
-    if (base === null || base.snapshot.plan.id !== plan.id || base.variant !== variant) return;
-    const shown = readHints().hints;
-    // Undo went back to where a hint started: that hint and the newer ones are void.
-    const undone = shown.findIndex((entry) => entry.before === plan);
+    // A first look or another file: a new starting point, not an edit.
+    if (base === null || base.variant !== variant || base.snapshot.plan.id !== plan.id) return;
+
+    const history = hintHistory.current;
+    const publish = (next: HintRecord[], added: ShownHint | null): void => {
+      hintHistory.current = next.slice(0, HINTS_HISTORY);
+      writeHints((view) => {
+        const shown = visibleHints(hintHistory.current, view.clearedThrough);
+        const fresh = added !== null && !view.hints.some((old) => old.text === added.text);
+        return { ...view, hints: shown, unseen: Math.min(shown.length, fresh ? view.unseen + 1 : view.unseen) };
+      });
+    };
+    const record = (start: EditHintSnapshot, documents: readonly PlanDocument[]): HintRecord | null => {
+      const hint = editHint(start, snapshot);
+      if (hint === null) return null;
+      hintSequence.current += 1;
+      const text = editHintText(hint);
+      return { hint: { ...hint, id: `hint-${hintSequence.current}`, seq: hintSequence.current, text }, start, path: documents };
+    };
+
+    // Undo went back into a remembered edit: the newer edits are void, and
+    // that edit keeps only what is left of it — nothing, if undone to its start.
+    const undone = history.findIndex((entry) => entry.path.includes(plan));
     if (undone !== -1) {
-      writeHints((view) => ({ ...view, hints: view.hints.slice(undone + 1), unseen: Math.max(0, view.unseen - (undone + 1)) }));
+      const entry = history[undone]!;
+      const rest = entry.path.slice(0, entry.path.indexOf(plan));
+      const left = rest.length === 0 ? null : record(entry.start, rest);
+      publish([...(left === null ? [] : [left]), ...history.slice(undone + 1)], null);
       return;
     }
-    const hint = editHint(base.snapshot, snapshot);
-    if (hint === null) return;
-    const text = editHintText(hint);
-    const repeated = shown.some((entry) => entry.text === text);
-    hintSequence.current += 1;
-    const entry: ShownHint = { ...hint, id: `hint-${hintSequence.current}`, text, before: base.snapshot.plan, after: plan };
-    writeHints((view) => {
-      // The same hint is not doubled: the old copy gives way to the new one.
-      const kept = [entry, ...view.hints.filter((old) => old.text !== text)].slice(0, HINTS_KEPT);
-      return { ...view, hints: kept, unseen: Math.min(kept.length, repeated ? view.unseen : view.unseen + 1) };
-    });
-  }, [current]);
+
+    const added = record(base.snapshot, [base.snapshot.plan, ...path.filter((entry) => entry !== plan)]);
+    if (added === null) return;
+    publish([added, ...history], added.hint);
+  }, [current, forgetHints]);
+
+  // A/B switch (or «Запомнить как вариант»): the other variant is another plan,
+  // its hints go away at once, and the next edit is compared with it.
+  const hintVariant = useRef(current().variants?.active);
+  useEffect(() => {
+    const state = current();
+    const variant = state.variants?.active;
+    if (variant === hintVariant.current) return;
+    hintVariant.current = variant;
+    forgetHints();
+    if (readHints().enabled) hintBase.current = { snapshot: editHintSnapshot(state.document), variant };
+  });
 
   useEffect(() => {
     if (!hints.enabled) {
       hintBase.current = null;
+      hintPath.current = [];
+      hintHistory.current = [];
       return;
     }
+    const path = hintPath.current;
+    if (hintBase.current !== null && path.at(-1) !== document) path.push(document);
     // The starting point is taken at once; an edit waits for the plan to settle.
     const timer = window.setTimeout(settleHints, hintBase.current === null ? 0 : HINTS_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
@@ -366,9 +434,8 @@ export function useAssistantSession({
   const forget = useCallback(() => {
     resetAdvice();
     clearChat();
-    hintBase.current = null;
-    clearHints();
-  }, [resetAdvice, clearChat]);
+    forgetHints();
+  }, [resetAdvice, clearChat, forgetHints]);
 
   return {
     advice,

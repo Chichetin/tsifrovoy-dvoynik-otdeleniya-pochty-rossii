@@ -51,11 +51,42 @@ describe('подсказка после правки', () => {
     expect(hint!.items.filter((item) => item.text.includes('Камера видеонаблюдения'))).toHaveLength(1);
   });
 
-  test('старые находки не повторяются', () => {
-    const base = snap(before);
-    const hint = editHint(base, snap(without(before, 'eq_39')));
-    const oldKeys = new Set([...base.issues.keys()].map((key) => `issue|${key}`));
-    expect(hint!.items.some((item) => item.tone === 'problem' && oldKeys.has(item.key))).toBe(false);
+  test('старая находка не повторяется, даже когда её текст изменился', () => {
+    // The queue kiosk is 6,62 m from the entrance (norm 3 m); moved closer it
+    // is still too far: the finding keeps its key, its number changes.
+    const moved: PlanDocument = {
+      ...before,
+      objects: before.objects.map((object) => (object.id === 'eq_1' ? { ...object, position: [3, 2] } : object)),
+    };
+    const far = (plan: PlanDocument) =>
+      [...snap(plan).issues.values()].filter((issue) => issue.code === 'RULE_TOO_FAR_FROM_ENTRANCE' && issue.refs.some((ref) => ref.id === 'eq_1'));
+    const [was] = far(before);
+    const [now] = far(moved);
+    expect(was?.message).toBeDefined();
+    expect(now?.message).toBeDefined();
+    expect(now!.message).not.toBe(was!.message);
+    const hint = editHint(snap(before), snap(moved));
+    expect((hint?.items ?? []).filter((item) => item.key.includes('RULE_TOO_FAR_FROM_ENTRANCE'))).toEqual([]);
+  });
+
+  test('окно перенесено вне зон — о нём ровно один пункт, а не «вышел из зоны» и ZONE_UNASSIGNED', () => {
+    // The demo floor is all zones; without the staff room its corner is free floor of no zone.
+    const base: PlanDocument = {
+      ...before,
+      zones: before.zones.filter((zone) => zone.id !== 'z_staff'),
+      objects: before.objects.map((object) => (object.zoneId === 'z_staff' ? { ...object, zoneId: null } : object)),
+    };
+    const moved: PlanDocument = {
+      ...base,
+      objects: base.objects.map((object) => (object.id === 'eq_11' ? { ...object, position: [7, 8.6], zoneId: null } : object)),
+    };
+    const hint = editHint(snap(base), snap(moved));
+    const aboutWindow = hint!.items.filter((item) => item.refs.some((ref) => ref.kind === 'object' && ref.id === 'eq_11'));
+    expect(aboutWindow).toHaveLength(1);
+    expect(aboutWindow[0]!.text).toBe('Объект «Окно 2 — платежи» вышел из зоны «Клиентский зал» и теперь вне зон.');
+    // Back into a zone: «теперь в зоне», no separate «Исправлено: … ни в одной зоне».
+    const back = editHint(snap(moved), snap({ ...moved, objects: moved.objects.map((object) => (object.id === 'eq_11' ? { ...object, position: [3.5, 5.2], zoneId: 'z_client' } : object)) }));
+    expect(back!.items.filter((item) => item.refs.some((ref) => ref.kind === 'object' && ref.id === 'eq_11'))).toHaveLength(1);
   });
 
   test('перенос в другую зону называет обе зоны по имени, id — только в refs', () => {

@@ -17,6 +17,7 @@ import type { Id, PlanDocument, Ref } from '../../contracts/model';
 import { findObjectType } from '../catalog';
 import { measurePlan } from '../metrics';
 import { formatMeasure } from '../number-format';
+import { RELATION_ISSUE_CODES } from '../relations';
 import { VALIDATION_ISSUE_CODES, localToday, validatePlan, type ValidationIssue } from '../validation';
 import { cameraCoverage } from './camera-coverage';
 import { diffPlans } from './compare';
@@ -235,9 +236,16 @@ export function editHint(before: EditHintSnapshot, after: EditHintSnapshot): Edi
   if (before.plan.id !== after.plan.id || before.plan === after.plan) return null;
   const changes = diffPlans(before.plan, after.plan).filter((change) => change.ref.kind === 'object' || change.ref.kind === 'zone');
 
-  const items: EditHintItem[] = [...zoneMoves(before.plan, after.plan, changes)];
+  const moves = zoneMoves(before.plan, after.plan, changes);
+  // «Вышел из зоны … и теперь вне зон» already says what ZONE_UNASSIGNED says
+  // about the same object: one reason, one line — in both directions.
+  const moved = new Set(moves.map((item) => item.refs[0]?.id));
+  const saidByMove = (issue: ValidationIssue): boolean =>
+    issue.code === RELATION_ISSUE_CODES.ZONE_UNASSIGNED && issue.refs.some((ref) => ref.kind === 'object' && moved.has(ref.id));
+
+  const items: EditHintItem[] = [...moves];
   for (const [key, issue] of after.issues) {
-    if (!before.issues.has(key)) items.push({ key: `issue|${key}`, tone: 'problem', text: issue.message, refs: issue.refs });
+    if (!before.issues.has(key) && !saidByMove(issue)) items.push({ key: `issue|${key}`, tone: 'problem', text: issue.message, refs: issue.refs });
   }
   for (const [key, recommendation] of after.equipment) {
     if (!before.equipment.has(key)) {
@@ -245,7 +253,7 @@ export function editHint(before: EditHintSnapshot, after: EditHintSnapshot): Edi
     }
   }
   for (const [key, issue] of before.issues) {
-    if (!after.issues.has(key)) items.push({ key: `issue|${key}`, tone: 'fixed', text: `Исправлено: ${issue.message}`, refs: issue.refs });
+    if (!after.issues.has(key) && !saidByMove(issue)) items.push({ key: `issue|${key}`, tone: 'fixed', text: `Исправлено: ${issue.message}`, refs: issue.refs });
   }
   for (const [key, recommendation] of before.equipment) {
     if (!after.equipment.has(key)) {
