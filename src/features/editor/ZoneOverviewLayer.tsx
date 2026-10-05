@@ -24,7 +24,7 @@ export function ZoneOverviewLayer({ document: plan, viewport, issues, metrics, o
     for (const zone of zones) {
       const polygon = zone.polygon.map((point) => modelToScreen(point, viewport));
       const bounds = boundingBox(polygon);
-      const width = bounds.maxX - bounds.minX < 50 ? 92 : Math.min(150, bounds.maxX - bounds.minX - 6);
+      const width = Math.max(110, Math.min(150, bounds.maxX - bounds.minX - 6));
       let box = placeZoneCaption(polygon, width, 54, obstacles);
       const clear = (candidate: CaptionBox): boolean => obstacles.every((other) =>
         candidate.x + candidate.width + 3 <= other.x || other.x + other.width + 3 <= candidate.x ||
