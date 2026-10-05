@@ -32,6 +32,7 @@ import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
@@ -303,6 +304,11 @@ export function App(): React.JSX.Element {
     if (tabs === initialTabs.current) return;
     saveSideTabs(sideTabsStorage(), tabs);
   }, [tabs]);
+  // #184: the tab to fold the assistant to when «Свойства» open.
+  const lastRightTab = useRef<RightTab>('inventory');
+  useEffect(() => {
+    if (tabs.right !== 'assistant') lastRightTab.current = tabs.right;
+  }, [tabs.right]);
   const showLeftTab = useCallback((left: LeftTab) => {
     setTabs((prev) => (prev.left === left ? prev : { ...prev, left }));
   }, []);
@@ -326,7 +332,8 @@ export function App(): React.JSX.Element {
   // #105: «Свойства» stand in the right column above its tabs, so the library
   // on the left stays open while something is selected. A layer has no card of
   // its own (its settings live in «Слои»).
-  const propsShown = selection !== null && selection.kind !== 'layer';
+  // #184: not together with the assistant tab; the selection stays for its questions.
+  const propsShown = selection !== null && selection.kind !== 'layer' && tabs.right !== 'assistant';
 
   // #105: «Повернуть» and «Изменить форму» go with a single selected object.
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
@@ -362,6 +369,25 @@ export function App(): React.JSX.Element {
       store.getState().selectMany(ids);
     },
     [store],
+  );
+  // #184: a click on the plan opens «Свойства», so the assistant tab folds to
+  // the tab the person had before it. The selection itself is not touched.
+  const leaveAssistant = useCallback(() => {
+    setTabs((prev) => (prev.right === 'assistant' ? { ...prev, right: lastRightTab.current } : prev));
+  }, []);
+  const planSelect = useCallback(
+    (ref: Ref | null) => {
+      select(ref);
+      if (ref !== null && ref.kind !== 'layer') leaveAssistant();
+    },
+    [select, leaveAssistant],
+  );
+  const planSelectMany = useCallback(
+    (ids: readonly Id[]) => {
+      selectMany(ids);
+      if (ids.length > 0) leaveAssistant();
+    },
+    [selectMany, leaveAssistant],
   );
 
   const dispatch = useCallback(
@@ -711,10 +737,10 @@ export function App(): React.JSX.Element {
   const openObjectMenu = useCallback(
     (id: Id, at: Point) => {
       menuReturnFocus.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null;
-      if (!(selected.has(id) && selected.size > 1)) select({ kind: 'object', id });
+      if (!(selected.has(id) && selected.size > 1)) planSelect({ kind: 'object', id });
       setObjectMenu({ id, at });
     },
-    [selected, select],
+    [selected, planSelect],
   );
   const runObjectMenu = useCallback(
     (action: ObjectMenuAction) => {
@@ -924,14 +950,6 @@ export function App(): React.JSX.Element {
             aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
             code "Shift+Slash". */}
         <div className="shell__aux">
-          <button
-            type="button"
-            className="files__button shell__assistant"
-            title="Ассистент: где поставить, чего не хватает, что изменилось"
-            onClick={() => showRightTab('assistant')}
-          >
-            Ассистент
-          </button>
           <button
             type="button"
             className="shell__quiet shell__help"
@@ -1154,7 +1172,7 @@ export function App(): React.JSX.Element {
                 if (existing !== null) {
                   // A click here selects the object instead of placing a new one,
                   // so the silhouette that promises a placement is not shown (#26).
-                  if (event.phase === 'down') select({ kind: 'object', id: existing.id });
+                  if (event.phase === 'down') planSelect({ kind: 'object', id: existing.id });
                   else placementGhost.publish(null);
                   return;
                 }
@@ -1175,7 +1193,7 @@ export function App(): React.JSX.Element {
               }
             }}
             onViewport={setViewport}
-            onSelect={select}
+            onSelect={planSelect}
             overlay={
               <>
               {/* После оборудования — иначе объект, вставший на подпись, закрывает
@@ -1225,7 +1243,7 @@ export function App(): React.JSX.Element {
                 wallEditing={wallEdit !== null}
                 onWallEditingChange={changeWallEdit}
                 onCommand={dispatch}
-                onSelect={select}
+                onSelect={planSelect}
               />
               <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             </Layer>
@@ -1234,8 +1252,8 @@ export function App(): React.JSX.Element {
               session={session}
               issues={issues}
               onCommand={dispatch}
-              onSelect={select}
-              onSelectMany={selectMany}
+              onSelect={planSelect}
+              onSelectMany={planSelectMany}
               preview={preview}
               previewEdits={previewEdits}
               onGesturePreview={gesturePreview.publish}
@@ -1257,8 +1275,9 @@ export function App(): React.JSX.Element {
             <p className="canvas-hint" role="status">Зону копировать нельзя: Ctrl+C, Ctrl+V и Ctrl+D работают для объектов.</p>
           ) : null}
           {view === '3d' ? (
-            <View3D document={shownDocument} selection={selection} onSelect={select} />
+            <View3D document={shownDocument} selection={selection} onSelect={planSelect} />
           ) : null}
+          {view === '2d' ? <AssistantLauncher onOpen={() => showRightTab('assistant')} /> : null}
         </main>
 
         <div

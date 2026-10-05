@@ -28,6 +28,9 @@ import { resolveChannel } from '../playwright.config';
 import { generateBenchmark } from './generate-benchmark';
 
 const runs = Number(process.argv[2] ?? '5');
+if (!Number.isSafeInteger(runs) || runs < 1) {
+  throw new Error('Число прогонов должно быть целым положительным числом.');
+}
 const STEPS = 30;
 const PAN_PX = 8;
 const NOTCHES = 10;
@@ -81,18 +84,6 @@ for (const name of gestures) if (!GESTURES.includes(name)) throw new Error(`Не
 const vite = 'node_modules/vite/bin/vite.js';
 let url = process.env['APP_URL'];
 let preview: ReturnType<typeof spawn> | undefined;
-if (url === undefined) {
-  const port = process.env['PREVIEW_PORT'] ?? '5189';
-  const build = spawnSync('node', [vite, 'build'], { stdio: ['ignore', 'ignore', 'inherit'] });
-  if (build.status !== 0) throw new Error('vite build не прошёл');
-  preview = spawn('node', [vite, 'preview', '--port', port, '--strictPort'], { stdio: 'ignore' });
-  url = `http://127.0.0.1:${port}/`;
-  const deadline = Date.now() + 30_000;
-  while (!(await fetch(url).then((r) => r.ok, () => false))) {
-    if (Date.now() > deadline) throw new Error(`vite preview не ответил на ${url}`);
-    await new Promise((done) => setTimeout(done, 300));
-  }
-}
 
 // Page code goes in as text: tsx would wrap a named function in a helper the page lacks.
 /** Resolves once two frames in a row come within 50 ms: the page has settled. */
@@ -281,6 +272,19 @@ function median(values: number[]): number {
 }
 
 try {
+  if (url === undefined) {
+    const port = process.env['PREVIEW_PORT'] ?? '5189';
+    const build = spawnSync('node', [vite, 'build'], { stdio: ['ignore', 'ignore', 'inherit'] });
+    if (build.status !== 0) throw new Error('vite build не прошёл');
+    preview = spawn('node', [vite, 'preview', '--port', port, '--strictPort'], { stdio: 'ignore' });
+    url = `http://127.0.0.1:${port}/`;
+    const deadline = Date.now() + 30_000;
+    while (!(await fetch(url).then((r) => r.ok, () => false))) {
+      if (Date.now() > deadline) throw new Error(`vite preview не ответил на ${url}`);
+      await new Promise((done) => setTimeout(done, 300));
+    }
+  }
+
   for (const planName of plans) {
     for (const gesture of gestures) {
       const results: Run[] = [];
