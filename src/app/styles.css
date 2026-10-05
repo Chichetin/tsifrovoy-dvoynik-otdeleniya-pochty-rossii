@@ -508,6 +508,19 @@ body {
   min-height: 0;
 }
 
+.inventory-link-notice {
+  margin: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  font-size: var(--text-s);
+  overflow-wrap: anywhere;
+}
+
+.inventory-link-notice p { margin: 0 0 0.5rem; }
+.inventory-link-notice button { margin: 0.25rem 0.25rem 0 0; }
+
 .shell__plan-only-toggle {
   position: absolute;
   top: calc(var(--strip-row) + 0.75rem);
