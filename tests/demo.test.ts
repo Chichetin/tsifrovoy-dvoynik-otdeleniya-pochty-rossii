@@ -86,6 +86,13 @@ test('вопрос о составе зоны ведёт к зоне, даже �
   expect(routeAgentQuery(plan, 'Покажи весь план', false)[0]?.name).toBe('plan_overview');
 });
 
+test('#217: в исходном демо ассистент без модели называет перегруженную зону очереди', () => {
+  const plan = JSON.parse(readFileSync(join(DEMO_DIR, 'before.json'), 'utf8')) as PlanDocument;
+  const [overview] = routeAgentQuery(plan, 'Какие зоны перегружены?', false);
+  expect(overview?.name).toBe('plan_overview');
+  expect(overview?.note).toContain('«Зона очереди» (z_queue) — 100 %');
+});
+
 test('стартовый план совпадает с исходным демо из ZIP и показывает находки (#111)', () => {
   const plan = openStartPlan();
   expect(plan).toEqual(JSON.parse(readFileSync(join(DEMO_DIR, 'before.json'), 'utf8')));

@@ -344,6 +344,89 @@ const RELOCATE_INTENT = /(?<![а-я])предлож(?:и|ите|ить)\s+(?:[а
 /** #195: a question about the whole plan. */
 const PLAN_OVERVIEW = /весь план|всего плана|сводк|обзор план|покажи план|общ[а-я]* картин/;
 
+/** #217: «какие зоны перегружены», «загрузка зон». */
+const ZONE_LOAD = /перегруж|загружен|загрузк|нагрузк/;
+
+export type ZoneLoadView = {
+  layerTypeId: Id;
+  /** The plan's layer of this type, if the plan has one. */
+  layerId: Id | null;
+  label: string;
+  attribute: string;
+  unit: string;
+  /** From this value a zone is overloaded: the `max` of the layer scale, where the canvas colour stops changing. */
+  threshold: number;
+  /** Zones with a value, highest first; equal values keep the plan order. */
+  zones: { zoneId: Id; name: string; value: number; overloaded: boolean }[];
+};
+
+/**
+ * #217: zone load as the heat layer shows it — the first `zone-heat` layer
+ * type of the catalog, its attribute and its threshold. `null` without such a
+ * layer type. Used by `plan_overview` and by the answer without a model.
+ */
+export function zoneLoadView(plan: PlanDocument): ZoneLoadView | null {
+  for (const type of plan.catalog.layerTypes) {
+    const representation = type.representation;
+    if (representation.kind !== 'zone-heat') continue;
+    const zones = plan.zones.flatMap((zone) => {
+      const value = zone.attributes[representation.attribute];
+      return typeof value === 'number' && Number.isFinite(value)
+        ? [{ zoneId: zone.id, name: zone.name, value, overloaded: value >= representation.max }]
+        : [];
+    });
+    zones.sort((a, b) => b.value - a.value);
+    return {
+      layerTypeId: type.id,
+      layerId: plan.layers.find((layer) => layer.typeId === type.id)?.id ?? null,
+      label: type.label,
+      attribute: representation.attribute,
+      unit: representation.unit,
+      threshold: representation.max,
+      zones,
+    };
+  }
+  return null;
+}
+
+/** Zones the load answer is about: the overloaded ones, else the most loaded one. */
+function loadedZones(view: ZoneLoadView): ZoneLoadView['zones'] {
+  const overloaded = view.zones.filter((zone) => zone.overloaded);
+  return overloaded.length > 0 ? overloaded : view.zones.slice(0, 1);
+}
+
+/** #217: the answer to «какие зоны перегружены» — written by code from the zone attributes. */
+function zoneLoadText(plan: PlanDocument, view: ZoneLoadView | null, zoneId: Id | null): string {
+  if (view === null) return 'В справочнике нет слоя загрузки зон: загрузку зон показать не из чего.';
+  const value = (number: number): string => `${formatShort(number)} ${view.unit}`;
+  const threshold = `Порог перегрузки — ${value(view.threshold)}, как на слое «${view.label}».`;
+  if (view.zones.length === 0) return `Загрузка зон не задана: атрибут «${view.attribute}» не заполнен ни у одной зоны. ${threshold}`;
+  const asked = zoneId === null ? undefined : view.zones.find((zone) => zone.zoneId === zoneId);
+  const own = asked === undefined
+    ? ''
+    : `Загрузка зоны ${zoneTitle(plan, asked.zoneId)}: ${value(asked.value)}${asked.overloaded ? ' — перегружена' : ''}. `;
+  const overloaded = view.zones.filter((zone) => zone.overloaded);
+  const list = overloaded.map((zone) => `${zoneTitle(plan, zone.zoneId)} — ${value(zone.value)}`);
+  const head = overloaded.length === 0
+    ? `Перегруженных зон нет. Самая загруженная — ${zoneTitle(plan, view.zones[0]!.zoneId)}: ${value(view.zones[0]!.value)}.`
+    : overloaded.length === 1
+      ? `Перегружена зона ${list[0]}.`
+      : `Перегружены зоны: ${list.join(', ')}.`;
+  return `${own}${head} ${threshold}`;
+}
+
+/** #217: the load answer, the zones on the plan and the heat layer offered when it is off. */
+function zoneLoadCalls(plan: PlanDocument, zoneId: Id | null): AgentToolCall[] {
+  const view = zoneLoadView(plan);
+  const calls: AgentToolCall[] = [{ name: 'plan_overview', args: {}, note: zoneLoadText(plan, view, zoneId), lead: true }];
+  if (view === null) return calls;
+  const ids = loadedZones(view).map((zone) => zone.zoneId).slice(0, 12);
+  if (ids.length > 0) calls.push({ name: 'show_on_plan', args: { ids } });
+  const layer = plan.layers.find((entry) => entry.id === view.layerId);
+  if (layer !== undefined && !layer.visible) calls.push({ name: 'suggest_layer', args: { layerId: layer.id } });
+  return calls;
+}
+
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
@@ -368,6 +451,8 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (hasBefore && /измен|было|стало|сравн|эффект|разниц|до и после/.test(text)) {
     return [{ name: 'compare_with_original', args: {} }, { name: 'open_panel', args: { panel: 'metrics' } }];
   }
+  // #217: «какие зоны перегружены» — zone load against the heat layer threshold.
+  if (ZONE_LOAD.test(text)) return zoneLoadCalls(plan, zoneId);
   // #211: «что не так и что сделать?» asks for the plan check and its main finding.
   if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт|что не так|что исправ|что (?:нужно |надо )?сделать|проблем/.test(text)) {
     return [{ name: 'validate_plan', args: {} }, { name: 'open_panel', args: { panel: 'validation' } }];
@@ -409,7 +494,8 @@ const NOT_UNDERSTOOD = [
   '— описать зону: «Что находится в зоне ожидания?»;',
   '— разложить зону: «Разложи зону ожидания»;',
   '— внести правку: «Сдвинь стеллажи вправо на 1 м», «Добавь окно в зале»;',
-  '— покрытие камер: «Где слепые пятна у камер?».',
+  '— покрытие камер: «Где слепые пятна у камер?»;',
+  '— загрузка зон: «Какие зоны перегружены?».',
   'План не изменён, место не предлагалось.',
 ].join('\n\n');
 

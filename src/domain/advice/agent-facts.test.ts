@@ -20,6 +20,14 @@ function overview() {
 }
 
 describe('факты чата связаны с метрикой и предметом', () => {
+  test('#217: сводка отдаёт модели загрузку зон и порог слоя тепла', () => {
+    const { state, facts } = overview();
+    const queue = facts.find((f) => f.metric === 'zone.load' && f.refs[0]?.id === 'z_queue')!;
+    expect(queue.value).toBe(100);
+    const result = renderAgentFactSelection({ factIds: [queue.id] }, facts, state);
+    expect(result.ok && result.text).toBe('Загрузка зоны — «Зона очереди» (z_queue); перегружена, порог перегрузки 100 %: 100 % (сейчас).');
+  });
+
   test('свободная и общая площадь имеют разные ключи и неизменяемые значения', () => {
     const { state, facts } = overview();
     const free = facts.find((f) => f.metric === 'area.free' && f.refs[0]?.kind === 'room')!;

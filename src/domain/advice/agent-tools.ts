@@ -19,7 +19,7 @@ import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
 import { checkAgentEdits, relocationProposal } from './agent-edits';
-import { ruleSourceLabel } from './agent-fallback';
+import { ruleSourceLabel, zoneLoadView } from './agent-fallback';
 import { layoutZone } from './layout';
 import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
@@ -80,7 +80,7 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'plan_overview',
     description:
-      'Сводка текущего плана: площадь помещения, занято и свободно, зоны с площадями и числом объектов, оборудование по типам, информационные слои, покрытие клиентских зон камерами (доля, слепые пятна), число ошибок проверки. Вызывай первым, если вопрос общий.',
+      'Сводка текущего плана: площадь помещения, занято и свободно, зоны с площадями и числом объектов, оборудование по типам, информационные слои, загрузка зон по слою тепла (значение, порог перегрузки, перегружена ли зона), покрытие клиентских зон камерами (доля, слепые пятна), число ошибок проверки. Вызывай первым, если вопрос общий.',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -301,6 +301,20 @@ function coverageView(state: AgentToolState): unknown {
   return null;
 }
 
+/** #217: zone load against the heat layer threshold; `null` without a heat layer type. */
+function loadView(state: AgentToolState): unknown {
+  const view = zoneLoadView(state.plan);
+  if (view === null) return null;
+  return {
+    layerTypeId: view.layerTypeId,
+    layerId: view.layerId,
+    attribute: view.attribute,
+    unit: view.unit,
+    threshold: view.threshold,
+    zones: view.zones.map((zone) => ({ zoneId: zone.zoneId, name: zone.name, value: round(zone.value), overloaded: zone.overloaded })),
+  };
+}
+
 function overview(state: AgentToolState): AgentToolOutcome {
   const { plan } = state;
   const measured = measurePlan(plan);
@@ -335,6 +349,7 @@ function overview(state: AgentToolState): AgentToolOutcome {
         warnings: issues.filter((issue) => issue.severity !== 'error').length,
       },
       cameraCoverage: coverageView(state),
+      zoneLoad: loadView(state),
     },
     step: { tool: 'plan_overview', label: 'Сводка плана: площади, зоны, оборудование', ok: true },
   };

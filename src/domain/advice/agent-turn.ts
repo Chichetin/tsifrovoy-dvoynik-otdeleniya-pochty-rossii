@@ -62,6 +62,8 @@ function compactToolResult(output: unknown): unknown {
     if (Array.isArray(row.candidates)) out.candidates = row.candidates.map(entry);
     return out;
   };
+  // #217: zone load is short and has no other tool: it stays whole.
+  if (source.zoneLoad !== undefined) compact.zoneLoad = source.zoneLoad;
   // Catalog first: there is no other discovery tool for equipment/layer types.
   for (const key of ['catalogTypes', 'layers', 'zones', 'recommendations', 'objects', 'children']) {
     if (!Array.isArray(source[key])) continue;
