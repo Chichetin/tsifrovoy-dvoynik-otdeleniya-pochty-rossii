@@ -300,7 +300,7 @@ test.describe('карточка свойств помещается в коло�
     });
   }
 
-  test('ручное название зоны переживает смену типа', async ({ page }) => {
+  test('смена типа заменяет ручное название зоны подписью типа', async ({ page }) => {
     await page.goto('/');
     await drawZone(page);
     await clickCanvas(page, 300, 260);
@@ -309,8 +309,8 @@ test.describe('карточка свойств помещается в коло�
     await card(page).getByLabel('Название').fill('Операционный зал');
     await card(page).getByLabel('Тип зоны').selectOption({ label: 'Зона ожидания' });
 
-    await expect(card(page).getByLabel('Название')).toHaveValue('Операционный зал');
+    await expect(card(page).getByLabel('Название')).toHaveValue('Зона ожидания');
     await expect(card(page).getByLabel('Тип зоны')).toHaveValue('zt_waiting');
-    expect(JSON.parse(await savePlan(page)).zones[0].name).toBe('Операционный зал');
+    expect(JSON.parse(await savePlan(page)).zones[0].name).toBe('Зона ожидания');
   });
 });

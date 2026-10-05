@@ -40,6 +40,7 @@ import {
   dragObstacles,
   nearestGap,
   objectGaps,
+  wallAxisGaps,
   objectGuides,
   polygonGap,
   snapObjectCentre,
@@ -615,4 +616,23 @@ describe('умные направляющие и расстояния при п�
     const gaps = objectGaps(over, dragObstacles(plan([turned, over]), new Set(['eq_over'])));
     expect(gaps.object).toBeNull();
   });
+});
+
+// #109: dimensions start at the actual rotated footprint, not its centre.
+test('отступы по четырём направлениям до граней стен и ближайшей перегородки', () => {
+  const object = equipment({position:[5,5],size_m:[2,1],rotation_deg:90});
+  const ring = (id: string, x1: number, y1: number, x2: number, y2: number) => {
+    const shape: Polygon = [[x1,y1],[x2,y1],[x2,y2],[x1,y2]];
+    return {id,ring:shape,box:boundingBox(shape)};
+  };
+  const walls = [ring('left',-.1,0,.1,10),ring('right',9.9,0,10.1,10),
+    ring('bottom',0,-.1,10,.1),ring('top',0,9.9,10,10.1),ring('partition',7.9,3,8.1,7),
+    ring('off_projection',5.9,8,6.1,9)];
+  const gaps=wallAxisGaps(object,walls);
+  [4.4,2.4,3.9,3.9].forEach((distance,i) => expect(gaps[i]?.distance).toBeCloseTo(distance,CLOSE));
+  expect(gaps[1]?.id).toBe('partition');
+  expect(gaps[1]?.from[0]).toBeCloseTo(5.5,CLOSE);
+  expect(gaps[1]?.to[0]).toBeCloseTo(7.9,CLOSE);
+  const diagonal = wallAxisGaps({...object,rotation_deg:45},walls);
+  expect(diagonal[1]?.distance).toBeCloseTo(2.9 - 1.5 / Math.SQRT2,CLOSE);
 });
