@@ -93,7 +93,7 @@ export const HealthBreakdown = forwardRef<HTMLDetailsElement, BreakdownProps>(
                 const title =
                   RULE_LINE_TITLES[line.code] ??
                   (plan === undefined || first === undefined ? 'Проверка плана' : explainFinding(plan, first).title);
-                const tech = [line.code, ...line.ruleIds].join(' · ');
+                const tech = line.code;
                 const refs = healthLineRefs(line);
                 return (
                   <li key={`${line.code}|${line.severity}|${line.ruleIds.join(',')}`} className={`health__line is-${line.severity}`}>
