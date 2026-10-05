@@ -241,6 +241,7 @@ function EditList({ answer, names }: { answer: AgentAnswer; names: PlanIndex }):
 export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAsk, onAction, onClear, selection }: Props): React.JSX.Element {
   const [question, setQuestion] = useState('');
   const history = useRef<HTMLOListElement>(null);
+  const questionField = useRef<HTMLTextAreaElement>(null);
   // New steps and answers arrive at the bottom of the log: keep them in view.
   useEffect(() => {
     const element = history.current;
@@ -365,6 +366,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
         <label className="assistant__field">
           Вопрос ассистенту
           <textarea
+            ref={questionField}
             name="agent-question"
             rows={2}
             value={question}
@@ -402,6 +404,13 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
             onText={(text) =>
               setQuestion((current) => (current.trim() === '' ? text : `${current.trimEnd()} ${text}`).slice(0, LIMITS.maxQueryChars))
             }
+            onDone={() => {
+              // Caret at the end: Enter sends the recognised question, typing adds to it.
+              const field = questionField.current;
+              if (field === null) return;
+              field.focus();
+              field.setSelectionRange(field.value.length, field.value.length);
+            }}
           />
           <span className="agent__hint">Enter — отправить, Shift+Enter — перенос</span>
         </div>

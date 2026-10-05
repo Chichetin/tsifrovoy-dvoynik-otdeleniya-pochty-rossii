@@ -1,0 +1,44 @@
+/* #181: the microphone button of the agent chat (VoiceInput). */
+
+.voice__button {
+  border-color: var(--color-accent);
+  color: var(--color-accent-strong);
+}
+
+.voice__button.is-listening,
+.voice__button.is-listening:hover {
+  border-color: var(--color-danger);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.voice__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1rem;
+  height: 1rem;
+}
+
+.voice__dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-radius: 50%;
+  background: var(--color-danger);
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes voice-pulse {
+  50% { opacity: 0.35; transform: scale(0.8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice__dot { animation: none; }
+}
+
+/* Both labels sit in one cell, so the wider one sets the button width. */
+.voice__labels { display: inline-grid; }
+.voice__label { grid-area: 1 / 1; white-space: nowrap; }
+.voice__label.is-hidden { visibility: hidden; }
+
+/* The message goes under the row: the buttons and the hint do not move. */
+.agent__voice-error { order: 1; flex-basis: 100%; margin: 0; }
