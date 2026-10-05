@@ -145,6 +145,9 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       await placeFirstLibraryItem(page, 320, 240);
 
       // Выбор через строку инвентаризации: 3D показывает общий selection.
+      // A placed object is selected: the card covers the tabs until «×» drops it.
+      await page.getByRole('button', { name: 'Снять выделение' }).click();
+      await showTab(page, 'Инвентаризация');
       await inventoryRows(page).first().getByRole('button').first().click();
       const selected = page.getByLabel('Свойства');
       const id = await selected.getAttribute('data-entity-id');
