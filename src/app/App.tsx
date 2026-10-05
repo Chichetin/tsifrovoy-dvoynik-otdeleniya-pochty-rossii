@@ -74,6 +74,7 @@ import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
+import { FindingCard } from '../features/validation/FindingCard';
 import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
 import { HealthBadge } from '../features/validation/HealthScore';
 import { View3D } from '../features/view3d/View3D';
@@ -342,8 +343,19 @@ export function App(): React.JSX.Element {
   // #184: not together with the assistant tab; the selection stays for its questions.
   // #222: with a selection the column is that card alone; the tab row and its
   // panels are hidden (they stay mounted) until the selection goes.
+  // #225: a finding opened from «Проверка» or a marker takes the card's place.
+  const [findingRef, setFindingRef] = useState<Ref | null>(null);
   const issues = useMemo(() => validatePlan(document), [document]);
   const propsShown = selection !== null && selection.kind !== 'layer' && tabs.right !== 'assistant';
+  const findingIssues = useMemo(
+    () =>
+      findingRef === null
+        ? []
+        : issues.filter((issue) => issue.refs.some((ref) => ref.kind === findingRef.kind && ref.id === findingRef.id)),
+    [findingRef, issues],
+  );
+  const findingShown =
+    propsShown && findingRef !== null && selection?.kind === findingRef.kind && selection.id === findingRef.id && findingIssues.length > 0;
   const cardOnly = propsShown;
 
   // #105: «Повернуть» and «Изменить форму» go with a single selected object.
@@ -371,12 +383,14 @@ export function App(): React.JSX.Element {
 
   const select = useCallback(
     (ref: Ref | null) => {
+      setFindingRef(null);
       store.getState().select(ref);
     },
     [store],
   );
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
+      setFindingRef(null);
       store.getState().selectMany(ids);
     },
     [store],
@@ -541,9 +555,19 @@ export function App(): React.JSX.Element {
   const focusFromMarker = useCallback(
     (ref: Ref) => {
       focusOn(ref);
+      setFindingRef(ref);
       showRightTab('validation');
     },
     [focusOn, showRightTab],
+  );
+
+  // #225: a pick in «Проверка» opens the finding card, not «Свойства».
+  const focusFinding = useCallback(
+    (ref: Ref) => {
+      focusOn(ref);
+      setFindingRef(ref);
+    },
+    [focusOn],
   );
 
   const placedType = useRef<Id | null>(null);
@@ -1325,7 +1349,16 @@ export function App(): React.JSX.Element {
               is the card's only title and its only heading — the card has
               none of its own and stays the region «Свойства» by its
               aria-label (it renders the same without the band). */}
-          {propsShown ? (
+          {findingShown && findingRef !== null ? (
+            <FindingCard
+              plan={document}
+              issues={findingIssues}
+              allIssues={issues}
+              target={findingRef}
+              onClose={closeProps}
+              onShowProps={() => setFindingRef(null)}
+            />
+          ) : propsShown ? (
             <div className={cardOnly ? 'shell__props shell__props--alone' : 'shell__props'}>
               <div className="shell__props-band">
                 {/* A heading by role, not an <h2>: the band keeps its look without
@@ -1419,7 +1452,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusFinding} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
               inventory: (
                 <>
                   <RuleChecklist
