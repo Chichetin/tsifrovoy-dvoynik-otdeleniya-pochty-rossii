@@ -8,7 +8,7 @@
  */
 
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { Onboarding } from './Onboarding';
 import { TOUR_STEPS, type TourOutcome } from './tour';
 
@@ -52,7 +52,14 @@ function rings(): { target: string | null; x: number; width: number }[] {
   }));
 }
 
+// jsdom lays nothing out: the card is hidden until it has a measured height,
+// so give it one (like a real browser does).
+beforeEach(() => {
+  vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(200);
+});
+
 afterEach(() => {
+  vi.restoreAllMocks();
   cleanup();
   document.body.innerHTML = '';
 });
@@ -63,8 +70,9 @@ describe('окно обучения', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  test('диалог с подписью, фокус на нём, первый шаг из четырёх', () => {
+  test('диалог с подписью, фокус на нём, первый шаг из четырёх', async () => {
     renderTour();
+    await nextFrame();
     const dialog = screen.getByRole('dialog', { name: 'Обучение' });
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(document.activeElement).toBe(dialog);
@@ -72,8 +80,9 @@ describe('окно обучения', () => {
     expect(dialog.textContent).toContain(TOUR_STEPS[0]!.title);
   });
 
-  test('«Пропустить» есть на каждом шаге, «Готово» — только на последнем', () => {
+  test('«Пропустить» есть на каждом шаге, «Готово» — только на последнем', async () => {
     renderTour();
+    await nextFrame();
     for (let index = 0; index < TOUR_STEPS.length; index += 1) {
       expect(screen.getByRole('button', { name: 'Пропустить' })).toBeTruthy();
       const last = index === TOUR_STEPS.length - 1;
@@ -84,8 +93,9 @@ describe('окно обучения', () => {
     expect(screen.getByRole('dialog').textContent).toContain(TOUR_STEPS.at(-1)!.title);
   });
 
-  test('«Назад» возвращает на прошлый шаг и недоступна на первом', () => {
+  test('«Назад» возвращает на прошлый шаг и недоступна на первом', async () => {
     renderTour();
+    await nextFrame();
     const back = (): HTMLButtonElement => screen.getByRole('button', { name: 'Назад' });
     expect(back().disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
@@ -95,9 +105,10 @@ describe('окно обучения', () => {
     expect(screen.getByRole('dialog').textContent).toContain(TOUR_STEPS[0]!.title);
   });
 
-  test('«Готово» закрывает с итогом done, «Пропустить» — skipped', () => {
+  test('«Готово» закрывает с итогом done, «Пропустить» — skipped', async () => {
     const onClose = vi.fn();
     renderTour(onClose);
+    await nextFrame();
     for (let index = 1; index < TOUR_STEPS.length; index += 1) {
       fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     }
@@ -107,6 +118,7 @@ describe('окно обучения', () => {
     cleanup();
     const onSkip = vi.fn();
     renderTour(onSkip);
+    await nextFrame();
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     fireEvent.click(screen.getByRole('button', { name: 'Пропустить' }));
     expect(onSkip).toHaveBeenCalledWith('skipped');
@@ -120,11 +132,12 @@ describe('окно обучения', () => {
     expect(onClose).toHaveBeenCalledWith('skipped');
   });
 
-  test('пока окно открыто, клавиши редактора до него не доходят; после закрытия — снова доходят', () => {
+  test('пока окно открыто, клавиши редактора до него не доходят; после закрытия — снова доходят', async () => {
     const editor = vi.fn();
     window.addEventListener('keydown', editor);
     try {
       const view = renderTour();
+    await nextFrame();
       fireEvent.keyDown(document.body, { key: 'Delete', code: 'Delete' });
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'z', code: 'KeyZ', ctrlKey: true });
       fireEvent.keyDown(document.body, { key: 'f', code: 'KeyF' });
@@ -138,8 +151,9 @@ describe('окно обучения', () => {
     }
   });
 
-  test('Tab ходит по кнопкам внутри окна и не уходит на план', () => {
+  test('Tab ходит по кнопкам внутри окна и не уходит на план', async () => {
     renderTour();
+    await nextFrame();
     const skip = screen.getByRole('button', { name: 'Пропустить' });
     const next = screen.getByRole('button', { name: 'Далее' });
     // «Назад» на первом шаге выключена и в обход не входит.
@@ -150,21 +164,24 @@ describe('окно обучения', () => {
     expect(document.activeElement).toBe(next);
   });
 
-  test('закрытие возвращает фокус туда, где он был', () => {
+  test('закрытие возвращает фокус туда, где он был', async () => {
     const opener = document.createElement('button');
     document.body.append(opener);
     opener.focus();
     const view = render(<Onboarding open onClose={() => {}} />);
+    await nextFrame();
     expect(document.activeElement).not.toBe(opener);
     view.rerender(<Onboarding open={false} onClose={() => {}} />);
     expect(document.activeElement).toBe(opener);
   });
 
-  test('повторное открытие начинается с первого шага', () => {
+  test('повторное открытие начинается с первого шага', async () => {
     const view = render(<Onboarding open onClose={() => {}} />);
+    await nextFrame();
     fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
     view.rerender(<Onboarding open={false} onClose={() => {}} />);
     view.rerender(<Onboarding open onClose={() => {}} />);
+    await nextFrame();
     expect(screen.getByRole('dialog').textContent).toContain('Шаг 1 из');
   });
 });
