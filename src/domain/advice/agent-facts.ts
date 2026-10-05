@@ -127,7 +127,7 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       const filter = record(output.filter);
       if (filter !== null) {
         const refs: Ref[] = typeof filter.zoneId === 'string' ? [{ kind: 'zone', id: filter.zoneId }] : roomRefs;
-        const scope = [subject(state, refs), typeof filter.zoneId === 'string' ? 'без вложенных зон' : '', typeof filter.typeId === 'string' ? `тип «${state.names.objectTypeLabel(filter.typeId) ?? filter.typeId}» (${filter.typeId})` : 'все типы'].filter(Boolean).join('; ');
+        const scope = [subject(state, refs), typeof filter.zoneId === 'string' ? 'без вложенных зон' : '', typeof filter.typeId === 'string' ? `тип «${state.names.objectTypeLabel(filter.typeId) ?? filter.typeId}»` : 'все типы'].filter(Boolean).join('; ');
         add(`${prefix}.objects`, 'equipment.count', output.count, refs, scope);
       }
     }
@@ -152,16 +152,16 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       const candidate = recommendation.candidates.find((c) => c.facts.some((f) => f.id === fact.id));
       const scope = [
         subject(state, fact.refs),
-        fact.metric.startsWith('equipment.') && typeId !== undefined ? `тип «${state.names.objectTypeLabel(typeId) ?? typeId}» (${typeId})` : '',
+        fact.metric.startsWith('equipment.') && typeId !== undefined ? `тип «${state.names.objectTypeLabel(typeId) ?? typeId}»` : '',
         fact.metric.startsWith('equipment.') && rule?.kind === 'count' ? `правило ${rule.id}, ${rule.scope === 'direct' ? 'без вложенных зон' : 'включая вложенные зоны'}` : '',
-        candidate === undefined ? '' : `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`,
+        candidate === undefined ? '' : candidateScope(recommendation, candidate),
       ].filter(Boolean).join('; ');
       // Candidate fact IDs are local to their search, not globally unique.
       const metricLabel = recommendation.scenario === 'compare' && fact.metric === 'layout.entrance'
         ? 'Расстояние от центра объекта до входа по правилу distance-to-entrance'
         : fact.metric !== 'placement.distance' ? undefined
         : recommendation.scenario === 'compare' ? 'Перемещено объектов, м (сумма): суммарное перемещение сохранившихся объектов между снимками'
-          : 'Расстояние от центра кандидата до середины ограничивающего прямоугольника выбранной зоны или помещения';
+          : 'Расстояние от варианта до центра зоны';
       facts.push({ ...fact, id: JSON.stringify([recommendation.id, fact.id]), sourceFactId: fact.id, refs: fact.refs.map((ref) => ({ ...ref })), scope, recommendationId: recommendation.id, ...(candidate === undefined ? {} : { candidateId: candidate.id }), ...(metricLabel === undefined ? {} : { metricLabel }) });
     }
   }
@@ -186,7 +186,8 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
 }
 
 function candidateScope(recommendation: Recommendation, candidate: Candidate): string {
-  return `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`;
+  // #210: no coordinates — the variant is on the plan; its number and label name it.
+  return `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}»`;
 }
 
 /**

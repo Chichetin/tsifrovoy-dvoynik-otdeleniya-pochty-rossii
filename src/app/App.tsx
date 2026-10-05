@@ -10,14 +10,14 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
  * recomputed from the document, never stored beside it.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
 import type { Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
 import type { EditorSession, Tool } from '../contracts/ui';
-import { buildInventory } from '../domain/inventory';
+import { buildInventory, inventoryLinkTarget } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
@@ -52,6 +52,7 @@ import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { InventoryLinkNotice } from '../features/inventory/InventoryLinkNotice';
 import { InventoryWalk, type WalkState, walkOf } from '../features/inventory/InventoryWalk';
 import { WalkRouteLayer } from '../features/inventory/WalkRouteLayer';
 import { InformationLayer } from '../features/layers/InformationLayer';
@@ -167,8 +168,28 @@ export function App(): React.JSX.Element {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
   const [planOnly, setPlanOnly] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  // Only hides or shows the interface; the viewport and canvas size stay as they are.
-  const togglePlanOnly = useCallback((): void => setPlanOnly((value) => !value), []);
+  // #224: hidden interface gives the whole window to the canvas. The canvas
+  // corner moves, so the viewport moves by the same pixels in the same frame:
+  // every point of the plan stays where it was on the screen.
+  const planOnlyFrom = useRef<DOMRect | null>(null);
+  const [planOnlyShift, setPlanOnlyShift] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const togglePlanOnly = useCallback((): void => {
+    planOnlyFrom.current = canvasRef.current?.getBoundingClientRect() ?? null;
+    setPlanOnly((value) => !value);
+  }, []);
+  useLayoutEffect(() => {
+    const before = planOnlyFrom.current;
+    planOnlyFrom.current = null;
+    const after = canvasRef.current?.getBoundingClientRect();
+    if (before === null || after === undefined) return;
+    const dx = before.left - after.left;
+    const dy = before.top - after.top;
+    if (dx !== 0 || dy !== 0) {
+      setViewport((current) => ({ ...current, origin: [current.origin[0] + dx, current.origin[1] + dy] }));
+    }
+    // The eye and captions buttons keep their place on the screen.
+    setPlanOnlyShift(planOnly ? { top: dy, right: after.right - before.right } : { top: 0, right: 0 });
+  }, [planOnly]);
   useEffect(() => {
     if (!planOnly) return;
     const onEscape = (event: KeyboardEvent): void => {
@@ -264,7 +285,8 @@ export function App(): React.JSX.Element {
   const focusSequence = useRef(0);
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
-  const [tourOpen, setTourOpen] = useState(() => shouldShowTour(tourStorage()));
+  const [tourOpen, setTourOpen] = useState(() =>
+    inventoryLinkTarget(window.location.search) === null && shouldShowTour(tourStorage()));
   const [demoRequest, setDemoRequest] = useState<{ id: number; variant: 'before' | 'after' } | null>(null);
   const closeTour = useCallback((outcome: TourOutcome) => {
     rememberTour(tourStorage(), outcome);
@@ -1076,6 +1098,7 @@ export function App(): React.JSX.Element {
           className="shell__canvas"
           data-view={view}
           ref={canvasRef}
+          style={{ '--plan-only-top': `${planOnlyShift.top}px`, '--plan-only-right': `${planOnlyShift.right}px` } as React.CSSProperties}
           // The silhouette follows the pointer: outside the canvas there is none (#26).
           onPointerLeave={() => placementGhost.publish(null)}
           onDragLeave={(event) => {
@@ -1307,6 +1330,7 @@ export function App(): React.JSX.Element {
         />
 
         <aside id="side-panel-right" className="shell__side shell__side--wide" data-tour="side-right">
+          <InventoryLinkNotice document={document} onFocus={focusOn} />
           {/* #105 (was D-268): «Свойства» stand above the right column's tabs;
               «×» drops the selection (the same as Escape on the canvas). D-272: the band
               is the card's only title and its only heading — the card has

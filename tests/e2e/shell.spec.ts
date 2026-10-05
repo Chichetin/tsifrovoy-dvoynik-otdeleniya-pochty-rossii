@@ -55,13 +55,15 @@ test('границы боковых панелей двигаются, а гла
   const eyeBox = (await eye.boundingBox())!;
   expect(eyeBox.y).toBeGreaterThanOrEqual(noticeBox.y + noticeBox.height);
   const shownScale = await page.getByTestId('canvas-scale').textContent();
-  const shownCanvas = (await canvas.boundingBox())!;
   await eye.click();
   await expect(left).toBeHidden();
   await expect(right).toBeHidden();
   await expect(page.locator('.shell__bar')).toBeHidden();
-  // #132: the eye only hides the interface — the canvas and the scale stay put.
-  expect(await canvas.boundingBox()).toEqual(shownCanvas);
+  // #224: the canvas takes the whole window; the scale and the eye stay put.
+  const fullCanvas = (await canvas.boundingBox())!;
+  expect(fullCanvas.x).toBe(0);
+  expect(fullCanvas.y).toBe(0);
+  expect((await page.getByRole('button', { name: 'Показать интерфейс' }).boundingBox())!).toEqual(eyeBox);
   await expect(page.getByTestId('canvas-scale')).toHaveText(shownScale ?? '');
   await page.keyboard.press('Escape');
   await expect(left).toBeVisible();

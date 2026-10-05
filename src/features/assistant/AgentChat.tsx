@@ -15,6 +15,7 @@ import { QUOTED_ID_PATTERN, WHY_LEAD } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
 import { stopAgent } from './agent-client';
+import './agent-chat.css';
 import { VoiceInput } from './VoiceInput';
 
 const PANEL_NAMES = { metrics: 'Площади', validation: 'Проверка', inventory: 'Инвентаризация' } as const;
@@ -121,44 +122,53 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
  * is clickable and lands in `title`/`data-ref-id` for whoever needs it.
  */
 function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan: PlanDocument; names: PlanIndex; stale: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
+  const paragraphs = text.split(/\n{2,}/).map((paragraph, index) => {
+    const parts: React.ReactNode[] = [];
+    let last = 0;
+    for (const match of paragraph.matchAll(ANSWER_REF_PATTERN)) {
+      const [whole, quotedName, quotedId] = match;
+      // A bare match (no quoted-name group) is the id itself: `whole` is `token`.
+      const token = quotedId ?? whole;
+      const ref = refFor(plan, token);
+      const start = match.index ?? last;
+      parts.push(paragraph.slice(last, start));
+      if (ref === null) {
+        // A rule or a type: the id is not a plan entity a click can show.
+        // Leave the sentence exactly as the calculation wrote it — id
+        // included — rather than quietly trim information (#10 review).
+        parts.push(whole);
+      } else {
+        const label = names.nameOf(ref) ?? quotedName ?? token;
+        parts.push(
+          <button
+            key={start}
+            type="button"
+            className="agent__id"
+            disabled={stale}
+            onClick={() => onFocus(ref)}
+            title={`Показать на плане · id ${token}`}
+            data-ref-id={token}
+          >
+            {label}
+          </button>,
+        );
+      }
+      last = start + whole.length;
+    }
+    parts.push(paragraph.slice(last));
+    return <p key={index} className={index === 0 && text.includes('\n\n') ? 'agent__lead' : undefined}>{parts}</p>;
+  });
+  // #210: the first paragraph says what to do; the facts behind it are one click away.
+  const [lead, ...more] = paragraphs;
   return (
     <div className="agent__text">
-      {text.split(/\n{2,}/).map((paragraph, index) => {
-        const parts: React.ReactNode[] = [];
-        let last = 0;
-        for (const match of paragraph.matchAll(ANSWER_REF_PATTERN)) {
-          const [whole, quotedName, quotedId] = match;
-          // A bare match (no quoted-name group) is the id itself: `whole` is `token`.
-          const token = quotedId ?? whole;
-          const ref = refFor(plan, token);
-          const start = match.index ?? last;
-          parts.push(paragraph.slice(last, start));
-          if (ref === null) {
-            // A rule or a type: the id is not a plan entity a click can show.
-            // Leave the sentence exactly as the calculation wrote it — id
-            // included — rather than quietly trim information (#10 review).
-            parts.push(whole);
-          } else {
-            const label = names.nameOf(ref) ?? quotedName ?? token;
-            parts.push(
-              <button
-                key={start}
-                type="button"
-                className="agent__id"
-                disabled={stale}
-                onClick={() => onFocus(ref)}
-                title={`Показать на плане · id ${token}`}
-                data-ref-id={token}
-              >
-                {label}
-              </button>,
-            );
-          }
-          last = start + whole.length;
-        }
-        parts.push(paragraph.slice(last));
-        return <p key={index}>{parts}</p>;
-      })}
+      {lead}
+      {more.length === 0 ? null : (
+        <details className="agent__more">
+          <summary>Подробнее</summary>
+          {more}
+        </details>
+      )}
     </div>
   );
 }
@@ -284,9 +294,10 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
       ) : (
         <ol ref={history} className="agent__history" aria-label="Диалог с ассистентом">
           {exchanges.map((exchange) => {
-            const answer = exchange.answer;
+            // #211: until the model's answer comes, the calculation's draft stands in.
+            const answer = exchange.answer ?? exchange.draft ?? null;
             const stale = answer !== null && answer.revision !== revision;
-            const pending = answer === null && exchange.error === null;
+            const pending = exchange.answer === null && exchange.error === null;
             return (
               <li key={exchange.id} className="agent__exchange">
                 <p className="agent__question"><span className="agent__who">Вопрос</span>{exchange.question}</p>
@@ -298,7 +309,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                     <p className="agent__mode">
                       {answer.mode !== 'llm'
                         ? `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`
-                        : answer.text.startsWith(WHY_LEAD)
+                        : answer.text.includes(WHY_LEAD)
                           ? 'LLM выбрала рассчитанные факты и написала «почему так». Код сверил в этом тексте каждый id, число и номер варианта с расчётом; остальной текст сформирован кодом.'
                           : 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'}
                     </p>
