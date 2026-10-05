@@ -54,7 +54,7 @@ import {
   grabOffset,
   handlePoint,
   resizeFromPointer,
-  rotationFromPointer,
+  rotationFromHandle,
   rotationHandlePoint,
   snapPosition,
   type ResizeHandle,
@@ -972,7 +972,7 @@ export function EquipmentLayer({
     const [fx, fy] = modelToScreen(handlePoint(current, front), viewport);
     const turned = (pointer: Point, shift: boolean): Equipment => ({
       ...object,
-      rotation_deg: rotationFromPointer(object.position, pointer, shift, object.rotation_deg),
+      rotation_deg: rotationFromHandle(object.position, pointer, shift, object.rotation_deg),
     });
     return (
       <Fragment key="rotate">
