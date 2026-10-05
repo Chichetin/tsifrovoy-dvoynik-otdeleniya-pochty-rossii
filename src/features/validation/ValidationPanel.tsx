@@ -366,7 +366,7 @@ export function ValidationPanel({
 }
 
 /** Keep the source below the finding without changing the diagnostic contract. */
-function FindingMessage({ message }: { message: string }): React.JSX.Element {
+export function FindingMessage({ message }: { message: string }): React.JSX.Element {
   const sourceStart = message.lastIndexOf('Источник правила:');
   return sourceStart < 0 ? <>{message}</> : (
     <>
