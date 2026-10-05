@@ -123,8 +123,10 @@ ssh ubuntu@<публичный IP>
 cd C:\Users\<пользователь>\PycharmProjects\Pochtatex
 ```
 
-```bash
-git archive --format=tar.gz -o C:\tmp\ops.tar.gz HEAD
+```powershell
+$releaseSha = git rev-parse HEAD
+$releaseSha | Set-Content -Encoding ascii -NoNewline C:\tmp\ops.sha
+git archive --format=tar.gz -o C:\tmp\ops.tar.gz $releaseSha
 ```
 
 Проверить, что в архиве весь проект, а не один каталог — в списке должны быть
@@ -135,7 +137,7 @@ tar -tzf C:\tmp\ops.tar.gz | more
 ```
 
 ```bash
-scp C:\tmp\ops.tar.gz ubuntu@<публичный IP>:~
+scp C:\tmp\ops.tar.gz C:\tmp\ops.sha ubuntu@<публичный IP>:~
 ```
 
 Дальше на самой машине:
@@ -183,13 +185,21 @@ ADVICE_RATE_WINDOW_MS=60000
 bash scripts/deploy-vm.sh
 ```
 
+Для способа А (архив без `.git`) передайте SHA из файла, созданного вместе с архивом:
+
+```bash
+BUILD_SHA="$(cat ~/ops.sha)" bash scripts/deploy-vm.sh
+```
+
 Скрипт ставит Docker, собирает образ, поднимает контейнер и ждёт, пока
-`/api/health` ответит. Первая сборка — несколько минут.
+`/api/health` ответит. Затем сверяет `status=ok` и SHA с исходниками. Чужая версия,
+отсутствующий SHA или неверный JSON дают код 1: выкладка не подтверждена.
+Один HTTP-запрос ограничен пятью секундами. Первая сборка — несколько минут.
 
 Ожидаемый хвост вывода:
 
 ```
-Ответ /api/health: {"status":"ok","llm":{"configured":true,"provider":"deepseek-via-yandex-ai-studio"}}
+Сборка <SHA исходного коммита> подтверждена.
 Модель настроена.
 ```
 
@@ -203,7 +213,8 @@ sudo apt-get update && sudo apt-get install -y docker.io docker-compose-v2
 ```
 
 ```bash
-sudo docker compose up --build -d && curl http://127.0.0.1:8080/api/health
+BUILD_SHA="$(git rev-parse --short HEAD)" sudo -E docker compose up --build -d
+curl http://127.0.0.1:8080/api/health
 ```
 
 ## Шаг 7. Проверить снаружи
@@ -217,6 +228,8 @@ curl http://<публичный IP>:8080/api/health
 ```bash
 DEPLOY_URL=http://<публичный IP>:8080 npx playwright test tests/e2e/deployment.spec.ts
 ```
+
+Эту команду запускают только по явной просьбе человека о полном прогоне.
 
 Сценарий открывает редактор по адресу деплоя, проверяет health, прямую ссылку, ответ
 ассистента и путь «открыть план → сохранить». Ожидается `5 passed`. Затем откройте
@@ -250,7 +263,7 @@ sudo docker compose logs --tail=50
 Обновить до свежего `main` (при способе Б из шага 4):
 
 ```bash
-git pull && sudo docker compose up --build -d
+git pull --ff-only && bash scripts/deploy-vm.sh
 ```
 
 Контейнер поднят с `restart: unless-stopped` — перезагрузку машины переживает сам.

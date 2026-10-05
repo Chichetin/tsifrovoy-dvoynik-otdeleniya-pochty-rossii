@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { AgentAnswer, AgentEdit, AgentEditPose, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
 import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
-import { QUOTED_ID_PATTERN } from '../../domain/advice';
+import { QUOTED_ID_PATTERN, WHY_LEAD } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
 import { stopAgent } from './agent-client';
@@ -57,8 +57,8 @@ type Props = {
 
 /**
  * #34: questions about the selection, with its id in the text. Only what the
- * calculation answers: a place for one more of the same type, the zone's
- * equipment, the zone's contents. The object's own name is left out — its
+ * calculation answers: a place for one more of the same type, a new place for
+ * the object itself, the zone's equipment, the zone's contents. The object's own name is left out — its
  * words would steer the zone match («Табло над зоной ожидания»).
  */
 export function selectionQuestions(plan: PlanDocument, selection: Ref | null | undefined): string[] {
@@ -76,6 +76,9 @@ export function selectionQuestions(plan: PlanDocument, selection: Ref | null | u
   const type = plan.catalog.objectTypes.find((entry) => entry.id === object.typeId);
   return [
     ...(type === undefined ? [] : [`Где разместить ещё такой же объект «${type.label}», как ${object.id}?`]),
+    // #178: a new place for this very object — the variants and why one beats another.
+    // Not first: «Спросить ассистента» in the object menu asks the first question.
+    `Предложить место для ${object.id}: куда перенести и почему?`,
     ...zoneQuestions(object.zoneId, false),
   ];
 }
@@ -293,9 +296,11 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                   <div className={`agent__answer${answer.mode === 'llm' ? '' : ' is-fallback'}`}>
                     <AnswerText text={answer.text} plan={plan} names={names} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
                     <p className="agent__mode">
-                      {answer.mode === 'llm'
-                        ? 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'
-                        : `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`}
+                      {answer.mode !== 'llm'
+                        ? `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`
+                        : answer.text.startsWith(WHY_LEAD)
+                          ? 'LLM выбрала рассчитанные факты и написала «почему так». Код сверил в этом тексте каждый id, число и номер варианта с расчётом; остальной текст сформирован кодом.'
+                          : 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'}
                     </p>
                     {/* id доступен без мыши и без клика по каждому упоминанию
                         в тексте (review of !318, #10): та же клавиатурная

@@ -92,6 +92,11 @@ function ruleSource(rule: Rule): string {
   return /^правило команды/i.test(rule.rationale) ? `${rule.id}, ${sourceLabel(rule)}` : `${rule.id}; ${sourceLabel(rule)}`;
 }
 
+/** #178: whose rule it is, in the words an answer must use for it. */
+export function ruleSourceLabel(rule: Rule): string {
+  return rule.source === 'organizer-material' ? 'материалы организаторов' : 'правило команды, не норматив Почты';
+}
+
 function sourceLabel(rule: Rule): string {
   if (rule.source === 'organizer-material') return 'материалы организаторов';
   return 'справочник проекта';
@@ -329,9 +334,20 @@ function editCalls(plan: PlanDocument, text: string): AgentToolCall[] {
   }];
 }
 
+/**
+ * #178: «предложить место», «куда перенести» — a new place for an object that
+ * stands. Only a request: «я перенес eq_1», «применил предложенное место»,
+ * «поставил на новое место» report an edit, they do not ask for one.
+ */
+const RELOCATE_INTENT = /(?<![а-я])предлож(?:и|ите|ить)\s+(?:[а-я]+\s+)?мест|куда\s+(?:перенести|переставить|передвинуть|переместить)(?![а-я])|(?<![а-я])перенес(?:и|ите|ти)(?![а-я])/;
+
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
+  if (RELOCATE_INTENT.test(text)) {
+    const objectId = [...text.matchAll(/[a-z][a-z0-9]*(?:_[a-z0-9]+)+/g)].map((match) => match[0]).find((id) => plan.objects.some((object) => object.id === id));
+    if (objectId !== undefined) return [{ name: 'find_place', args: { objectId, zoneId: null } }];
+  }
   // #122: «разложи / расставь зону ожидания» — the layout of a named zone.
   if (LAYOUT_VERB.test(text)) {
     const zoneId = matchZone(plan, words(text));
@@ -494,6 +510,78 @@ function equipmentDetails(state: AgentToolState, recommendation: Recommendation)
   };
 }
 
+type RelocationView = {
+  objectId: Id;
+  options: {
+    kind: 'keep' | 'move';
+    proposalId: Id | null;
+    zones: { id: Id; name: string }[];
+    position_m: [number, number];
+    ruleIds: Id[];
+    wallGap_m: number | null;
+    newWarnings: number;
+    /** Only what the move changed: `placement.distance.delta`, `layout.entrance.*`. */
+    facts: Record<string, number>;
+    zoneEffects: { zoneId: Id; free_m2: { before: number; after: number }; objects: { before: number; after: number } }[];
+    coveragePercent: { before: number | null; after: number | null } | null;
+  }[];
+};
+
+/**
+ * #178: «почему сюда» without a model — the relocation options (#177) in the
+ * order the search ranked them, each with its numbers; one paragraph each.
+ */
+function relocationText(state: AgentToolState, output: RelocationView): string[] {
+  const { plan } = state;
+  const object = plan.objects.find((entry) => entry.id === output.objectId);
+  const moves = output.options.filter((option) => option.kind === 'move').length;
+  const head = moves === 0
+    ? `Новое место для «${object?.label ?? output.objectId}» (${output.objectId}) без новых ошибок проверки не найдено — объект остаётся на месте.`
+    : `Новое место для «${object?.label ?? output.objectId}» (${output.objectId}): переносов ${moves}. Порядок вариантов дал расчёт поиска места: выше тот, у кого меньше новых предупреждений проверки, затем меньший зазор до стены.`;
+  const lines = output.options.map((option, index) => {
+    const where = option.zones.length === 0 ? 'вне зон' : zoneTitle(plan, option.zones[option.zones.length - 1]!.id);
+    const gap = option.wallGap_m === null ? null : `зазор до стены ${formatShort(option.wallGap_m, 2)} м`;
+    const zones = option.zoneEffects.map((effect) =>
+      `${zoneTitle(plan, effect.zoneId)}: свободно ${formatArea(effect.free_m2.before)} → ${formatArea(effect.free_m2.after)}, объектов ${effect.objects.before} → ${effect.objects.after}`);
+    const coverage = option.coveragePercent?.before == null || option.coveragePercent.after == null
+      ? null
+      : `покрытие клиентских зон камерами ${formatShort(option.coveragePercent.before)} → ${formatShort(option.coveragePercent.after)} %`;
+    const shift = option.facts['placement.distance.delta'];
+    const was = option.facts['layout.entrance.before'];
+    const now = option.facts['layout.entrance.after'];
+    const facts = [
+      shift === undefined ? null : `перенос на ${formatShort(shift, 2)} м`,
+      was === undefined || now === undefined ? null : `до входа ${formatShort(was, 2)} → ${formatShort(now, 2)} м`,
+      gap,
+      ...(option.kind === 'move' ? zones : []),
+      coverage,
+      option.kind === 'move' ? `новых предупреждений: ${option.newWarnings}` : null,
+    ].filter(Boolean).join('; ');
+    const centre = `центр (${formatShort(option.position_m[0], 2)}; ${formatShort(option.position_m[1], 2)}) м`;
+    return `${option.kind === 'move' ? `Вариант ${index + 1}` : 'Оставить как есть'} — ${where}, ${centre}${facts === '' ? '' : `: ${facts}`}.`;
+  });
+  const ruleIds = [...new Set(output.options.flatMap((option) => option.ruleIds))];
+  const rules = plan.catalog.rules.filter((rule) => ruleIds.includes(rule.id));
+  const ruleLine = rules.length === 0
+    ? []
+    : [`Правила справочника: ${rules.map((rule) => `${rule.id} (${ruleSourceLabel(rule)})`).join('; ')}.`];
+  const actions = moves === 0 ? [] : ['«Показать вариант N» рисует перенос на плане полупрозрачно, «Применить вариант N» переносит объект одной командой, отмена — Ctrl+Z.'];
+  return [head, ...lines, ...ruleLine, ...actions];
+}
+
+/** #177 results among the tool calls: `find_place` with `objectId`. */
+function relocationViews(records: readonly AgentToolRecord[]): RelocationView[] {
+  return records.flatMap((record) => {
+    const output = record.output as Record<string, unknown> | null;
+    return record.name === 'find_place' && output !== null && typeof output === 'object' && 'objectId' in output ? [output as unknown as RelocationView] : [];
+  });
+}
+
+/** #178: the relocation variants in code's words — under the model's «почему так» and without a model alike. */
+export function relocationParagraphs(state: AgentToolState, records: readonly AgentToolRecord[]): string[] {
+  return relocationViews(records).flatMap((view) => relocationText(state, view));
+}
+
 /** The answer text written by code from what the tools returned. */
 export function composeFallbackText(
   state: AgentToolState,
@@ -502,7 +590,9 @@ export function composeFallbackText(
   namedZones: readonly Id[] = [],
 ): string {
   // One paragraph per note, tool and recommendation: the chat splits the text on blank lines.
-  const parts: string[] = [...notes];
+  const parts: string[] = [...notes, ...relocationParagraphs(state, records)];
+  /** Relocation proposals already read as options above. */
+  const relocated = new Set(relocationViews(records).flatMap((view) => view.options.map((option) => option.proposalId)));
   for (const record of records) {
     const output = record.output as Record<string, unknown> | null;
     if (output === null || typeof output !== 'object' || 'error' in output) continue;
@@ -540,6 +630,7 @@ export function composeFallbackText(
     parts.push('Нарушений правил комплектования нет.');
   }
   for (const proposal of state.proposals) {
+    if (relocated.has(proposal.id)) continue;
     const metric = (code: string, phase: string): number | undefined => proposal.facts.find((fact) => fact.metric === code && fact.phase === phase)?.value;
     // #122: a layout variant reads by its own numbers; the area does not change.
     if (proposal.title !== undefined) {
