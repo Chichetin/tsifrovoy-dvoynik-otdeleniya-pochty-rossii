@@ -40,7 +40,7 @@ for (const width of [1280, 1440]) {
     // The committed snapshot is refreshed on request only, so an ordinary run
     // does not rewrite a tracked file: UPDATE_SNAPSHOTS=1 npx playwright test …
     if (process.env['UPDATE_SNAPSHOTS'] === '1') {
-      await panel.screenshot({ path: `docs/verification/2026-09-29-comparison-file-${width}.png` });
+      await panel.screenshot({ path: test.info().outputPath(`comparison-file-${width}.png`) });
     }
     const handle = page.getByRole('separator', { name: 'Изменить ширину правой панели' });
     await handle.focus();
@@ -53,7 +53,7 @@ for (const width of [1280, 1440]) {
     await expect(panel.getByTestId('comparison-area.free')).toContainText('Свободно');
     await panel.locator('.comparison__changes').scrollIntoViewIfNeeded();
     if (process.env['UPDATE_SNAPSHOTS'] === '1') {
-      await page.locator('#side-panel-right').screenshot({ path: `docs/verification/2026-09-29-comparison-file-${width}-compact.png` });
+      await page.locator('#side-panel-right').screenshot({ path: test.info().outputPath(`comparison-file-${width}-compact.png`) });
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     await handle.focus();
@@ -66,9 +66,11 @@ for (const width of [1280, 1440]) {
     const rows = page.getByLabel('Инвентаризация', { exact: true }).locator('table').first().locator('tbody tr');
     await rows.first().locator('.table__link').first().click();
     await page.keyboard.press('Delete');
-    await expect(rows).toHaveCount(52);
+    // One object less than in demo/after.json.
+    const left = after.objects.length - 1;
+    await expect(rows).toHaveCount(left);
     await showTab(page, 'Ассистент');
-    await expect(panel.getByTestId('comparison-equipment.count')).toContainText('52');
+    await expect(panel.getByTestId('comparison-equipment.count').locator('td').nth(1)).toHaveText(String(left));
     await panel.getByTestId('comparison-file-input').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('{}') });
     await expect(panel.getByRole('alert')).toContainText('Файл не похож');
     await expect(panel).toContainText('before.json');

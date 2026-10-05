@@ -20,6 +20,7 @@ import {
   type PlaywrightWorkerArgs,
   type PlaywrightWorkerOptions,
   skipOnboarding,
+  emptyStartOn,
 } from './fixtures';
 import { encodePlan } from '../../src/persistence/codec';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
@@ -47,7 +48,10 @@ async function withBrowser(
   try {
     const context = await browser.newContext(baseURL === undefined ? {} : { baseURL });
     await skipOnboarding(context);
-    await run(await context.newPage());
+    // The same empty plan the fixture gives every other spec (#111 opens the demo).
+    const page = await context.newPage();
+    emptyStartOn(page);
+    await run(page);
   } finally {
     await browser.close();
   }

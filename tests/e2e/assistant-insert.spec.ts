@@ -43,9 +43,10 @@ test('слой из ответа не мешает применить вариа
   await ask();
   await assistant.getByRole('button', { name: 'Включить слой «Камеры и зоны обзора»' }).click();
   await expect(assistant.locator('.agent__answer').last().getByRole('button', { name: /^Применить:/ })).toBeEnabled();
-  await page.screenshot({ path: 'docs/verification/2026-09-29-assistant-layer-action.png' });
+  await page.screenshot({ path: test.info().outputPath('assistant-layer-action.png') });
   await assistant.getByRole('button', { name: /^Применить:/ }).click();
-  await expect(assistant.getByRole('status')).toContainText('Применено');
+  // The voice hint is a second, empty status region of the panel.
+  await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
   const properties = page.getByLabel('Свойства', { exact: true });
   const firstId = await properties.getAttribute('data-entity-id');
   expect(firstId).toBeTruthy();
@@ -60,7 +61,8 @@ test('слой из ответа не мешает применить вариа
   // Keyboard activation uses the same insertion as a pointer click.
   await apply.focus();
   await apply.press('Enter');
-  await expect(assistant.getByRole('status')).toContainText('Применено');
+  // The voice hint is a second, empty status region of the panel.
+  await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
   const secondId = await properties.getAttribute('data-entity-id');
   expect(secondId).toBeTruthy();
   expect(secondId).not.toBe(firstId);

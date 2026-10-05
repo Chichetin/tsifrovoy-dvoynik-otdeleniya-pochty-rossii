@@ -39,6 +39,23 @@ async function startWithNewPlan(page: Page): Promise<void> {
   page.off('dialog', accept);
 }
 
+/**
+ * Makes the first `goto('/')` of the page end with «Создать новый». The fixture
+ * uses it for every page; a spec that launches its own browser calls it itself.
+ */
+export function emptyStartOn(page: Page): void {
+  const goto = page.goto.bind(page);
+  let first = true;
+  page.goto = (async (url: string, options?: Parameters<Page['goto']>[1]) => {
+    const response = await goto(url, options);
+    if (first && url === '/') {
+      first = false;
+      await startWithNewPlan(page);
+    }
+    return response;
+  }) as Page['goto'];
+}
+
 export const test = base.extend<{ emptyStart: boolean }>({
   emptyStart: [true, { option: true }],
   context: async ({ context }, provide) => {
@@ -46,18 +63,7 @@ export const test = base.extend<{ emptyStart: boolean }>({
     await provide(context);
   },
   page: async ({ page, emptyStart }, provide) => {
-    if (emptyStart) {
-      const goto = page.goto.bind(page);
-      let first = true;
-      page.goto = (async (url: string, options?: Parameters<Page['goto']>[1]) => {
-        const response = await goto(url, options);
-        if (first && url === '/') {
-          first = false;
-          await startWithNewPlan(page);
-        }
-        return response;
-      }) as Page['goto'];
-    }
+    if (emptyStart) emptyStartOn(page);
     await provide(page);
   },
 });
