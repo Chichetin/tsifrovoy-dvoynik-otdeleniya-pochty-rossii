@@ -318,7 +318,8 @@ export function useAssistantSession({
         // question (it ran tools) answers the question itself.
         const answer =
           result.value.mode !== 'llm' && draft !== undefined && draft.steps.length > 0
-            ? { ...draft, ...(result.value.fallbackReason === undefined ? {} : { fallbackReason: result.value.fallbackReason }) }
+            ? // The draft's own note says «ответ обновится»: the final answer never keeps it.
+              { ...draft, fallbackReason: result.value.fallbackReason ?? 'текст собран расчётом.' }
             : result.value;
         update((exchange) => ({ ...exchange, answer }));
         // The agent shows what it found: the offered variant ghosted on the
