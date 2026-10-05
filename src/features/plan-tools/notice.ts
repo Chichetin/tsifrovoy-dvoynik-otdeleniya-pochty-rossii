@@ -66,6 +66,15 @@ export const SHAPE_NO_TYPE_NOTICE =
 export const SHAPE_TOO_SMALL_NOTICE =
   'Фигура получилась тоньше 10 см — не принята, план не изменён';
 
+/**
+ * #219: a placement click on an object of the same type selects it (#26) and
+ * places nothing; the line says why, so the click is not read as lost.
+ */
+export const OCCUPIED_PLACE_PREFIX = 'Здесь уже стоит ';
+export function occupiedPlaceNotice(name: string): string {
+  return `${OCCUPIED_PLACE_PREFIX}«${name}» — клик выбрал его. Новый объект ставится кликом по свободному месту.`;
+}
+
 export const NEAR_VERTEX_NOTICE =
   'Клик пришёлся у вершины — вершина не добавлена; кликните ближе к середине ребра';
 

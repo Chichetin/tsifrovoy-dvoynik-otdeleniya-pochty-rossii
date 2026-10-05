@@ -13,6 +13,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "workplace",
+    "pictogram": "workplace",
     "color": "#4C6EF5",
     "attributes": [
       {
@@ -58,6 +59,7 @@
     "occupiesFloor": true,
     "symbol": "circle",
     "model3d": "chair",
+    "pictogram": "seat",
     "color": "#748FFC",
     "attributes": [
       {
@@ -90,6 +92,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "computer",
+    "pictogram": "computer",
     "color": "#5C7CFA",
     "attributes": [
       {
@@ -122,6 +125,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "pos-terminal",
+    "pictogram": "pinpad",
     "color": "#3B5BDB",
     "attributes": [
       {
@@ -154,6 +158,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "printer",
+    "pictogram": "printer",
     "color": "#1971C2",
     "attributes": [
       {
@@ -199,6 +204,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "label-printer",
+    "pictogram": "printer",
     "color": "#1864AB",
     "attributes": [
       {
@@ -231,6 +237,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "cashier-window",
+    "pictogram": "cashier",
     "color": "#0CA678",
     "attributes": [
       {
@@ -270,6 +277,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "payment-terminal",
+    "pictogram": "terminal",
     "color": "#12B886",
     "attributes": [
       {
@@ -308,6 +316,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "queue-terminal",
+    "pictogram": "terminal",
     "color": "#087F5B",
     "attributes": [
       {
@@ -346,6 +355,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "mailbox",
+    "pictogram": "mailbox",
     "color": "#099268",
     "attributes": [
       {
@@ -378,6 +388,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "info-display",
+    "pictogram": "display",
     "color": "#F76707",
     "attributes": [
       {
@@ -417,6 +428,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "media-panel",
+    "pictogram": "display",
     "color": "#E8590C",
     "attributes": [
       {
@@ -456,6 +468,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "bench",
+    "pictogram": "seat",
     "color": "#F59F00",
     "attributes": [
       {
@@ -495,6 +508,7 @@
     "occupiesFloor": false,
     "symbol": "triangle",
     "model3d": "camera",
+    "pictogram": "camera",
     "color": "#7048E8",
     "attributes": [
       {
@@ -547,6 +561,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "alarm-panel",
+    "pictogram": "alarm",
     "color": "#5F3DC4",
     "attributes": [
       {
@@ -579,6 +594,7 @@
     "occupiesFloor": false,
     "symbol": "circle",
     "model3d": "fire-sensor",
+    "pictogram": "sensor",
     "color": "#9775FA",
     "attributes": [
       {
@@ -611,6 +627,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "socket",
+    "pictogram": "socket",
     "color": "#B197FC",
     "attributes": [
       {
@@ -650,6 +667,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "parcel-rack",
+    "pictogram": "rack",
     "color": "#E03131",
     "attributes": [
       {
@@ -689,6 +707,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "goods-rack",
+    "pictogram": "rack",
     "color": "#C92A2A",
     "attributes": [
       {
@@ -728,6 +747,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "scales",
+    "pictogram": "scales",
     "color": "#A61E4D",
     "attributes": [
       {
@@ -773,6 +793,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "info-stand",
+    "pictogram": "stand",
     "color": "#D6336C",
     "attributes": [
       {
@@ -805,6 +826,7 @@
     "occupiesFloor": true,
     "symbol": "rect",
     "model3d": "ramp",
+    "pictogram": "ramp",
     "color": "#868E96",
     "attributes": [
       {
@@ -844,6 +866,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "switchboard",
+    "pictogram": "switchboard",
     "color": "#495057",
     "attributes": [
       {
@@ -876,6 +899,7 @@
     "occupiesFloor": false,
     "symbol": "rect",
     "model3d": "hvac",
+    "pictogram": "hvac",
     "color": "#343A40",
     "attributes": [
       {
@@ -914,6 +938,7 @@
     "occupiesFloor": false,
     "symbol": "circle",
     "model3d": "water-heater",
+    "pictogram": "heater",
     "color": "#212529",
     "attributes": [
       {

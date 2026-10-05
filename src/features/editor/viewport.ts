@@ -55,7 +55,7 @@ export function wheelIntent(input: WheelInput): WheelIntent {
  * D-272: the screen shift for an accumulated two-finger swipe. The wheel delta
  * says where the reader wants to scroll, so the plan moves the other way — the
  * same as a page under the same fingers. Only the wheel/trackpad pan goes
- * through here; drag pans (middle button, «Обзор») pass the pointer's own
+ * through here; drag pans (middle button, Space + drag) pass the pointer's own
  * movement to `panBy` as is.
  */
 export function wheelPan(delta: Point): Point {

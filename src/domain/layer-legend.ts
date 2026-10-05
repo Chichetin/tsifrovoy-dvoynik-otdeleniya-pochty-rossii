@@ -2,12 +2,12 @@
  * U05-ux: what an informational layer's colours and numbers mean.
  *
  * Everything comes from the layer type in the catalog: colours, unit and the
- * value that saturates the scale. The panel and the canvas print the same
- * legend, so a screenshot and the panel never disagree.
+ * value that saturates the scale. The panel, the canvas and the PNG/SVG export
+ * (#220) print the same legend, so a picture and the panel never disagree.
  */
 
-import type { LayerType } from '../../contracts/model';
-import { formatShort, NBSP } from '../../domain/number-format';
+import type { LayerType } from '../contracts/model';
+import { formatShort, NBSP } from './number-format';
 
 export type LayerLegend =
   /** Colour scale: low → high, and the value from which the colour stops changing. */
@@ -61,4 +61,27 @@ export function legendLine(type: LayerType, legend: LayerLegend): string {
   const scale = legend.kind === 'scale' ? `${legend.low} … ${legend.high}` : '';
   const body = legend.kind === 'swatch' ? legend.text : scale;
   return body === '' ? type.label : `${type.label}: ${body}`;
+}
+
+/**
+ * Hatch of a blind spot: dark red lines, distinct from the violet sectors and
+ * the pastel zones. Shared by the canvas, the panel swatch and the export (#220).
+ */
+export const BLIND_SPOT = {
+  /** Solid colour of the hatch: the legend swatch, where lines are few and short. */
+  color: '#C92A2A',
+  /**
+   * Lines on the plan: the same red, a little see-through, so zone names and
+   * object labels under a large blind spot stay readable.
+   */
+  line: 'rgba(201, 42, 42, 0.6)',
+  /** Faint tint under the lines, so a thin strip still reads as an area. */
+  tint: 'rgba(201, 42, 42, 0.06)',
+  /** Distance between hatch lines, screen px. */
+  spacing_px: 9,
+} as const;
+
+/** The legend line of the blind spots, the same on the canvas and in the export. */
+export function blindSpotLine(percent: number): string {
+  return `Слепые пятна клиентских зон · видно ${formatValue(percent, '%')}`;
 }

@@ -110,14 +110,32 @@ function typeLabel(plan: PlanDocument, id: Id): string {
   return findObjectType(plan.catalog, id)?.label ?? id;
 }
 
+function zoneLabel(plan: PlanDocument, id: Id): string {
+  return findZoneType(plan.catalog, id)?.label ?? id;
+}
+
+/** Readable title of a catalog rule from its data; the rule id is never shown. */
+function ruleTitle(plan: PlanDocument, rule: Rule): string {
+  if (rule.kind === 'distance-to-entrance') {
+    return `${typeLabel(plan, rule.objectTypeId)} — не дальше ${formatShort(rule.maxDistance_m, 2)} м от входа`;
+  }
+  if (rule.kind === 'count') {
+    const where = `${typeLabel(plan, rule.objectTypeId)}, зона «${zoneLabel(plan, rule.zoneTypeId)}»`;
+    if (rule.min !== null && rule.max !== null) return `${where}: от ${rule.min} до ${rule.max}`;
+    if (rule.min !== null) return `${where}: не меньше ${rule.min}`;
+    if (rule.max !== null) return `${where}: не больше ${rule.max}`;
+  }
+  return 'Правило справочника';
+}
+
 function paramValue(plan: PlanDocument, key: string, value: unknown): string | null {
   if (value === null || value === undefined) {
     if (key === 'entranceId') return 'ближайший вход';
     return null;
   }
-  if (key === 'objectTypeId' && typeof value === 'string') return `«${typeLabel(plan, value)}» (${value})`;
+  if (key === 'objectTypeId' && typeof value === 'string') return `«${typeLabel(plan, value)}»`;
   if (key === 'zoneTypeId' && typeof value === 'string') {
-    return `«${findZoneType(plan.catalog, value)?.label ?? value}» (${value})`;
+    return `«${zoneLabel(plan, value)}»`;
   }
   if (key === 'scope') return value === 'direct' ? 'только сама зона' : 'зона вместе с вложенными';
   if (key.endsWith('_m') && typeof value === 'number') return `${formatShort(value, 2)} м`;
@@ -142,7 +160,7 @@ export function explainFinding(plan: PlanDocument, issue: ValidationIssue): Find
     .find((entry) => entry !== undefined);
   if (rule !== undefined) {
     return {
-      title: `Правило справочника ${rule.id}`,
+      title: ruleTitle(plan, rule),
       method: RULE_METHODS[rule.kind] ?? 'Как получено число — в тексте находки.',
       rationale: rule.rationale,
       params: ruleParams(plan, rule),
@@ -158,7 +176,7 @@ export function explainFinding(plan: PlanDocument, issue: ValidationIssue): Find
       method: physics.detail,
       rationale: null,
       params: [],
-      sourceNote: `Правило физики плана (${physics.id}). ${TEAM_NOTE}`,
+      sourceNote: `Правило физики плана. ${TEAM_NOTE}`,
       ruleId: physics.id,
     };
   }

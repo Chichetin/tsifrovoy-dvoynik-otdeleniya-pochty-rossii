@@ -19,9 +19,9 @@ import { findLayerType } from '../../domain/catalog';
 import { modelToScreen, viewSector } from '../../domain/geometry';
 import { heatColor } from '../../domain/heat-color';
 import { labelWidth, placeLabels, type Box } from './label-layout';
-import { formatValue, legendLine, legendOf } from './legend';
-import { heatRegions } from './heat-regions';
-import { BLIND_SPOT, visibleCoverage } from './coverage';
+import { heatRegions } from '../../domain/heat-regions';
+import { BLIND_SPOT, blindSpotLine, formatValue, legendLine, legendOf } from '../../domain/layer-legend';
+import { visibleCoverage } from './coverage';
 import { zoneCaptionBoxes } from '../../domain/zone-caption-layout';
 
 const CAPTION_FILL = '#495057';
@@ -88,7 +88,7 @@ export function InformationLayer({
       const row = { ...entry, key: entry.id, blind: false, legend: legendOf(entry.type), text: legendLine(entry.type, legendOf(entry.type)) };
       const percent = coverage.get(entry.type.id)?.total.percent ?? null;
       if (percent === null) return [row];
-      return [row, { ...row, key: `${entry.id}-blind`, blind: true, text: `Слепые пятна клиентских зон · видно ${formatValue(percent, '%')}` }];
+      return [row, { ...row, key: `${entry.id}-blind`, blind: true, text: blindSpotLine(percent) }];
     })
     .map((row, index) => ({
       ...row,

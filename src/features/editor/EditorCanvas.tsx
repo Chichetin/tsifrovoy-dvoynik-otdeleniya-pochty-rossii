@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
 import { Circle, Group, Layer, Line, Stage } from 'react-konva';
+import { flushSync } from 'react-dom';
 import Konva from 'konva';
 import { PlanMinimap } from './PlanMinimap';
 import { ZONE_OVERVIEW_SCALE } from './ZoneOverviewLayer';
@@ -46,6 +47,9 @@ const FOCUS_FILL = 'rgba(232, 89, 12, 0.12)';
 
 /** One press of «+» or «−»: about one wheel notch (×1.28 at `deltaY` 100). */
 const ZOOM_STEP = 1.25;
+
+/** #223: the wheel is at rest after this pause; then the plan is redrawn once. */
+const WHEEL_SETTLE_MS = 120;
 
 /** How long the ring stays on the found object, in milliseconds. */
 const HIGHLIGHT_MS = 1600;
@@ -86,6 +90,7 @@ export function EditorCanvas({
   const host = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<CanvasSize>({ width: 0, height: 0 });
   const panning = useRef<Point | null>(null);
+  const [spaceHeld, setSpaceHeld] = useState(false);
   // Browsers may not deliver pointermove for a middle-button drag after the
   // canvas captures the pointer. Keep a DOM mouse fallback for that button.
   const middleMousePanning = useRef<Point | null>(null);
@@ -98,12 +103,89 @@ export function EditorCanvas({
   // Zoom deltas add up exactly: exp(-a/k) * exp(-b/k) = exp(-(a+b)/k).
   const pendingZoom = useRef<{ deltaY: number; anchor: Point } | null>(null);
   const panFrame = useRef<number | null>(null);
+  // #223: a wheel frame does not re-render the app. The layers stay drawn for
+  // `drawnViewport`, and the Konva stage is moved and scaled onto the live
+  // viewport — one canvas redraw, no React work. When the wheel rests, the
+  // live viewport goes to the app once and the stage transform returns to 1.
+  const stage = useRef<Konva.Stage>(null);
+  const drawnViewport = useRef(session.viewport);
+  const wheelCommit = useRef<Viewport | null>(null);
+  const settleTimer = useRef<number | null>(null);
+  // Wheel frames repaint the visible canvas only. The hit canvas, which finds
+  // the shape under the pointer, is repainted once the gesture is committed.
+  const hitStale = useRef(false);
+  /** Puts the stage transform onto the live viewport; true when it changed. */
+  const showLive = useCallback((): boolean => {
+    const node = stage.current;
+    if (node === null) return false;
+    const drawn = drawnViewport.current;
+    const live = liveViewport.current;
+    const k = live.scale / drawn.scale;
+    const x = live.origin[0] - k * drawn.origin[0];
+    const y = live.origin[1] - k * drawn.origin[1];
+    if (node.scaleX() === k && node.x() === x && node.y() === y) return false;
+    node.scale({ x: k, y: k });
+    node.position({ x, y });
+    return true;
+  }, []);
+  const drawAll = useCallback((): void => {
+    stage.current?.batchDraw();
+    hitStale.current = false;
+  }, []);
+  const foldPending = useCallback((): void => {
+    if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
+    panFrame.current = null;
+    const delta = pendingPan.current;
+    const zoom = pendingZoom.current;
+    pendingPan.current = [0, 0];
+    pendingZoom.current = null;
+    let next = liveViewport.current;
+    if (delta[0] !== 0 || delta[1] !== 0) next = panBy(next, wheelPan(delta));
+    if (zoom !== null) next = zoomByWheel(next, zoom.anchor, zoom.deltaY);
+    liveViewport.current = next;
+  }, []);
+  const commitWheel = useCallback((): void => {
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    foldPending();
+    if (liveViewport.current === drawnViewport.current) {
+      if (showLive() || hitStale.current) drawAll();
+      return;
+    }
+    wheelCommit.current = liveViewport.current;
+    onViewport(liveViewport.current);
+  }, [drawAll, foldPending, onViewport, showLive]);
+  const flushPan = useCallback((): void => {
+    foldPending();
+    // Called from an animation frame: the scene is painted right here.
+    if (showLive()) {
+      for (const layer of stage.current?.getLayers() ?? []) layer.drawScene();
+      hitStale.current = true;
+    }
+    if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+    settleTimer.current = window.setTimeout(commitWheel, WHEEL_SETTLE_MS);
+  }, [commitWheel, foldPending, showLive]);
+  // Runs after react-konva has updated the shapes, in the same frame: the
+  // stage transform shrinks to whatever the wheel did since the commit.
   useLayoutEffect(() => {
-    liveViewport.current = session.viewport;
-  }, [session.viewport]);
+    drawnViewport.current = session.viewport;
+    if (session.viewport !== wheelCommit.current) {
+      // Fit, «+»/«−», focus or a drag pan: the new view replaces the wheel's.
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
+      if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
+      settleTimer.current = null;
+      panFrame.current = null;
+      pendingPan.current = [0, 0];
+      pendingZoom.current = null;
+      liveViewport.current = session.viewport;
+    }
+    wheelCommit.current = null;
+    if (showLive() || hitStale.current) drawAll();
+  }, [drawAll, session.viewport, showLive]);
   useEffect(
     () => () => {
       if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
+      if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
     },
     [],
   );
@@ -114,17 +196,6 @@ export function EditorCanvas({
     },
     [onViewport],
   );
-  const flushPan = useCallback((): void => {
-    panFrame.current = null;
-    const delta = pendingPan.current;
-    const zoom = pendingZoom.current;
-    pendingPan.current = [0, 0];
-    pendingZoom.current = null;
-    let next = liveViewport.current;
-    if (delta[0] !== 0 || delta[1] !== 0) next = panBy(next, wheelPan(delta));
-    if (zoom !== null) next = zoomByWheel(next, zoom.anchor, zoom.deltaY);
-    if (next !== liveViewport.current) applyViewport(next);
-  }, [applyViewport]);
   /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
   const fitted = useRef<string | null>(null);
   /** Номер последнего запроса, подсветка которого уже погасла. */
@@ -164,9 +235,10 @@ export function EditorCanvas({
     (factor: number): void => {
       if (size.width === 0 || size.height === 0) return;
       userInteracted.current = true;
-      onViewport(zoomAt(session.viewport, [size.width / 2, size.height / 2], factor));
+      commitWheel();
+      onViewport(zoomAt(liveViewport.current, [size.width / 2, size.height / 2], factor));
     },
-    [onViewport, session.viewport, size],
+    [commitWheel, onViewport, size],
   );
 
   // Каждый новый документ открывается вписанным — открытый файл, «Новый»,
@@ -225,9 +297,10 @@ export function EditorCanvas({
     (stage: Konva.Stage): Point | null => {
       const position = stage.getPointerPosition();
       if (position === null) return null;
-      return screenToModel([position.x, position.y], session.viewport);
+      // The live viewport: during a wheel gesture the stage shows it already.
+      return screenToModel([position.x, position.y], liveViewport.current);
     },
-    [session.viewport],
+    [],
   );
 
   const emit = useCallback(
@@ -361,6 +434,85 @@ export function EditorCanvas({
     [onPointer, session.tool, session.viewport],
   );
 
+  // Capture before Konva: Space must pan even over an object or a vertex,
+  // without starting its selection, drag or drawing gesture.
+  useEffect(() => {
+    let held = false;
+    let from: Point | null = null;
+    const reset = (): void => {
+      held = false;
+      from = null;
+      setSpaceHeld(false);
+    };
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.code === 'Escape') { reset(); return; }
+      if (event.code !== 'Space' || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      if (event.target instanceof Element && event.target.closest('button, a, summary, [role="button"], [aria-modal="true"]') !== null) return;
+      event.preventDefault();
+      held = true;
+      setSpaceHeld(true);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.code !== 'Space') return;
+      held = false;
+      setSpaceHeld(false);
+      // Keep the active drag until pointer-up, even if Space is released first.
+    };
+    const onDown = (event: PointerEvent): void => {
+      if (!held || event.button !== 0 || !(event.target instanceof Node) || !host.current?.contains(event.target)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      userInteracted.current = true;
+      from = [event.clientX, event.clientY];
+    };
+    const onMove = (event: PointerEvent): void => {
+      if (from === null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      from = [event.clientX, event.clientY];
+    };
+    const onUp = (event: PointerEvent): void => {
+      if (from === null) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      from = null;
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
+    window.addEventListener('pointerdown', onDown, true);
+    window.addEventListener('pointermove', onMove, true);
+    window.addEventListener('pointerup', onUp, true);
+    window.addEventListener('pointercancel', reset);
+    window.addEventListener('blur', reset);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', reset);
+      window.removeEventListener('blur', reset);
+    };
+  }, [applyViewport]);
+
+  // A press during a wheel gesture first redraws the plan for the live view,
+  // synchronously: shapes, drags and tools then see the view the user sees.
+  // The capture phase on the host runs before Konva's own listener.
+  useEffect(() => {
+    const element = host.current;
+    if (element === null) return;
+    const onPress = (): void => {
+      if (settleTimer.current === null && panFrame.current === null) return;
+      flushSync(commitWheel);
+      // The hit canvas must match the plan before Konva looks up the shape.
+      stage.current?.draw();
+    };
+    element.addEventListener('pointerdown', onPress, true);
+    return () => element.removeEventListener('pointerdown', onPress, true);
+  }, [commitWheel]);
+
   useEffect(() => {
     const element = host.current;
     if (element === null) return;
@@ -491,6 +643,7 @@ export function EditorCanvas({
   return (
     <div
       className="editor-canvas"
+      style={spaceHeld ? { cursor: 'grab' } : undefined}
       ref={host}
       data-testid="editor-canvas"
       tabIndex={0}
@@ -508,6 +661,7 @@ export function EditorCanvas({
     >
       {size.width > 0 && size.height > 0 ? (
         <Stage
+          ref={stage}
           width={size.width}
           height={size.height}
           onPointerDown={handleDown}

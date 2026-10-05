@@ -16,11 +16,14 @@ import { REASON_CODE_SPECS } from '../../contracts/advice-semantics';
 import { applyCommand } from '../commands';
 import { contains, footprint } from '../geometry';
 import { layoutZone } from './layout';
-import { acceptFactChoice, acceptToolResult, calculateAdvice, createAgentSession } from './index';
+import { acceptFactChoice, acceptToolResult, calculateAdvice, createAgentSession, WHY_LEAD } from './index';
 import {
   EXPLANATION_ISSUE_CODES,
+  WHY_ISSUE_CODES,
   defaultExplanation,
   verifyExplanation,
+  verifyWhyText,
+  type WhyScope,
 } from './explanation';
 import { fallbackExplanation, renderExplanation } from './templates';
 import type {
@@ -456,6 +459,98 @@ describe('#69: ход агента без сети — модель выбира
     // The visible text is the fact as code rendered it, not the model's JSON.
     expect(choice.kind === 'answer' && choice.answer.text).toContain(first.text);
   });
+});
+
+describe('#178: «почему сюда» — свободный текст модели, id и числа проверяет код', () => {
+  const scope: WhyScope = {
+    ids: new Set(['z_waiting', 'eq_6', 'rule_bench_min', 'rule_queue_terminal_entrance']),
+    rules: new Set(['rule_bench_min', 'rule_queue_terminal_entrance']),
+    shown: new Set(['z_waiting', 'eq_6']),
+    names: new Map([['z_waiting', 'Зона ожидания'], ['eq_6', 'Скамья ожидания 1']]),
+    numbers: [
+      { value: 15.27, unit: 'm2' },
+      { value: 16.07, unit: 'm2' },
+      ...[0.38, 3, 2.96, 6.62, 8, 2.05].map((value) => ({ value, unit: 'm' as const })),
+    ],
+    variants: 3,
+  };
+  const codes = (text: string): string[] => {
+    const result = verifyWhyText(text, scope);
+    return result.ok ? [] : result.issues.map((entry) => entry.code);
+  };
+
+  test('id плана, число с точностью текста, вариант расчёта и правило команды проходят', () => {
+    expect(codes('Вариант 1 лучше: «Скамья ожидания 1» (eq_6) остаётся в z_waiting, свободно 15,3 → 16,07 м², зазор 0,38 м; по правилу rule_bench_min (правило команды, не норматив Почты).')).toEqual([]);
+  });
+
+  test('тире после «Вариант N» — не список вариантов: число после него сверяется как число', () => {
+    expect(codes('Вариант 1 — 2,96 м до входа против 6,62 м сейчас.')).toEqual([]);
+    expect(codes('Вариант 2 — 8 м переноса, зато ближе ко входу.')).toEqual([]);
+  });
+
+  test('выдуманное число', () => {
+    expect(codes('Вариант 1 освободит 12,5 м².')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('число с единицей сверяется только со значениями этой единицы', () => {
+    expect(codes('Вариант 1 освободит 8 м².')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('текст в кавычках перед id правила остаётся на экране и сверяется', () => {
+    expect(codes('Вариант 1 лучше: «терминал не дальше 5 м от входа» (rule_queue_terminal_entrance) — правило из материалов организаторов.')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('целое число в тексте — только для целого значения: «2» не округление 2,05', () => {
+    expect(codes('Вариант 2 — 2 м до входа.')).toEqual([WHY_ISSUE_CODES.UNKNOWN_NUMBER]);
+  });
+
+  test('отношение словами — собственный расчёт модели', () => {
+    expect(codes('Вариант 2 в 3 раза ближе ко входу.')).toEqual([WHY_ISSUE_CODES.WORD_NUMBER]);
+  });
+
+  test('несуществующий id', () => {
+    expect(codes('Вариант 1 ставит скамью в z_lobby.')).toEqual([WHY_ISSUE_CODES.UNKNOWN_ID]);
+  });
+
+  test('вариант, которого расчёт не давал', () => {
+    expect(codes('Вариант 4 лучше варианта 2.')).toEqual([WHY_ISSUE_CODES.UNKNOWN_VARIANT]);
+  });
+
+  test('правило справочника названо нормативом', () => {
+    expect(codes('По нормативу вариант 1 лучше.')).toEqual([WHY_ISSUE_CODES.RULE_AS_NORM]);
+  });
+
+  test('правило без слов «правило команды»', () => {
+    expect(codes('Вариант 1 лучше по правилу rule_bench_min.')).toEqual([WHY_ISSUE_CODES.RULE_SOURCE_MISSING]);
+  });
+
+  const demo = JSON.parse(readFileSync(join(process.cwd(), 'demo', 'before.json'), 'utf8')) as PlanDocument;
+  const relocation = (): { session: ReturnType<typeof createAgentSession>; factId: string } => {
+    const session = createAgentSession(demo, null, 'Предложить место для eq_1: куда перенести и почему?', 1);
+    const offered = JSON.parse(acceptToolResult(session, 'find_place', JSON.stringify({ objectId: 'eq_1' })).content) as { answerFacts: { id: string }[] };
+    return { session, factId: offered.answerFacts[0]!.id };
+  };
+
+  test('проверенное обоснование открывает ответ LLM, варианты с числами пишет код', () => {
+    const { session, factId } = relocation();
+    const why = 'Вариант 1 переносит «Терминал электронной очереди» (eq_1) ближе ко входу, а «оставить как есть» держит его в z_waiting.';
+    const choice = acceptFactChoice(session, JSON.stringify({ factIds: [factId], why }));
+    expect(choice.kind === 'answer' && choice.answer.mode).toBe('llm');
+    // #210: the code's action line comes first; the checked «почему так» follows it.
+    expect(choice.kind === 'answer' && choice.answer.text.split('\n\n')[1]?.startsWith(`${WHY_LEAD}${why}`)).toBe(true);
+    expect(choice.kind === 'answer' && choice.answer.text).toContain('Вариант 1 — ');
+  }, 20_000);
+
+  test('выдуманное число в обосновании дважды — расчёт без LLM, числа нет на экране', () => {
+    const { session, factId } = relocation();
+    const invented = JSON.stringify({ factIds: [factId], why: 'Вариант 1 освободит 99,9 м².' });
+    expect(acceptFactChoice(session, invented).kind).toBe('repair');
+    const second = acceptFactChoice(session, invented);
+    expect(second.kind === 'answer' && second.answer.mode).toBe('fallback');
+    expect(second.kind === 'answer' && second.answer.fallbackReason).toContain('Обоснование модели не прошло проверку');
+    expect(second.kind === 'answer' && second.answer.text).not.toContain('99,9');
+    expect(second.kind === 'answer' && second.answer.text).toContain('Вариант 1 — ');
+  }, 20_000);
 });
 
 describe('#126: правки модели проверяет код', () => {

@@ -73,7 +73,7 @@ export function objectLabel(object: Equipment, viewport: Viewport, iconSpace = 0
     const lines: 1 | 2 = iconSpace > 0 || height >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
     const compact = iconSpace > 0 && Math.round(width * overhang) - iconSpace < 64;
     return {
-      text: compact ? compactLabel(object, text) : text,
+      text: compact ? compactLabel(text) : text,
       x,
       y,
       width: Math.round(width * overhang),
@@ -100,7 +100,7 @@ export function objectLabel(object: Equipment, viewport: Viewport, iconSpace = 0
   const lines: 1 | 2 = iconSpace > 0 || short >= LABEL_LINE_PX * 2 + 4 ? 2 : 1;
   const compact = iconSpace > 0 && Math.round(long * overhang) - iconSpace < 64;
   return {
-    text: compact ? compactLabel(object, text) : text,
+    text: compact ? compactLabel(text) : text,
     x,
     y,
     width: Math.round(long * overhang),
@@ -110,17 +110,13 @@ export function objectLabel(object: Equipment, viewport: Viewport, iconSpace = 0
   };
 }
 
-function compactLabel(object: Equipment, text: string): string {
-  return object.typeId === 'ot_parcel_rack'
-    ? text.replace(/^Стеллаж посылок (\d+)$/u, 'Посылки $1') : text;
+// The label text itself selects the case: no type id in code (D-376).
+function compactLabel(text: string): string {
+  return text.replace(/^Стеллаж посылок (\d+)$/u, 'Посылки $1');
 }
 
 /** Keep the workstation number visible on dense plans; the full name remains
  * in the document, hover summary and properties card. */
-export function planDisplayLabel(object: Pick<Equipment, 'typeId' | 'label'>): string {
-  const full = object.label.trim();
-  if (object.typeId === 'ot_workplace') {
-    return full.replace(/^Рабочее место оператора(\s+\d+)$/u, 'Рабочее место$1');
-  }
-  return full;
+export function planDisplayLabel(object: Pick<Equipment, 'label'>): string {
+  return object.label.trim().replace(/^Рабочее место оператора(\s+\d+)$/u, 'Рабочее место$1');
 }
