@@ -66,3 +66,5 @@ h3{font-family:var(--display);font-weight:700;letter-spacing:-.02em}
 .dimension .norm-zone{fill-opacity:.2}
 .dimension .cap,.chart .cap{fill:var(--text-muted)}
 .view img,.catalog img{border-color:var(--text)}
+
+.lane span{display:none}

@@ -293,7 +293,7 @@
     <section class="col" data-step="1"><h3>Браузер</h3><p>TypeScript · React 19 · Vite 8<br>react-konva (холст) · Three.js (3D)<br>Zustand · Zod</p></section>
     <section class="col" data-step="2"><h3>Сервер</h3><p>Fastify · polyclip-ts (операции над полигонами)<br>Расчёт общий для сервера и браузера</p></section>
     <section class="col" data-step="3"><h3>Модель</h3><p>DeepSeek V4 Flash через Yandex AI Studio<br>Провайдер и модель — из .env<br>Без API — расчёт «Без LLM»</p></section>
-    <section class="col" data-step="4"><h3>Запуск</h3><p>npm ci → npm run dev<br>docker compose up --build -d<br>Лимит файла плана 5 МБ</p></section>
+    <section class="col" data-step="4"><h3>Запуск</h3><p>npm ci → npm run dev<br>docker compose up --build -d<br>Лимит файла плана 5 МиБ</p></section>
   </div>
   ${note('Стек из package.json. Расчёт — чистая логика, общая для браузера и сервера. Модель подключается по OpenAI-совместимому адресу из .env; допустимы Qwen, DeepSeek, GigaChat, YandexGPT.')}
 </section>
