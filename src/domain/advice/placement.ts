@@ -96,6 +96,221 @@ export const PLACEMENT_SEARCH = {
 } as const;
 
 /**
+ * #213: линия обслуживания для кассового окна и рабочего места оператора.
+ *
+ * Окно и стол оператора стоят у служебной стороны клиентского зала: у стены
+ * или перегородки, за которой служебные помещения, лицом к клиентам. Линия —
+ * общая граница зоны типа `clientZoneTypeId` с зоной служебного типа. Типы
+ * берутся из каталога, конкретные зоны плана не называются. `zt_storage` здесь
+ * потому, что «back_office» организаторов (`example_plan.json`) приходит как
+ * зона хранения.
+ *
+ * Пороги — правило команды, не норматив Почты:
+ * - `maxGap_m` — наибольший зазор от отпечатка до линии (граница зоны идёт по
+ *   оси перегородки, половина её толщины входит в зазор);
+ * - `entranceClearance_m` — ближе к центру входа место не предлагается: там
+ *   проход. 3 м — тот же радиус «у входа», что у терминала очереди в
+ *   `rule_queue_terminal_entrance`.
+ *
+ * Второй источник линии — ряд, который уже есть в плане: окна (рабочие места)
+ * того же типа в клиентской зоне. Новый объект встаёт в их линию с их же
+ * поворотом — вдоль длинной стороны стоящего объекта или по прямой через два
+ * объекта с одним поворотом. В демо служебные перегородки заняты дверями, и
+ * линия обслуживания там — ряд окон.
+ *
+ * Без точки от человека эти типы не встают у входа и на границе двух зон, а
+ * места на линии идут первыми. Линии нет — места ищутся как раньше, с теми же
+ * запретами.
+ */
+export const SERVICE_LINE = {
+  objectTypeIds: ['ot_cashier_window', 'ot_workplace'],
+  clientZoneTypeId: 'zt_client',
+  serviceZoneTypeIds: ['zt_service', 'zt_staff', 'zt_storage'],
+  maxGap_m: 0.5,
+  entranceClearance_m: 3,
+} as const;
+
+/** Участок линии обслуживания; `inward` — единичная нормаль в клиентский зал. */
+export type ServiceSegment = { from: Point; to: Point; inward: Point };
+
+/** Общие участки границ клиентских и служебных зон, по `SERVICE_LINE`. */
+export function serviceLineSegments(plan: PlanDocument): ServiceSegment[] {
+  const serviceTypes: readonly Id[] = SERVICE_LINE.serviceZoneTypeIds;
+  const clients = plan.zones.filter((zone) => zone.typeId === SERVICE_LINE.clientZoneTypeId);
+  const services = plan.zones.filter((zone) => serviceTypes.includes(zone.typeId));
+  const tolerance = TOLERANCE.coordinate_m;
+  const segments: ServiceSegment[] = [];
+
+  for (const client of clients) {
+    for (const [a, b] of outlineEdges(client.polygon)) {
+      const length = distance(a, b);
+      if (length <= tolerance) continue;
+      const ux = (b[0] - a[0]) / length;
+      const uy = (b[1] - a[1]) / length;
+      const along = (point: Point): number => (point[0] - a[0]) * ux + (point[1] - a[1]) * uy;
+      const off = (point: Point): number => Math.abs((point[0] - a[0]) * uy - (point[1] - a[1]) * ux);
+      const step = PLACEMENT_SEARCH.step_m;
+      const mid: Point = [a[0] + ux * (length / 2), a[1] + uy * (length / 2)];
+      const inward = ([[-uy, ux], [uy, -ux]] as Point[]).find(
+        (normal) => locatePoint([mid[0] + normal[0] * step, mid[1] + normal[1] * step], client.polygon) === 'inside',
+      );
+      if (inward === undefined) continue;
+
+      for (const service of services) {
+        for (const [c, d] of outlineEdges(service.polygon)) {
+          if (off(c) > tolerance || off(d) > tolerance) continue;
+          const low = Math.max(0, Math.min(along(c), along(d)));
+          const high = Math.min(length, Math.max(along(c), along(d)));
+          if (high - low <= step) continue;
+          segments.push({
+            from: [round6(a[0] + ux * low), round6(a[1] + uy * low)],
+            to: [round6(a[0] + ux * high), round6(a[1] + uy * high)],
+            inward,
+          });
+        }
+      }
+    }
+  }
+  return segments;
+}
+
+/** Поворот, при котором лицевая сторона (локальная +Y: sin, cos) смотрит по `inward`. */
+function facingRotation(inward: Point): number {
+  const degrees = (Math.atan2(inward[0], inward[1]) * 180) / Math.PI;
+  return round6(((degrees % 360) + 360) % 360);
+}
+
+/** Прямая ряда: точка на ней, единичное направление и поворот объектов ряда. */
+type ServiceRow = { through: Point; axis: Point; rotation_deg: number };
+
+/** Что нужно поиску для правила линии обслуживания. */
+type ServiceLine = { segments: ServiceSegment[]; rows: ServiceRow[]; entrances: Point[] };
+
+/**
+ * Ряды из стоящих объектов типа в клиентских зонах: прямая через каждые два
+ * объекта с одним поворотом, а у объекта без пары — ось его ширины. Одинаковые
+ * прямые — один ряд.
+ */
+function serviceRows(plan: PlanDocument, typeId: Id): ServiceRow[] {
+  const clientZones = new Set(
+    plan.zones.filter((zone) => zone.typeId === SERVICE_LINE.clientZoneTypeId).map((zone) => zone.id),
+  );
+  const standing = plan.objects.filter(
+    (object) => object.typeId === typeId && object.zoneId !== null && clientZones.has(object.zoneId),
+  );
+  const rows: ServiceRow[] = [];
+  const seen = new Set<string>();
+  const add = (through: Point, axis: Point, rotation_deg: number): void => {
+    // Направление без знака и смещение прямой от начала координат — ключ прямой.
+    const flip = axis[0] < -TOLERANCE.coordinate_m || (Math.abs(axis[0]) <= TOLERANCE.coordinate_m && axis[1] < 0);
+    const unit: Point = flip ? [-axis[0], -axis[1]] : axis;
+    const offset = through[0] * unit[1] - through[1] * unit[0];
+    const key = `${rotation_deg}|${round6(unit[0]).toFixed(3)}|${round6(unit[1]).toFixed(3)}|${offset.toFixed(2)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({ through, axis: unit, rotation_deg });
+  };
+  for (const object of standing) {
+    // Ряд из двух и больше объектов с одним поворотом задаёт прямая через них:
+    // окна в example_plan.json стоят друг за другом поперёк своей ширины.
+    if (standing.some((other) => other !== object && other.rotation_deg === object.rotation_deg)) continue;
+    const angle = (object.rotation_deg * Math.PI) / 180;
+    // Локальная +X после поворота по часовой стрелке: (cos, −sin).
+    add(object.position, [Math.cos(angle), -Math.sin(angle)], object.rotation_deg);
+  }
+  for (let i = 0; i < standing.length; i += 1) {
+    for (let j = i + 1; j < standing.length; j += 1) {
+      const a = standing[i]!;
+      const b = standing[j]!;
+      if (a.rotation_deg !== b.rotation_deg) continue;
+      const length = distance(a.position, b.position);
+      if (length <= TOLERANCE.coordinate_m) continue;
+      add(a.position, [(b.position[0] - a.position[0]) / length, (b.position[1] - a.position[1]) / length], a.rotation_deg);
+    }
+  }
+  return rows;
+}
+
+/** Клетки по прямой ряда, от стоящего объекта в обе стороны, ближние первыми. */
+function* serviceRowCells(rows: ServiceRow[], room: BoundingBox, step: number): Generator<Cell> {
+  const reach = Math.hypot(room.maxX - room.minX, room.maxY - room.minY);
+  for (const row of rows) {
+    const rotations = [row.rotation_deg];
+    for (let k = 1; k * step <= reach + TOLERANCE.coordinate_m; k += 1) {
+      for (const sign of [1, -1]) {
+        const position: Point = [
+          round6(row.through[0] + row.axis[0] * k * step * sign),
+          round6(row.through[1] + row.axis[1] * k * step * sign),
+        ];
+        if (position[0] < room.minX || position[0] > room.maxX || position[1] < room.minY || position[1] > room.maxY) continue;
+        yield { position, rotations, onLine: true };
+      }
+    }
+  }
+}
+
+function serviceLineFor(plan: PlanDocument, type: ObjectType): ServiceLine | null {
+  const types: readonly Id[] = SERVICE_LINE.objectTypeIds;
+  if (!types.includes(type.id)) return null;
+  const walls = new Map(plan.walls.map((wall) => [wall.id, wall]));
+  const entrances = plan.openings
+    .filter((opening) => opening.kind === 'entrance')
+    .flatMap((opening) => {
+      const wall = walls.get(opening.wallId);
+      return wall === undefined ? [] : [openingCentre(opening, wall)];
+    });
+  return { segments: serviceLineSegments(plan), rows: serviceRows(plan, type.id), entrances };
+}
+
+/** Отпечаток ближе `entranceClearance_m` к центру входа — это проход. */
+function inEntrancePassage(shape: Polygon, entrances: Point[]): boolean {
+  return entrances.some(
+    (centre) =>
+      polygonSegmentDistance(shape, centre, centre) <
+      SERVICE_LINE.entranceClearance_m - TOLERANCE.coordinate_m,
+  );
+}
+
+/** Отпечаток заходит в зону, которая не его зона и не её родитель: стоит на границе двух зон. */
+function straddlesZones(plan: PlanDocument, shape: Polygon, home: Id | null): boolean {
+  const parents = new Map(plan.zones.map((zone) => [zone.id, zone.parentId]));
+  const chain = new Set<Id>();
+  for (let current = home; current !== null && !chain.has(current); current = parents.get(current) ?? null) {
+    chain.add(current);
+  }
+  return plan.zones.some((zone) => !chain.has(zone.id) && intersects(shape, zone.polygon));
+}
+
+/**
+ * Клетки вдоль линии обслуживания: длинная сторона вдоль линии, лицом в зал,
+ * рядами от линии до `maxGap_m`. Ряд у самой границы обычно упирается в
+ * перегородку — `fits` его отбросит, и место встанет следующим рядом.
+ */
+function* serviceLineCells(type: ObjectType, segments: ServiceSegment[], step: number): Generator<Cell> {
+  const [width, depth] = type.defaultSize_m;
+  for (let gap = 0; gap <= SERVICE_LINE.maxGap_m + TOLERANCE.coordinate_m; gap += step) {
+    for (const segment of segments) {
+      const length = distance(segment.from, segment.to);
+      if (length + TOLERANCE.coordinate_m < width) continue;
+      const ux = (segment.to[0] - segment.from[0]) / length;
+      const uy = (segment.to[1] - segment.from[1]) / length;
+      const offset = depth / 2 + gap;
+      const rotations = [facingRotation(segment.inward)];
+      for (let along = width / 2; along <= length - width / 2 + TOLERANCE.coordinate_m; along += step) {
+        yield {
+          position: [
+            round6(segment.from[0] + ux * along + segment.inward[0] * offset),
+            round6(segment.from[1] + uy * along + segment.inward[1] * offset),
+          ],
+          rotations,
+          onLine: true,
+        };
+      }
+    }
+  }
+}
+
+/**
  * Варианты, разнесённые по плану: из отсортированного списка берутся лучшие,
  * но каждый следующий — не ближе `separation_m` к уже выбранным.
  *
@@ -120,7 +335,10 @@ export function spreadApart<T extends { position: Point }>(
   return chosen;
 }
 
-type Probe = { position: Point; rotation_deg: number; distance_m: number };
+type Probe = { position: Point; rotation_deg: number; distance_m: number; onLine: boolean };
+
+/** Клетка обхода: центр, допустимые повороты и признак «у линии обслуживания». */
+type Cell = { position: Point; rotations: readonly number[]; onLine: boolean };
 
 type Blocker = { polygon: Polygon; box: BoundingBox };
 
@@ -528,6 +746,7 @@ function sweep(
   layerId: Id,
   wallEdges: [Point, Point][] | null,
   allowed: Set<Id> | null,
+  line: ServiceLine | null,
 ): Probe[] {
   if (allowed !== null && allowed.size === 0) return [];
   const blockers = blockersFor(plan, type);
@@ -543,12 +762,22 @@ function sweep(
   let visitedCells = 0;
   let domainCells = 0;
 
-  const rings = cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m);
+  const grid = (points: Iterable<Point>): Generator<Cell> =>
+    (function* cells() {
+      for (const position of points) yield { position, rotations: PLACEMENT_SEARCH.angles_deg, onLine: false };
+    })();
+  const rings = grid(cellsAroundAnchor(box, anchor, PLACEMENT_SEARCH.step_m));
   const order =
     wallEdges === null
       ? rings
       : (function* both() {
-          yield* wallHugCells(
+          // #213: места у линии обслуживания — первыми, но не больше половины
+          // бюджета, чтобы при занятой линии осталось из чего выбрать.
+          if (line !== null) {
+            yield* serviceRowCells(line.rows, boundingBox(plan.room.boundary), PLACEMENT_SEARCH.step_m);
+            yield* serviceLineCells(type, line.segments, PLACEMENT_SEARCH.step_m);
+          }
+          yield* grid(wallHugCells(
             type,
             [
               // Граница зоны идёт первой: зона отступает от стены, место
@@ -561,11 +790,13 @@ function sweep(
               { edges: wallEdges, inside: plan.room.boundary },
             ],
             PLACEMENT_SEARCH.step_m,
-          );
+          ));
           yield* rings;
         })();
+  const lineBudget = Math.floor(PLACEMENT_SEARCH.maxVerified / 2);
 
-  for (const position of order) {
+  for (const { position, rotations, onLine } of order) {
+    if (onLine && found.length >= lineBudget) continue;
     // The raw walk is bounded too: filtering a pathological polygon must not
     // turn the request into an arbitrarily long scan over its bounding box.
     if (visitedCells >= PLACEMENT_SEARCH.maxCells) return found;
@@ -588,7 +819,7 @@ function sweep(
     // поэтому соседние клетки подошли бы все подряд и бюджет ушёл бы на 24
     // варианта одной точки вместо 24 разных мест.
     if (!farEnough(position, found, separation)) continue;
-    for (const rotation_deg of PLACEMENT_SEARCH.angles_deg) {
+    for (const rotation_deg of rotations) {
       if (probes >= PLACEMENT_SEARCH.maxProbes) return found;
       probes += 1;
 
@@ -605,11 +836,16 @@ function sweep(
         const centre = centreZoneId(plan, position, zoneIndex);
         if (centre !== null && !allowed.has(centre)) continue;
       }
+      // #213: окно и рабочее место — не в проходе у входа и не на границе зон.
+      if (line !== null) {
+        if (inEntrancePassage(shape, line.entrances)) continue;
+        if (straddlesZones(plan, shape, resolveZone(trial, plan.zones, zoneIndex).zoneId)) continue;
+      }
       const key = footprintKey(shape);
       if (seen.has(key)) continue;
       seen.add(key);
 
-      found.push({ position, rotation_deg, distance_m: round6(distance(position, anchor)) });
+      found.push({ position, rotation_deg, distance_m: round6(distance(position, anchor)), onLine });
       if (found.length >= PLACEMENT_SEARCH.maxVerified) return found;
       // Одно место — один вариант: другой поворот той же точки человеку
       // выбора не даёт, а проверку и показ занимает.
@@ -761,6 +997,8 @@ export function searchPlacements(
     layer.id,
     request.anchor === undefined ? wallEdges : null,
     allowed,
+    // Точку указал человек — правило линии её не переспоривает.
+    request.anchor === undefined ? serviceLineFor(plan, type) : null,
   );
 
   const baseline = new Set(validatePlan(plan).map(issueKey));
@@ -791,6 +1029,8 @@ export function searchPlacements(
   verified.sort(
     (a, b) =>
       a.warnings - b.warnings ||
+      // #213: у линии обслуживания — раньше остальных (только окно и рабочее место).
+      Number(b.onLine) - Number(a.onLine) ||
       (pinned
         ? compareLengths(a.distance_m, b.distance_m) || compareLengths(a.wallGap_m, b.wallGap_m)
         : compareLengths(a.wallGap_m, b.wallGap_m) || compareLengths(a.distance_m, b.distance_m)) ||
