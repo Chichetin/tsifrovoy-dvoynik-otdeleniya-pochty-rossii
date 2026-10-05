@@ -7,6 +7,7 @@ import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../co
 import { candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
 import { requestAgent, turnsOf } from './agent-client';
+import { usePlaceSuggestionSession } from './use-place-suggestion';
 
 type OpenPanel = Extract<AssistantAction, { kind: 'open-panel' }>['panel'];
 
@@ -146,7 +147,7 @@ export function useAssistantSession({
   highlight: (ref: Ref) => void;
   focusOn: (ref: Ref) => void;
   showLeftTab: (tab: 'layers') => void;
-  showRightTab: (panel: OpenPanel) => void;
+  showRightTab: (panel: OpenPanel | 'assistant') => void;
 }) {
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
@@ -431,11 +432,16 @@ export function useAssistantSession({
   // изменился» is too mild a warning for that — the answer goes away entirely.
   // The in-flight answer is invalidated before the visible one is cleared:
   // otherwise «Новый» clears the panel and the old answer repopulates it.
+  // #179, mode B: «Предложить место» — options, the chosen ghost, «Подтвердить».
+  const showAssistant = useCallback(() => showRightTab('assistant'), [showRightTab]);
+  const { forget: forgetPlace } = usePlaceSuggestionSession({ revision, current, dispatchAndSelect, showAssistant });
+
   const forget = useCallback(() => {
     resetAdvice();
     clearChat();
     forgetHints();
-  }, [resetAdvice, clearChat, forgetHints]);
+    forgetPlace();
+  }, [resetAdvice, clearChat, forgetHints, forgetPlace]);
 
   return {
     advice,

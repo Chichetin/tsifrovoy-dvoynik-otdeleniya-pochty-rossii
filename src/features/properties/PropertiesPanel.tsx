@@ -61,6 +61,9 @@ const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
   { kind: 'window', label: 'Окно' },
 ];
 
+/** The same name as in `features/assistant/place-suggestion.ts`; `detail` is `{ objectId }` (#179). */
+const SUGGEST_PLACE_EVENT = 'ops-twin:suggest-place';
+
 function commandFor(entity: Editable): Command {
   if ('polygon' in entity) return { type: 'zone.put', zone: entity };
   if ('wallId' in entity) return { type: 'opening.put', opening: entity };
@@ -663,6 +666,21 @@ export function PropertiesPanel({
         <p className="props__line" data-testid="props-zone">
           Зона: {zoneName(plan, object.zoneId)}
         </p>
+
+        {/* #179: the assistant's mode B. The assistant is another feature: the
+            request goes as a window event (features/assistant/place-suggestion.ts). */}
+        <button
+          type="button"
+          className="files__button"
+          data-testid="props-suggest-place"
+          disabled={object.locked === true}
+          title={object.locked === true
+            ? 'Снимите замок объекта, чтобы искать для него место'
+            : 'До трёх мест на плане и «оставить как есть»; объект не двигается до «Подтвердить»'}
+          onClick={() => window.dispatchEvent(new CustomEvent(SUGGEST_PLACE_EVENT, { detail: { objectId: object.id } }))}
+        >
+          Предложить место
+        </button>
 
         {hasOwnShape(plan.catalog, object) ? (
           <div className="props__shape" data-testid="props-shape">

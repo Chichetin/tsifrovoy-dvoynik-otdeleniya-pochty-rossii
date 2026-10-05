@@ -113,3 +113,41 @@ export const placementGhost = {
     for (const listener of listeners) listener();
   },
 };
+
+/**
+ * #179: the assistant's chosen place for an object — a dashed outline where it
+ * would stand and an arrow from where it stands now (null for a new object).
+ * The assistant is another feature and cannot import this file: it fires
+ * `SUGGESTION_GHOST_EVENT` with this shape or null as `detail`
+ * (`features/assistant/place-suggestion.ts`, the same name).
+ */
+export type SuggestionGhost = { from: Point | null; to: Equipment; label: string };
+
+export const SUGGESTION_GHOST_EVENT = 'ops-twin:suggestion-ghost';
+
+let suggestion: SuggestionGhost | null = null;
+const suggestionListeners = new Set<() => void>();
+
+function suggestionOf(detail: unknown): SuggestionGhost | null {
+  if (typeof detail !== 'object' || detail === null) return null;
+  const { to, from, label } = detail as Partial<SuggestionGhost>;
+  if (to === undefined || !Array.isArray(to.position) || !Array.isArray(to.size_m)) return null;
+  return { to, from: Array.isArray(from) ? from : null, label: typeof label === 'string' ? label : '' };
+}
+
+// Listens from the first import, not from the first render: an answer chosen
+// while the canvas remounts is still drawn.
+if (typeof window !== 'undefined') {
+  window.addEventListener(SUGGESTION_GHOST_EVENT, (event) => {
+    suggestion = suggestionOf((event as CustomEvent<unknown>).detail);
+    for (const listener of suggestionListeners) listener();
+  });
+}
+
+export const suggestionGhost = {
+  subscribe(listener: () => void): () => void {
+    suggestionListeners.add(listener);
+    return () => suggestionListeners.delete(listener);
+  },
+  getSnapshot: (): SuggestionGhost | null => suggestion,
+};

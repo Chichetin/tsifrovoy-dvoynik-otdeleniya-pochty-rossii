@@ -1,22 +1,79 @@
 import { useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import type Konva from 'konva';
-import { Label, Line, Tag, Text } from 'react-konva';
+import { Arrow, Label, Line, Tag, Text } from 'react-konva';
 import type { Viewport } from '../../contracts/model';
 import { footprint, modelToScreen } from '../../domain/geometry';
-import { placementGhost } from './placement-ghost';
+import { placementGhost, suggestionGhost } from './placement-ghost';
 
 const ACCEPTED = '#2F9E44';
 const REFUSED = '#E03131';
 const WARNED = '#E67700';
 const LABEL_WIDTH_PX = 240;
 const EDGE_PX = 8;
+/** #179: the assistant's place — a colour no catalog type uses, on a white halo for any background. */
+const SUGGESTED = '#0C8599';
+const SUGGESTED_TEXT = '#0B7285';
+const HALO = '#FFFFFF';
+
+/**
+ * #179: the option chosen in «Предложить место». A dashed outline where the
+ * object would stand and a dashed arrow from where it stands now; the object
+ * itself does not move until «Подтвердить».
+ */
+function SuggestionGhostShape({ viewport }: { viewport: Viewport }): React.JSX.Element | null {
+  const ghost = useSyncExternalStore(suggestionGhost.subscribe, suggestionGhost.getSnapshot);
+  if (ghost === null) return null;
+  const ring = footprint(ghost.to).map((point) => modelToScreen(point, viewport));
+  const [cx, cy] = modelToScreen(ghost.to.position, viewport);
+  const from = ghost.from === null ? null : modelToScreen(ghost.from, viewport);
+  const top = Math.min(...ring.map(([, y]) => y));
+  const arrow = from === null ? null : [from[0], from[1], cx, cy];
+  return (
+    <>
+      {arrow === null ? null : (
+        <>
+          <Arrow name="suggestion-ghost-arrow-halo" points={arrow} stroke={HALO} fill={HALO} strokeWidth={5} pointerLength={11} pointerWidth={11} opacity={0.9} listening={false} />
+          <Arrow name="suggestion-ghost-arrow" points={arrow} stroke={SUGGESTED} fill={SUGGESTED} strokeWidth={2} dash={[7, 4]} pointerLength={10} pointerWidth={10} listening={false} />
+        </>
+      )}
+      <Line points={ring.flat()} closed stroke={HALO} strokeWidth={6} opacity={0.9} listening={false} />
+      {/* A light tint inside, a strong dashed edge: the plan under it stays readable. */}
+      <Line
+        name="suggestion-ghost"
+        points={ring.flat()}
+        closed
+        fill="rgba(12, 133, 153, 0.16)"
+        stroke={SUGGESTED}
+        strokeWidth={2.5}
+        dash={[8, 5]}
+        listening={false}
+      />
+      {ghost.label === '' ? null : (
+        <Label name="suggestion-ghost-label" x={cx - LABEL_WIDTH_PX / 2} y={top - 26} listening={false}>
+          <Tag fill={HALO} stroke={SUGGESTED} cornerRadius={3} opacity={0.95} />
+          <Text text={ghost.label} width={LABEL_WIDTH_PX} fontSize={12} fontStyle="bold" fill={SUGGESTED_TEXT} padding={4} align="center" />
+        </Label>
+      )}
+    </>
+  );
+}
+
+/** The assistant's chosen place (#179) and the silhouette of the armed type (#26). */
+export function PlacementGhostLayer({ active, viewport }: { active: boolean; viewport: Viewport }): React.JSX.Element {
+  return (
+    <>
+      <SuggestionGhostShape viewport={viewport} />
+      <ArmedGhost active={active} viewport={viewport} />
+    </>
+  );
+}
 
 /**
  * Silhouette of the armed type under the pointer: green where the click would
  * place it, red with the store's reason where it would be refused, amber where
  * it is taken but the check will find a violation at once (#26, #91).
  */
-export function PlacementGhostLayer({ active, viewport }: { active: boolean; viewport: Viewport }): React.JSX.Element | null {
+function ArmedGhost({ active, viewport }: { active: boolean; viewport: Viewport }): React.JSX.Element | null {
   const ghost = useSyncExternalStore(placementGhost.subscribe, placementGhost.getSnapshot);
   const label = useRef<Konva.Label>(null);
   const shown = active && ghost !== null;

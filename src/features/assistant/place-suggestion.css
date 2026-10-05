@@ -1,0 +1,141 @@
+/* #179: mode B «Предложить место» at the top of the assistant panel (PlaceSuggestion).
+   The chosen card has the colour of the dashed ghost on the plan (PlacementGhostLayer). */
+
+.place {
+  --place-ghost: #0c8599;
+  --place-ghost-soft: #e3fafc;
+
+  margin: 0 0 var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-line);
+  font-size: var(--text-s);
+}
+
+.place p {
+  margin: 0;
+}
+
+.place__bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.place__title {
+  margin: 0;
+  font-size: var(--text-m);
+  font-weight: 600;
+}
+
+.place__kind {
+  color: var(--color-muted);
+  font-weight: 400;
+}
+
+.place__close {
+  flex: none;
+  width: var(--control-h);
+  height: var(--control-h);
+  border: none;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: 1.125rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.place__close:hover {
+  background: var(--color-hover);
+  color: var(--color-ink);
+}
+
+.place__status,
+.place__mode {
+  margin-top: var(--space-1);
+  color: var(--color-muted);
+}
+
+.place__done {
+  padding: var(--space-1) 0;
+}
+
+.place .assistant__stale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.place__options {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.place__option {
+  margin-top: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-line);
+  border-left: 3px solid var(--color-line-strong);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+}
+
+.place__option.is-chosen {
+  border-color: var(--place-ghost);
+  border-left-style: dashed;
+  background: var(--place-ghost-soft);
+}
+
+.place__option.is-keep {
+  border-left-color: var(--color-line);
+}
+
+.place__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.place__zone {
+  color: var(--color-muted);
+}
+
+.place__reason {
+  margin-top: 0.125rem;
+}
+
+.place__numbers {
+  margin: var(--space-1) 0 0;
+  padding: 0;
+  list-style: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.place__numbers li {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.place__numbers b {
+  flex: none;
+  font-weight: 600;
+}
+
+.place__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.place__option.is-chosen .files__button[aria-pressed='true'] {
+  border-color: var(--place-ghost);
+  color: #0b7285;
+}
