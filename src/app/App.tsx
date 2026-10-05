@@ -377,7 +377,17 @@ export function App(): React.JSX.Element {
   );
   const findingShown =
     propsShown && findingRef !== null && selection?.kind === findingRef.kind && selection.id === findingRef.id && findingIssues.length > 0;
-  const cardOnly = propsShown;
+  // #232: the assistant's «Открыть «Площади»» is an explicit choice: it shows the
+  // tabs for the current selection; another selection brings back the card alone.
+  const [tabsShownFor, setTabsShownFor] = useState<Ref | null>(null);
+  const showTabFromAssistant = useCallback(
+    (panel: RightTab) => {
+      setTabsShownFor(store.getState().selection);
+      showRightTab(panel);
+    },
+    [store, showRightTab],
+  );
+  const cardOnly = propsShown && tabsShownFor !== selection;
 
   // #105: «Повернуть» and «Изменить форму» go with a single selected object.
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
@@ -793,7 +803,7 @@ export function App(): React.JSX.Element {
     highlight,
     focusOn,
     showLeftTab,
-    showRightTab,
+    showRightTab: showTabFromAssistant,
   });
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
