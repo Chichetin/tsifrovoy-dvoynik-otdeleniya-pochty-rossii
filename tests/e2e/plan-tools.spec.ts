@@ -765,6 +765,8 @@ test.describe('инструменты плана', () => {
     const thicker = await savePlan(page);
     expect(thicker.walls.find((entry) => entry.id === free.id)?.thickness_m).toBeCloseTo(0.35, 6);
 
+    // #167: концы тянутся только с включённым «Изменить перегородку».
+    await props.getByLabel('Изменить перегородку').check();
     const end = toStage(free.from);
     await dragAt(page, end, { x: end.x + 60, y: end.y + 60 });
     const bentPlan = await savePlan(page);
