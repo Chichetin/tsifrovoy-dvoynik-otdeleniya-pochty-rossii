@@ -4,7 +4,8 @@
 
 import { describe, expect, test } from 'vitest';
 import type { Issue, Polygon, Viewport } from '../../contracts/model';
-import { HIGHLIGHT_COLORS, highlightsFor, issueMarkers, markerAnchor } from './issue-highlight';
+import { HIGHLIGHT_COLORS, issueMarkers } from '../../domain/issue-markers';
+import { highlightsFor, markerAnchor } from './issue-highlight';
 
 const square: Polygon = [
   [0, 0],

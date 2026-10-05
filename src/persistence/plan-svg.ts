@@ -16,7 +16,9 @@ import { cameraCoverage } from '../domain/advice';
 import { findLayerType, findObjectType, findZoneType } from '../domain/catalog';
 import { boundingBox, footprint, viewSector, wallLength, wallPolygon } from '../domain/geometry';
 import { heatColor } from '../domain/heat-color';
-import { formatShort, NBSP } from '../domain/number-format';
+import { heatRegions } from '../domain/heat-regions';
+import { HIGHLIGHT_COLORS, issueMarkers } from '../domain/issue-markers';
+import { BLIND_SPOT, blindSpotLine, formatValue, legendLine, legendOf } from '../domain/layer-legend';
 import { validatePlan } from '../domain/validation';
 import { planPictogram, PLAN_PICTOGRAM_PATHS } from '../domain/plan-pictogram';
 import { activeObjectColor, objectColorValue, type ObjectColorRepresentation } from '../domain/object-color';
@@ -153,31 +155,20 @@ function objectSymbol(object: Equipment, plan: PlanDocument, colorLayer: ObjectC
 }
 
 // ---- Screen overlays (#216): information layers, finding markers, legend ----
-// The canvas draws them in features/layers and features/validation; a feature
-// may not be imported from here, so the look is repeated: same colours, same
-// opacities, same legend text.
+// Colours, legend text, heat rings and markers come from domain (#220), the same
+// functions the canvas calls in features/layers and features/validation.
 
 const LEGEND_FILL = '#212529';
 const LEGEND_SIZE_M = 0.16;
 const LEGEND_ROW_M = 0.3;
 const MARKER_R_M = 0.12;
 const MARKER_HALO = '#FFFFFF';
-/** Same as HIGHLIGHT_COLORS in features/validation. */
-const SEVERITY_COLORS: Readonly<Record<Severity, string>> = { error: '#C92A2A', warning: '#E8590C' };
-/** Same as BLIND_SPOT in features/layers/coverage.ts. */
-const BLIND_COLOR = '#C92A2A';
-const MAX_DEPTH = 64;
 
 function numberAttribute(attributes: Attributes, key: string): number | null {
   const value = attributes[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
-/** As `formatValue` of the canvas legend: decimal comma, non-breaking space before the unit. */
-function formatValue(value: number, unit: string): string {
-  const text = formatShort(value);
-  return unit === '' ? text : `${text}${NBSP}${unit}`;
-}
 
 function textWidth(text: string, size_m: number): number {
   return text.length * size_m * 0.62;
@@ -193,62 +184,32 @@ function layerColor(type: LayerType): string {
 }
 
 /**
- * Heat areas: the deepest zone with a value paints each point (D-138). A zone's
- * path holds its own ring and the rings of its nearest painted descendants;
- * `evenodd` turns those into holes. The canvas does the same with a clipper:
- * features/layers/heat-regions.ts.
+ * Heat areas: the deepest zone with a value paints each point (D-138). The
+ * rings come from `heatRegions` — the canvas fills the same rings (#220);
+ * holes run the other way, so the default `nonzero` rule cuts them out.
  */
 function heatPaths(zones: Zone[], attribute: string): { zoneId: Id; value: number; d: string }[] {
-  const byId = new Map(zones.map((zone) => [zone.id, zone]));
-  const values = new Map<Id, number>();
-  for (const zone of zones) {
-    const value = numberAttribute(zone.attributes, attribute);
-    if (value !== null) values.set(zone.id, value);
-  }
-  const paintedParent = (zone: Zone): Id | null => {
-    let current = zone.parentId;
-    for (let step = 0; step < MAX_DEPTH && current !== null; step += 1) {
-      if (values.has(current)) return current;
-      current = byId.get(current)?.parentId ?? null;
-    }
-    return null;
-  };
   const ring = (polygon: Polygon): string => `M${polygon.map(([x, y]) => `${n(x)},${n(y)}`).join('L')}Z`;
-  return zones.flatMap((zone) => {
-    const value = values.get(zone.id);
-    if (value === undefined || zone.polygon.length < 3) return [];
-    const holes = zones.filter((other) => values.has(other.id) && other.polygon.length >= 3 && paintedParent(other) === zone.id);
-    return [{ zoneId: zone.id, value, d: [zone.polygon, ...holes.map((hole) => hole.polygon)].map(ring).join('') }];
-  });
+  return heatRegions(zones, attribute).map((region) => ({ zoneId: region.zoneId, value: region.value, d: region.rings.map(ring).join('') }));
 }
 
 type Marker = { key: string; count: number; severity: Severity; at: Point };
 
-/** One marker per entity with findings, top right of its shape, as `issueMarkers` on the canvas. */
+/** One marker per entity with findings (`issueMarkers`, as on the canvas), top right of its shape. */
 function findingMarkers(plan: PlanDocument): Marker[] {
-  const byKey = new Map<string, Marker>();
-  for (const issue of validatePlan(plan)) {
-    const ref = issue.refs[0];
-    if (ref === undefined || issue.polygon === undefined || issue.polygon.length < 3) continue;
-    const key = `${ref.kind}:${ref.id}`;
-    const known = byKey.get(key);
-    if (known !== undefined) {
-      known.count += 1;
-      if (issue.severity === 'error') known.severity = 'error';
-      continue;
-    }
-    const box = boundingBox(issue.polygon);
-    byKey.set(key, { key, count: 1, severity: issue.severity, at: [box.maxX + MARKER_R_M, box.maxY + MARKER_R_M] });
-  }
+  const markers = issueMarkers(validatePlan(plan), null).map((marker): Marker => {
+    const box = boundingBox(marker.polygon);
+    return { key: `${marker.ref.kind}:${marker.ref.id}`, count: marker.count, severity: marker.severity, at: [box.maxX + MARKER_R_M, box.maxY + MARKER_R_M] };
+  });
   // Markers of neighbouring shapes can land on one spot: push a later one down.
   const placed: Point[] = [];
-  for (const marker of byKey.values()) {
+  for (const marker of markers) {
     while (placed.some((other) => Math.hypot(other[0] - marker.at[0], other[1] - marker.at[1]) < 2 * MARKER_R_M)) {
       marker.at = [marker.at[0], marker.at[1] - 2 * MARKER_R_M - 0.02];
     }
     placed.push(marker.at);
   }
-  return [...byKey.values()];
+  return markers;
 }
 
 /** One legend row: swatch markup at (x, y-centre) and the text after it. */
@@ -298,12 +259,12 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
         });
       }
       if (representation.kind === 'zone-count') {
-        overlay.legend.push({ swatch: rect(representation.color), swatchWidth: 0.16, text: `${type.label}: метка в зоне — ${representation.unit}` });
+        overlay.legend.push({ swatch: rect(representation.color), swatchWidth: 0.16, text: legendLine(type, legendOf(type)) });
         continue;
       }
       for (const region of heatPaths(plan.zones, representation.attribute)) {
         const fill = heatColor(representation.colors, region.value, representation.max);
-        overlay.heat.push(`<path d="${region.d}" fill="${esc(fill)}" fill-opacity="0.7" fill-rule="evenodd" data-layer="${esc(id)}" data-zone="${esc(region.zoneId)}"/>`);
+        overlay.heat.push(`<path d="${region.d}" fill="${esc(fill)}" fill-opacity="0.7" data-layer="${esc(id)}" data-zone="${esc(region.zoneId)}"/>`);
       }
       const gradient = `legend-scale-${overlay.defs.length}`;
       overlay.defs.push(
@@ -312,7 +273,7 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
       overlay.legend.push({
         swatch: (x, y) => `<rect x="${n(x)}" y="${n(y - 0.06)}" width="0.4" height="0.12" fill="url(#${gradient})"/>`,
         swatchWidth: 0.4,
-        text: `${type.label}: ${formatValue(0, representation.unit)} … ${formatValue(representation.max, representation.unit)}`,
+        text: legendLine(type, legendOf(type)),
       });
       continue;
     }
@@ -322,7 +283,7 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
       overlay.legend.push({
         swatch: (x, y) => values.map((value, index) => rect(value.color)(x + index * 0.2, y)).join(''),
         swatchWidth: values.length * 0.2 - 0.04,
-        text: type.label,
+        text: legendLine(type, legendOf(type)),
       });
       continue;
     }
@@ -340,32 +301,32 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
     overlay.legend.push({
       swatch: rect(representation.color),
       swatchWidth: 0.16,
-      text: `${type.label}: сектор обзора; без атрибутов камеры — ${representation.angle_deg}°, ${formatValue(representation.range_m, 'м')}`,
+      text: legendLine(type, legendOf(type)),
     });
     const coverage = cameraCoverage(plan, representation);
     if (coverage.total.percent === null) continue;
     if (overlay.defs.every((def) => !def.includes('id="blind-hatch"'))) {
       overlay.defs.push(
         `<pattern id="blind-hatch" patternUnits="userSpaceOnUse" width="0.09" height="0.09" patternTransform="rotate(45)">` +
-          `<rect width="0.09" height="0.09" fill="${BLIND_COLOR}" fill-opacity="0.06"/>` +
-          `<line x1="0" y1="0" x2="0" y2="0.09" stroke="${BLIND_COLOR}" stroke-opacity="0.6" stroke-width="0.015"/></pattern>`,
+          `<rect width="0.09" height="0.09" fill="${BLIND_SPOT.color}" fill-opacity="0.06"/>` +
+          `<line x1="0" y1="0" x2="0" y2="0.09" stroke="${BLIND_SPOT.color}" stroke-opacity="0.6" stroke-width="0.015"/></pattern>`,
       );
     }
     for (const strip of coverage.blind) {
       overlay.sectors.push(`<rect x="${n(strip.x)}" y="${n(strip.y)}" width="${n(strip.width)}" height="${n(strip.height)}" fill="url(#blind-hatch)" data-blind="${esc(id)}"/>`);
     }
     overlay.legend.push({
-      swatch: (x, y) => `<rect x="${n(x)}" y="${n(y - 0.08)}" width="0.16" height="0.16" fill="url(#blind-hatch)" stroke="${BLIND_COLOR}" stroke-width="0.01"/>`,
+      swatch: (x, y) => `<rect x="${n(x)}" y="${n(y - 0.08)}" width="0.16" height="0.16" fill="url(#blind-hatch)" stroke="${BLIND_SPOT.color}" stroke-width="0.01"/>`,
       swatchWidth: 0.16,
-      text: `Слепые пятна клиентских зон · видно ${formatValue(coverage.total.percent, '%')}`,
+      text: blindSpotLine(coverage.total.percent),
     });
   }
 
   if (overlay.markers.length > 0) {
     overlay.legend.push({
       swatch: (x, y) =>
-        `<circle cx="${n(x + 0.08)}" cy="${n(y)}" r="0.08" fill="${SEVERITY_COLORS.error}"/>` +
-        `<circle cx="${n(x + 0.28)}" cy="${n(y)}" r="0.08" fill="${SEVERITY_COLORS.warning}"/>`,
+        `<circle cx="${n(x + 0.08)}" cy="${n(y)}" r="0.08" fill="${HIGHLIGHT_COLORS.error}"/>` +
+        `<circle cx="${n(x + 0.28)}" cy="${n(y)}" r="0.08" fill="${HIGHLIGHT_COLORS.warning}"/>`,
       swatchWidth: 0.36,
       text: `Находки проверки: мест на плане — ${overlay.markers.length}; число — находок у места; красный — ошибка, оранжевый — предупреждение`,
     });
@@ -376,7 +337,7 @@ function planOverlay(plan: PlanDocument, visibleZones: Zone[]): Overlay {
 function markerSvg(marker: Marker): string {
   const [x, y] = marker.at;
   return (
-    `<g data-marker="${esc(marker.key)}"><circle cx="${n(x)}" cy="${n(y)}" r="${MARKER_R_M}" fill="${SEVERITY_COLORS[marker.severity]}" stroke="${MARKER_HALO}" stroke-width="0.025"/>` +
+    `<g data-marker="${esc(marker.key)}"><circle cx="${n(x)}" cy="${n(y)}" r="${MARKER_R_M}" fill="${HIGHLIGHT_COLORS[marker.severity]}" stroke="${MARKER_HALO}" stroke-width="0.025"/>` +
     `${label(marker.at, String(marker.count), 0.14, MARKER_HALO, 1, 'bold')}</g>`
   );
 }
