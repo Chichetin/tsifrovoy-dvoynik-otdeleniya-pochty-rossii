@@ -12,6 +12,7 @@
 # ассистент считает сам и помечает ответ «без LLM».
 #
 # Порт: PORT=8081 bash scripts/deploy-vm.sh
+# Архив без .git: BUILD_SHA=<SHA исходного коммита> bash scripts/deploy-vm.sh
 
 set -euo pipefail
 
@@ -24,6 +25,17 @@ say() { printf '\n== %s\n' "$1"; }
 die() { printf '\nОШИБКА: %s\n' "$1" >&2; exit 1; }
 
 [ -f compose.yaml ] || die "запускать из каталога проекта: рядом должен лежать compose.yaml"
+
+# git archive не содержит .git: оператор передаёт SHA исходного коммита.
+# В клоне нельзя пометить текущие исходники версией другого коммита.
+checkout_sha="$(git rev-parse --short HEAD 2>/dev/null || true)"
+BUILD_SHA="${BUILD_SHA:-${checkout_sha}}"
+[[ "${BUILD_SHA}" =~ ^[0-9a-fA-F]{7,40}$ ]] \
+  || die "неизвестен SHA исходников: для архива задайте BUILD_SHA=<SHA коммита>"
+BUILD_SHA="${BUILD_SHA,,}"
+if [ -n "${checkout_sha}" ] && [[ "${BUILD_SHA}" != "${checkout_sha}"* && "${checkout_sha}" != "${BUILD_SHA}"* ]]; then
+  die "BUILD_SHA=${BUILD_SHA} не совпадает с текущими исходниками ${checkout_sha}"
+fi
 
 say "1/4 Docker"
 if docker compose version >/dev/null 2>&1; then
@@ -51,16 +63,15 @@ else
 fi
 
 say "3/4 Сборка и запуск"
-# #136: короткий SHA коммита — его покажут /api/health и «Настройки».
-BUILD_SHA="$(git rev-parse --short HEAD 2>/dev/null || true)"
-echo "Собираю коммит ${BUILD_SHA:-неизвестен}. Первая сборка занимает несколько минут."
+# #136: SHA исходников — его покажут /api/health и «Настройки».
+echo "Собираю коммит ${BUILD_SHA}. Первая сборка занимает несколько минут."
 sudo -E PORT="${PORT}" BUILD_SHA="${BUILD_SHA}" docker compose up --build -d
 
 say "4/4 Проверка"
 deadline=$(( SECONDS + WAIT_SECONDS ))
 health=""
 until [ "${SECONDS}" -ge "${deadline}" ]; do
-  if health="$(curl -fsS "http://127.0.0.1:${PORT}/api/health" 2>/dev/null)"; then
+  if health="$(curl -fsS --max-time 5 "http://127.0.0.1:${PORT}/api/health" 2>/dev/null)"; then
     break
   fi
   sleep 5
@@ -73,11 +84,26 @@ if [ -z "${health}" ]; then
   exit 1
 fi
 
-echo "Ответ /api/health: ${health}"
-if [ -n "${BUILD_SHA}" ] && printf '%s' "${health}" | grep -q "\"build\":\"${BUILD_SHA}\""; then
-  echo "Сборка ${BUILD_SHA} подтверждена."
-else
-  echo "ВНИМАНИЕ: /api/health не назвал сборку ${BUILD_SHA:-?} — проверьте, тот ли контейнер запущен."
+# Node уже есть в запущенном контейнере; отдельный JSON-парсер на VM не нужен.
+if ! sudo -E PORT="${PORT}" BUILD_SHA="${BUILD_SHA}" docker compose exec -T app node -e '
+  const [expected, raw] = process.argv.slice(1);
+  try {
+    const health = JSON.parse(raw);
+    if (health?.status !== "ok") throw new Error("Сервис не подтвердил status=ok.");
+    if (typeof health.build !== "string" || !/^[0-9a-f]{7,40}$/i.test(health.build)) {
+      throw new Error("Сервис не сообщает SHA сборки.");
+    }
+    const actual = health.build.toLowerCase();
+    if (!actual.startsWith(expected) && !expected.startsWith(actual)) {
+      throw new Error(`Сервис работает на ${actual}, ожидалась сборка ${expected}.`);
+    }
+    console.log(`Сборка ${actual} подтверждена.`);
+  } catch (error) {
+    console.error(error instanceof SyntaxError ? "Некорректный JSON от /api/health." : error.message);
+    process.exitCode = 1;
+  }
+' "${BUILD_SHA}" "${health}"; then
+  die "выкладка не подтверждена: проверьте контейнер, порт и /api/health"
 fi
 case "${health}" in
   *'"configured":true'*) echo "Модель настроена." ;;

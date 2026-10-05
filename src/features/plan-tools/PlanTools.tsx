@@ -30,9 +30,10 @@ import { setNotice, useNotice } from './notice';
  */
 const VIEW_TOOL_COUNT = 3;
 
-const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: string; hint: string }[] = [
-  { kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
+const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: string; hint: string; key: string }[] = [
+  { key: '1 или V', kind: 'select', label: 'Выбор', hint: 'Выделять и перетаскивать; Alt — без привязки' },
   {
+    key: '2 или H',
     kind: 'pan',
     // D-248: «Рука» не говорит, что произойдёт — инструмент двигает и
     // масштабирует вид, а не хватает план рукой; «Обзор» короче
@@ -43,29 +44,44 @@ const TOOLS: { kind: Exclude<ToolKind, 'object.place' | 'shape.draw'>; label: st
       'колесо и Ctrl+колесо — масштаб',
   },
   {
+    key: '3 или M',
     kind: 'measure',
     label: 'Линейка',
     hint: 'Два клика: измерить расстояние; Esc убирает, Alt — без привязки. В план не попадает',
   },
   {
+    key: '4',
     kind: 'room.draw',
     label: 'Комната',
-    hint: 'Комната внутри отделения: два противоположных угла, затем «Создать комнату». Старые стены сохраняются. Alt — без привязки',
+    hint:
+      'Добавить комнату внутри отделения. Клик — первый угол, клик — второй: два противоположных угла задают прямоугольник. ' +
+      'Завершить — «Создать комнату». Убрать угол — Backspace или Ctrl+Z; Esc — отмена. Alt — без привязки. ' +
+      'Стены и внешний контур не меняются; контур — «Файл» → «Изменить внешний контур отделения…»',
   },
   {
+    key: '5',
     kind: 'zone.draw',
     label: 'Зона',
-    hint: 'Контур зоны. Клик — точка; замкнуть — клик по первой точке, Enter или двойной клик; Esc — отмена; Alt — без привязки',
+    hint:
+      'Обозначить участок плана: зону без стен. Клик — точка контура. ' +
+      'Завершить — клик по первой точке, Enter или двойной клик. Убрать точку — Backspace или Ctrl+Z; Esc — отмена. Alt — без привязки',
   },
   {
+    key: '6 или W',
     kind: 'wall.draw',
     label: 'Перегородка',
-    hint: 'Два клика: начало и конец. Ошиблись началом — «Отменить», Ctrl+Z или Backspace; Esc — отмена; Alt — без привязки',
+    hint:
+      'Внутренняя стена. Клик — начало, клик — конец: перегородка готова. ' +
+      'Ошиблись началом — «Отменить», Ctrl+Z или Backspace; Esc — отмена. Alt — без привязки. ' +
+      'Изменить готовую — «Выбор», клик по ней и «Изменить перегородку» в свойствах',
   },
   {
+    key: '7 или O',
     kind: 'opening.place',
     label: 'Проём',
-    hint: 'Наведите на стену, клик — черновик; выберите вид и ширину слева, затем «Установить проём»; Esc — отмена',
+    hint:
+      'Дверь или окно в стене. Наведите на стену, клик — черновик; другой клик переносит его. ' +
+      'Выберите вид и ширину слева. Завершить — «Установить проём». Esc, Backspace или Ctrl+Z — отмена черновика',
   },
 ];
 
@@ -119,7 +135,7 @@ function editingHint(selection: Ref | null): string | null {
   if (selection.kind === 'zone' || selection.kind === 'room') {
     return 'Контур: тяните вершину; клик по ребру добавит вершину; Ctrl — протяжкой ребра вытянуть выступ, кликом по вершине удалить её; Alt — без привязки';
   }
-  if (selection.kind === 'wall') return 'Перегородка: тяните концы; Alt — без привязки';
+  if (selection.kind === 'wall') return 'Перегородка: включите «Изменить перегородку» в свойствах, затем тяните концы; Alt — без привязки';
   if (selection.kind === 'opening') return 'Проём: центр — двигать, края — ширина; Enter — готово';
   return null;
 }
@@ -169,7 +185,7 @@ export function PlanTools({
         <Fragment key={tool.kind}>
           <button
             type="button"
-            title={tool.hint}
+            title={`${tool.hint} (клавиша ${tool.key})`}
             aria-pressed={session.tool.kind === tool.kind && !(tool.kind === 'room.draw' && boundaryEditing)}
             className={session.tool.kind === tool.kind && !(tool.kind === 'room.draw' && boundaryEditing) ? 'toolbar__button is-active' : 'toolbar__button'}
             onClick={() => onTool({ kind: tool.kind })}

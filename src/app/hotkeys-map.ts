@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NUDGE_FINE_STEP_M, NUDGE_STEP_M } from '../features/equipment/selection-edit';
-import { AXIS_SNAP_DEG, ROTATION_SNAP_DEG } from '../features/equipment/transform';
+import { AXIS_SNAP_DEG, ROTATION_FINE_STEP_DEG, ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { isHotkeysMapHotkey, type HotkeyEvent } from '../features/editor/hotkeys';
 import { formatShort, NBSP } from '../domain/number-format';
 
@@ -31,7 +31,21 @@ const rotationStep = `${formatShort(ROTATION_SNAP_DEG, 1)}°`;
 export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
   {
     title: 'Вид',
-    entries: [{ keys: 'F', description: 'Вписать план в окно' }],
+    entries: [{ keys: 'F', description: 'Показать план целиком' }],
+  },
+  {
+    title: 'Инструменты',
+    entries: [
+      { keys: '1 или V', description: 'Выбор' },
+      { keys: '2 или H', description: 'Обзор' },
+      { keys: '3 или M', description: 'Линейка' },
+      { keys: '4', description: 'Комната' },
+      { keys: '5', description: 'Зона' },
+      { keys: '6 или W', description: 'Перегородка' },
+      { keys: '7 или O', description: 'Проём' },
+      { keys: 'E', description: 'Выбрана перегородка: включить или выключить «Изменить перегородку»' },
+      { keys: 'A', description: 'Открыть ассистента и поставить курсор в поле вопроса; при выбранном объекте или зоне — спросить о нём' },
+    ],
   },
   {
     title: 'Выделенный объект',
@@ -44,6 +58,8 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
         keys: 'Ручка поворота',
         description: `Свободный поворот; в пределах ±${formatShort(AXIS_SNAP_DEG, 1)}° от 0, 90, 180, 270° — точно по оси; с Shift — шаг ${rotationStep}. Точный угол — в свойствах`,
       },
+      { keys: ']', description: `Повернуть на ${formatShort(ROTATION_FINE_STEP_DEG, 1)}° по часовой` },
+      { keys: '[', description: `Повернуть на ${formatShort(ROTATION_FINE_STEP_DEG, 1)}° против часовой` },
       { keys: 'Ctrl+C затем Ctrl+V', description: 'Скопировать, затем вставить со смещением' },
       { keys: 'Ctrl+D', description: 'Дублировать со смещением, без буфера обмена; после сдвига копии — с тем же смещением' },
       { keys: 'Delete или Backspace', description: 'Удалить' },

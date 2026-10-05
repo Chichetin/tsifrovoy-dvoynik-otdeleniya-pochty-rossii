@@ -16,7 +16,7 @@ import type { Equipment, Id, Point, Polygon } from '../../contracts/model';
 import { nextFreeId } from '../../domain/commands';
 import { unmarkObject } from '../../domain/inventory';
 import { boundingBox, footprint, intersects, normalizeAngle } from '../../domain/geometry';
-import { ROTATION_SNAP_DEG, snapPosition } from './transform';
+import { ROTATION_FINE_STEP_DEG, ROTATION_SNAP_DEG, snapPosition } from './transform';
 
 /**
  * Ключ атрибута «инвентарный номер» — тот же, что в
@@ -76,9 +76,12 @@ export function moveObjects(objects: readonly Equipment[], delta: Point): Equipm
  * `R` поворачивает выделенное на `ROTATION_SNAP_DEG` по часовой, `Shift+R` —
  * против. Шаг — тот же, что уже даёт `Shift` при поворотах указателем
  * (`ROTATION_SNAP_DEG` в `transform.ts`, D-235): одна клавиша не должна учить
- * пользователя второму числу для того же жеста. Не `R` — `null`.
+ * пользователя второму числу для того же жеста. `]` и `[` (#182) — малый шаг
+ * `ROTATION_FINE_STEP_DEG` по и против часовой. Другая клавиша — `null`.
  */
 export function rotateDelta(code: string, shift: boolean): number | null {
+  if (code === 'BracketRight') return ROTATION_FINE_STEP_DEG;
+  if (code === 'BracketLeft') return -ROTATION_FINE_STEP_DEG;
   if (code !== 'KeyR') return null;
   return shift ? -ROTATION_SNAP_DEG : ROTATION_SNAP_DEG;
 }

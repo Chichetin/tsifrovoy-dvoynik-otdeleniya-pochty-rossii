@@ -32,6 +32,7 @@ import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
@@ -45,7 +46,7 @@ import { duplicateObjects, rotateObjects } from '../features/equipment/selection
 import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { planExtent } from '../features/editor/focus';
 import { fitToExtent } from '../features/editor/viewport';
-import { historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
+import { editorHotkey, historyHotkey, isTypingTarget } from '../features/editor/hotkeys';
 import { EquipmentLayer } from '../features/equipment/EquipmentLayer';
 import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
@@ -281,6 +282,9 @@ export function App(): React.JSX.Element {
   // #105: the object whose «Изменить форму» switch is on. It belongs to one
   // selection: picking something else, or nothing, puts it back to «off».
   const [reshapeFor, setReshapeFor] = useState<Id | null>(null);
+  // #167: the wall whose «Изменить перегородку» switch is on, and the tool it
+  // was turned on under. Another selection or another tool turns it off.
+  const [wallEdit, setWallEdit] = useState<{ id: Id; tool: Tool['kind'] } | null>(null);
   /**
    * Сколько раз документ заменяли целиком. Холст помнит, какой документ он уже
    * вписал, по `id` и имени, а два файла могут нести одну личность:
@@ -302,6 +306,11 @@ export function App(): React.JSX.Element {
     if (tabs === initialTabs.current) return;
     saveSideTabs(sideTabsStorage(), tabs);
   }, [tabs]);
+  // #184: the tab to fold the assistant to when «Свойства» open.
+  const lastRightTab = useRef<RightTab>('inventory');
+  useEffect(() => {
+    if (tabs.right !== 'assistant') lastRightTab.current = tabs.right;
+  }, [tabs.right]);
   const showLeftTab = useCallback((left: LeftTab) => {
     setTabs((prev) => (prev.left === left ? prev : { ...prev, left }));
   }, []);
@@ -325,12 +334,21 @@ export function App(): React.JSX.Element {
   // #105: «Свойства» stand in the right column above its tabs, so the library
   // on the left stays open while something is selected. A layer has no card of
   // its own (its settings live in «Слои»).
-  const propsShown = selection !== null && selection.kind !== 'layer';
+  // #184: not together with the assistant tab; the selection stays for its questions.
+  const propsShown = selection !== null && selection.kind !== 'layer' && tabs.right !== 'assistant';
 
   // #105: «Повернуть» and «Изменить форму» go with a single selected object.
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
     setReshapeFor(null);
   }
+  if (wallEdit !== null && !(selection?.kind === 'wall' && selection.id === wallEdit.id && tool.kind === wallEdit.tool)) {
+    setWallEdit(null);
+  }
+  const selectedWallId = selection?.kind === 'wall' ? selection.id : null;
+  const changeWallEdit = useCallback(
+    (on: boolean) => setWallEdit(on && selectedWallId !== null ? { id: selectedWallId, tool: tool.kind } : null),
+    [selectedWallId, tool.kind],
+  );
   const quickObject =
     selection !== null && selection.kind === 'object' && selected.size <= 1
       ? document.objects.find((entry) => entry.id === selection.id)
@@ -353,6 +371,25 @@ export function App(): React.JSX.Element {
       store.getState().selectMany(ids);
     },
     [store],
+  );
+  // #184: a click on the plan opens «Свойства», so the assistant tab folds to
+  // the tab the person had before it. The selection itself is not touched.
+  const leaveAssistant = useCallback(() => {
+    setTabs((prev) => (prev.right === 'assistant' ? { ...prev, right: lastRightTab.current } : prev));
+  }, []);
+  const planSelect = useCallback(
+    (ref: Ref | null) => {
+      select(ref);
+      if (ref !== null && ref.kind !== 'layer') leaveAssistant();
+    },
+    [select, leaveAssistant],
+  );
+  const planSelectMany = useCallback(
+    (ids: readonly Id[]) => {
+      selectMany(ids);
+      if (ids.length > 0) leaveAssistant();
+    },
+    [selectMany, leaveAssistant],
   );
 
   const dispatch = useCallback(
@@ -702,10 +739,10 @@ export function App(): React.JSX.Element {
   const openObjectMenu = useCallback(
     (id: Id, at: Point) => {
       menuReturnFocus.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null;
-      if (!(selected.has(id) && selected.size > 1)) select({ kind: 'object', id });
+      if (!(selected.has(id) && selected.size > 1)) planSelect({ kind: 'object', id });
       setObjectMenu({ id, at });
     },
-    [selected, select],
+    [selected, planSelect],
   );
   const runObjectMenu = useCallback(
     (action: ObjectMenuAction) => {
@@ -753,6 +790,32 @@ export function App(): React.JSX.Element {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [document, objectMenu, openObjectMenu, selection, view, viewport]);
+
+  // #182: bare keys for the toolbar tools, «Изменить перегородку» and the assistant.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const hotkey = editorHotkey(event);
+      if (hotkey === null || event.repeat || objectMenu !== null || view !== '2d') return;
+      if (window.document.querySelector('[aria-modal="true"]') !== null) return;
+      if (hotkey.action === 'tool') {
+        event.preventDefault();
+        setTool({ kind: hotkey.tool });
+      } else if (hotkey.action === 'wall-edit') {
+        if (selectedWallId === null) return;
+        event.preventDefault();
+        changeWallEdit(wallEdit === null);
+      } else {
+        event.preventDefault();
+        showRightTab('assistant');
+        // The panel may mount after this render: focus the question field once it is there.
+        window.setTimeout(() => window.document.querySelector<HTMLElement>('textarea[name="agent-question"]')?.focus(), 50);
+        const [question] = selectionQuestions(document, selection);
+        if (question !== undefined) askAgent(question);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [askAgent, changeWallEdit, document, objectMenu, selectedWallId, selection, showRightTab, view, wallEdit]);
 
   const replaceDocument = useCallback(
     (plan: PlanDocument, origin: DocumentOrigin) => {
@@ -889,14 +952,6 @@ export function App(): React.JSX.Element {
             aria-keyshortcuts takes a KeyboardEvent.key value, so "?", not the
             code "Shift+Slash". */}
         <div className="shell__aux">
-          <button
-            type="button"
-            className="files__button shell__assistant"
-            title="Ассистент: где поставить, чего не хватает, что изменилось"
-            onClick={() => showRightTab('assistant')}
-          >
-            Ассистент
-          </button>
           <button
             type="button"
             className="shell__quiet shell__help"
@@ -1061,20 +1116,24 @@ export function App(): React.JSX.Element {
               {planOnly ? <path d="M3 21 21 3" /> : null}
             </svg>
           </button>
-          <button
-            type="button"
-            className="shell__plan-only-toggle shell__captions-toggle"
-            aria-label="Подписи объектов"
-            title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
-            aria-pressed={captions}
-            onClick={() => setCaptions((shown) => !shown)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7V5h16v2" />
-              <path d="M12 5v14" />
-              <path d="M9 19h6" />
-            </svg>
-          </button>
+          {/* The captions apply to the 2D canvas only. The state stays in App,
+              so it survives a round trip through 3D. */}
+          {view === '2d' ? (
+            <button
+              type="button"
+              className="shell__plan-only-toggle shell__captions-toggle"
+              aria-label="Подписи объектов"
+              title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
+              aria-pressed={captions}
+              onClick={() => setCaptions((shown) => !shown)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7V5h16v2" />
+                <path d="M12 5v14" />
+                <path d="M9 19h6" />
+              </svg>
+            </button>
+          ) : null}
           {/* The refusal floats over the canvas: a row above it would push the
               plan down under the pointer that just made the gesture. */}
           {shownError === null ? null : (
@@ -1115,7 +1174,7 @@ export function App(): React.JSX.Element {
                 if (existing !== null) {
                   // A click here selects the object instead of placing a new one,
                   // so the silhouette that promises a placement is not shown (#26).
-                  if (event.phase === 'down') select({ kind: 'object', id: existing.id });
+                  if (event.phase === 'down') planSelect({ kind: 'object', id: existing.id });
                   else placementGhost.publish(null);
                   return;
                 }
@@ -1136,7 +1195,7 @@ export function App(): React.JSX.Element {
               }
             }}
             onViewport={setViewport}
-            onSelect={select}
+            onSelect={planSelect}
             overlay={
               <>
               {/* После оборудования — иначе объект, вставший на подпись, закрывает
@@ -1183,8 +1242,10 @@ export function App(): React.JSX.Element {
                 draft={drawingRoom ? internalRoom.draft : planTool.draft}
                 draftCursor={drawingRoom ? null : planTool.cursor}
                 rectangleCorners={drawingRoom ? internalRoom.corners : undefined}
+                wallEditing={wallEdit !== null}
+                onWallEditingChange={changeWallEdit}
                 onCommand={dispatch}
-                onSelect={select}
+                onSelect={planSelect}
               />
               <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             </Layer>
@@ -1193,8 +1254,8 @@ export function App(): React.JSX.Element {
               session={session}
               issues={issues}
               onCommand={dispatch}
-              onSelect={select}
-              onSelectMany={selectMany}
+              onSelect={planSelect}
+              onSelectMany={planSelectMany}
               preview={preview}
               previewEdits={previewEdits}
               onGesturePreview={gesturePreview.publish}
@@ -1216,8 +1277,9 @@ export function App(): React.JSX.Element {
             <p className="canvas-hint" role="status">Зону копировать нельзя: Ctrl+C, Ctrl+V и Ctrl+D работают для объектов.</p>
           ) : null}
           {view === '3d' ? (
-            <View3D document={shownDocument} selection={selection} onSelect={select} />
+            <View3D document={shownDocument} selection={selection} onSelect={planSelect} />
           ) : null}
+          {view === '2d' ? <AssistantLauncher onOpen={() => showRightTab('assistant')} /> : null}
         </main>
 
         <div
@@ -1293,6 +1355,8 @@ export function App(): React.JSX.Element {
                   session={session}
                   onCommand={dispatch}
                   gesturePreview={gesturePreview}
+                  wallEditing={wallEdit !== null}
+                  onWallEditingChange={changeWallEdit}
                 />
               </div>
             </div>

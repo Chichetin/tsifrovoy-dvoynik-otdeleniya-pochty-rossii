@@ -17,10 +17,20 @@
 - `generate-benchmark.ts` — Q02.
 - `measure-advice.ts` — время расчёта ассистента (`measurePlan`, `validatePlan`, три сценария) на нагрузочных планах, медиана трёх прогонов (D-205).
 - `package-demo.ts` — E01.
+- `check-deployment.ts` — проверка HTTP, `status=ok` и SHA сервиса без браузера:
+  `DEPLOY_URL=http://158.160.157.55:8080 npx tsx scripts/check-deployment.ts [SHA]`.
+  Без аргумента ожидается `origin/main`; ожидание ответа — 5 с. Ошибка даёт код 1.
+- `deploy-vm.sh` — выкладка на Ubuntu. В клоне берёт SHA из Git; для архива нужен
+  `BUILD_SHA=<SHA исходного коммита>`. Чужой SHA, неверный health или отсутствие
+  версии дают код 1. JSON проверяет Node внутри контейнера; jq на VM не нужен.
 - `measure-3d.ts` — время от нажатия «3D» до сцены с моделями и кадры в секунду при
   вращении камеры (#59): `npx tsx scripts/measure-3d.ts <план|100|500|1000> [прогонов]`
   на запущенном приложении (`APP_URL`, по умолчанию `http://127.0.0.1:5174/`).
   `PW_CHANNEL=msedge` или `chrome` выбирает установленный браузер, как в e2e.
+- `measure-drag.ts` — время 30 шагов переноса объекта и худший кадр на плане
+  из 1000 объектов (#169, #170): `npx tsx scripts/measure-drag.ts [прогонов]`, медиана.
+  Без `APP_URL` сам делает `vite build` и `vite preview` на `PREVIEW_PORT` (5189).
+  `PW_CHANNEL` выбирает браузер, как в e2e.
 - `models/build.py` — 3D-модели типов в `public/models/<имя>.glb` (#59, D-357).
   Запуск: `~/.local/opt/blender-5.2.2-linux-x64/blender -b -P scripts/models/build.py --
   [имя …] [--preview <папка>]`. Размеры берёт из `data/catalog/object-types.json`,

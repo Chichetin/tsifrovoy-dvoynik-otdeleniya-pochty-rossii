@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   type HotkeyEvent,
+  editorHotkey,
   historyHotkey,
   isFitHotkey,
   isHotkeysMapHotkey,
@@ -130,5 +131,28 @@ describe('карта горячих клавиш по ?', () => {
 
   it('другая клавиша — не карта клавиш', () => {
     expect(isHotkeysMapHotkey(event({ code: 'KeyR', shiftKey: true }))).toBe(false);
+  });
+});
+
+describe('клавиши инструментов, правки перегородки и ассистента', () => {
+  it('по коду клавиши: русская раскладка даёт то же', () => {
+    expect(editorHotkey(event({ code: 'Digit1', key: '1' }))).toEqual({ action: 'tool', tool: 'select' });
+    expect(editorHotkey(event({ code: 'KeyV', key: 'м' }))).toEqual({ action: 'tool', tool: 'select' });
+    expect(editorHotkey(event({ code: 'KeyW', key: 'ц' }))).toEqual({ action: 'tool', tool: 'wall.draw' });
+    expect(editorHotkey(event({ code: 'Digit7' }))).toEqual({ action: 'tool', tool: 'opening.place' });
+    expect(editorHotkey(event({ code: 'KeyE' }))).toEqual({ action: 'wall-edit' });
+    expect(editorHotkey(event({ code: 'KeyA' }))).toEqual({ action: 'assistant' });
+  });
+
+  it('модификатор, поле ввода и диалог клавишу не отдают', () => {
+    expect(editorHotkey(event({ code: 'Digit1', ctrlKey: true }))).toBeNull();
+    expect(editorHotkey(event({ code: 'Digit7', key: '?', shiftKey: true }))).toBeNull();
+    expect(editorHotkey(event({ code: 'KeyA', target: document.createElement('textarea') }))).toBeNull();
+    const dialog = document.createElement('div');
+    dialog.setAttribute('aria-modal', 'true');
+    const button = document.createElement('button');
+    dialog.append(button);
+    expect(editorHotkey(event({ code: 'KeyA', target: button }))).toBeNull();
+    expect(editorHotkey(event({ code: 'KeyF' }))).toBeNull();
   });
 });
