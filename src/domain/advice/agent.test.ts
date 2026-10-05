@@ -149,6 +149,7 @@ describe('агент без модели', () => {
     expect(answer.steps[0]?.tool).toBe('find_place');
     expect(answer.text).toContain('Вариант 1 — ');
     expect(routeAgentQuery(before, 'Я перенес eq_1 — что изменилось?', false).some((call) => call.args.objectId !== undefined)).toBe(false);
+    expect(routeAgentQuery(before, 'Я применил предложенное место для eq_1 — что изменилось?', true)[0]?.name).toBe('compare_with_original');
   }, 20_000);
 });
 

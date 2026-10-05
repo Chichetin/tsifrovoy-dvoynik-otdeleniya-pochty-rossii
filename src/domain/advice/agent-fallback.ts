@@ -336,9 +336,10 @@ function editCalls(plan: PlanDocument, text: string): AgentToolCall[] {
 
 /**
  * #178: «предложить место», «куда перенести» — a new place for an object that
- * stands. Only a request: «я перенес eq_1» is a report of an edit, not a question.
+ * stands. Only a request: «я перенес eq_1», «применил предложенное место»,
+ * «поставил на новое место» report an edit, they do not ask for one.
  */
-const RELOCATE_INTENT = /предлож[а-я]*\s+(?:[а-я]+\s+)?мест|куда\s+(?:перенест|перестав|передвин|перемест)|(?<![а-я])перенес(?:и|ите|ти)(?![а-я])|(?:нов|друг)[а-я]*\s+мест/;
+const RELOCATE_INTENT = /(?<![а-я])предлож(?:и|ите|ить)\s+(?:[а-я]+\s+)?мест|куда\s+(?:перенести|переставить|передвинуть|переместить)(?![а-я])|(?<![а-я])перенес(?:и|ите|ти)(?![а-я])/;
 
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
