@@ -48,6 +48,6 @@ for (const width of [1280, 1440]) {
     await expect(refused.locator('.agent__text')).toContainText('114,73');
     await expect(refused.locator('.agent__text')).not.toContainText('99999');
     await expect(refused.getByText(/LLM выбрала рассчитанные факты/)).toHaveCount(0);
-    await assistant.screenshot({ path: join(process.cwd(), `docs/verification/2026-09-28-chat-facts-${width}.png`) });
+    await assistant.screenshot({ path: join(process.cwd(), `test-results/chat-facts-${width}.png`) });
   });
 }
