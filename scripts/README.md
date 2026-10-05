@@ -17,6 +17,9 @@
 - `generate-benchmark.ts` — Q02.
 - `measure-advice.ts` — время расчёта ассистента (`measurePlan`, `validatePlan`, три сценария) на нагрузочных планах, медиана трёх прогонов (D-205).
 - `package-demo.ts` — E01.
+- `check-deployment.ts` — проверка HTTP, `status=ok` и SHA сервиса без браузера:
+  `DEPLOY_URL=http://158.160.157.55:8080 npx tsx scripts/check-deployment.ts [SHA]`.
+  Без аргумента ожидается `origin/main`; ожидание ответа — 5 с. Ошибка даёт код 1.
 - `measure-3d.ts` — время от нажатия «3D» до сцены с моделями и кадры в секунду при
   вращении камеры (#59): `npx tsx scripts/measure-3d.ts <план|100|500|1000> [прогонов]`
   на запущенном приложении (`APP_URL`, по умолчанию `http://127.0.0.1:5174/`).
