@@ -67,6 +67,7 @@ import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { OCCUPIED_PLACE_PREFIX, getNotice, occupiedPlaceNotice, setNotice } from '../features/plan-tools/notice';
 import { InternalRoomControls } from '../features/plan-tools/InternalRoomControls';
 import { useInternalRoomController } from '../features/plan-tools/use-internal-room-controller';
 import { DrawingControls } from '../features/plan-tools/DrawingControls';
@@ -156,6 +157,10 @@ export function App(): React.JSX.Element {
   const variants = useStore(store, (state) => state.variants);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
+  // #219: the «already here» line belongs to the placement mode and leaves with it.
+  useEffect(() => {
+    if (tool.kind !== 'object.place' && getNotice()?.startsWith(OCCUPIED_PLACE_PREFIX)) setNotice(null);
+  }, [tool.kind]);
   const [roomMode, setRoomMode] = useState<'internal' | 'boundary'>('internal');
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
@@ -1173,11 +1178,15 @@ export function App(): React.JSX.Element {
                 );
                 if (existing !== null) {
                   // A click here selects the object instead of placing a new one,
-                  // so the silhouette that promises a placement is not shown (#26).
-                  if (event.phase === 'down') planSelect({ kind: 'object', id: existing.id });
-                  else placementGhost.publish(null);
+                  // so the silhouette that promises a placement is not shown (#26);
+                  // the hint line says why nothing new appeared (#219).
+                  if (event.phase === 'down') {
+                    planSelect({ kind: 'object', id: existing.id });
+                    setNotice(occupiedPlaceNotice(existing.label.trim() || existing.id));
+                  } else placementGhost.publish(null);
                   return;
                 }
+                if (event.phase === 'down' && getNotice()?.startsWith(OCCUPIED_PLACE_PREFIX)) setNotice(null);
               }
               equipmentTool.handlePointer(event);
               if (event.phase === 'up' && placedType.current !== null) {

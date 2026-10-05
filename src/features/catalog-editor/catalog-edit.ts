@@ -33,6 +33,8 @@ export type NewObjectType = {
   physical: boolean;
   occupiesFloor: boolean;
   symbol: ObjectType['symbol'];
+  /** Sign on the plan (D-376); absent — no sign. */
+  pictogram?: ObjectType['pictogram'];
   color: string;
 };
 
@@ -109,6 +111,22 @@ export function attributeKeyFromLabel(label: string, takenKeys: Iterable<string>
   }
 }
 
+/**
+ * Attributes every physical type of the catalog declares (in `data/catalog` —
+ * state and inventory number), in the order of the first such type. A new
+ * physical type starts with them, so the card shows the inventory number and
+ * placing an object mints the next number of the series (#214). The set is
+ * read from the catalog, not listed here.
+ */
+export function commonPhysicalAttributes(catalog: Catalog): AttributeDef[] {
+  const physical = catalog.objectTypes.filter((t) => t.physical);
+  const [first, ...rest] = physical;
+  if (first === undefined) return [];
+  return first.attributes
+    .filter((def) => rest.every((t) => t.attributes.some((a) => a.key === def.key)))
+    .map((def) => ({ ...def }));
+}
+
 export function addObjectType(catalog: Catalog, input: NewObjectType): { catalog: Catalog; id: Id } {
   const id = slugId('ot_', input.label, catalog.objectTypes.map((t) => t.id));
   const type: ObjectType = {
@@ -121,8 +139,9 @@ export function addObjectType(catalog: Catalog, input: NewObjectType): { catalog
     physical: input.physical,
     occupiesFloor: input.occupiesFloor,
     symbol: input.symbol,
+    ...(input.pictogram === undefined ? {} : { pictogram: input.pictogram }),
     color: input.color,
-    attributes: [],
+    attributes: input.physical ? commonPhysicalAttributes(catalog) : [],
     provenance: TEAM_ASSUMPTION_PROVENANCE,
   };
   return { catalog: { ...catalog, objectTypes: [...catalog.objectTypes, type] }, id };
