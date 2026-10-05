@@ -17,7 +17,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { NUDGE_FINE_STEP_M, NUDGE_STEP_M } from '../features/equipment/selection-edit';
-import { ROTATION_SNAP_DEG } from '../features/equipment/transform';
+import { AXIS_SNAP_DEG, ROTATION_SNAP_DEG } from '../features/equipment/transform';
 import { isHotkeysMapHotkey, type HotkeyEvent } from '../features/editor/hotkeys';
 import { formatShort, NBSP } from '../domain/number-format';
 
@@ -40,6 +40,10 @@ export const HOTKEYS_MAP: readonly HotkeyMapGroup[] = [
       { keys: 'Shift + стрелка', description: `Сдвинуть на мелкий шаг, ${nudgeFineStep}` },
       { keys: 'R', description: `Повернуть на ${rotationStep} по часовой` },
       { keys: 'Shift+R', description: `Повернуть на ${rotationStep} против часовой` },
+      {
+        keys: 'Ручка поворота',
+        description: `Свободный поворот; в пределах ±${formatShort(AXIS_SNAP_DEG, 1)}° от 0, 90, 180, 270° — точно по оси; с Shift — шаг ${rotationStep}. Точный угол — в свойствах`,
+      },
       { keys: 'Ctrl+C затем Ctrl+V', description: 'Скопировать, затем вставить со смещением' },
       { keys: 'Ctrl+D', description: 'Дублировать со смещением, без буфера обмена; после сдвига копии — с тем же смещением' },
       { keys: 'Delete или Backspace', description: 'Удалить' },
