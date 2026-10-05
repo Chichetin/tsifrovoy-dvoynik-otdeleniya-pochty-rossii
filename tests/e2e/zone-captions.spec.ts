@@ -42,7 +42,7 @@ for (const width of [1280, 1440]) {
       return labels.flatMap((a) => names.filter((b) =>
         a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height)).length;
     })).toBe(0);
-    await page.getByRole('button', { name: 'Вписать', exact: true }).click();
+    await page.keyboard.press('KeyF');
     await expect.poll(() => overlap(page)).toBe(false);
     const plan = JSON.parse(readFileSync('demo/before.json', 'utf8'));
     plan.zones.find((zone: { id: string }) => zone.id === 'z_staff').name = 'ЗАЛ\n№1';

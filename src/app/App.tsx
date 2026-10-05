@@ -1104,20 +1104,24 @@ export function App(): React.JSX.Element {
               {planOnly ? <path d="M3 21 21 3" /> : null}
             </svg>
           </button>
-          <button
-            type="button"
-            className="shell__plan-only-toggle shell__captions-toggle"
-            aria-label="Подписи объектов"
-            title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
-            aria-pressed={captions}
-            onClick={() => setCaptions((shown) => !shown)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 7V5h16v2" />
-              <path d="M12 5v14" />
-              <path d="M9 19h6" />
-            </svg>
-          </button>
+          {/* The captions apply to the 2D canvas only. The state stays in App,
+              so it survives a round trip through 3D. */}
+          {view === '2d' ? (
+            <button
+              type="button"
+              className="shell__plan-only-toggle shell__captions-toggle"
+              aria-label="Подписи объектов"
+              title={captions ? 'Убрать подписи объектов' : 'Показать подписи объектов'}
+              aria-pressed={captions}
+              onClick={() => setCaptions((shown) => !shown)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7V5h16v2" />
+                <path d="M12 5v14" />
+                <path d="M9 19h6" />
+              </svg>
+            </button>
+          ) : null}
           {/* The refusal floats over the canvas: a row above it would push the
               plan down under the pointer that just made the gesture. */}
           {shownError === null ? null : (

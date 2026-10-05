@@ -252,7 +252,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     current.render();
   };
 
-  // «Вписать»: back to the default overview, also from the visitor's view.
+  // Key F: back to the default overview, also from the visitor's view.
   const sceneRef = useRef(scene);
   useEffect(() => {
     sceneRef.current = scene;
@@ -329,9 +329,6 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
           </button>
           <button type="button" className="files__button" onClick={leaveVisitor} disabled={!visitorMode}>
             Обзор
-          </button>
-          <button type="button" className="files__button" onClick={fitView} title="Вернуть обзор по умолчанию (клавиша F)">
-            Вписать
           </button>
           <button type="button" className="files__button" onClick={savePicture}>
             Скачать картинку 3D
