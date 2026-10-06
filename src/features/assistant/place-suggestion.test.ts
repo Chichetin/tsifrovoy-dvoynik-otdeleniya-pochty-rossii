@@ -2,7 +2,8 @@ import { describe, expect, test } from 'vitest';
 import minimal from '../../contracts/fixtures/minimal.json';
 import { parsePlanDocument } from '../../contracts/schema';
 import { applyCommand } from '../../domain/commands';
-import { placeOptions, placeTargetOf } from './place-suggestion';
+import { readPlaceTarget } from '../../contracts/mode-b-events';
+import { placeOptions } from './place-suggestion';
 
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('Контрактный fixture minimal.json не разобрался');
@@ -49,10 +50,10 @@ describe('#179: варианты «Предложить место»', () => {
   });
 
   test('detail события: объект или тип, остальное не запрос', () => {
-    expect(placeTargetOf({ objectId: 'eq_1' })).toEqual({ objectId: 'eq_1' });
-    expect(placeTargetOf({ typeId: 'ot_1' })).toEqual({ typeId: 'ot_1' });
-    expect(placeTargetOf({ objectId: '' })).toBeNull();
-    expect(placeTargetOf(null)).toBeNull();
-    expect(placeTargetOf('eq_1')).toBeNull();
+    expect(readPlaceTarget({ objectId: 'eq_1' })).toEqual({ objectId: 'eq_1' });
+    expect(readPlaceTarget({ typeId: 'ot_1' })).toEqual({ typeId: 'ot_1' });
+    expect(readPlaceTarget({ objectId: '' })).toBeNull();
+    expect(readPlaceTarget(null)).toBeNull();
+    expect(readPlaceTarget('eq_1')).toBeNull();
   });
 });

@@ -6,14 +6,12 @@
  */
 
 import { useMemo, useRef, useState } from 'react';
+import { dispatchSuggestPlace } from '../../contracts/mode-b-events';
 import type { ObjectType } from '../../contracts/model';
 import type { LibraryPanelProps } from '../../contracts/ui';
 import { typeOutline } from '../../contracts/outline';
 import { PLAN_PICTOGRAM_PATHS, planPictogram } from '../../domain/plan-pictogram';
 import { formatShort, NBSP } from '../../domain/number-format';
-
-/** The same name as in `features/assistant/place-suggestion.ts`; `detail` is `{ typeId }` (#179). */
-const SUGGEST_PLACE_EVENT = 'ops-twin:suggest-place';
 
 function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
   const groups = new Map<string, ObjectType[]>();
@@ -100,7 +98,7 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
             setNeedType(activeTypeId === null ? 'place' : null);
             if (activeTypeId === null) return;
             onTool({ kind: 'select' });
-            window.dispatchEvent(new CustomEvent(SUGGEST_PLACE_EVENT, { detail: { typeId: activeTypeId } }));
+            dispatchSuggestPlace({ typeId: activeTypeId });
           }}
         >
           Предложить место

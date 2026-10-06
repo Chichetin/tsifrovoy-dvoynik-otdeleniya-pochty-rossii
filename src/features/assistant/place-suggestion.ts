@@ -10,24 +10,10 @@
 
 import type { Candidate, Fact } from '../../contracts/advice';
 import type { Command } from '../../contracts/commands';
+import type { PlaceTarget } from '../../contracts/mode-b-events';
 import type { Equipment, Id, PlanDocument, Point, Result } from '../../contracts/model';
 import { calculateAdvice, findRelocations, placementZonePath, type RelocationOption } from '../../domain/advice';
 import { formatMeasure } from '../../domain/number-format';
-
-/**
- * The entry points («Свойства», the object menu, «Библиотека») live in other
- * features and cannot import this module (docs/project-structure.md). They
- * fire this window event with `PlaceTarget` as `detail`; the assistant session
- * listens. The same name is written in each of them.
- */
-export const SUGGEST_PLACE_EVENT = 'ops-twin:suggest-place';
-/** The chosen option for the plan: `SuggestionGhost` or null as `detail`, read by `features/equipment/placement-ghost.ts`. */
-export const SUGGESTION_GHOST_EVENT = 'ops-twin:suggestion-ghost';
-
-export type PlaceTarget = { objectId: Id } | { typeId: Id };
-
-/** What the plan draws: the outline where the object would stand, an arrow from where it stands now. */
-export type SuggestionGhost = { from: Point | null; to: Equipment; label: string };
 
 export type PlaceNumber = { label: string; before: string; after: string };
 
@@ -156,13 +142,4 @@ function insertOptions(plan: PlanDocument, typeId: Id): Result<PlaceOptions> {
 /** Up to three options and «оставить как есть» last. */
 export function placeOptions(plan: PlanDocument, target: PlaceTarget): Result<PlaceOptions> {
   return 'objectId' in target ? relocationOptions(plan, target.objectId) : insertOptions(plan, target.typeId);
-}
-
-/** A window event's `detail` as a target; anything else is ignored. */
-export function placeTargetOf(detail: unknown): PlaceTarget | null {
-  if (typeof detail !== 'object' || detail === null) return null;
-  const record = detail as Record<string, unknown>;
-  if (typeof record.objectId === 'string' && record.objectId !== '') return { objectId: record.objectId };
-  if (typeof record.typeId === 'string' && record.typeId !== '') return { typeId: record.typeId };
-  return null;
 }

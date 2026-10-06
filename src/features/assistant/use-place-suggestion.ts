@@ -13,16 +13,8 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import type { Command } from '../../contracts/commands';
 import type { Id, PlanDocument, Result } from '../../contracts/model';
 import { candidateObjectForInsert } from '../../domain/advice';
-import {
-  placeOptions,
-  placeTargetOf,
-  SUGGEST_PLACE_EVENT,
-  SUGGESTION_GHOST_EVENT,
-  type PlaceOption,
-  type PlaceOptions,
-  type PlaceTarget,
-  type SuggestionGhost,
-} from './place-suggestion';
+import { dispatchSuggestionGhost as showGhost, readPlaceTarget, SUGGEST_PLACE_EVENT, type PlaceTarget } from '../../contracts/mode-b-events';
+import { placeOptions, type PlaceOption, type PlaceOptions } from './place-suggestion';
 
 export type PlaceSuggestionView =
   | { status: 'idle' }
@@ -64,10 +56,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
 
 export function usePlaceSuggestion(): PlaceSuggestionView {
   return useSyncExternalStore(subscribe, read, read);
-}
-
-function showGhost(ghost: SuggestionGhost | null): void {
-  window.dispatchEvent(new CustomEvent(SUGGESTION_GHOST_EVENT, { detail: ghost }));
 }
 
 type PlaceActions = {
@@ -200,10 +188,10 @@ export function usePlaceSuggestionSession({
     Object.assign(placeSuggestionActions, { suggest, choose, confirm, dismiss, leave, close });
   }, [suggest, choose, confirm, dismiss, leave, close]);
 
-  // The entry points of other features fire a window event (see place-suggestion.ts).
+  // The entry points of other features fire `SUGGEST_PLACE_EVENT` (contracts/mode-b-events.ts).
   useEffect(() => {
     const onRequest = (event: Event): void => {
-      const target = placeTargetOf((event as CustomEvent<unknown>).detail);
+      const target = readPlaceTarget((event as Event & { detail?: unknown }).detail);
       if (target !== null) suggest(target);
     };
     window.addEventListener(SUGGEST_PLACE_EVENT, onRequest);

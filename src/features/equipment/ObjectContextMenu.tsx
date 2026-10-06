@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Equipment, Point } from '../../contracts/model';
-import { OBJECT_MENU_ITEMS, SUGGEST_PLACE_EVENT, type ObjectMenuAction } from './object-menu';
+import { dispatchSuggestPlace } from '../../contracts/mode-b-events';
+import { OBJECT_MENU_ITEMS, type ObjectMenuAction } from './object-menu';
 
 const EDGE_PX = 8;
 
@@ -104,7 +105,7 @@ export function ObjectContextMenu({
             // #179: the assistant takes the request itself; the menu only closes.
             if (item.action === 'place') {
               onClose();
-              window.dispatchEvent(new CustomEvent(SUGGEST_PLACE_EVENT, { detail: { objectId: object.id } }));
+              dispatchSuggestPlace({ objectId: object.id });
               return;
             }
             onAction(item.action);

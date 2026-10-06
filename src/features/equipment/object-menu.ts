@@ -2,8 +2,8 @@
  * #24: the menu of an object — what a right click or `Shift+F10` offers.
  *
  * This file only names the actions. Most are commands the app already has;
- * «Предложить место» (#179) is not: the menu fires `SUGGEST_PLACE_EVENT` and
- * the assistant takes it, the app is not involved. The object under a click
+ * «Предложить место» (#179) is not: the menu calls `dispatchSuggestPlace`
+ * (contracts/mode-b-events.ts) and the assistant takes it, the app is not involved. The object under a click
  * is `findPlacementPick` with any type.
  */
 
@@ -19,6 +19,3 @@ export const OBJECT_MENU_ITEMS: readonly { action: ObjectMenuAction; label: stri
   { action: 'place', label: 'Предложить место', keys: '' },
   { action: 'ask', label: 'Спросить ассистента', keys: '' },
 ];
-
-/** The same name as in `features/assistant/place-suggestion.ts`; `detail` is `{ objectId }`. */
-export const SUGGEST_PLACE_EVENT = 'ops-twin:suggest-place';

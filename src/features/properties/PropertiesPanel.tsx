@@ -25,6 +25,7 @@ import type {
   Zone,
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
+import { dispatchSuggestPlace } from '../../contracts/mode-b-events';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { attributeBoundsError, attributeRange, findObjectType, findZoneType } from '../../domain/catalog';
 import { MAINTENANCE_DATE_KEY, maintenanceDateError } from '../../domain/validation';
@@ -63,9 +64,6 @@ const OPENING_KINDS: { kind: OpeningKind; label: string }[] = [
   { kind: 'door', label: 'Дверь' },
   { kind: 'window', label: 'Окно' },
 ];
-
-/** The same name as in `features/assistant/place-suggestion.ts`; `detail` is `{ objectId }` (#179). */
-const SUGGEST_PLACE_EVENT = 'ops-twin:suggest-place';
 
 function commandFor(entity: Editable): Command {
   if ('polygon' in entity) return { type: 'zone.put', zone: entity };
@@ -693,7 +691,7 @@ export function PropertiesPanel({
         {layerSelect(object.layerId, (layerId) => ({ ...object, layerId }))}
 
         {/* #179: the assistant's mode B. The assistant is another feature: the
-            request goes as a window event (features/assistant/place-suggestion.ts). */}
+            request goes as a window event (contracts/mode-b-events.ts). */}
         <button
           type="button"
           className="files__button"
@@ -702,7 +700,7 @@ export function PropertiesPanel({
           title={object.locked === true
             ? 'Снимите замок объекта, чтобы искать для него место'
             : 'До трёх мест на плане и «оставить как есть»; объект не двигается до «Подтвердить»'}
-          onClick={() => window.dispatchEvent(new CustomEvent(SUGGEST_PLACE_EVENT, { detail: { objectId: object.id } }))}
+          onClick={() => dispatchSuggestPlace({ objectId: object.id })}
         >
           Предложить место
         </button>
