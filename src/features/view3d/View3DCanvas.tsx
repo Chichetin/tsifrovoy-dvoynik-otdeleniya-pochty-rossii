@@ -566,7 +566,13 @@ function createStage(container: HTMLDivElement): Stage {
     spreadLabels(labels, camera, renderer);
     renderer.render(world, camera);
   };
-  controls.addEventListener('change', render);
+  // #247: a touchpad sends several wheel events per frame. One frame draws once,
+  // not once per event: a draw costs about 7 ms of the main thread.
+  let frame = 0;
+  const requestRender = (): void => {
+    if (frame === 0) frame = requestAnimationFrame(() => { frame = 0; render(); });
+  };
+  controls.addEventListener('change', requestRender);
 
   const stage: Stage = {
     renderer,
@@ -583,7 +589,8 @@ function createStage(container: HTMLDivElement): Stage {
     dispose: () => {
       renderer.domElement.removeEventListener('wheel', touchpad);
       renderer.domElement.removeEventListener('keydown', arrowTurn);
-      controls.removeEventListener('change', render);
+      cancelAnimationFrame(frame);
+      controls.removeEventListener('change', requestRender);
       controls.dispose();
       clearGroup(group);
       placeLabels(labels, []);
