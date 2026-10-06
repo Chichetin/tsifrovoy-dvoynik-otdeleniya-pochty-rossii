@@ -332,6 +332,31 @@ Timeout внешнего API — 15 с, не более одного повто�
 называет зону и объясняет разницу. Показ и применение — те же `preview-edits` и
 `apply-edits`.
 
+### События режима Б «Предложить место»
+
+`src/contracts/mode-b-events.ts` (D-379). Режим Б связан событиями `window`. Имена
+и типы `detail` записаны только в этом файле.
+
+```ts
+const SUGGEST_PLACE_EVENT = 'ops-twin:suggest-place';       // detail: PlaceTarget
+const SUGGESTION_GHOST_EVENT = 'ops-twin:suggestion-ghost'; // detail: SuggestionGhost | null
+type PlaceTarget = { objectId: Id } | { typeId: Id };
+type SuggestionGhost = { from: Point | null; to: Equipment; label: string };
+dispatchSuggestPlace(target: PlaceTarget): void;
+dispatchSuggestionGhost(ghost: SuggestionGhost | null): void;
+readPlaceTarget(detail: unknown): PlaceTarget | null;
+readSuggestionGhost(detail: unknown): SuggestionGhost | null;
+```
+
+| Событие | Шлёт | Слушает |
+|---|---|---|
+| `SUGGEST_PLACE_EVENT` | properties (`PropertiesPanel`), equipment (`ObjectContextMenu`), library (`LibraryPanel`) | assistant (`use-place-suggestion`) |
+| `SUGGESTION_GHOST_EVENT` | assistant (`use-place-suggestion`) | equipment (`placement-ghost`) |
+
+Отправитель вызывает `dispatch…`. Слушатель читает `detail` через `read…`.
+Неверная форма даёт null: запрос не выполняется, призрак не рисуется.
+`null` в `SUGGESTION_GHOST_EVENT` убирает призрак.
+
 ## Контрактные fixtures и поведение UI
 
 F02 публикует `src/contracts/fixtures/`: `minimal.json`, `nested.json`, `rotated.json`,

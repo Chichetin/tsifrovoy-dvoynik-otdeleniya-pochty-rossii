@@ -22,6 +22,7 @@ import {
   type Issue,
   type PlanDocument,
 } from './model';
+import { readPlaceTarget, readSuggestionGhost } from './mode-b-events';
 import { parsePlanDocument } from './schema';
 
 function loadFixture(name: string): unknown {
@@ -287,5 +288,29 @@ describe('корпус advice.json', () => {
         admissible: entry.expect === 'accept',
       });
     }
+  });
+});
+
+describe('события режима Б', () => {
+  test('readPlaceTarget: объект или тип, иначе null', () => {
+    expect(readPlaceTarget({ objectId: 'eq_1' })).toEqual({ objectId: 'eq_1' });
+    expect(readPlaceTarget({ typeId: 'ot_1' })).toEqual({ typeId: 'ot_1' });
+    expect(readPlaceTarget({ objectId: '' })).toBeNull();
+    expect(readPlaceTarget({ objectId: 7 })).toBeNull();
+    expect(readPlaceTarget(null)).toBeNull();
+    expect(readPlaceTarget('eq_1')).toBeNull();
+  });
+
+  test('readSuggestionGhost: верная форма — призрак, неверная — null', () => {
+    const to = { id: 'eq_1', typeId: 'ot_1', position: [1, 2], size_m: [0.6, 0.4], rotation_deg: 0 };
+    expect(readSuggestionGhost({ from: [3, 4], to, label: 'Вариант 1' })).toEqual({ from: [3, 4], to, label: 'Вариант 1' });
+    expect(readSuggestionGhost({ to })).toEqual({ from: null, to, label: '' });
+    expect(readSuggestionGhost({ from: 'x', to, label: 5 })).toEqual({ from: null, to, label: '' });
+    expect(readSuggestionGhost(null)).toBeNull();
+    expect(readSuggestionGhost({ label: 'без объекта' })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, 2] } })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, Number.NaN], size_m: [1, 1], rotation_deg: 0 } })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, 2], size_m: [1, 1] } })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, 2], size_m: [1, 1], rotation_deg: Number.POSITIVE_INFINITY } })).toBeNull();
   });
 });
