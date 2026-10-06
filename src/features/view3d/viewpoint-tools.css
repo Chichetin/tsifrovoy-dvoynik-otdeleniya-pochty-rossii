@@ -49,3 +49,8 @@
   background: var(--ground, #fff);
   font-size: 0.8125rem;
 }
+
+.view3d__turn {
+  display: flex;
+  gap: 0.25rem;
+}
