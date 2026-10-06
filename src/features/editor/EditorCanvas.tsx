@@ -15,7 +15,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent } from 'react';
-import { Circle, Group, Layer, Line, Stage } from 'react-konva';
+import { Circle, Group, Layer, Line, Shape, Stage } from 'react-konva';
 import { flushSync } from 'react-dom';
 import Konva from 'konva';
 import { ZONE_OVERVIEW_SCALE } from './ZoneOverviewLayer';
@@ -57,8 +57,40 @@ const HIGHLIGHT_MS = 1600;
 const MIN_RING_PX = 28;
 const RING_GAP_PX = 14;
 
+/**
+ * #190: above this many Konva nodes a pan or wheel frame does not repaint the
+ * plan: it moves the canvases already drawn. The demo plan has about 400
+ * nodes, the plan of 1000 objects about 6400 (one repaint 25–45 ms).
+ */
+const LIVE_DRAW_NODES = 2000;
+
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
+
+/**
+ * #190: changes Konva attributes without Konva's own redraw. A changed
+ * attribute of the stage asks every layer to redraw its scene and its hit
+ * canvas in the next frame. A gesture frame paints the scene itself, so that
+ * second paint doubled each pan or wheel step on a large plan.
+ */
+function quietly(change: () => void): void {
+  const auto = Konva.autoDrawEnabled;
+  Konva.autoDrawEnabled = false;
+  try {
+    change();
+  } finally {
+    Konva.autoDrawEnabled = auto;
+  }
+}
+
+function nodeCount(container: Konva.Container): number {
+  let count = 0;
+  for (const child of container.getChildren()) {
+    count += 1;
+    if (child instanceof Konva.Container) count += nodeCount(child);
+  }
+  return count;
+}
 
 /** Мировой контур в плоский список экранных координат для Konva. */
 function screenPoints(extent: Polygon, viewport: { origin: Point; scale: number }): number[] {
@@ -113,6 +145,21 @@ export function EditorCanvas({
   // Wheel frames repaint the visible canvas only. The hit canvas, which finds
   // the shape under the pointer, is repainted once the gesture is committed.
   const hitStale = useRef(false);
+  // #190: a drag pan works like the wheel. Each step moves the stage only; the
+  // app gets the viewport once, when the button is released. Before, each
+  // step sent the viewport to the app: on 1000 objects 0.1 s a step.
+  const dragPan = useRef(false);
+  // The grid is drawn for the live viewport, so the stage transform is undone
+  // for its layer: a pan or a zoom never shows an edge without grid lines.
+  const gridLayerRef = useRef<Konva.Layer>(null);
+  // How the current gesture shows the live viewport: false — the stage
+  // transform and one repaint a frame; true — a CSS transform of the drawn
+  // layer canvases and a repaint of the grid only. null — no gesture.
+  const shiftCanvases = useRef<boolean | null>(null);
+  const gestureOver = useCallback(
+    (): boolean => settleTimer.current === null && panFrame.current === null && !dragPan.current,
+    [],
+  );
   /** Puts the stage transform onto the live viewport; true when it changed. */
   const showLive = useCallback((): boolean => {
     const node = stage.current;
@@ -123,9 +170,32 @@ export function EditorCanvas({
     const x = live.origin[0] - k * drawn.origin[0];
     const y = live.origin[1] - k * drawn.origin[1];
     if (node.scaleX() === k && node.x() === x && node.y() === y) return false;
-    node.scale({ x: k, y: k });
-    node.position({ x, y });
+    quietly(() => {
+      node.scale({ x: k, y: k });
+      node.position({ x, y });
+      gridLayerRef.current?.scale({ x: 1 / k, y: 1 / k });
+      gridLayerRef.current?.position({ x: -x / k, y: -y / k });
+    });
     return true;
+  }, []);
+  /** Puts the drawn layer canvases, all but the grid, onto the live viewport by CSS. */
+  const showShifted = useCallback((): void => {
+    const node = stage.current;
+    if (node === null) return;
+    const drawn = drawnViewport.current;
+    const live = liveViewport.current;
+    const k = live.scale / drawn.scale;
+    const x = live.origin[0] - k * drawn.origin[0];
+    const y = live.origin[1] - k * drawn.origin[1];
+    const transform = k === 1 && x === 0 && y === 0 ? '' : `matrix(${k}, 0, 0, ${k}, ${x}, ${y})`;
+    for (const layer of node.getLayers()) {
+      if (layer === gridLayerRef.current) continue;
+      const style = layer.getNativeCanvasElement().style;
+      style.transformOrigin = '0 0';
+      style.transform = transform;
+      // Its own compositor layer: the browser moves the canvas, not repaints it.
+      style.willChange = transform === '' ? '' : 'transform';
+    }
   }, []);
   const drawAll = useCallback((): void => {
     stage.current?.batchDraw();
@@ -148,28 +218,58 @@ export function EditorCanvas({
     settleTimer.current = null;
     foldPending();
     if (liveViewport.current === drawnViewport.current) {
+      if (shiftCanvases.current === true) showShifted();
       if (showLive() || hitStale.current) drawAll();
+      if (gestureOver()) shiftCanvases.current = null;
       return;
     }
     wheelCommit.current = liveViewport.current;
     onViewport(liveViewport.current);
-  }, [drawAll, foldPending, onViewport, showLive]);
+  }, [drawAll, foldPending, gestureOver, onViewport, showLive, showShifted]);
   const flushPan = useCallback((): void => {
     foldPending();
+    const node = stage.current;
+    if (node !== null) shiftCanvases.current ??= nodeCount(node) > LIVE_DRAW_NODES;
     // Called from an animation frame: the scene is painted right here.
-    if (showLive()) {
-      for (const layer of stage.current?.getLayers() ?? []) layer.drawScene();
+    if (shiftCanvases.current === true) {
+      showShifted();
+      gridLayerRef.current?.drawScene();
+      hitStale.current = true;
+    } else if (showLive()) {
+      for (const layer of node?.getLayers() ?? []) layer.drawScene();
       hitStale.current = true;
     }
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(commitWheel, WHEEL_SETTLE_MS);
-  }, [commitWheel, foldPending, showLive]);
+    settleTimer.current = null;
+    // A drag pan hands the view over on release, not after a pause.
+    if (!dragPan.current) settleTimer.current = window.setTimeout(commitWheel, WHEEL_SETTLE_MS);
+  }, [commitWheel, foldPending, showLive, showShifted]);
+  /** One step of a drag pan: the stage moves in the next animation frame. */
+  const panStep = useCallback(
+    (delta: Point): void => {
+      if (!dragPan.current) {
+        dragPan.current = true;
+        // A pan is not a hover or a click on what lies under the pointer.
+        quietly(() => stage.current?.listening(false));
+      }
+      liveViewport.current = panBy(liveViewport.current, delta);
+      if (panFrame.current === null) panFrame.current = requestAnimationFrame(flushPan);
+    },
+    [flushPan],
+  );
+  /** The end of a drag pan: the app gets the view once. */
+  const panEnd = useCallback((): void => {
+    if (!dragPan.current) return;
+    dragPan.current = false;
+    quietly(() => stage.current?.listening(true));
+    commitWheel();
+  }, [commitWheel]);
   // Runs after react-konva has updated the shapes, in the same frame: the
   // stage transform shrinks to whatever the wheel did since the commit.
   useLayoutEffect(() => {
     drawnViewport.current = session.viewport;
     if (session.viewport !== wheelCommit.current) {
-      // Fit, «+»/«−», focus or a drag pan: the new view replaces the wheel's.
+      // Fit, «+»/«−» or focus: the new view replaces the live one.
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
       if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
       settleTimer.current = null;
@@ -179,21 +279,27 @@ export function EditorCanvas({
       liveViewport.current = session.viewport;
     }
     wheelCommit.current = null;
+    if (shiftCanvases.current === true) {
+      drawAll();
+      // Runs after the layers' own repaint in the same frame: the CSS shift
+      // shrinks to whatever the gesture did since the commit.
+      const frame = requestAnimationFrame(() => {
+        showShifted();
+        if (gestureOver()) shiftCanvases.current = null;
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (gestureOver()) shiftCanvases.current = null;
     if (showLive() || hitStale.current) drawAll();
-  }, [drawAll, session.viewport, showLive]);
+    // The grid shape reads the live viewport: its props do not change with it.
+    else gridLayerRef.current?.batchDraw();
+  }, [drawAll, gestureOver, session.viewport, showLive, showShifted]);
   useEffect(
     () => () => {
       if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
     },
     [],
-  );
-  const applyViewport = useCallback(
-    (next: Viewport): void => {
-      liveViewport.current = next;
-      onViewport(next);
-    },
-    [onViewport],
   );
   /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
   const fitted = useRef<string | null>(null);
@@ -334,25 +440,24 @@ export function EditorCanvas({
       const from = panning.current;
       if (from !== null) {
         panning.current = [event.evt.clientX, event.evt.clientY];
-        applyViewport(
-          panBy(liveViewport.current, [event.evt.clientX - from[0], event.evt.clientY - from[1]]),
-        );
+        panStep([event.evt.clientX - from[0], event.evt.clientY - from[1]]);
         return;
       }
       emit('move', event);
     },
-    [emit, applyViewport],
+    [emit, panStep],
   );
 
   const handleUp = useCallback(
     (event: Konva.KonvaEventObject<PointerEvent>): void => {
       if (panning.current !== null) {
         panning.current = null;
+        panEnd();
         return;
       }
       emit('up', event);
     },
-    [emit],
+    [emit, panEnd],
   );
 
   const handleWheel = useCallback(
@@ -442,6 +547,7 @@ export function EditorCanvas({
       held = false;
       from = null;
       setSpaceHeld(false);
+      panEnd();
     };
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.code === 'Escape') { reset(); return; }
@@ -469,7 +575,7 @@ export function EditorCanvas({
       if (from === null) return;
       event.preventDefault();
       event.stopImmediatePropagation();
-      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      panStep([event.clientX - from[0], event.clientY - from[1]]);
       from = [event.clientX, event.clientY];
     };
     const onUp = (event: PointerEvent): void => {
@@ -477,6 +583,7 @@ export function EditorCanvas({
       event.preventDefault();
       event.stopImmediatePropagation();
       from = null;
+      panEnd();
     };
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('keyup', onKeyUp, true);
@@ -494,7 +601,7 @@ export function EditorCanvas({
       window.removeEventListener('pointercancel', reset);
       window.removeEventListener('blur', reset);
     };
-  }, [applyViewport]);
+  }, [panEnd, panStep]);
 
   // A press during a wheel gesture first redraws the plan for the live view,
   // synchronously: shapes, drags and tools then see the view the user sees.
@@ -525,13 +632,15 @@ export function EditorCanvas({
       const from = middleMousePanning.current;
       if (from === null) return;
       middleMousePanning.current = [event.clientX, event.clientY];
-      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      panStep([event.clientX - from[0], event.clientY - from[1]]);
     };
     const onMouseUp = (event: MouseEvent): void => {
       if (event.button === 1 || middleMousePanning.current !== null) {
         event.preventDefault();
         middleMousePanning.current = null;
       }
+      // Any release ends a pan, also one outside the canvas or over a button.
+      panEnd();
     };
     const onPointerDown = (event: PointerEvent): void => {
       if (event.button !== 1) return;
@@ -542,13 +651,15 @@ export function EditorCanvas({
       const from = middleMousePanning.current;
       if (from === null) return;
       middleMousePanning.current = [event.clientX, event.clientY];
-      applyViewport(panBy(liveViewport.current, [event.clientX - from[0], event.clientY - from[1]]));
+      panStep([event.clientX - from[0], event.clientY - from[1]]);
     };
     const onPointerUp = (event: PointerEvent): void => {
       if (event.button === 1 || middleMousePanning.current !== null) {
         event.preventDefault();
         middleMousePanning.current = null;
       }
+      // Any release ends a pan, also one outside the canvas or over a button.
+      panEnd();
     };
     window.addEventListener('mousedown', onMouseDown, true);
     window.addEventListener('mousemove', onMouseMove, true);
@@ -564,7 +675,28 @@ export function EditorCanvas({
       window.removeEventListener('pointermove', onPointerMove, true);
       window.removeEventListener('pointerup', onPointerUp, true);
     };
-  }, [applyViewport]);
+  }, [panEnd, panStep]);
+
+  // #190: Konva ends a drag on the window's mouseup. A release over a disabled
+  // button sends pointerup but no mouseup, and the object stayed glued to the
+  // pointer. When the drag outlives its pointerup, the mouseup is sent here.
+  useEffect(() => {
+    const onPointerUp = (event: PointerEvent): void => {
+      if (event.pointerType !== 'mouse' || !Konva.isDragging()) return;
+      window.setTimeout(() => {
+        if (!Konva.isDragging()) return;
+        window.dispatchEvent(new MouseEvent('mouseup', {
+          clientX: event.clientX,
+          clientY: event.clientY,
+          button: event.button,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+        }));
+      }, 0);
+    };
+    window.addEventListener('pointerup', onPointerUp, true);
+    return () => window.removeEventListener('pointerup', onPointerUp, true);
+  }, []);
 
   // Escape cancels the drawing in progress; with nothing in progress it clears
   // the selection. Both are what a drawing tool is expected to do.
@@ -607,32 +739,36 @@ export function EditorCanvas({
     () => (size.width > 0 ? gridLines(session.viewport, size) : null),
     [session.viewport, size],
   );
-  // Grid and axes depend on the viewport and the canvas size only. Built on
-  // every render, their `points` arrays would be "new" props for react-konva
-  // and repaint the grid layer on every click in a panel (D-177).
-  const gridLayer = useMemo(
-    () =>
-      grid === null ? null : (
-        <>
-          {grid.vertical.map((x) => (
-            <Line key={`v${x}`} points={[x, 0, x, size.height]} stroke={GRID_COLOR} strokeWidth={1} />
-          ))}
-          {grid.horizontal.map((y) => (
-            <Line key={`h${y}`} points={[0, y, size.width, y]} stroke={GRID_COLOR} strokeWidth={1} />
-          ))}
-          <Line
-            points={[session.viewport.origin[0], 0, session.viewport.origin[0], size.height]}
-            stroke={AXIS_COLOR}
-            strokeWidth={1.5}
-          />
-          <Line
-            points={[0, session.viewport.origin[1], size.width, session.viewport.origin[1]]}
-            stroke={AXIS_COLOR}
-            strokeWidth={1.5}
-          />
-        </>
-      ),
-    [grid, session.viewport, size.width, size.height],
+  // One shape draws the grid and the axes for the live viewport. A wheel or a
+  // pan step repaints it with the stage and React is not involved. A new
+  // function is made only on resize, so a click in a panel does not repaint
+  // the grid layer (D-177).
+  const drawGrid = useCallback(
+    (context: Konva.Context): void => {
+      const live = liveViewport.current;
+      const lines = gridLines(live, size);
+      context.beginPath();
+      for (const x of lines.vertical) {
+        context.moveTo(x, 0);
+        context.lineTo(x, size.height);
+      }
+      for (const y of lines.horizontal) {
+        context.moveTo(0, y);
+        context.lineTo(size.width, y);
+      }
+      context.setAttr('strokeStyle', GRID_COLOR);
+      context.setAttr('lineWidth', 1);
+      context.stroke();
+      context.beginPath();
+      context.moveTo(live.origin[0], 0);
+      context.lineTo(live.origin[0], size.height);
+      context.moveTo(0, live.origin[1]);
+      context.lineTo(size.width, live.origin[1]);
+      context.setAttr('strokeStyle', AXIS_COLOR);
+      context.setAttr('lineWidth', 1.5);
+      context.stroke();
+    },
+    [size],
   );
   // Видимый кусок мира числами: на нём держится браузерная проверка «объект
   // действительно в кадре», которую по картинке не сделать.
@@ -670,10 +806,11 @@ export function EditorCanvas({
           onContextMenu={(event: Konva.KonvaEventObject<PointerEvent>) =>
             event.evt.preventDefault()
           }
-          style={{ background: BACKGROUND }}
+          // A gesture on a large plan moves the layer canvases by CSS (#190): they must not cover the panels.
+          style={{ background: BACKGROUND, overflow: 'hidden' }}
         >
-          <Layer listening={false} name="grid">
-            {gridLayer}
+          <Layer listening={false} name="grid" ref={gridLayerRef}>
+            <Shape sceneFunc={drawGrid} />
           </Layer>
           {children}
           {/* The overlay layer is always mounted: adding or removing a Konva
