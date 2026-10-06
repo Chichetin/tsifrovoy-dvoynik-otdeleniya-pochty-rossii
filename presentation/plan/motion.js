@@ -6,7 +6,8 @@ window.DeckMotion = window.DeckCore.create({ transition: 'push', enter: 'rise', 
    The name appears when its portrait lands. Only transform and opacity move; reduced motion gets a fade. */
 (() => {
   const slide = document.getElementById('s13');
-  if (!slide || document.documentElement.classList.contains('static')) return;
+  // app.js sets the .static class after this file runs, so read the URL flag directly.
+  if (!slide || new URLSearchParams(location.search).has('static')) return;
   const portraits = [...slide.querySelectorAll('.team-arches .portrait')];
   const captions = [...slide.querySelectorAll('.team-arches figcaption')];
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
