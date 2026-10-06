@@ -147,6 +147,7 @@ test('атрибут типа добавлен без ввода ключа и �
   await dialog.getByTestId('catalog-type-label').fill('Весы почтовые Q13');
   await dialog.getByTestId('catalog-add-type').click();
   await dialog.getByTestId('catalog-attr-label').fill('Дата поверки');
+  await dialog.getByTestId('catalog-attr-more').click();
   await expect(dialog.getByTestId('catalog-attr-key-preview')).toHaveText('Ключ: data_poverki');
   await dialog.getByTestId('catalog-add-attr').click();
   await expect(dialog.getByTestId('catalog-attributes')).toContainText('data_poverki');
