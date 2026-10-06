@@ -269,7 +269,7 @@ export function EditorCanvas({
   useLayoutEffect(() => {
     drawnViewport.current = session.viewport;
     if (session.viewport !== wheelCommit.current) {
-      // Fit, «+»/«−», focus or the minimap: the new view replaces the live one.
+      // Fit, «+»/«−» or focus: the new view replaces the live one.
       if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
       if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);
       settleTimer.current = null;
@@ -785,7 +785,8 @@ export function EditorCanvas({
           onContextMenu={(event: Konva.KonvaEventObject<PointerEvent>) =>
             event.evt.preventDefault()
           }
-          style={{ background: BACKGROUND }}
+          // A gesture on a large plan moves the layer canvases by CSS (#190): they must not cover the panels.
+          style={{ background: BACKGROUND, overflow: 'hidden' }}
         >
           <Layer listening={false} name="grid" ref={gridLayerRef}>
             <Shape sceneFunc={drawGrid} />
