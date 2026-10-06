@@ -88,6 +88,14 @@ function bound(value: string): number | null | undefined {
 }
 
 const ATTRIBUTE_KEY = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+const ATTRIBUTE_TYPE_WORDS: Record<NewAttribute['type'], string> = {
+  string: 'строка',
+  number: 'число',
+  boolean: 'да/нет',
+};
+
+const NEW_CATEGORY = '__new';
+
 const BOOLEAN_WORDS: Record<string, boolean> = { да: true, true: true, нет: false, false: false };
 
 /**
@@ -118,6 +126,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
 
   const [typeLabel, setTypeLabel] = useState('');
   const [typeCategory, setTypeCategory] = useState('');
+  const [newCategory, setNewCategory] = useState(false);
   const [typeWidth, setTypeWidth] = useState('0.6');
   const [typeDepth, setTypeDepth] = useState('0.6');
   const [typeHeight, setTypeHeight] = useState('0.8');
@@ -169,7 +178,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const twin = catalog.zoneTypes.find((t) => t.label.trim().toLowerCase() === label.toLowerCase());
     if (twin !== undefined) {
-      setError(`Тип зоны «${twin.label}» уже есть в справочнике (${twin.id}); дайте новому другое название.`);
+      setError(`Тип зоны «${twin.label}» уже есть в справочнике; дайте новому другое название.`);
       return;
     }
     const { catalog: next, id } = addZoneType(catalog, { label, color: zoneColor });
@@ -188,7 +197,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const twin = catalog.objectTypes.find((t) => t.label.trim().toLowerCase() === label.toLowerCase());
     if (twin !== undefined) {
-      setError(`Тип «${twin.label}» уже есть в справочнике (${twin.id}); дайте новому другое название.`);
+      setError(`Тип «${twin.label}» уже есть в справочнике; дайте новому другое название.`);
       return;
     }
     const width = metres(typeWidth);
@@ -200,7 +209,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const { catalog: next, id } = addObjectType(catalog, {
       label,
-      category: typeCategory.trim() === '' ? 'Свой тип' : typeCategory,
+      category: chosenCategory === '' ? 'Свой тип' : chosenCategory,
       size_m: [width, depth],
       height_m: height,
       physical: typePhysical,
@@ -216,6 +225,8 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
   };
 
+  const chosenCategory = (newCategory ? typeCategory : typeCategory === '' ? (categories[0] ?? '') : typeCategory).trim();
+
   const generatedKey = attributeKeyFromLabel(attrLabel, chosen?.attributes.map((a) => a.key) ?? []);
 
   const submitAttribute = (): void => {
@@ -226,7 +237,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const key = attrKey.trim() === '' ? generatedKey : attrKey.trim();
     if (!ATTRIBUTE_KEY.test(key)) {
-      setError('Ключ атрибута — латиница, цифры и «_», начинается с буквы: например, serialNumber.');
+      setError('Ключ атрибута — латиница, цифры и «_», начинается с буквы: например, data_poverki.');
       return;
     }
     const raw = attrDefault.trim();
@@ -303,13 +314,29 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
             </label>
             <label className="assistant__field">
               Категория
-              <input list="catalog-categories" value={typeCategory} onChange={(e) => setTypeCategory(e.target.value)} />
-              <datalist id="catalog-categories">
+              <select
+                value={newCategory ? NEW_CATEGORY : chosenCategory}
+                onChange={(e) => {
+                  const isNew = e.target.value === NEW_CATEGORY;
+                  setNewCategory(isNew);
+                  setTypeCategory(isNew ? '' : e.target.value);
+                }}
+                data-testid="catalog-type-category"
+              >
                 {categories.map((c) => (
-                  <option key={c} value={c} />
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
-              </datalist>
+                <option value={NEW_CATEGORY}>Новая…</option>
+              </select>
             </label>
+            {newCategory ? (
+              <label className="assistant__field">
+                Название категории
+                <input value={typeCategory} onChange={(e) => setTypeCategory(e.target.value)} />
+              </label>
+            ) : null}
             <div className="catalog__row">
               <label className="assistant__field">
                 Ширина, м
@@ -498,7 +525,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                   const readers = layersReading(catalog, a.key);
                   return (
                     <li key={a.key}>
-                      {a.label} <span className="table__muted">({a.key}, {a.type}{a.required ? ', обязательный' : ''})</span>
+                      {a.label} <span className="table__muted">({ATTRIBUTE_TYPE_WORDS[a.type]}{a.required ? ', обязательный' : ''}{attrKeyOpen ? `, ключ: ${a.key}` : ''})</span>
                       {readers.length === 0 ? null : (
                         <span className="table__muted" data-testid="catalog-attr-layer-note">
                           {' '}· читает слой «{readers.map((l) => l.label).join('», «')}»
@@ -526,9 +553,6 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                   <input value={attrLabel} onChange={(e) => setAttrLabel(e.target.value)} placeholder="Состояние" data-testid="catalog-attr-label" />
                 </label>
               </div>
-              <p className="panel__note" data-testid="catalog-attr-key-preview">
-                Ключ: {attrKey.trim() === '' ? generatedKey : attrKey.trim()}
-              </p>
               {/* A button, not <details>: the Settings Tab trap skips <summary> and cannot focus a field in a closed <details>. */}
               <button
                 type="button"
@@ -540,8 +564,9 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                 {attrKeyOpen ? '▾' : '▸'} дополнительно
               </button>
               {attrKeyOpen ? (
+                <>
                 <label className="assistant__field">
-                  Ключ
+                  Ключ (служебное имя)
                   <input
                     value={attrKey}
                     onChange={(e) => setAttrKey(e.target.value)}
@@ -549,6 +574,10 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                     data-testid="catalog-attr-key"
                   />
                 </label>
+                <span className="table__muted" data-testid="catalog-attr-key-preview">
+                  Ключ: {attrKey.trim() === '' ? generatedKey : attrKey.trim()}
+                </span>
+                </>
               ) : null}
               <div className="catalog__row">
                 <label className="assistant__field">

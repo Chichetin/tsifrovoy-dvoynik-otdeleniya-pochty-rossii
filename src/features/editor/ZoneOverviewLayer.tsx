@@ -3,7 +3,7 @@ import { Group, Line, Rect, Text } from 'react-konva';
 import type { PlanDocument, Viewport, Issue, Metrics, Result, Ref } from '../../contracts/model';
 import { zoneOverview } from '../../domain/metrics';
 import { boundingBox, modelToScreen } from '../../domain/geometry';
-import { formatShort } from '../../domain/number-format';
+import { findingsWord, formatShort } from '../../domain/number-format';
 import { placeZoneCaption, type CaptionBox } from '../../domain/zone-caption-layout';
 import { zoneDepth } from '../../domain/relations';
 
@@ -61,7 +61,7 @@ export function ZoneOverviewLayer({ document: plan, viewport, issues, metrics, o
         <Text width={width} y={24} text={`${card.area_m2 === null ? '—' : formatShort(card.area_m2)} м²`}
           fontSize={9} align="center" fill="#212529" />
         <Text width={width} y={34} text={`${card.objects} об.`} fontSize={9} align="center" fill="#212529" />
-        <Text width={width} y={44} text={`${card.findings} находок`} fontSize={9} align="center"
+        <Text width={width} y={44} text={`${card.findings} ${findingsWord(card.findings)}`} fontSize={9} align="center"
           fill={card.findings > 0 ? '#A15C00' : '#495057'} />
       </Group>;
     })}
