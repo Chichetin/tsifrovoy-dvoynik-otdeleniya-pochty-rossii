@@ -18,7 +18,6 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Circle, Group, Layer, Line, Stage } from 'react-konva';
 import { flushSync } from 'react-dom';
 import Konva from 'konva';
-import { PlanMinimap } from './PlanMinimap';
 import { ZONE_OVERVIEW_SCALE } from './ZoneOverviewLayer';
 import type { Point, Polygon, Viewport } from '../../contracts/model';
 import type { EditorCanvasProps, PointerPhase } from '../../contracts/ui';
@@ -709,7 +708,6 @@ export function EditorCanvas({
       ) : null}
       {/* Подпись и кнопка держатся вместе в одном углу: каждый угол, занятый
           накладкой, — это угол помещения, куда не поставить объект. */}
-      {size.width > 0 && size.height > 0 ? <PlanMinimap document={plan} viewport={session.viewport} size={size} onViewport={applyViewport} /> : null}
       {grid === null ? null : (
         <div className="editor-canvas__hud">
           <p

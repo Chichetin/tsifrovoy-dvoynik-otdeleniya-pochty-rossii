@@ -117,7 +117,7 @@ describe('вписывание плана', () => {
     }
   });
 
-  test('план оказывается по центру холста над полосой мини-карты и левее кнопок', () => {
+  test('план оказывается по центру холста над полосой масштаба и левее кнопок', () => {
     const viewport = fitToExtent(room, canvas);
     closeTo(
       modelToScreen([10.4 / 2, 7.5 / 2], viewport),
@@ -137,11 +137,15 @@ describe('вписывание плана', () => {
     }
   });
 
-  test('#233: вписанный план не заходит под мини-карту и кнопку ассистента', () => {
+  test('#233: вписанный план не заходит под панель масштаба и кнопку ассистента', () => {
+    // The scale panel: its top 40 px above the bottom edge. The avatar: 58 px
+    // from the right edge, 99 px up.
     for (const size of [canvas, { width: 664, height: 671 }, { width: 1200, height: 400 }]) {
       const viewport = fitToExtent(room, size);
       for (const point of room) {
-        expect(modelToScreen(point, viewport)[1]).toBeLessThanOrEqual(size.height - Math.min(OVERLAY_RESERVE_PX, size.height / 3) + 1e-6);
+        const [x, y] = modelToScreen(point, viewport);
+        expect(y).toBeLessThanOrEqual(size.height - 40 - 8);
+        expect(x).toBeLessThanOrEqual(size.width - 58 - 8);
       }
     }
   });

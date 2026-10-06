@@ -119,6 +119,38 @@ const LABEL_COLOR = '#343A40';
 const LABEL_ORDER = 10;
 /** Share of the room environment in the light: reflections without washing out. */
 const ENVIRONMENT_INTENSITY = 0.5;
+/** Radians per pixel of a two-finger scroll, and per arrow key or button press (#244). */
+const TOUCHPAD_TURN = 0.005;
+const KEY_TURN = 0.15;
+
+/** Turns the camera around its target; the camera stays above the floor. */
+function orbit(stage: Stage, dTheta: number, dPhi: number): void {
+  const { camera, controls } = stage;
+  const offset = camera.position.clone().sub(controls.target);
+  const radius = offset.length();
+  // The scene is Z-up: the polar angle runs from +Z, the azimuth in the XY plane.
+  const theta = Math.atan2(offset.y, offset.x) - dTheta;
+  const phi = Math.max(0.05, Math.min(controls.maxPolarAngle, Math.acos(offset.z / radius) - dPhi));
+  camera.position.set(
+    controls.target.x + radius * Math.sin(phi) * Math.cos(theta),
+    controls.target.y + radius * Math.sin(phi) * Math.sin(theta),
+    controls.target.z + radius * Math.cos(phi),
+  );
+  controls.update();
+}
+
+/** Moves the camera and its target together, in the screen plane. */
+function pan(stage: Stage, dx: number, dy: number): void {
+  const { camera, controls } = stage;
+  const scale = (camera.position.distanceTo(controls.target) * 0.0015);
+  const right = new Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-dx * scale);
+  const up = new Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(dy * scale);
+  const shift = right.add(up);
+  camera.position.add(shift);
+  controls.target.add(shift);
+  controls.update();
+}
+
 /** Shadow map side: 2048 keeps the edges soft but not blurry on a 15 m room. */
 const SHADOW_MAP = 2048;
 
@@ -452,6 +484,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
           <button type="button" className="files__button view3d__download" onClick={savePicture}>
             Скачать картинку 3D
           </button>
+          {visitorMode ? null : <p className="view3d__walk-help">Тачпад: два пальца — вращать, щипок — приблизить, Shift + два пальца — сдвинуть. Мышь: перетаскивание — вращать, колесо — приблизить, правая кнопка — сдвинуть. Стрелки — вращать.</p>}
           {visitorMode ? <p className="view3d__walk-help" role="status">Нажмите на сцену. WASD или стрелки — ходить; Shift — быстрее; перетаскивание мышью — смотреть; F — вернуться к обзору.</p> : null}
           {saveError === null ? null : (
             <p className="view3d__status" role="alert" data-testid="view3d-save-error">
@@ -472,7 +505,7 @@ function createStage(container: HTMLDivElement): Stage {
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.domElement.dataset['testid'] = 'view3d-canvas';
   renderer.domElement.tabIndex = 0;
-  renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание вращает, колесо приближает');
+  renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание или два пальца на тачпаде вращают, колесо или щипок приближает, стрелки вращают');
   container.appendChild(renderer.domElement);
 
   const world = new ThreeScene();
@@ -502,6 +535,28 @@ function createStage(container: HTMLDivElement): Stage {
   const labels = new Group();
   world.add(group, models, labels);
 
+  // Registered before OrbitControls: it stops the touchpad scroll before the zoom of the wheel sees it (#244).
+  const touchpad = (event: WheelEvent): void => {
+    // A pinch comes as ctrl + wheel and a mouse wheel as whole big steps: both stay with OrbitControls.
+    const mouseWheel = event.deltaMode !== 0 || (event.deltaX === 0 && Math.abs(event.deltaY) >= 50);
+    if (event.ctrlKey || mouseWheel || !controls.enabled) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.shiftKey) pan(stage, event.deltaX, event.deltaY);
+    else orbit(stage, -event.deltaX * TOUCHPAD_TURN, -event.deltaY * TOUCHPAD_TURN);
+  };
+  renderer.domElement.addEventListener('wheel', touchpad, { passive: false });
+  const arrowTurn = (event: KeyboardEvent): void => {
+    const turn: Record<string, [number, number] | undefined> = {
+      ArrowLeft: [-KEY_TURN, 0], ArrowRight: [KEY_TURN, 0], ArrowUp: [0, -KEY_TURN], ArrowDown: [0, KEY_TURN],
+    };
+    const step = turn[event.key];
+    if (step === undefined || !controls.enabled) return;
+    event.preventDefault();
+    orbit(stage, step[0], step[1]);
+  };
+  renderer.domElement.addEventListener('keydown', arrowTurn);
+
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = false;
   // The camera stays above the floor: from below, the plan is a grey slab (#108).
@@ -511,7 +566,13 @@ function createStage(container: HTMLDivElement): Stage {
     spreadLabels(labels, camera, renderer);
     renderer.render(world, camera);
   };
-  controls.addEventListener('change', render);
+  // #247: a touchpad sends several wheel events per frame. One frame draws once,
+  // not once per event: a draw costs about 7 ms of the main thread.
+  let frame = 0;
+  const requestRender = (): void => {
+    if (frame === 0) frame = requestAnimationFrame(() => { frame = 0; render(); });
+  };
+  controls.addEventListener('change', requestRender);
 
   const stage: Stage = {
     renderer,
@@ -526,7 +587,10 @@ function createStage(container: HTMLDivElement): Stage {
     environment,
     render,
     dispose: () => {
-      controls.removeEventListener('change', render);
+      renderer.domElement.removeEventListener('wheel', touchpad);
+      renderer.domElement.removeEventListener('keydown', arrowTurn);
+      cancelAnimationFrame(frame);
+      controls.removeEventListener('change', requestRender);
       controls.dispose();
       clearGroup(group);
       placeLabels(labels, []);

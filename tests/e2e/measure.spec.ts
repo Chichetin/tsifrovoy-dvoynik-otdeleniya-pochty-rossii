@@ -11,7 +11,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, expectUnsavedEdits, hideMinimap } from './fixtures';
+import { expect, test, type Page, expectUnsavedEdits } from './fixtures';
 
 type Pixel = { x: number; y: number };
 
@@ -65,8 +65,6 @@ test.beforeEach(async ({ page }) => {
   page.on('dialog', (dialog) => void dialog.accept());
   await page.goto('/');
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
-  // #123: the minimap covers the room's bottom-left corner, where the ruler starts.
-  await hideMinimap(page);
 });
 
 test('линейка меряет расстояние между двумя точками и убирается Escape', async ({ page }) => {

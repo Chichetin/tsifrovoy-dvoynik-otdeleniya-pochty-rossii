@@ -18,7 +18,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { expect, test, type Locator, type Page, type TestInfo , exportPlan, hideMinimap } from './fixtures';
+import { expect, test, type Locator, type Page, type TestInfo , exportPlan } from './fixtures';
 import { showTab, sideTab } from './side-tabs';
 
 type Point = [number, number];
@@ -49,9 +49,7 @@ async function openEditor(page: Page): Promise<Rect> {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
-  // The minimap (bottom left) and the assistant button (bottom right) lie over
-  // the stage: the minimap is hidden, ROOM keeps clear of the button.
-  await hideMinimap(page);
+  // The assistant button (bottom right) lies over the stage: ROOM keeps clear of it.
   return stageRect(page);
 }
 
