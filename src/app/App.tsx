@@ -10,14 +10,14 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
  * recomputed from the document, never stored beside it.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
 import type { Candidate } from '../contracts/advice';
 import type { Command, DocumentOrigin } from '../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Ref, Result, Viewport } from '../contracts/model';
 import type { EditorSession, Tool } from '../contracts/ui';
-import { buildInventory } from '../domain/inventory';
+import { buildInventory, inventoryLinkTarget } from '../domain/inventory';
 import { takenIds } from '../domain/commands';
 import { modelToScreen, normalizeAngle, screenToModel } from '../domain/geometry';
 import { measurePlan } from '../domain/metrics';
@@ -32,10 +32,12 @@ import { isEmptyPlan, planHealth, validatePlan } from '../domain/validation';
 import { candidateObjectForInsert } from '../domain/advice';
 import { AssistantPanel } from '../features/assistant/AssistantPanel';
 import { selectionQuestions } from '../features/assistant/AgentChat';
+import { AssistantLauncher } from '../features/assistant/AssistantLauncher';
 import { ComparisonPanel } from '../features/assistant/ComparisonPanel';
 import { useComparisonSource } from '../features/assistant/use-comparison-source';
 import { useAssistantSession, type EditGhosts } from '../features/assistant/use-assistant-session';
 import { EditorCanvas } from '../features/editor/EditorCanvas';
+import { ZoneOverviewLayer, ZONE_OVERVIEW_SCALE } from '../features/editor/ZoneOverviewLayer';
 import { CanvasStatus, publishCanvasCursor } from '../features/editor/CanvasStatus';
 import { PlacementGhostLayer } from '../features/equipment/PlacementGhostLayer';
 import { placementGhost } from '../features/equipment/placement-ghost';
@@ -51,6 +53,7 @@ import { findPlacementPick } from '../features/equipment/placement-pick';
 import { useEquipmentToolController } from '../features/equipment/use-equipment-tool-controller';
 import { FileControls } from '../features/files/FileControls';
 import { InventoryPanel } from '../features/inventory/InventoryPanel';
+import { InventoryLinkNotice } from '../features/inventory/InventoryLinkNotice';
 import { InventoryWalk, type WalkState, walkOf } from '../features/inventory/InventoryWalk';
 import { WalkRouteLayer } from '../features/inventory/WalkRouteLayer';
 import { InformationLayer } from '../features/layers/InformationLayer';
@@ -65,12 +68,14 @@ import { ObjectShapeLayer } from '../features/plan-tools/ObjectShapeLayer';
 import { PlanGeometryLayer } from '../features/plan-tools/PlanGeometryLayer';
 import { PropertiesPanel } from '../features/properties/PropertiesPanel';
 import { PlanTools } from '../features/plan-tools/PlanTools';
+import { OCCUPIED_PLACE_PREFIX, getNotice, occupiedPlaceNotice, setNotice } from '../features/plan-tools/notice';
 import { InternalRoomControls } from '../features/plan-tools/InternalRoomControls';
 import { useInternalRoomController } from '../features/plan-tools/use-internal-room-controller';
 import { DrawingControls } from '../features/plan-tools/DrawingControls';
 import { ZoneNameLayer } from '../features/plan-tools/ZoneNameLayer';
 import { usePlanToolController } from '../features/plan-tools/use-plan-tool-controller';
 import { IssueLayer } from '../features/validation/IssueLayer';
+import { FindingCard } from '../features/validation/FindingCard';
 import { ValidationPanel, type FixApplication } from '../features/validation/ValidationPanel';
 import { HealthBadge } from '../features/validation/HealthScore';
 import { View3D } from '../features/view3d/View3D';
@@ -154,6 +159,10 @@ export function App(): React.JSX.Element {
   const variants = useStore(store, (state) => state.variants);
 
   const [tool, setTool] = useState<Tool>({ kind: 'select' });
+  // #219: the «already here» line belongs to the placement mode and leaves with it.
+  useEffect(() => {
+    if (tool.kind !== 'object.place' && getNotice()?.startsWith(OCCUPIED_PLACE_PREFIX)) setNotice(null);
+  }, [tool.kind]);
   const [roomMode, setRoomMode] = useState<'internal' | 'boundary'>('internal');
   // 3D is an overlay over the same document; the 2D canvas stays mounted below it.
   const [view, setView] = useState<'2d' | '3d'>('2d');
@@ -161,8 +170,28 @@ export function App(): React.JSX.Element {
   const [panelWidths, setPanelWidths] = useState<PanelWidths>(initialPanelWidths);
   const [planOnly, setPlanOnly] = useState(false);
   const canvasRef = useRef<HTMLElement>(null);
-  // Only hides or shows the interface; the viewport and canvas size stay as they are.
-  const togglePlanOnly = useCallback((): void => setPlanOnly((value) => !value), []);
+  // #224: hidden interface gives the whole window to the canvas. The canvas
+  // corner moves, so the viewport moves by the same pixels in the same frame:
+  // every point of the plan stays where it was on the screen.
+  const planOnlyFrom = useRef<DOMRect | null>(null);
+  const [planOnlyShift, setPlanOnlyShift] = useState<{ top: number; right: number }>({ top: 0, right: 0 });
+  const togglePlanOnly = useCallback((): void => {
+    planOnlyFrom.current = canvasRef.current?.getBoundingClientRect() ?? null;
+    setPlanOnly((value) => !value);
+  }, []);
+  useLayoutEffect(() => {
+    const before = planOnlyFrom.current;
+    planOnlyFrom.current = null;
+    const after = canvasRef.current?.getBoundingClientRect();
+    if (before === null || after === undefined) return;
+    const dx = before.left - after.left;
+    const dy = before.top - after.top;
+    if (dx !== 0 || dy !== 0) {
+      setViewport((current) => ({ ...current, origin: [current.origin[0] + dx, current.origin[1] + dy] }));
+    }
+    // The eye and captions buttons keep their place on the screen.
+    setPlanOnlyShift(planOnly ? { top: dy, right: after.right - before.right } : { top: 0, right: 0 });
+  }, [planOnly]);
   useEffect(() => {
     if (!planOnly) return;
     const onEscape = (event: KeyboardEvent): void => {
@@ -258,7 +287,8 @@ export function App(): React.JSX.Element {
   const focusSequence = useRef(0);
   // First-run tour: whether it was seen is a fact about this browser, kept in
   // localStorage and never in the plan (D-194).
-  const [tourOpen, setTourOpen] = useState(() => shouldShowTour(tourStorage()));
+  const [tourOpen, setTourOpen] = useState(() =>
+    inventoryLinkTarget(window.location.search) === null && shouldShowTour(tourStorage()));
   const [demoRequest, setDemoRequest] = useState<{ id: number; variant: 'before' | 'after' } | null>(null);
   const closeTour = useCallback((outcome: TourOutcome) => {
     rememberTour(tourStorage(), outcome);
@@ -326,7 +356,37 @@ export function App(): React.JSX.Element {
   // #105: «Свойства» stand in the right column above its tabs, so the library
   // on the left stays open while something is selected. A layer has no card of
   // its own (its settings live in «Слои»).
-  const propsShown = selection !== null && selection.kind !== 'layer';
+  // #184: not together with the assistant tab; the selection stays for its questions.
+  // #222: with a selection the column is that card alone; the tab row and its
+  // panels are hidden (they stay mounted) until the selection goes.
+  // #225: a finding opened from «Проверка» or a marker takes the card's place.
+  const [findingRef, setFindingRef] = useState<Ref | null>(null);
+  // #190: the check and the areas follow the plan one render later. A drop
+  // shows the object at once; on 1000 objects the 0.1 s of checking and
+  // measuring runs in the next render, which React may interrupt.
+  const checkedDocument = useDeferredValue(document);
+  const issues = useMemo(() => validatePlan(checkedDocument), [checkedDocument]);
+  const propsShown = selection !== null && selection.kind !== 'layer' && tabs.right !== 'assistant';
+  const findingIssues = useMemo(
+    () =>
+      findingRef === null
+        ? []
+        : issues.filter((issue) => issue.refs.some((ref) => ref.kind === findingRef.kind && ref.id === findingRef.id)),
+    [findingRef, issues],
+  );
+  const findingShown =
+    propsShown && findingRef !== null && selection?.kind === findingRef.kind && selection.id === findingRef.id && findingIssues.length > 0;
+  // #232: the assistant's «Открыть «Площади»» is an explicit choice: it shows the
+  // tabs for the current selection; another selection brings back the card alone.
+  const [tabsShownFor, setTabsShownFor] = useState<Ref | null>(null);
+  const showTabFromAssistant = useCallback(
+    (panel: RightTab) => {
+      setTabsShownFor(store.getState().selection);
+      showRightTab(panel);
+    },
+    [store, showRightTab],
+  );
+  const cardOnly = propsShown && tabsShownFor !== selection;
 
   // #105: «Повернуть» and «Изменить форму» go with a single selected object.
   if (reshapeFor !== null && !(selection !== null && selection.kind === 'object' && selection.id === reshapeFor)) {
@@ -353,15 +413,34 @@ export function App(): React.JSX.Element {
 
   const select = useCallback(
     (ref: Ref | null) => {
+      setFindingRef(null);
       store.getState().select(ref);
     },
     [store],
   );
   const selectMany = useCallback(
     (ids: readonly Id[]) => {
+      setFindingRef(null);
       store.getState().selectMany(ids);
     },
     [store],
+  );
+  // #235: a click on the plan keeps an open assistant tab: its question field
+  // and «О выделенном» stay reachable. The card waits until another tab opens.
+  const planSelect = select;
+  // #226: a double click on an object turns «Изменить форму» on for it.
+  const reshapeObject = useCallback(
+    (id: Id) => {
+      planSelect({ kind: 'object', id });
+      setReshapeFor(id);
+    },
+    [planSelect],
+  );
+  const planSelectMany = useCallback(
+    (ids: readonly Id[]) => {
+      selectMany(ids);
+    },
+    [selectMany],
   );
 
   const dispatch = useCallback(
@@ -439,6 +518,14 @@ export function App(): React.JSX.Element {
     },
     [select],
   );
+  // #235: the inventory walk selects each object itself; its buttons stay visible.
+  const walkFocus = useCallback(
+    (ref: Ref) => {
+      focusOn(ref);
+      setTabsShownFor(store.getState().selection);
+    },
+    [focusOn, store],
+  );
   // #25: quick search by Ctrl+K — focus returns where it was when it closes.
   const [searchOpen, setSearchOpen] = useState(false);
   const searchReturnFocus = useRef<HTMLElement | null>(null);
@@ -481,10 +568,17 @@ export function App(): React.JSX.Element {
 
   // «×» drops the selection; the card goes, so focus lands on the open tab of
   // the same column rather than on the removed button.
+  // #222: the tab row is hidden while the card shows, so focus moves once it is back.
+  const refocusTabs = useRef(false);
   const closeProps = useCallback(() => {
+    refocusTabs.current = true;
     select(null);
+  }, [select]);
+  useEffect(() => {
+    if (cardOnly || !refocusTabs.current) return;
+    refocusTabs.current = false;
     window.document.getElementById(`side-right-tab-${tabs.right}`)?.focus();
-  }, [select, tabs.right]);
+  }, [cardOnly, tabs.right]);
 
   // #121: the button of the card sends the command the key would send.
   const deleteSelection = useCallback(() => {
@@ -497,9 +591,19 @@ export function App(): React.JSX.Element {
   const focusFromMarker = useCallback(
     (ref: Ref) => {
       focusOn(ref);
+      setFindingRef(ref);
       showRightTab('validation');
     },
     [focusOn, showRightTab],
+  );
+
+  // #225: a pick in «Проверка» opens the finding card, not «Свойства».
+  const focusFinding = useCallback(
+    (ref: Ref) => {
+      focusOn(ref);
+      setFindingRef(ref);
+    },
+    [focusOn],
   );
 
   const placedType = useRef<Id | null>(null);
@@ -639,11 +743,17 @@ export function App(): React.JSX.Element {
   );
 
   const inventory = useMemo(() => buildInventory(document), [document]);
-  const issues = useMemo(() => validatePlan(document), [document]);
   // #125: the header score reads the same findings as «Проверка».
   const health = useMemo(() => planHealth(issues), [issues]);
   const [healthRequest, setHealthRequest] = useState(0);
-  const metrics = useMemo(() => measurePlan(document), [document]);
+  const metrics = useMemo(() => measurePlan(checkedDocument), [checkedDocument]);
+  const zoneOverviewActive = viewport.scale < ZONE_OVERVIEW_SCALE;
+  const overviewDocument = useMemo(() => {
+    if (!zoneOverviewActive) return shownDocument;
+    const visibleLayers = new Set(shownDocument.layers.filter((layer) => layer.visible).map((layer) => layer.id));
+    const summarized = new Set(shownDocument.zones.filter((zone) => visibleLayers.has(zone.layerId)).map((zone) => zone.id));
+    return { ...shownDocument, objects: shownDocument.objects.filter((object) => object.zoneId === null || !summarized.has(object.zoneId)) };
+  }, [shownDocument, zoneOverviewActive]);
 
   // D-249: the one live signal a tab keeps while its panel is hidden — how
   // many findings «Проверка» has, red when any of them is a real error (the
@@ -690,7 +800,7 @@ export function App(): React.JSX.Element {
     highlight,
     focusOn,
     showLeftTab,
-    showRightTab,
+    showRightTab: showTabFromAssistant,
   });
 
   // #24: the menu of an object — a right click that did not drag, or Shift+F10
@@ -711,10 +821,10 @@ export function App(): React.JSX.Element {
   const openObjectMenu = useCallback(
     (id: Id, at: Point) => {
       menuReturnFocus.current = window.document.activeElement instanceof HTMLElement ? window.document.activeElement : null;
-      if (!(selected.has(id) && selected.size > 1)) select({ kind: 'object', id });
+      if (!(selected.has(id) && selected.size > 1)) planSelect({ kind: 'object', id });
       setObjectMenu({ id, at });
     },
-    [selected, select],
+    [selected, planSelect],
   );
   const runObjectMenu = useCallback(
     (action: ObjectMenuAction) => {
@@ -926,14 +1036,6 @@ export function App(): React.JSX.Element {
         <div className="shell__aux">
           <button
             type="button"
-            className="files__button shell__assistant"
-            title="Ассистент: где поставить, чего не хватает, что изменилось"
-            onClick={() => showRightTab('assistant')}
-          >
-            Ассистент
-          </button>
-          <button
-            type="button"
             className="shell__quiet shell__help"
             aria-label="Горячие клавиши"
             aria-keyshortcuts="?"
@@ -1053,6 +1155,7 @@ export function App(): React.JSX.Element {
           className="shell__canvas"
           data-view={view}
           ref={canvasRef}
+          style={{ '--plan-only-top': `${planOnlyShift.top}px`, '--plan-only-right': `${planOnlyShift.right}px` } as React.CSSProperties}
           // The silhouette follows the pointer: outside the canvas there is none (#26).
           onPointerLeave={() => placementGhost.publish(null)}
           onDragLeave={(event) => {
@@ -1153,11 +1256,15 @@ export function App(): React.JSX.Element {
                 );
                 if (existing !== null) {
                   // A click here selects the object instead of placing a new one,
-                  // so the silhouette that promises a placement is not shown (#26).
-                  if (event.phase === 'down') select({ kind: 'object', id: existing.id });
-                  else placementGhost.publish(null);
+                  // so the silhouette that promises a placement is not shown (#26);
+                  // the hint line says why nothing new appeared (#219).
+                  if (event.phase === 'down') {
+                    planSelect({ kind: 'object', id: existing.id });
+                    setNotice(occupiedPlaceNotice(existing.label.trim() || existing.id));
+                  } else placementGhost.publish(null);
                   return;
                 }
+                if (event.phase === 'down' && getNotice()?.startsWith(OCCUPIED_PLACE_PREFIX)) setNotice(null);
               }
               equipmentTool.handlePointer(event);
               if (event.phase === 'up' && placedType.current !== null) {
@@ -1175,13 +1282,16 @@ export function App(): React.JSX.Element {
               }
             }}
             onViewport={setViewport}
-            onSelect={select}
+            onSelect={planSelect}
             overlay={
               <>
               {/* После оборудования — иначе объект, вставший на подпись, закрывает
                   название зоны целиком; полупрозрачность не даёт подписи закрыть
                   сам объект. */}
-              <ZoneNameLayer document={shownDocument} viewport={viewport} />
+              {zoneOverviewActive
+                ? <ZoneOverviewLayer document={document} viewport={viewport} issues={issues} metrics={metrics}
+                    onFocus={tool.kind === 'select' || tool.kind === 'pan' ? focusOn : undefined} />
+                : <ZoneNameLayer document={shownDocument} viewport={viewport} />}
               {/* Правка формы объекта (D-279) — над оборудованием: её ручки
                   должны перехватывать жест раньше переноса и размера объекта. */}
               <ObjectShapeLayer
@@ -1190,8 +1300,9 @@ export function App(): React.JSX.Element {
                 onCommand={dispatch}
                 onEditingChange={setShapeEditingId}
                 reshapeFor={reshapeFor}
+                onReshapeRequest={reshapeObject}
               />
-              <InformationLayer document={document} session={session} />
+              {zoneOverviewActive ? null : <InformationLayer document={document} session={session} />}
               {/* Силуэт ставимого типа под указателем: зелёный — примет, красный —
                   откажет, причина рядом (#26). Над объектами, под линейкой. */}
               <PlacementGhostLayer active={tool.kind === 'object.place'} viewport={viewport} />
@@ -1205,7 +1316,7 @@ export function App(): React.JSX.Element {
               {/* Подсветка идёт от выделения, не от фокуса: клик по объекту на холсте
                   тоже показывает его находки, а Escape гасит подсветку вместе с выбором. */}
               <IssueLayer
-                issues={issues}
+                issues={zoneOverviewActive ? [] : issues}
                 focus={selection}
                 viewport={viewport}
                 // Маркер ловит клик только в «Выбор»/«Обзор»: во время рисования
@@ -1225,17 +1336,17 @@ export function App(): React.JSX.Element {
                 wallEditing={wallEdit !== null}
                 onWallEditingChange={changeWallEdit}
                 onCommand={dispatch}
-                onSelect={select}
+                onSelect={planSelect}
               />
               <OpeningPreviewLayer opening={openingTool.preview} plan={document} viewport={viewport} valid={openingTool.valid} />
             </Layer>
             <EquipmentLayer
-              document={shownDocument}
+              document={overviewDocument}
               session={session}
               issues={issues}
               onCommand={dispatch}
-              onSelect={select}
-              onSelectMany={selectMany}
+              onSelect={planSelect}
+              onSelectMany={planSelectMany}
               preview={preview}
               previewEdits={previewEdits}
               onGesturePreview={gesturePreview.publish}
@@ -1257,8 +1368,9 @@ export function App(): React.JSX.Element {
             <p className="canvas-hint" role="status">Зону копировать нельзя: Ctrl+C, Ctrl+V и Ctrl+D работают для объектов.</p>
           ) : null}
           {view === '3d' ? (
-            <View3D document={shownDocument} selection={selection} onSelect={select} />
+            <View3D document={shownDocument} selection={selection} onSelect={planSelect} />
           ) : null}
+          {view === '2d' ? <AssistantLauncher onOpen={() => showRightTab('assistant')} /> : null}
         </main>
 
         <div
@@ -1279,13 +1391,23 @@ export function App(): React.JSX.Element {
         />
 
         <aside id="side-panel-right" className="shell__side shell__side--wide" data-tour="side-right">
+          <InventoryLinkNotice document={document} onFocus={focusOn} />
           {/* #105 (was D-268): «Свойства» stand above the right column's tabs;
               «×» drops the selection (the same as Escape on the canvas). D-272: the band
               is the card's only title and its only heading — the card has
               none of its own and stays the region «Свойства» by its
               aria-label (it renders the same without the band). */}
-          {propsShown ? (
-            <div className="shell__props">
+          {findingShown && findingRef !== null ? (
+            <FindingCard
+              plan={document}
+              issues={findingIssues}
+              allIssues={issues}
+              target={findingRef}
+              onClose={closeProps}
+              onShowProps={() => setFindingRef(null)}
+            />
+          ) : propsShown ? (
+            <div className={cardOnly ? 'shell__props shell__props--alone' : 'shell__props'}>
               <div className="shell__props-band">
                 {/* A heading by role, not an <h2>: the band keeps its look without
                     new styles, and a screen reader's heading list finds the
@@ -1341,6 +1463,7 @@ export function App(): React.JSX.Element {
           ) : null}
           <SideTabs
             label="Панели справа"
+            hidden={cardOnly}
             idPrefix="side-right"
             tabs={RIGHT_TABS}
             active={tabs.right}
@@ -1377,7 +1500,7 @@ export function App(): React.JSX.Element {
                 />
               ),
               metrics: <MetricsPanel document={document} metrics={metrics} onFocus={focusOn} />,
-              validation: <ValidationPanel issues={issues} document={document} onFocus={focusOn} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
+              validation: <ValidationPanel issues={issues} document={document} onFocus={focusFinding} focus={focus} onPreview={setPreview} onApplyFix={applyFix} healthRequest={healthRequest} />,
               inventory: (
                 <>
                   <RuleChecklist
@@ -1387,7 +1510,7 @@ export function App(): React.JSX.Element {
                       askAgent(question);
                     }}
                   />
-                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={focusOn} selectedId={selection?.kind === 'object' ? selection.id : null} />
+                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={walkFocus} selectedId={selection?.kind === 'object' ? selection.id : null} />
                   <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
                 </>
               ),

@@ -47,6 +47,8 @@ async function savePlan(page: Page): Promise<string> {
 
 /** Выбор объекта: по строке инвентаризации, а не попаданием мышью в фигуру. */
 async function selectPlacedObject(page: Page): Promise<void> {
+  // #222: a placed object is selected and hides the tabs; the helper drops it first.
+  await showTab(page, 'Инвентаризация');
   await page
     .getByLabel('Инвентаризация')
     .locator('table')
@@ -75,7 +77,7 @@ test.describe('карточка свойств', () => {
     expect((JSON.parse(await savePlan(page)) as PlanDocument).objects[0]!.attributes).toEqual(fixture.objects[0]!.attributes);
     if(process.env.UPDATE_SNAPSHOTS==='1'){
       await status.scrollIntoViewIfNeeded();
-      await page.screenshot({path:'docs/verification/2026-10-02-equipment-status-default.png'});
+      await page.screenshot({ path: test.info().outputPath('equipment-status-default.png') });
     }
     await status.selectOption('repair');
     const changed=JSON.parse(await savePlan(page)) as PlanDocument;
@@ -277,7 +279,11 @@ test.describe('карточка свойств помещается в коло�
     test(`на ${width} px правый край каждого поля — внутри карточки`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto('/');
-      await placeFromLibrary(page, 'Рабочее место оператора', 300, 260);
+      // Центр холста — середина пустого помещения. Точка (300, 260) на 1280 px
+      // попадает к главному входу, и правило #104 отклоняет постановку.
+      const canvasBox = await page.getByTestId('editor-canvas').boundingBox();
+      if (canvasBox === null) throw new Error('холст не отрисован');
+      await placeFromLibrary(page, 'Рабочее место оператора', canvasBox.width / 2, canvasBox.height / 2);
       await selectPlacedObject(page);
       await expect(card(page).getByLabel('Y, м')).toBeVisible();
 
@@ -300,17 +306,17 @@ test.describe('карточка свойств помещается в коло�
     });
   }
 
-  test('смена типа заменяет ручное название зоны подписью типа', async ({ page }) => {
+  test('смена типа не затирает ручное название зоны (#215)', async ({ page }) => {
     await page.goto('/');
     await drawZone(page);
     await clickCanvas(page, 300, 260);
     await expect(card(page).getByLabel('Тип зоны')).toBeVisible();
 
-    await card(page).getByLabel('Название').fill('Операционный зал');
+    await card(page).getByLabel('Название').fill('Склад посылок');
     await card(page).getByLabel('Тип зоны').selectOption({ label: 'Зона ожидания' });
 
-    await expect(card(page).getByLabel('Название')).toHaveValue('Зона ожидания');
+    await expect(card(page).getByLabel('Название')).toHaveValue('Склад посылок');
     await expect(card(page).getByLabel('Тип зоны')).toHaveValue('zt_waiting');
-    expect(JSON.parse(await savePlan(page)).zones[0].name).toBe('Зона ожидания');
+    expect(JSON.parse(await savePlan(page)).zones[0].name).toBe('Склад посылок');
   });
 });

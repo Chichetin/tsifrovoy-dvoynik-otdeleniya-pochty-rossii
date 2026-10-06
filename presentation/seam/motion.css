@@ -1,0 +1,11 @@
+/* Variant A motion: ambient glow, the seam that slides between slides, and the finding pulse.
+   Only transform and opacity move. */
+.seam{transform:translateX(var(--seam,960px));transition:transform .52s var(--ease-io)}
+.bg::before{animation:drift 26s var(--ease-io) infinite alternate}
+@keyframes drift{from{transform:translate3d(-3%,-2%,0)}to{transform:translate3d(4%,3%,0)}}
+@media (prefers-reduced-motion:reduce){
+  .bg::before{animation:none}
+  .seam{transition:none}
+  .s-effect .term,.s-effect .dim{transition:none}
+}
+.static .bg::before{animation:none}

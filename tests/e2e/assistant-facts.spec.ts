@@ -36,6 +36,8 @@ for (const width of [1280, 1440]) {
     await expect(success.locator('.agent__text')).not.toContainText('adv_');
     // The zone reads by its name, not by id (#10); the id drives the click and sits in data-ref-id.
     await expect(success.locator('.agent__text')).not.toContainText('z_client');
+    // #210: the lead is the room; the zone fact is folded under «Подробнее».
+    await success.locator('.agent__more summary').click();
     const zoneButton = success.getByRole('button', { name: 'Клиентский зал', exact: true });
     await expect(zoneButton).toHaveAttribute('data-ref-id', 'z_client');
     await zoneButton.click();

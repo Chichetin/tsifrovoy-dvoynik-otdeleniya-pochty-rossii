@@ -162,7 +162,7 @@ function ariaSort(sort: InventorySort | null, column: SortColumn): 'ascending' |
 }
 
 /** Base widths of the four fixed columns, in percent of the table (D-213). */
-const BASE_WIDTHS = [23, 26, 29, 22];
+const BASE_WIDTHS = [34, 22, 24, 20];
 
 /**
  * An attribute column needs about this much room. With attribute columns the

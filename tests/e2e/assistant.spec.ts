@@ -9,7 +9,27 @@
 import { join } from 'node:path';
 import { expect, exportPlan, test, type Page } from './fixtures';
 import { calculateAdvice } from '../../src/domain/advice';
-import { showTab } from './side-tabs';
+import { showTab, sideTab, type SideTabTitle } from './side-tabs';
+
+// «Сервера нет» is made here, not assumed: a local backend on the proxy port
+// (docker on 8080 with a key) would otherwise answer with a real model. A test
+// that scripts its own `/api` route registers it later, and a later route wins.
+test.beforeEach(async ({ page }) => {
+  await page.route('**/api/**', (route) => route.abort());
+});
+
+/**
+ * #222: while something is selected, the right column is the «Свойства» card
+ * alone. A tab chosen then shows once the card's «Снять выделение» is pressed.
+ */
+async function showTabDeselected(page: Page, title: SideTabTitle): Promise<void> {
+  const tab = sideTab(page, title);
+  const close = page.getByRole('button', { name: 'Снять выделение' });
+  await tab.click();
+  await expect(close.or(tab).first()).toBeVisible();
+  if (await close.isVisible()) await close.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
 
 /**
  * D-258: агент по плану. Без сервера отвечает расчёт в браузере — это сценарий
@@ -40,7 +60,8 @@ test('агент без сервера: вопрос → шаги → «Прим
   // The voice hint is a second, empty status region of the panel.
   await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
   await expect(assistant.getByRole('button', { name: /^Применить:/ })).toBeDisabled();
-  await showTab(page, 'Инвентаризация');
+  // The applied object is selected (#222): the card covers the tabs until it is closed.
+  await showTabDeselected(page, 'Инвентаризация');
   await expect(rows).toHaveCount(54);
 
   const [download] = await Promise.all([page.waitForEvent('download'), exportPlan(page, 'JSON')]);
@@ -61,7 +82,11 @@ test('#32 без сервера: «где слепые пятна» → посм
   await assistant.getByLabel('Вопрос ассистенту').fill('Где слепые пятна камер в клиентском зале?');
   await assistant.getByLabel('Вопрос ассистенту').press('Enter');
   const answer = assistant.locator('.agent__answer');
-  await expect(answer).toContainText('Без LLM');
+  await expect(answer.locator('.agent__mode')).toContainText('Без LLM');
+  // #210: the lead is the action with «было → стало»; the details are under «Подробнее».
+  await expect(answer.locator('.agent__text > p').first()).toContainText('Поставьте «Камера видеонаблюдения» в зону');
+  await expect(answer.locator('.agent__text > p').first()).toContainText('клиентские зоны видны камерами на 93,8 → 97,7 %');
+  await answer.locator('.agent__more summary').click();
   // Numbers are the calculation's for the demo cameras turned inward (#118): 93,8 % now, 97,7 % with the first variant.
   await expect(answer).toContainText('Клиентские зоны видны камерами на 93,8 %, с этим вариантом — на 97,7 % (+3,9 п. п.).');
   // Existing cameras are named by their card label, not by id (#10); the id
@@ -139,6 +164,7 @@ test('агент с моделью: шаги потоком, id в тексте 
   await expect(zoneButton).toHaveAttribute('data-ref-id', 'z_client');
   await zoneButton.click();
   await expect(page.getByTestId('editor-canvas')).toHaveAttribute('data-focus', 'zone:z_client');
+  // The zone is selected now; the action must still show its tab (#232).
   await assistant.getByRole('button', { name: 'Открыть «Площади»' }).click();
   await expect(page.getByRole('tab', { name: /^Площади/ })).toHaveAttribute('aria-selected', 'true');
 });
@@ -160,16 +186,15 @@ async function drawZone(page: Page): Promise<void> {
 const panel = (page: Page) => page.getByLabel('Ассистент', { exact: true });
 
 test.describe('ассистент в браузере', () => {
-  // D-289: плавающей кнопки «Открыть ассистента» над холстом больше нет —
-  // ассистент открывается своей вкладкой в правой колонке, как остальные панели.
+  // D-249: ассистент живёт своей вкладкой в правой колонке. Аватар в углу плана
+  // (#180) только переключает колонку на эту вкладку.
   test('вкладка открывает ассистента в правой колонке (D-249)', async ({ page }) => {
     await page.goto('/');
     const assistant = panel(page);
     await showTab(page, 'Площади');
     await expect(assistant).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Открыть ассистента' })).toHaveCount(0);
 
-    await showTab(page, 'Ассистент');
+    await page.getByRole('button', { name: 'Открыть ассистента' }).click();
 
     await expect(page.getByRole('tab', { name: 'Ассистент' })).toHaveAttribute('aria-selected', 'true');
     await expect(assistant).toBeVisible();
@@ -234,7 +259,8 @@ test.describe('ассистент в браузере', () => {
     // правка плана подняла бы ревизию, и панель отметила бы ответ устаревшим.
     await candidates.first().hover();
     await expect(panel(page).getByText('числа устарели')).toHaveCount(0);
-    await showTab(page, 'Инвентаризация');
+    // The drawn zone is still selected (#222).
+    await showTabDeselected(page, 'Инвентаризация');
     await expect(page.getByText('Оборудование ещё не размещено')).toBeVisible();
 
     expect(errors).toEqual([]);

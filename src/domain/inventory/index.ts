@@ -14,6 +14,9 @@
 
 import type { Equipment, Id, Inventory, PlanDocument, Zone } from '../../contracts/model';
 
+export { inventoryObjectLink, inventoryLinkTarget, resolveInventoryLink,
+  type InventoryLinkTarget, type InventoryLinkResolution } from './object-link';
+
 export {
   TWO_OPT_BUDGET_MS,
   WALK_ATTRIBUTE_LABELS,

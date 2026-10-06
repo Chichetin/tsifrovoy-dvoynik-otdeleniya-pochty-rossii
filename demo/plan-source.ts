@@ -141,7 +141,7 @@ export const ZONES: ZoneSource[] = [
       [5, 4.6],
     ],
     parentId: 'z_client',
-    attributes: { loadPercent: 70, staffCount: 0, queueLength: 7 },
+    attributes: { loadPercent: 100, staffCount: 0, queueLength: 7 },
   },
   {
     id: 'z_back',

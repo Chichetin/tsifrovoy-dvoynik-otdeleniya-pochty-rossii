@@ -19,7 +19,7 @@
 
 import { readFileSync } from 'node:fs';
 import { expect, test, type Locator, type Page, type TestInfo , exportPlan } from './fixtures';
-import { showTab } from './side-tabs';
+import { showTab, sideTab } from './side-tabs';
 
 type Point = [number, number];
 type Pixel = { x: number; y: number };
@@ -49,6 +49,7 @@ async function openEditor(page: Page): Promise<Rect> {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Цифровой двойник ОПС' })).toBeVisible();
   await expect(page.locator('.editor-canvas canvas').first()).toBeVisible();
+  // The assistant button (bottom right) lies over the stage: ROOM keeps clear of it.
   return stageRect(page);
 }
 
@@ -127,13 +128,22 @@ async function snapMarker(page: Page): Promise<{ caption: string; lines: string[
 
 const areas = (page: Page): Locator => page.getByLabel('Площади');
 
+/**
+ * #222: while a selection shows its card, the tab row is hidden. The panels stay
+ * mounted and keep counting, so with a selection the numbers are read from the
+ * mounted «Площади» panel; the selection under test is not dropped for that.
+ */
+async function openAreas(page: Page): Promise<void> {
+  if (await sideTab(page, 'Площади').isVisible()) await showTab(page, 'Площади');
+}
+
 async function roomArea(page: Page): Promise<string> {
-  await showTab(page, 'Площади');
+  await openAreas(page);
   return ((await areas(page).locator('dd').first().textContent()) ?? '').trim();
 }
 
 async function zoneArea(page: Page, name: string): Promise<string> {
-  await showTab(page, 'Площади');
+  await openAreas(page);
   const row = areas(page).locator('tbody tr', { hasText: name }).first();
   return ((await row.locator('td').nth(1).textContent()) ?? '').trim();
 }
@@ -195,9 +205,9 @@ async function placeOpening(page: Page, point: Pixel): Promise<void> {
 /** Доли сцены: тест не зависит от размера окна, а план — от порядка кликов. */
 const ROOM = [
   [0.08, 0.08],
-  [0.92, 0.08],
-  [0.92, 0.92],
-  [0.08, 0.92],
+  [0.88, 0.08],
+  [0.88, 0.88],
+  [0.08, 0.88],
 ] as const;
 const OUTER = [
   [0.2, 0.2],
@@ -412,7 +422,9 @@ test.describe('инструменты плана', () => {
     // порог начала drag), с точностью до сантиметра. Мутант «стены остаются» — красный.
     const corner = start.room.boundary[0];
     if (corner === undefined) throw new Error('у помещения нет контура');
-    const midway = (value: number): number => Math.floor((value - 0.3) / 0.5) * 0.5 + 0.25;
+    // Не ближе 0,25 м к старому углу: иначе вершину держит направляющая от
+    // соседней вершины контура с той же координатой.
+    const midway = (value: number): number => Math.floor((value - 0.5) / 0.5) * 0.5 + 0.25;
     const aim: Point = [midway(corner[0]), midway(corner[1])];
     // Пол между контуром и внешней зоной: выбирается помещение.
     await clickAt(page, px(size, 0.12, 0.12));
@@ -870,6 +882,16 @@ test.describe('инструменты плана', () => {
     expect(opening).toBeDefined();
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     expect(await card.getByLabel('Ширина, м').inputValue()).toBe('0.9');
+    // Повторный выбор — по центру проёма в метрах: доля сцены зависит от вписывания.
+    const wall = withOpening.walls.find((entry) => entry.id === opening!.wallId);
+    if (wall === undefined) throw new Error('у проёма нет стены');
+    const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+    const along = (opening!.offset_m + opening!.width_m / 2) / length;
+    const openingCentre = await worldPixel(
+      page,
+      wall.from[0] + (wall.to[0] - wall.from[0]) * along,
+      wall.from[1] + (wall.to[1] - wall.from[1]) * along,
+    );
 
     // Enter «завершает» проём — снимает выделение. Карточка «Свойства» без
     // выделения не рендерится вовсе (D-249), поэтому её и не остаётся на странице.
@@ -878,7 +900,7 @@ test.describe('инструменты плана', () => {
 
     // Выбрать проём заново, чтобы проверить смену инструмента.
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
-    await clickAt(page, openingPoint);
+    await clickAt(page, openingCentre);
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
 
     // Заказ от 22.09: переключение на любой другой инструмент снимает
@@ -888,7 +910,7 @@ test.describe('инструменты плана', () => {
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     // Ширина правится только карточкой; в плане длина стены больше 0,9 м.
-    await clickAt(page, openingPoint);
+    await clickAt(page, openingCentre);
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     await card.getByLabel('Ширина, м').fill('1.4');
     const widened = await savePlan(page);

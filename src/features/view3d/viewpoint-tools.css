@@ -1,0 +1,71 @@
+.view3d__tools.view3d__tools--grouped {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.75rem 1rem;
+  /* The group stands at the left: the download button sits under the round
+     «eye» button in the right corner. */
+  right: auto;
+  left: 0.75rem;
+  justify-items: start;
+  max-width: calc(100% - 1.5rem - 12.5rem);
+}
+
+/* Under the round «eye» button of the shell (same right edge, 2.125rem high). */
+.view3d__stage .view3d__download {
+  position: absolute;
+  top: calc(var(--strip-row, 1.75rem) + 0.75rem + 2.125rem + 0.5rem);
+  right: 0.75rem;
+  z-index: 1;
+}
+
+.view3d__viewpoints {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.25rem 0.5rem 0.5rem;
+  border: 1px solid var(--line, #adb5bd);
+  border-radius: 0.5rem;
+  background: var(--ground, #fff);
+}
+
+.view3d__viewpoints legend {
+  /* Floated: the legend stays inside the box instead of lying on its edge. */
+  float: left;
+  width: 100%;
+  margin: 0 0 0.25rem;
+  padding: 0 0.25rem;
+  line-height: 1.2;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.view3d__viewpoint-buttons {
+  clear: both;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.view3d__viewpoint-buttons .files__button[aria-pressed="true"] {
+  border-color: var(--accent, #1971c2);
+  background: var(--accent, #1971c2);
+  color: #fff;
+}
+
+.view3d__viewpoint-buttons .files__button,
+.view3d__stage .view3d__download {
+  max-width: 100%;
+  white-space: normal;
+}
+
+.view3d__walk-help {
+  flex-basis: 100%;
+  max-width: 26rem;
+  margin: 0;
+  padding: 0.5rem;
+  border-radius: 0.375rem;
+  background: var(--ground, #fff);
+  font-size: 0.8125rem;
+}

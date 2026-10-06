@@ -375,7 +375,9 @@ body {
   z-index: 26;
   display: flex;
   gap: var(--space-2);
-  max-width: min(35rem, 60%);
+  /* Leave a gap to the hint's 40% column; padding is part of this width. */
+  box-sizing: border-box;
+  max-width: min(35rem, calc(60% - var(--space-3) * 2));
   margin: 0;
   padding: 0.375rem 0.625rem;
   /* A plaque over the canvas must not steal the next click on the plan. */
@@ -475,11 +477,16 @@ body {
   background: var(--color-accent);
 }
 
+/* #224: the canvas takes the whole window. App moves the viewport by the
+   shift of the canvas corner, so the plan stays in place on the screen. */
 .shell--plan-only .shell__bar,
 .shell__body--plan-only > .shell__side,
 .shell__body--plan-only > .shell__resize {
-  /* visibility keeps the layout: the canvas does not grow or move. */
-  visibility: hidden;
+  display: none;
+}
+
+.shell__body--plan-only {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .shell__side {
@@ -506,10 +513,23 @@ body {
   min-height: 0;
 }
 
+.inventory-link-notice {
+  margin: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-m);
+  background: var(--color-surface);
+  font-size: var(--text-s);
+  overflow-wrap: anywhere;
+}
+
+.inventory-link-notice p { margin: 0 0 0.5rem; }
+.inventory-link-notice button { margin: 0.25rem 0.25rem 0 0; }
+
 .shell__plan-only-toggle {
   position: absolute;
-  top: calc(var(--strip-row) + 0.75rem);
-  right: 0.75rem;
+  top: calc(var(--strip-row) + 0.75rem + var(--plan-only-top, 0px));
+  right: calc(0.75rem + var(--plan-only-right, 0px));
   z-index: 20;
   display: grid;
   place-items: center;
@@ -525,7 +545,7 @@ body {
 
 /* Under the «show only the plan» button; D-362. */
 .shell__captions-toggle {
-  top: calc(var(--strip-row) + 3.25rem);
+  top: calc(var(--strip-row) + 3.25rem + var(--plan-only-top, 0px));
 }
 
 .shell__plan-only-toggle:hover,
@@ -738,11 +758,12 @@ body {
 .toolbar__hints {
   position: absolute;
   top: calc(100% + var(--strip-row) + var(--space-2));
-  left: calc(var(--side-left) + var(--space-3));
+  left: calc(min(var(--side-left), 26vw) + 0.5rem + var(--space-3));
   z-index: 1;
   display: grid;
   gap: 0.125rem;
-  max-width: min(27.5rem, calc((100vw - var(--side-left) - var(--side-right)) * 0.4));
+  box-sizing: border-box;
+  max-width: min(27.5rem, calc((100vw - min(var(--side-left), 26vw) - min(var(--side-right), 32vw) - 1rem) * 0.4 - var(--space-3) * 2));
   padding: 0.375rem 0.625rem;
   border: 1px solid var(--color-line);
   border-radius: var(--radius-m);
@@ -772,18 +793,18 @@ body {
 .drawing-controls__actions .files__button:first-child:not(:disabled) { background: var(--color-accent); color: white; border-color: var(--color-accent); }
 
 .toolbar__note.is-notice {
-  color: var(--color-danger);
+  color: var(--color-ink);
 }
 
 .toolbar__note.is-notice::before {
-  content: '!' / '';
+  content: 'i' / '';
   display: inline-grid;
   place-items: center;
   width: 0.875rem;
   height: 0.875rem;
   margin-right: 0.375rem;
   border-radius: 50%;
-  background: var(--color-danger);
+  background: var(--color-accent);
   color: var(--color-surface);
   font-size: 0.625rem;
   font-weight: 700;
@@ -1260,6 +1281,10 @@ body {
   min-height: 0;
 }
 
+.side-tabs[hidden] {
+  display: none;
+}
+
 .side-tabs__list {
   display: grid;
   flex: none;
@@ -1381,6 +1406,12 @@ body {
   border-left-width: 4px;
   border-radius: var(--radius-m);
   background: var(--color-surface);
+}
+
+.shell__props--alone {
+  /* #222: the card is the column's only content. */
+  flex: 1 1 auto;
+  max-height: none;
 }
 
 .shell__props-band {
@@ -1772,6 +1803,12 @@ span.inventory__num {
    of running over the neighbour. */
 .inventory__table {
   font-size: 0.75rem;
+}
+
+.inventory__table td:first-child {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  hyphens: none;
 }
 
 .inventory__table td,
@@ -3296,4 +3333,71 @@ span.inventory__num {
     clip-path: inset(50%);
     white-space: nowrap;
   }
+}
+
+/* #180: the assistant avatar, 44 px, floats above the scale panel in the
+   canvas corner. */
+.assistant-launcher__button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-ink);
+  font-size: var(--text-s);
+}
+
+.assistant-launcher__avatar {
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 2px solid var(--color-line-strong);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgb(28 40 51 / 25%);
+  object-fit: cover;
+}
+
+.assistant-launcher__button:hover .assistant-launcher__avatar {
+  border-color: var(--color-accent);
+}
+
+.assistant-launcher__button:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.assistant-launcher__badge {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
+  min-width: 1rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-align: center;
+}
+
+.assistant-launcher {
+  position: absolute;
+  right: 0.75rem;
+  bottom: 3.25rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.assistant-launcher__bubble {
+  padding: 0.25rem 0.625rem;
+  border-radius: 0.5rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+  font-size: var(--text-s);
 }

@@ -3,10 +3,12 @@ import { join } from 'node:path';
 import type { PlanDocument } from '../../src/contracts/model';
 import { calculateAdvice } from '../../src/domain/advice';
 import { expect, exportPlan, test } from './fixtures';
-import { showTab } from './side-tabs';
+import { showTab, sideTab } from './side-tabs';
 
 test('слой из ответа не мешает применить вариант; после удаления новый ID переживает undo и файл', async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 900 });
+  // A model answer: a server answer «без LLM» gives way to the browser's own
+  // calculation (#211), and this test is about the actions of the answer shown.
   await page.route('**/api/assistant/agent', async (route) => {
     const input = route.request().postDataJSON();
     const calculated = calculateAdvice(input.plan, {
@@ -20,7 +22,7 @@ test('слой из ответа не мешает применить вариа
     await route.fulfill({
       contentType: 'application/x-ndjson',
       body: JSON.stringify({ type: 'answer', answer: {
-        revision: input.revision, mode: 'fallback', text: 'Вариант рассчитан во входной группе.',
+        revision: input.revision, mode: 'llm', text: 'Вариант рассчитан во входной группе.',
         steps: [], recommendations: calculated.value, proposals: [], refs: [],
         actions: [
           { kind: 'preview-candidate', recommendationId: recommendation.id, candidateId: candidate.id },
@@ -34,7 +36,15 @@ test('слой из ответа не мешает применить вариа
   await page.getByTestId('plan-file-input').setInputFiles(join(process.cwd(), 'demo/before.json'));
   await showTab(page, 'Ассистент');
   const assistant = page.getByLabel('Ассистент', { exact: true });
+  const properties = page.getByLabel('Свойства', { exact: true });
+  // #184/#222: «Свойства» do not share the column with the assistant; another
+  // tab gives way to the card of the selected object.
+  const showProperties = async (): Promise<void> => {
+    await sideTab(page, 'Инвентаризация').click();
+    await expect(properties).toBeVisible();
+  };
   const ask = async (): Promise<void> => {
+    await showTab(page, 'Ассистент');
     const input = assistant.getByLabel('Вопрос ассистенту');
     await input.fill('Куда поставить терминал управления очередью?');
     await input.press('Enter');
@@ -47,7 +57,7 @@ test('слой из ответа не мешает применить вариа
   await assistant.getByRole('button', { name: /^Применить:/ }).click();
   // The voice hint is a second, empty status region of the panel.
   await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
-  const properties = page.getByLabel('Свойства', { exact: true });
+  await showProperties();
   const firstId = await properties.getAttribute('data-entity-id');
   expect(firstId).toBeTruthy();
   const x = await properties.getByLabel('X, м', { exact: true }).inputValue();
@@ -63,6 +73,7 @@ test('слой из ответа не мешает применить вариа
   await apply.press('Enter');
   // The voice hint is a second, empty status region of the panel.
   await expect(assistant.getByRole('status').filter({ hasText: 'Применено' })).toBeVisible();
+  await showProperties();
   const secondId = await properties.getAttribute('data-entity-id');
   expect(secondId).toBeTruthy();
   expect(secondId).not.toBe(firstId);

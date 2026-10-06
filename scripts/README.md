@@ -27,10 +27,20 @@
   вращении камеры (#59): `npx tsx scripts/measure-3d.ts <план|100|500|1000> [прогонов]`
   на запущенном приложении (`APP_URL`, по умолчанию `http://127.0.0.1:5174/`).
   `PW_CHANNEL=msedge` или `chrome` выбирает установленный браузер, как в e2e.
-- `measure-drag.ts` — время 30 шагов переноса объекта и худший кадр на плане
-  из 1000 объектов (#169, #170): `npx tsx scripts/measure-drag.ts [прогонов]`, медиана.
+- `measure-drag.ts` — жесты на холсте (#169, #170, #190): перенос одного объекта,
+  группы из десяти, перенос с подписями, панорама правой кнопкой, колесо, смена
+  выделения. Планы: `demo`, `example` (`example_plan.json`), `1000` (синтетический).
+  `npx tsx scripts/measure-drag.ts [прогонов] [планы] [жесты]`, например
+  `npx tsx scripts/measure-drag.ts 5 demo,1000 one,pan`; медиана прогонов. Выводит
+  время 30 шагов, худший и медианный кадр, работу главного потока на шаг и худший
+  кадр за 0,4 с после отпускания. План из 1000 объектов скрипт сначала приближает
+  до 18 px/м, чтобы объекты были нарисованы, а не карточки зон.
   Без `APP_URL` сам делает `vite build` и `vite preview` на `PREVIEW_PORT` (5189).
   `PW_CHANNEL` выбирает браузер, как в e2e.
+- `measure-wheel.ts` — колесо мыши, свайп и щипок трекпада на демо-плане и на плане
+  из 1000 объектов (#223): время жеста, худший кадр и шаг за событие.
+  `npx tsx scripts/measure-wheel.ts [прогонов]`, медиана. `APP_URL`, `PREVIEW_PORT`
+  и `PW_CHANNEL` — как у `measure-drag.ts`.
 - `models/build.py` — 3D-модели типов в `public/models/<имя>.glb` (#59, D-357).
   Запуск: `~/.local/opt/blender-5.2.2-linux-x64/blender -b -P scripts/models/build.py --
   [имя …] [--preview <папка>]`. Размеры берёт из `data/catalog/object-types.json`,
@@ -45,6 +55,10 @@
   чисел. Нужны Python с `reportlab` и Pillow, шрифт Arial или DejaVu Sans с
   кириллицей. Путь к иному шрифту можно передать через `PRESENTATION_FONT_REGULAR`
   и `PRESENTATION_FONT_BOLD`.
+- `presentation-pdf.ts` — PDF защиты из HTML-слайдов `presentation/`: каждый слайд
+  открывается в `?static`, снимок 1920×1080 — одна страница. Рядом пишет `.sha256`,
+  при размере больше 20 МБ падает. Команда:
+  `npx tsx scripts/presentation-pdf.ts [--variant route] [--backup] [--dir presentation] [--out output/pdf/ops-digital-twin-defense.pdf]`.
 
 Для повтора P01: запустить собранный сервис с `STATIC_DIR` равным абсолютному
 пути к `dist`, выполнить `npx tsx scripts/capture-presentation.ts`, затем

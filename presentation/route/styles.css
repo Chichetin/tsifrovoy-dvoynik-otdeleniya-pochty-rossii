@@ -1,0 +1,67 @@
+/* Variant B «Дорожка» — the organizers' pill shape as the grammar: rounded outlines, light Onest headings with a bold
+   last line (like «Challenge от Почтатеха»), a progress track with an orange packet. Same palette, other voice. */
+@font-face{font-family:Onest;src:url(../assets/fonts/onest-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Onest;src:url(../assets/fonts/onest-latin-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';src:url(../assets/fonts/jetbrains-mono-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 800;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'JetBrains Mono';src:url(../assets/fonts/jetbrains-mono-latin-wght-normal.woff2) format('woff2');font-weight:100 800;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{
+  --bg:#2942BB;--surface:color-mix(in srgb,#2942BB 74%,#191D2E);--surface-elevated:#26316F;
+  --text:#fff;--text-muted:rgba(255,255,255,.72);--brand-primary:#2942BB;--brand-secondary:#555FA3;
+  --accent:#EB9C64;--accent-strong:#DD824F;--border:rgba(255,255,255,.3);--glow:rgba(235,156,100,.42);
+  --cream:#EEDDD3;--navy:#191D2E;--stage-bg:#191D2E;
+  --ease-out:cubic-bezier(.23,1,.32,1);--ease-io:cubic-bezier(.77,0,.175,1);
+  --display:'Onest',sans-serif;--body:'Onest',sans-serif;--mono:'JetBrains Mono',monospace;color-scheme:dark;
+}
+body{font-family:var(--body);color:var(--text)}
+.bg{position:absolute;inset:0;overflow:hidden;background:
+  radial-gradient(70% 60% at 88% 8%,rgba(235,156,100,.2),transparent 60%),
+  radial-gradient(60% 60% at 4% 100%,rgba(85,95,163,.6),transparent 60%),var(--bg)}
+.bg::after{content:'';position:absolute;left:-260px;bottom:-300px;width:1200px;height:560px;border:1px solid var(--border);border-radius:999px;opacity:.55}
+.bg::before{content:'';position:absolute;right:-300px;top:-240px;width:1000px;height:480px;border:1px solid var(--border);border-radius:999px;opacity:.4}
+.seam{display:none}
+.chrome{position:absolute;left:96px;right:96px;top:34px;z-index:5;display:flex;align-items:center;gap:22px}
+.logo{height:46px}.seal{height:54px}
+.chrome-title{margin-left:auto;font:500 18px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+.chrome-foot{position:absolute;left:96px;right:96px;bottom:26px;z-index:5;display:flex;align-items:center;gap:32px}
+#rail{flex:none;position:relative;width:1480px;height:22px;border:1px solid var(--border);border-radius:999px;display:block}
+#rail i{display:none}
+#rail::after{content:'';position:absolute;left:5px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 14px var(--glow)}
+#counter{font:500 20px var(--mono);color:var(--text-muted);min-width:90px;text-align:right}
+#timer{display:none;font:500 20px var(--mono);color:var(--text-muted);min-width:90px}
+#timer.show{display:block}#timer.low{color:var(--accent)}
+#notes{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;padding:16px 28px;background:rgba(25,29,46,.94);font:400 20px/1.5 var(--body);color:#fff}
+#notes.show{display:block}
+
+/* voice: light headings, the last line bold */
+.title{font-weight:300;font-size:76px;letter-spacing:-.035em;line-height:1.05}
+.title .ln:last-child{font-weight:700}
+.s-title .title{font-size:140px;line-height:1.02;top:270px}
+.s-title .lead{top:760px}
+.s-ai .title .ln{font-size:64px;font-weight:300}
+.s-ai .title .ln:last-child{font-weight:700}
+.s-arch .title,.s-check .title{font-size:66px}
+h3{font-weight:600;letter-spacing:-.015em}
+.q h3{font-size:42px;font-weight:500}
+.eyebrow{font-weight:500}
+/* shape language: pills and arches */
+.q{border:1px solid var(--border);border-radius:100px;padding:26px 56px 30px}
+.qa{gap:24px}
+.node{border-radius:28px}
+.arch .hub{border-radius:44px;border-width:1px}
+.view img{border-radius:12px}
+.shot,.catalog img{border-radius:24px}
+.portrait{border-radius:152px 152px 24px 24px}
+.link-card,.limits .col,.stack .col,.flow li{border:1px solid var(--border);border-radius:28px;padding:28px}
+.link-card .risk{min-height:96px}
+.chain .rail-line{display:none}
+.s-format .code{border-radius:28px;border-left-width:1px;border:1px solid var(--border)}
+.counters p{border:1px solid var(--border);border-radius:28px;padding:18px 26px 22px}
+.twin .room{rx:18}
+.lane{border-top:0;border:1px dashed var(--border);border-radius:100px;left:-30px;right:-30px}
+.lane span{right:60px}
+.lane.llm{top:-14px;height:214px}.lane.code{top:208px;height:214px}
+
+.seam-label,.lane span{display:none}
+.s-limits .title,.s-chain .title{font-size:66px}
+
+:root{--sweep-inset:92px}

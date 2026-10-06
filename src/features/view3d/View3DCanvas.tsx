@@ -60,8 +60,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { TOLERANCE, type Ref } from '../../contracts/model';
 import { fitModel, loadModels, modelSource, type FittedPart } from './models';
-import { EYE_HEIGHT_M, type VisitorResult } from './visitor';
+import { EYE_HEIGHT_M, visitorStep, type VisitorResult } from './visitor';
+import { declutterLabels } from './label-declutter';
 import { isSelected, type Scene, type SceneLabel, type SceneModel, type ScenePrism } from './scene';
+import './viewpoint-tools.css';
 
 type Props = { scene: Scene; visitor: VisitorResult; selection: Ref | null; onSelect: (ref: Ref) => void; fileName: string };
 
@@ -117,6 +119,38 @@ const LABEL_COLOR = '#343A40';
 const LABEL_ORDER = 10;
 /** Share of the room environment in the light: reflections without washing out. */
 const ENVIRONMENT_INTENSITY = 0.5;
+/** Radians per pixel of a two-finger scroll, and per arrow key or button press (#244). */
+const TOUCHPAD_TURN = 0.005;
+const KEY_TURN = 0.15;
+
+/** Turns the camera around its target; the camera stays above the floor. */
+function orbit(stage: Stage, dTheta: number, dPhi: number): void {
+  const { camera, controls } = stage;
+  const offset = camera.position.clone().sub(controls.target);
+  const radius = offset.length();
+  // The scene is Z-up: the polar angle runs from +Z, the azimuth in the XY plane.
+  const theta = Math.atan2(offset.y, offset.x) - dTheta;
+  const phi = Math.max(0.05, Math.min(controls.maxPolarAngle, Math.acos(offset.z / radius) - dPhi));
+  camera.position.set(
+    controls.target.x + radius * Math.sin(phi) * Math.cos(theta),
+    controls.target.y + radius * Math.sin(phi) * Math.sin(theta),
+    controls.target.z + radius * Math.cos(phi),
+  );
+  controls.update();
+}
+
+/** Moves the camera and its target together, in the screen plane. */
+function pan(stage: Stage, dx: number, dy: number): void {
+  const { camera, controls } = stage;
+  const scale = (camera.position.distanceTo(controls.target) * 0.0015);
+  const right = new Vector3().setFromMatrixColumn(camera.matrix, 0).multiplyScalar(-dx * scale);
+  const up = new Vector3().setFromMatrixColumn(camera.matrix, 1).multiplyScalar(dy * scale);
+  const shift = right.add(up);
+  camera.position.add(shift);
+  controls.target.add(shift);
+  controls.update();
+}
+
 /** Shadow map side: 2048 keeps the edges soft but not blurry on a 15 m room. */
 const SHADOW_MAP = 2048;
 
@@ -222,6 +256,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     const current = stage.current;
     if (!current || lost || !visitorMode || !('pose' in visitor)) return;
     const { position, heading } = visitor.pose;
+    current.controls.enabled = false;
     current.camera.position.set(position[0], position[1], EYE_HEIGHT_M);
     current.controls.target.set(position[0] + heading[0] * 3, position[1] + heading[1] * 3, EYE_HEIGHT_M);
     current.camera.lookAt(current.controls.target);
@@ -231,11 +266,12 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
 
   const enterVisitor = (): void => {
     const current = stage.current;
-    if (!current) return;
+    if (!current || visitorRef.current || !('pose' in visitor)) return;
     saved.current = { position: current.camera.position.clone(), target: current.controls.target.clone() };
     current.controls.enabled = false;
     visitorRef.current = true;
     setVisitorMode(true);
+    current.renderer.domElement.focus();
   };
 
   const leaveVisitor = (): void => {
@@ -252,7 +288,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
     current.render();
   };
 
-  // Key F: back to the default overview, also from the visitor's view.
+  // F restores the saved overview while walking; otherwise it fits the plan.
   const sceneRef = useRef(scene);
   useEffect(() => {
     sceneRef.current = scene;
@@ -260,12 +296,111 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
   const fitView = useCallback((): void => {
     const current = stage.current;
     if (!current) return;
+    const restore = visitorRef.current && saved.current !== null;
     visitorRef.current = false;
     setVisitorMode(false);
     current.controls.enabled = true;
-    frame(current, sceneRef.current);
+    if (restore && saved.current !== null) {
+      current.camera.position.copy(saved.current.position);
+      current.controls.target.copy(saved.current.target);
+      current.controls.update();
+    } else frame(current, sceneRef.current);
     current.render();
   }, []);
+
+  useEffect(() => {
+    const current = stage.current;
+    if (!current || !visitorMode || lost) return;
+    const canvas = current.renderer.domElement;
+    const overviewLabel = canvas.getAttribute('aria-label')!;
+    canvas.setAttribute('aria-label', 'Сцена 3D глазами посетителя: WASD и стрелки — ходить; перетаскивание — смотреть; F — обзор');
+    const walls = scene.prisms.filter((prism) => (prism.kind === 'wall' || prism.openingKind === 'window') &&
+      prism.base_m < EYE_HEIGHT_M && prism.base_m + prism.height_m > 0).map((prism) => prism.polygon);
+    const direction = current.camera.getWorldDirection(new Vector3());
+    let yaw = Math.atan2(direction.y, direction.x);
+    let pitch = Math.asin(Math.max(-1, Math.min(1, direction.z)));
+    const keys = new Set<string>();
+    let raf = 0;
+    let last = 0;
+    let pointer: { id: number; x: number; y: number } | null = null;
+    const look = (): void => {
+      const position = current.camera.position;
+      current.controls.target.set(position.x + Math.cos(yaw) * Math.cos(pitch) * 3,
+        position.y + Math.sin(yaw) * Math.cos(pitch) * 3, EYE_HEIGHT_M + Math.sin(pitch) * 3);
+      current.camera.lookAt(current.controls.target);
+      current.render();
+    };
+    const tick = (now: number): void => {
+      raf = 0;
+      if (keys.size === 0 || !visitorRef.current || stage.current !== current || document.activeElement !== canvas) return;
+      const axis = (positive: string[], negative: string[]): number =>
+        Number(positive.some((key) => keys.has(key))) - Number(negative.some((key) => keys.has(key)));
+      const input: [number, number] = [axis(['KeyD', 'ArrowRight'], ['KeyA', 'ArrowLeft']),
+        axis(['KeyW', 'ArrowUp'], ['KeyS', 'ArrowDown'])];
+      if (input[0] === 0 && input[1] === 0) return;
+      const position = visitorStep([current.camera.position.x, current.camera.position.y],
+        [Math.cos(yaw), Math.sin(yaw)], input, (now - last) / 1000, walls,
+        keys.has('ShiftLeft') || keys.has('ShiftRight'));
+      last = now;
+      current.camera.position.set(position[0], position[1], EYE_HEIGHT_M);
+      look();
+      raf = requestAnimationFrame(tick);
+    };
+    const onDown = (event: KeyboardEvent): void => {
+      if (document.activeElement !== canvas || event.ctrlKey || event.metaKey || event.altKey ||
+        !/^(Key[WASD]|Arrow(Up|Down|Left|Right)|Shift(Left|Right))$/.test(event.code)) return;
+      const moving = [...keys].some((key) => !key.startsWith('Shift'));
+      event.preventDefault(); event.stopImmediatePropagation(); keys.add(event.code);
+      if (!moving && !event.code.startsWith('Shift')) {
+        // A quick tap can end before RAF: give it one small step immediately.
+        cancelAnimationFrame(raf);
+        const now = performance.now();
+        last = now - 16;
+        tick(now);
+      } else if (raf === 0 && !event.code.startsWith('Shift')) {
+        last = performance.now(); raf = requestAnimationFrame(tick);
+      }
+    };
+    const onUp = (event: KeyboardEvent): void => { keys.delete(event.code); };
+    const releasePointer = (): void => {
+      if (pointer !== null && canvas.hasPointerCapture(pointer.id)) canvas.releasePointerCapture(pointer.id);
+      pointer = null;
+    };
+    const stop = (): void => { keys.clear(); cancelAnimationFrame(raf); raf = 0; releasePointer(); };
+    const onPointerDown = (event: PointerEvent): void => {
+      if (event.button !== 0) return;
+      canvas.focus(); canvas.setPointerCapture(event.pointerId);
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    };
+    const onPointerMove = (event: PointerEvent): void => {
+      if (pointer === null || pointer.id !== event.pointerId) return;
+      yaw -= (event.clientX - pointer.x) * 0.005;
+      pitch = Math.max(-1.3, Math.min(1.3, pitch - (event.clientY - pointer.y) * 0.005));
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY }; look();
+    };
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('pointerup', releasePointer);
+    canvas.addEventListener('pointercancel', releasePointer);
+    canvas.addEventListener('blur', stop);
+    window.addEventListener('blur', stop);
+    document.addEventListener('visibilitychange', stop);
+    window.addEventListener('keydown', onDown, true);
+    window.addEventListener('keyup', onUp);
+    return () => {
+      stop();
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('pointerup', releasePointer);
+      canvas.removeEventListener('pointercancel', releasePointer);
+      canvas.removeEventListener('blur', stop);
+      window.removeEventListener('blur', stop);
+      document.removeEventListener('visibilitychange', stop);
+      canvas.setAttribute('aria-label', overviewLabel);
+      window.removeEventListener('keydown', onDown, true);
+      window.removeEventListener('keyup', onUp);
+    };
+  }, [visitorMode, generation, lost, scene]);
 
   // By key code, so the Russian layout works too.
   useEffect(() => {
@@ -316,29 +451,49 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
         style={lost ? { display: 'none' } : undefined}
       />
       {lost ? null : (
-        <div className="view3d__tools">
-          <button
-            type="button"
-            className="files__button"
-            onClick={enterVisitor}
-            disabled={!('pose' in visitor)}
-            aria-pressed={visitorMode}
-            title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
-          >
-            Глазами посетителя
-          </button>
-          <button type="button" className="files__button" onClick={leaveVisitor} disabled={!visitorMode}>
-            Обзор
-          </button>
-          <button type="button" className="files__button" onClick={savePicture}>
-            Скачать картинку 3D
-          </button>
+        <>
+        <div className="view3d__tools view3d__tools--grouped">
+          <fieldset className="view3d__viewpoints" onKeyDown={(event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+            const index = buttons.indexOf(event.target as HTMLButtonElement);
+            if (index < 0) return;
+            event.preventDefault(); event.stopPropagation();
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 :
+              (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+            buttons[next]?.focus();
+          }}>
+            <legend>Точка зрения</legend>
+            <div className="view3d__viewpoint-buttons">
+              <button type="button" className="files__button" onClick={() => { if (visitorMode) leaveVisitor(); }}
+                aria-pressed={!visitorMode} title="Посмотреть на весь план со стороны">
+                Обзор
+              </button>
+              <button
+                type="button"
+                className="files__button"
+                onClick={() => { if (!visitorMode) enterVisitor(); }}
+                disabled={!('pose' in visitor)}
+                aria-pressed={visitorMode}
+                aria-description={'pose' in visitor ? undefined : visitor.reason}
+                title={'pose' in visitor ? 'Камера у входа на высоте 1,6 м, взгляд в зал' : visitor.reason}
+              >
+                Глазами посетителя
+              </button>
+            </div>
+          </fieldset>
+          {visitorMode ? null : <p className="view3d__walk-help">Тачпад: два пальца — вращать, щипок — приблизить, Shift + два пальца — сдвинуть. Мышь: перетаскивание — вращать, колесо — приблизить, правая кнопка — сдвинуть. Стрелки — вращать.</p>}
+          {visitorMode ? <p className="view3d__walk-help" role="status">Нажмите на сцену. WASD или стрелки — ходить; Shift — быстрее; перетаскивание мышью — смотреть; F — вернуться к обзору.</p> : null}
           {saveError === null ? null : (
             <p className="view3d__status" role="alert" data-testid="view3d-save-error">
               {saveError}
             </p>
           )}
         </div>
+        <button type="button" className="files__button view3d__download" onClick={savePicture}>
+          Скачать картинку 3D
+        </button>
+        </>
       )}
     </>
   );
@@ -351,7 +506,8 @@ function createStage(container: HTMLDivElement): Stage {
   renderer.shadowMap.type = PCFShadowMap;
   renderer.toneMapping = ACESFilmicToneMapping;
   renderer.domElement.dataset['testid'] = 'view3d-canvas';
-  renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание вращает, колесо приближает');
+  renderer.domElement.tabIndex = 0;
+  renderer.domElement.setAttribute('aria-label', 'Сцена 3D: клик выбирает объект, перетаскивание или два пальца на тачпаде вращают, колесо или щипок приближает, стрелки вращают');
   container.appendChild(renderer.domElement);
 
   const world = new ThreeScene();
@@ -381,15 +537,44 @@ function createStage(container: HTMLDivElement): Stage {
   const labels = new Group();
   world.add(group, models, labels);
 
+  // Registered before OrbitControls: it stops the touchpad scroll before the zoom of the wheel sees it (#244).
+  const touchpad = (event: WheelEvent): void => {
+    // A pinch comes as ctrl + wheel and a mouse wheel as whole big steps: both stay with OrbitControls.
+    const mouseWheel = event.deltaMode !== 0 || (event.deltaX === 0 && Math.abs(event.deltaY) >= 50);
+    if (event.ctrlKey || mouseWheel || !controls.enabled) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (event.shiftKey) pan(stage, event.deltaX, event.deltaY);
+    else orbit(stage, -event.deltaX * TOUCHPAD_TURN, -event.deltaY * TOUCHPAD_TURN);
+  };
+  renderer.domElement.addEventListener('wheel', touchpad, { passive: false });
+  const arrowTurn = (event: KeyboardEvent): void => {
+    const turn: Record<string, [number, number] | undefined> = {
+      ArrowLeft: [-KEY_TURN, 0], ArrowRight: [KEY_TURN, 0], ArrowUp: [0, -KEY_TURN], ArrowDown: [0, KEY_TURN],
+    };
+    const step = turn[event.key];
+    if (step === undefined || !controls.enabled) return;
+    event.preventDefault();
+    orbit(stage, step[0], step[1]);
+  };
+  renderer.domElement.addEventListener('keydown', arrowTurn);
+
   const controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = false;
   // The camera stays above the floor: from below, the plan is a grey slab (#108).
   controls.maxPolarAngle = Math.PI / 2 - 0.05;
   const render = () => {
     fadeWalls(group, camera.position, controls.target);
+    spreadLabels(labels, camera, renderer);
     renderer.render(world, camera);
   };
-  controls.addEventListener('change', render);
+  // #247: a touchpad sends several wheel events per frame. One frame draws once,
+  // not once per event: a draw costs about 7 ms of the main thread.
+  let frame = 0;
+  const requestRender = (): void => {
+    if (frame === 0) frame = requestAnimationFrame(() => { frame = 0; render(); });
+  };
+  controls.addEventListener('change', requestRender);
 
   const stage: Stage = {
     renderer,
@@ -404,7 +589,10 @@ function createStage(container: HTMLDivElement): Stage {
     environment,
     render,
     dispose: () => {
-      controls.removeEventListener('change', render);
+      renderer.domElement.removeEventListener('wheel', touchpad);
+      renderer.domElement.removeEventListener('keydown', arrowTurn);
+      cancelAnimationFrame(frame);
+      controls.removeEventListener('change', requestRender);
       controls.dispose();
       clearGroup(group);
       placeLabels(labels, []);
@@ -641,6 +829,42 @@ function placeLabels(group: Group, labels: SceneLabel[]): void {
   }
 }
 
+/**
+ * #218: a tilted camera squeezes the floor, a name keeps its height on screen,
+ * and neighbouring names collide. Before each frame the names are projected to
+ * pixels; larger names stay, a smaller one moves up or down the screen just
+ * enough to clear them (`declutterLabels`).
+ */
+function spreadLabels(group: Group, camera: PerspectiveCamera, renderer: WebGLRenderer): void {
+  const sprites = group.children.filter((child): child is Sprite => child instanceof Sprite);
+  const size = renderer.getSize(new Vector2());
+  if (sprites.length === 0 || size.y <= 0) return;
+  camera.updateMatrixWorld();
+  const up = new Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+  const halfFov = Math.tan((camera.fov * Math.PI) / 360);
+  const items = sprites.flatMap((sprite) => {
+    const base = sprite.userData['base'] as Vector3 | undefined;
+    if (base === undefined) return [];
+    sprite.position.copy(base);
+    const depth = -base.clone().applyMatrix4(camera.matrixWorldInverse).z;
+    if (depth <= 0) return [];
+    const metresPerPx = (2 * depth * halfFov) / size.y;
+    const ndc = base.clone().project(camera);
+    const width = sprite.scale.x / metresPerPx;
+    const height = sprite.scale.y / metresPerPx;
+    const x = ((ndc.x + 1) / 2) * size.x - width / 2;
+    const y = ((1 - ndc.y) / 2) * size.y - height / 2;
+    return [{ sprite, metresPerPx, box: { x, y, width, height } }];
+  });
+  items.sort((a, b) => b.sprite.scale.x * b.sprite.scale.y - a.sprite.scale.x * a.sprite.scale.y);
+  const shifts = declutterLabels(items.map((item) => item.box));
+  items.forEach((item, index) => {
+    const shift = shifts[index] ?? 0;
+    // Screen y grows down; the camera's up vector points up the screen.
+    if (shift !== 0) item.sprite.position.addScaledVector(up, -shift * item.metresPerPx);
+  });
+}
+
 /** Lines that fit `maxWidth`; one word longer than that stays on its own line. */
 function wrapLine(context: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const lines: string[] = [];
@@ -694,6 +918,8 @@ function labelSprite(label: SceneLabel): Sprite | null {
   const fit = Math.min(1, maxWidth / widest);
   sprite.scale.set((canvas.width / LABEL_PX_PER_M) * fit, (canvas.height / LABEL_PX_PER_M) * fit, 1);
   sprite.position.set(label.center[0], label.center[1], label.z_m);
+  // Where the plan put the name; `spreadLabels` moves it from here each frame.
+  sprite.userData['base'] = sprite.position.clone();
   sprite.renderOrder = LABEL_ORDER;
   sprite.name = `label:${label.ref.id}`;
   return sprite;

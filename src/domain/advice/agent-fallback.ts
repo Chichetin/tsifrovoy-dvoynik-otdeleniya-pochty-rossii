@@ -10,11 +10,13 @@
 import type { Recommendation } from '../../contracts/advice';
 import { AGENT_LIMITS, type AgentEdit } from '../../contracts/advice-chat';
 import type { CountRule, Id, PlanDocument, Rule } from '../../contracts/model';
+import { INVENTORY_NUMBER_KEY } from '../commands';
 import { countInZoneScope } from '../inventory';
 import { formatArea, formatShort } from '../number-format';
 import type { AgentToolState } from './agent-tools';
 import { cameraCandidateEffect } from './camera-placement';
 import { fallbackExplanation } from './templates';
+import { validatePlan } from '../validation';
 
 /**
  * `note` — what the router assumed or found that the question did not say; it goes into the answer.
@@ -90,6 +92,11 @@ function typeTitle(plan: PlanDocument, typeId: Id): string {
 function ruleSource(rule: Rule): string {
   if (rule.source === 'organizer-material') return `${rule.id}; ${sourceLabel(rule)}`;
   return /^правило команды/i.test(rule.rationale) ? `${rule.id}, ${sourceLabel(rule)}` : `${rule.id}; ${sourceLabel(rule)}`;
+}
+
+/** #178: whose rule it is, in the words an answer must use for it. */
+export function ruleSourceLabel(rule: Rule): string {
+  return rule.source === 'organizer-material' ? 'материалы организаторов' : 'правило команды, не норматив Почты';
 }
 
 function sourceLabel(rule: Rule): string {
@@ -181,11 +188,12 @@ function zonelessRuleNotes(plan: PlanDocument, typeId: Id): string[] {
     });
 }
 
-function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall {
+function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null, nearEntrance: boolean): AgentToolCall {
   const preferred = zoneId === null ? preferredZone(plan, typeId) : null;
   const zoneless = zonelessRuleNotes(plan, typeId);
+  const near = nearEntrance ? { near: 'entrance' } : {};
   if (preferred === null) {
-    const call: AgentToolCall = { name: 'find_place', args: { typeId, zoneId } };
+    const call: AgentToolCall = { name: 'find_place', args: { typeId, zoneId, ...near } };
     return zoneless.length === 0 ? call : { ...call, note: zoneless.join(' ') };
   }
   const rules =
@@ -198,15 +206,15 @@ function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentTool
     `Зона в вопросе не названа — место ищется в зоне ${zoneTitle(plan, preferred)}: там уже стоят объекты типа ${typeTitle(plan, typeId)}, а ${rules}.`,
     ...zoneless,
   ].join(' ');
-  return { name: 'find_place', args: { typeId, zoneId: preferred }, note, guessedZone: preferred };
+  return { name: 'find_place', args: { typeId, zoneId: preferred, ...near }, note, guessedZone: preferred };
 }
 
 /** The route for «where to put a <type>»: a refusal over an exceeded maximum, else the search. */
-function placeRoute(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall[] {
+function placeRoute(plan: PlanDocument, typeId: Id, zoneId: Id | null, nearEntrance = false): AgentToolCall[] {
   const target = zoneId ?? preferredZone(plan, typeId);
   const exceeded = maxStatesAt(plan, typeId, target).filter((state) => state.count > state.max);
   if (target !== null && exceeded.length > 0) return refusalCalls(plan, typeId, target, exceeded, zoneId === null);
-  return [placeCall(plan, typeId, zoneId)];
+  return [placeCall(plan, typeId, zoneId, nearEntrance)];
 }
 
 /**
@@ -221,7 +229,7 @@ export function widenCalls(state: AgentToolState, routed: readonly AgentToolCall
   for (const entry of places) state.recommendations.delete(entry.id);
   return [{
     name: 'find_place',
-    args: { typeId: guess.args.typeId, zoneId: null },
+    args: { typeId: guess.args.typeId, zoneId: null, ...(guess.args.near === undefined ? {} : { near: guess.args.near }) },
     note: `В зоне ${zoneTitle(state.plan, guess.guessedZone)} места нет — вариант по всему плану.`,
   }];
 }
@@ -265,6 +273,8 @@ const LAYOUT_VERB = /(?:^|[^а-я])(разложи|расставь|перест
 
 /** #126: an imperative verb makes a clause an edit; «где поставить» stays a question about a place. */
 const EDIT_VERB = /(?:^|[^а-я])(раздвинь|сдвинь|передвинь|подвинь|перемести|поверни|разверни|удали|убери|добавь|поставь)(?:[^а-я]|$)/;
+/** #237: «ближе к входу», «у входа», «рядом с входом» — из найденных вариантов ближе к входу первыми. */
+const NEAR_ENTRANCE = /ближе (?:к|ко) вход|(?:^|[^а-я])у входа|(?:рядом|возле|около) (?:с )?вход/;
 /** #150: a question about a place — the only reading that turns a type name into a search. */
 const PLACE_INTENT = /постав|добав|размест|установ|повес|помест|куда|где|мест[оау]|влез|вместит|нужн/;
 const DIRECTIONS: Record<string, [number, number]> = { влево: [-1, 0], вправо: [1, 0], вверх: [0, 1], вниз: [0, -1] };
@@ -329,9 +339,106 @@ function editCalls(plan: PlanDocument, text: string): AgentToolCall[] {
   }];
 }
 
+/**
+ * #178: «предложить место», «куда перенести» — a new place for an object that
+ * stands. Only a request: «я перенес eq_1», «применил предложенное место»,
+ * «поставил на новое место» report an edit, they do not ask for one.
+ */
+const RELOCATE_INTENT = /(?<![а-я])предлож(?:и|ите|ить)\s+(?:[а-я]+\s+)?мест|куда\s+(?:перенести|переставить|передвинуть|переместить)(?![а-я])|(?<![а-я])перенес(?:и|ите|ти)(?![а-я])/;
+
+/** #195: a question about the whole plan. */
+const PLAN_OVERVIEW = /весь план|всего плана|сводк|обзор план|покажи план|общ[а-я]* картин/;
+
+/** #217: «какие зоны перегружены», «загрузка зон». */
+const ZONE_LOAD = /перегруж|загружен|загрузк|нагрузк/;
+
+export type ZoneLoadView = {
+  layerTypeId: Id;
+  /** The plan's layer of this type, if the plan has one. */
+  layerId: Id | null;
+  label: string;
+  attribute: string;
+  unit: string;
+  /** From this value a zone is overloaded: the `max` of the layer scale, where the canvas colour stops changing. */
+  threshold: number;
+  /** Zones with a value, highest first; equal values keep the plan order. */
+  zones: { zoneId: Id; name: string; value: number; overloaded: boolean }[];
+};
+
+/**
+ * #217: zone load as the heat layer shows it — the first `zone-heat` layer
+ * type of the catalog, its attribute and its threshold. `null` without such a
+ * layer type. Used by `plan_overview` and by the answer without a model.
+ */
+export function zoneLoadView(plan: PlanDocument): ZoneLoadView | null {
+  for (const type of plan.catalog.layerTypes) {
+    const representation = type.representation;
+    if (representation.kind !== 'zone-heat') continue;
+    const zones = plan.zones.flatMap((zone) => {
+      const value = zone.attributes[representation.attribute];
+      return typeof value === 'number' && Number.isFinite(value)
+        ? [{ zoneId: zone.id, name: zone.name, value, overloaded: value >= representation.max }]
+        : [];
+    });
+    zones.sort((a, b) => b.value - a.value);
+    return {
+      layerTypeId: type.id,
+      layerId: plan.layers.find((layer) => layer.typeId === type.id)?.id ?? null,
+      label: type.label,
+      attribute: representation.attribute,
+      unit: representation.unit,
+      threshold: representation.max,
+      zones,
+    };
+  }
+  return null;
+}
+
+/** Zones the load answer is about: the overloaded ones, else the most loaded one. */
+function loadedZones(view: ZoneLoadView): ZoneLoadView['zones'] {
+  const overloaded = view.zones.filter((zone) => zone.overloaded);
+  return overloaded.length > 0 ? overloaded : view.zones.slice(0, 1);
+}
+
+/** #217: the answer to «какие зоны перегружены» — written by code from the zone attributes. */
+function zoneLoadText(plan: PlanDocument, view: ZoneLoadView | null, zoneId: Id | null): string {
+  if (view === null) return 'В справочнике нет слоя загрузки зон: загрузку зон показать не из чего.';
+  const value = (number: number): string => `${formatShort(number)} ${view.unit}`;
+  const threshold = `Порог перегрузки — ${value(view.threshold)}, как на слое «${view.label}».`;
+  if (view.zones.length === 0) return `Загрузка зон не задана: атрибут «${view.attribute}» не заполнен ни у одной зоны. ${threshold}`;
+  const asked = zoneId === null ? undefined : view.zones.find((zone) => zone.zoneId === zoneId);
+  const own = asked === undefined
+    ? ''
+    : `Загрузка: ${zoneTitle(plan, asked.zoneId)} — ${value(asked.value)}${asked.overloaded ? ', перегружена' : ''}. `;
+  const overloaded = view.zones.filter((zone) => zone.overloaded);
+  const list = overloaded.map((zone) => `${zoneTitle(plan, zone.zoneId)} — ${value(zone.value)}`);
+  const head = overloaded.length === 0
+    ? `Перегруженных зон нет. Самая загруженная — ${zoneTitle(plan, view.zones[0]!.zoneId)}: ${value(view.zones[0]!.value)}.`
+    : overloaded.length === 1
+      ? `Перегружена: ${list[0]}.`
+      : `Перегружены: ${list.join(', ')}.`;
+  return `${own}${head} ${threshold}`;
+}
+
+/** #217: the load answer, the zones on the plan and the heat layer offered when it is off. */
+function zoneLoadCalls(plan: PlanDocument, zoneId: Id | null): AgentToolCall[] {
+  const view = zoneLoadView(plan);
+  const calls: AgentToolCall[] = [{ name: 'plan_overview', args: {}, note: zoneLoadText(plan, view, zoneId), lead: true }];
+  if (view === null) return calls;
+  const ids = loadedZones(view).map((zone) => zone.zoneId).slice(0, 12);
+  if (ids.length > 0) calls.push({ name: 'show_on_plan', args: { ids } });
+  const layer = plan.layers.find((entry) => entry.id === view.layerId);
+  if (layer !== undefined && !layer.visible) calls.push({ name: 'suggest_layer', args: { layerId: layer.id } });
+  return calls;
+}
+
 /** Which tools answer the question — the model-free counterpart of the agent loop. */
 export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: boolean): AgentToolCall[] {
   const text = query.toLowerCase().replaceAll('ё', 'е');
+  if (RELOCATE_INTENT.test(text)) {
+    const objectId = [...text.matchAll(/[a-z][a-z0-9]*(?:_[a-z0-9]+)+/g)].map((match) => match[0]).find((id) => plan.objects.some((object) => object.id === id));
+    if (objectId !== undefined) return [{ name: 'find_place', args: { objectId, zoneId: null } }];
+  }
   // #122: «разложи / расставь зону ожидания» — the layout of a named zone.
   if (LAYOUT_VERB.test(text)) {
     const zoneId = matchZone(plan, words(text));
@@ -349,7 +456,10 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (hasBefore && /измен|было|стало|сравн|эффект|разниц|до и после/.test(text)) {
     return [{ name: 'compare_with_original', args: {} }, { name: 'open_panel', args: { panel: 'metrics' } }];
   }
-  if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт/.test(text)) {
+  // #217: «какие зоны перегружены» — zone load against the heat layer threshold.
+  if (ZONE_LOAD.test(text)) return zoneLoadCalls(plan, zoneId);
+  // #211: «что не так и что сделать?» asks for the plan check and its main finding.
+  if (/ошибк|проверк|пересек|пересеч|наруш|неправил|конфликт|что не так|что исправ|что (?:нужно |надо )?сделать|проблем/.test(text)) {
     return [{ name: 'validate_plan', args: {} }, { name: 'open_panel', args: { panel: 'validation' } }];
   }
   if (/не хват|нехват|лишн|комплект|недостат|избыт|чего нет|отсутств|сколько нужно/.test(text)) {
@@ -368,17 +478,20 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (cameras !== null && !STORAGE_ROOM.test(text) && CAMERA_COVERAGE.test(text)) {
     return placeRoute(plan, cameras.typeId, zoneId);
   }
-  if (typeId !== null && PLACE_INTENT.test(text)) return placeRoute(plan, typeId, zoneId);
+  if (typeId !== null && PLACE_INTENT.test(text)) return placeRoute(plan, typeId, zoneId, NEAR_ENTRANCE.test(text));
   if (zoneId !== null) {
     return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
   }
+  // #195: «покажи весь план», «сводка» — the overview of the plan.
+  if (PLAN_OVERVIEW.test(text)) return [{ name: 'plan_overview', args: {} }];
   // #150: no scenario fits — no calls; the answer says so and lists what the calculation can do.
   return [];
 }
 
 /** #150: the honest answer to a question no scenario fits. The plan is not touched, no place is offered. */
 const NOT_UNDERSTOOD = [
-  'Не понял вопрос без модели. Расчёт умеет:',
+  'Не понял вопрос без модели. Спросите иначе, например: «Что не так и что сделать?» — расчёт ответит сам.',
+  'Расчёт умеет:',
   '— найти место: «Где поставить ещё одно кассовое окно?»;',
   '— проверить комплектование: «Чего не хватает или что лишнее?»;',
   '— показать эффект изменений: «Как мои изменения повлияли на свободную площадь?»;',
@@ -386,7 +499,8 @@ const NOT_UNDERSTOOD = [
   '— описать зону: «Что находится в зоне ожидания?»;',
   '— разложить зону: «Разложи зону ожидания»;',
   '— внести правку: «Сдвинь стеллажи вправо на 1 м», «Добавь окно в зале»;',
-  '— покрытие камер: «Где слепые пятна у камер?».',
+  '— покрытие камер: «Где слепые пятна у камер?»;',
+  '— загрузка зон: «Какие зоны перегружены?».',
   'План не изменён, место не предлагалось.',
 ].join('\n\n');
 
@@ -443,7 +557,7 @@ type Overview = {
 };
 
 type ZoneView = { name: string; total_m2: number | null; free_m2: number | null; objectsCount: number };
-type ValidationView = { errors: number; warnings: number; issues: { message: string }[] };
+type ValidationView = { errors: number; warnings: number; issues: { message: string; severity?: string; ids?: Id[] }[] };
 
 function overviewText(output: Overview): string | null {
   const room = output.room;
@@ -494,6 +608,77 @@ function equipmentDetails(state: AgentToolState, recommendation: Recommendation)
   };
 }
 
+type RelocationView = {
+  objectId: Id;
+  options: {
+    kind: 'keep' | 'move';
+    proposalId: Id | null;
+    zones: { id: Id; name: string }[];
+    position_m: [number, number];
+    ruleIds: Id[];
+    wallGap_m: number | null;
+    newWarnings: number;
+    /** Only what the move changed: `placement.distance.delta`, `layout.entrance.*`. */
+    facts: Record<string, number>;
+    zoneEffects: { zoneId: Id; free_m2: { before: number; after: number }; objects: { before: number; after: number } }[];
+    coveragePercent: { before: number | null; after: number | null } | null;
+  }[];
+};
+
+/**
+ * #178: «почему сюда» without a model — the relocation options (#177) in the
+ * order the search ranked them, each with its numbers; one paragraph each.
+ */
+function relocationText(state: AgentToolState, output: RelocationView): string[] {
+  const { plan } = state;
+  const object = plan.objects.find((entry) => entry.id === output.objectId);
+  const moves = output.options.filter((option) => option.kind === 'move').length;
+  const head = moves === 0
+    ? `Новое место для «${object?.label ?? output.objectId}» (${output.objectId}) без новых ошибок проверки не найдено — объект остаётся на месте.`
+    : `Новое место для «${object?.label ?? output.objectId}» (${output.objectId}): переносов ${moves}. Порядок вариантов дал расчёт поиска места: выше тот, у кого меньше новых предупреждений проверки, затем меньший зазор до стены.`;
+  const lines = output.options.map((option, index) => {
+    const where = option.zones.length === 0 ? 'вне зон' : zoneTitle(plan, option.zones[option.zones.length - 1]!.id);
+    const gap = option.wallGap_m === null ? null : `зазор до стены ${formatShort(option.wallGap_m, 2)} м`;
+    const zones = option.zoneEffects.map((effect) =>
+      `${zoneTitle(plan, effect.zoneId)}: свободно ${formatArea(effect.free_m2.before)} → ${formatArea(effect.free_m2.after)}, объектов ${effect.objects.before} → ${effect.objects.after}`);
+    const coverage = option.coveragePercent?.before == null || option.coveragePercent.after == null
+      ? null
+      : `покрытие клиентских зон камерами ${formatShort(option.coveragePercent.before)} → ${formatShort(option.coveragePercent.after)} %`;
+    const shift = option.facts['placement.distance.delta'];
+    const was = option.facts['layout.entrance.before'];
+    const now = option.facts['layout.entrance.after'];
+    const facts = [
+      shift === undefined ? null : `перенос на ${formatShort(shift, 2)} м`,
+      was === undefined || now === undefined ? null : `до входа ${formatShort(was, 2)} → ${formatShort(now, 2)} м`,
+      gap,
+      ...(option.kind === 'move' ? zones : []),
+      coverage,
+      option.kind === 'move' ? `новых предупреждений: ${option.newWarnings}` : null,
+    ].filter(Boolean).join('; ');
+    return `${option.kind === 'move' ? `Вариант ${index + 1}` : 'Оставить как есть'} — ${where}${facts === '' ? '' : `: ${facts}`}.`;
+  });
+  const ruleIds = [...new Set(output.options.flatMap((option) => option.ruleIds))];
+  const rules = plan.catalog.rules.filter((rule) => ruleIds.includes(rule.id));
+  const ruleLine = rules.length === 0
+    ? []
+    : [`Правила справочника: ${rules.map((rule) => `${rule.id} (${ruleSourceLabel(rule)})`).join('; ')}.`];
+  const actions = moves === 0 ? [] : ['«Показать вариант N» рисует перенос на плане полупрозрачно, «Применить вариант N» переносит объект одной командой, отмена — Ctrl+Z.'];
+  return [head, ...lines, ...ruleLine, ...actions];
+}
+
+/** #177 results among the tool calls: `find_place` with `objectId`. */
+function relocationViews(records: readonly AgentToolRecord[]): RelocationView[] {
+  return records.flatMap((record) => {
+    const output = record.output as Record<string, unknown> | null;
+    return record.name === 'find_place' && output !== null && typeof output === 'object' && 'objectId' in output ? [output as unknown as RelocationView] : [];
+  });
+}
+
+/** #178: the relocation variants in code's words — under the model's «почему так» and without a model alike. */
+export function relocationParagraphs(state: AgentToolState, records: readonly AgentToolRecord[]): string[] {
+  return relocationViews(records).flatMap((view) => relocationText(state, view));
+}
+
 /** The answer text written by code from what the tools returned. */
 export function composeFallbackText(
   state: AgentToolState,
@@ -502,7 +687,11 @@ export function composeFallbackText(
   namedZones: readonly Id[] = [],
 ): string {
   // One paragraph per note, tool and recommendation: the chat splits the text on blank lines.
-  const parts: string[] = [...notes];
+  // #210: the action goes first; the chat folds the rest under «Подробнее».
+  const lead = answerLead(state, records);
+  const parts: string[] = [...(lead === null ? [] : [lead]), ...notes, ...relocationParagraphs(state, records)];
+  /** Relocation proposals already read as options above. */
+  const relocated = new Set(relocationViews(records).flatMap((view) => view.options.map((option) => option.proposalId)));
   for (const record of records) {
     const output = record.output as Record<string, unknown> | null;
     if (output === null || typeof output !== 'object' || 'error' in output) continue;
@@ -540,6 +729,7 @@ export function composeFallbackText(
     parts.push('Нарушений правил комплектования нет.');
   }
   for (const proposal of state.proposals) {
+    if (relocated.has(proposal.id)) continue;
     const metric = (code: string, phase: string): number | undefined => proposal.facts.find((fact) => fact.metric === code && fact.phase === phase)?.value;
     // #122: a layout variant reads by its own numbers; the area does not change.
     if (proposal.title !== undefined) {
@@ -570,6 +760,181 @@ export function composeFallbackText(
     parts.push('Вариант показан на плане полупрозрачно — его можно применить кнопкой ниже.');
   }
   return parts.length === 0 ? NOT_UNDERSTOOD : parts.join('\n\n');
+}
+
+/**
+ * #210/#211: «что не так» ends in an action. After a plan check without a
+ * place search or edits, the object of the first error gets the relocation
+ * search (#177) — the same tool the model would call — so the answer can say
+ * what to move and what changes. Runs after the model's tools and without a model alike.
+ */
+export function reviewCalls(state: AgentToolState, records: readonly AgentToolRecord[]): AgentToolCall[] {
+  if (records.some((record) => ['find_place', 'propose_edits', 'layout_zone', 'suggest_candidate'].includes(record.name))) return [];
+  const check = records.find((record) => record.name === 'validate_plan')?.output as ValidationView | null | undefined;
+  if (check === null || check === undefined || !Array.isArray(check.issues)) return [];
+  const objectIds = new Set(state.plan.objects.map((object) => object.id));
+  const main = check.issues.find((issue) => issue.severity === 'error' && (issue.ids ?? []).some((id) => objectIds.has(id)));
+  const objectId = main?.ids?.find((id) => objectIds.has(id));
+  return objectId === undefined ? [] : [{ name: 'find_place', args: { objectId, zoneId: null } }];
+}
+
+const metres2 = (value: number): string => `${formatShort(value, 2)} м`;
+
+/** At most this many objects are named per kind of change; the rest are counted. */
+const NAMED_CHANGES = 3;
+
+function zoneNameOf(plan: PlanDocument, objectId: Id): string {
+  const zoneId = plan.objects.find((entry) => entry.id === objectId)?.zoneId ?? null;
+  return zoneId === null ? 'вне зон' : `«${plan.zones.find((entry) => entry.id === zoneId)?.name ?? zoneId}»`;
+}
+
+/** «Название» (id) · инв. № · «зона» — how an inventory specialist finds the object. */
+function objectTitle(plan: PlanDocument, id: Id, zoneText: string = zoneNameOf(plan, id)): string {
+  const object = plan.objects.find((entry) => entry.id === id);
+  if (object === undefined) return id;
+  const inventory = object.attributes[INVENTORY_NUMBER_KEY];
+  return [`«${object.label}» (${id})`, typeof inventory === 'string' && inventory.trim() !== '' ? inventory : null, zoneText].filter(Boolean).join(' · ');
+}
+
+/**
+ * #238: the effect of an edit in the words of the office — free area, object
+ * count and check errors before → after, then what was added, removed or moved:
+ * name, id, inventory number, zone (before → after for a move).
+ */
+function changeLead(before: PlanDocument, after: PlanDocument, compared: Recommendation): string {
+  const value = (id: string): number | undefined => compared.facts.find((fact) => fact.id === id)?.value;
+  const errors = (plan: PlanDocument): number => validatePlan(plan).filter((issue) => issue.severity === 'error').length;
+  const freeBefore = value('adv_compare.area.free.before');
+  const freeAfter = value('adv_compare.area.free.after');
+  const countBefore = value('adv_compare.equipment.count.before');
+  const countAfter = value('adv_compare.equipment.count.after');
+  const numbers = [
+    freeBefore === undefined || freeAfter === undefined ? null : `свободно ${formatArea(freeBefore)} → ${formatArea(freeAfter)}`,
+    countBefore === undefined || countAfter === undefined ? null : `объектов ${countBefore} → ${countAfter}`,
+    `ошибок проверки ${errors(before)} → ${errors(after)}`,
+  ].filter(Boolean);
+  const named = (titles: string[]): string =>
+    titles.length <= NAMED_CHANGES ? titles.join('; ') : `${titles.slice(0, NAMED_CHANGES).join('; ')} и ещё ${titles.length - NAMED_CHANGES}`;
+  const ids = (kind: string): Id[] => compared.changes.filter((change) => change.ref.kind === 'object' && change.kind === kind).map((change) => change.ref.id);
+  const added = ids('added').map((id) => objectTitle(after, id));
+  const removed = ids('removed').map((id) => objectTitle(before, id));
+  const moved = ids('moved').map((id) => {
+    const from = zoneNameOf(before, id);
+    const to = zoneNameOf(after, id);
+    return objectTitle(after, id, from === to ? to : `${from} → ${to}`);
+  });
+  const lists = [
+    added.length === 0 ? null : `Добавлено: ${named(added)}.`,
+    removed.length === 0 ? null : `Удалено: ${named(removed)}.`,
+    moved.length === 0 ? null : `Перенесено: ${named(moved)}.`,
+  ].filter(Boolean);
+  const head = `Изменения плана: ${numbers.join(', ')}.`;
+  return lists.length === 0 ? `${head} Объекты не добавлены, не удалены и не перенесены.` : `${head} ${lists.join(' ')}`;
+}
+
+/**
+ * #210: the first line of an answer — what to do, with which object, and the
+ * calculated «было → стало». Code writes it from the tool results; null when
+ * the answer offers no action (a zone summary, a comparison, a refusal of the model).
+ */
+export function answerLead(state: AgentToolState, records: readonly AgentToolRecord[]): string | null {
+  const { plan } = state;
+  const relocation = relocationViews(records)[0];
+  if (relocation !== undefined) {
+    const object = plan.objects.find((entry) => entry.id === relocation.objectId);
+    const name = `«${object?.label ?? relocation.objectId}» (${relocation.objectId})`;
+    const best = relocation.options.find((option) => option.kind === 'move');
+    if (best === undefined) return `Оставьте ${name} на месте: переноса без новых ошибок проверки нет.`;
+    const zone = best.zones[best.zones.length - 1];
+    const was = best.facts['layout.entrance.before'];
+    const now = best.facts['layout.entrance.after'];
+    const shift = best.facts['placement.distance.delta'];
+    const errors = state.proposals.find((entry) => entry.id === best.proposalId)?.findings.errors;
+    const numbers = [
+      was !== undefined && now !== undefined ? `до входа ${formatShort(was, 2)} → ${metres2(now)}` : shift === undefined ? null : `перенос на ${metres2(shift)}`,
+      errors === undefined ? null : `ошибок проверки ${errors.before} → ${errors.after}`,
+    ].filter(Boolean);
+    return `Перенесите ${name} ${zone === undefined ? 'на новое место вне зон' : `в зону ${zoneTitle(plan, zone.id)}`}${numbers.length === 0 ? '' : `: ${numbers.join(', ')}`}.`;
+  }
+
+  // #238: the model may stop at find_place without suggest_candidate; the
+  // calculation's best candidate still leads the answer.
+  const offered = state.actions.find((action) => action.kind === 'apply-candidate');
+  const chosen = offered?.kind === 'apply-candidate'
+    ? state.recommendations.get(offered.recommendationId)?.candidates.find((entry) => entry.id === offered.candidateId)
+    : undefined;
+  const firstPlaced = [...state.recommendations.values()].find((entry) => entry.scenario === 'place' && entry.candidates.length > 0)?.candidates[0];
+  {
+    const candidate = chosen ?? firstPlaced;
+    if (candidate !== undefined) {
+      const value = (metric: string, phase: string): number | undefined => candidate.facts.find((fact) => fact.metric === metric && fact.phase === phase)?.value;
+      const effect = cameraCandidateEffect(plan, candidate);
+      const freeBefore = value('area.free', 'current');
+      const freeAfter = value('area.free', 'after');
+      const countBefore = value('equipment.count', 'current');
+      const countAfter = value('equipment.count', 'after');
+      const entrance = value('layout.entrance', 'after');
+      const numbers = [
+        effect?.before.total.percent == null || effect.after.total.percent == null
+          ? null
+          : `клиентские зоны видны камерами на ${formatShort(Math.round(effect.before.total.percent * 10) / 10)} → ${formatShort(Math.round(effect.after.total.percent * 10) / 10)} %`,
+        freeBefore === undefined || freeAfter === undefined ? null : `свободно ${formatArea(freeBefore)} → ${formatArea(freeAfter)}`,
+        countBefore === undefined || countAfter === undefined ? null : `таких объектов ${countBefore} → ${countAfter}`,
+        // #237: от центра варианта до центра ближайшего входа.
+        entrance === undefined ? null : `до входа ${metres2(entrance)}`,
+      ].filter(Boolean);
+      const where = candidate.object.zoneId === null ? 'вне зон' : `в зону ${zoneTitle(plan, candidate.object.zoneId)}`;
+      return `Поставьте «${candidate.object.label}» ${where}${numbers.length === 0 ? '' : `: ${numbers.join(', ')}`}.`;
+    }
+  }
+
+  const edits = state.proposals.find((proposal) => proposal.title === undefined);
+  if (edits !== undefined) {
+    if (edits.commands.length === 0) return 'Правки не прошли проверку — план не изменится. Причины — ниже.';
+    const free = (phase: string): number | undefined => edits.facts.find((fact) => fact.metric === 'area.free' && fact.phase === phase)?.value;
+    const before = free('before');
+    const after = free('after');
+    const area = before === undefined || after === undefined ? '' : `свободно ${formatArea(before)} → ${formatArea(after)}, `;
+    return `Примените правки (${edits.changes.length}): ${area}ошибок проверки ${edits.findings.errors.before} → ${edits.findings.errors.after}.`;
+  }
+
+  const layout = state.proposals.find((proposal) => proposal.title !== undefined);
+  if (layout !== undefined) {
+    const metric = (phase: string): number | undefined => layout.facts.find((fact) => fact.metric === 'layout.passage' && fact.phase === phase)?.value;
+    const before = metric('before');
+    const after = metric('after');
+    const passage = before === undefined || after === undefined ? '' : `самый узкий проход ${formatShort(before, 2)} → ${metres2(after)}, `;
+    return `Сравните варианты раскладки на плане. ${layout.title?.split(':')[0] ?? 'Вариант 1'}: ${passage}ошибок проверки ${layout.findings.errors.before} → ${layout.findings.errors.after}.`;
+  }
+
+  const compared = [...state.recommendations.values()].find((entry) => entry.scenario === 'compare');
+  if (compared !== undefined && state.before !== null) return changeLead(state.before, plan, compared);
+
+  const stocking = [...state.recommendations.values()].find((entry) => entry.scenario === 'equipment');
+  if (stocking !== undefined) {
+    const rule = plan.catalog.rules.find((entry) => entry.id === stocking.ruleIds[0]);
+    const count = stocking.facts.find((fact) => fact.metric === 'equipment.count')?.value;
+    const bound = stocking.facts.find((fact) => fact.metric === 'equipment.min' || fact.metric === 'equipment.max');
+    const zoneId = stocking.refs.find((ref) => ref.kind === 'zone')?.id;
+    if (rule?.kind === 'count' && count !== undefined && bound !== undefined && zoneId !== undefined) {
+      const type = typeTitle(plan, rule.objectTypeId);
+      const verb = bound.metric === 'equipment.min' ? `Добавьте ${type} в зону` : `Уберите лишнее ${type} из зоны`;
+      return `${verb} ${zoneTitle(plan, zoneId)}: ${count} → ${bound.value} шт. (${ruleSourceLabel(rule)}).`;
+    }
+  }
+
+  // #238: a check with nothing to fix still answers first, in plain words.
+  const equipment = records.find((record) => record.name === 'check_equipment')?.output as { zoneId?: Id | null; recommendations?: unknown[] } | null | undefined;
+  if (equipment != null && Array.isArray(equipment.recommendations) && equipment.recommendations.length === 0) {
+    const where = typeof equipment.zoneId === 'string' ? ` в зоне ${zoneTitle(plan, equipment.zoneId)}` : '';
+    return `Комплектование по правилам справочника${where} в норме: нарушений нет.`;
+  }
+
+  const check = records.find((record) => record.name === 'validate_plan')?.output as ValidationView | null | undefined;
+  if (check != null && typeof check.errors === 'number' && check.errors + check.warnings > 0) {
+    return `Исправьте находки проверки: ошибок ${check.errors}, предупреждений ${check.warnings}. Список — во вкладке «Проверка».`;
+  }
+  return null;
 }
 
 /**

@@ -21,7 +21,7 @@ import { editableContentLayer } from '../../domain/content-layer';
 import { objectColorValue } from '../../domain/object-color';
 import { OBJECT_MOUNTS, countByMount, type ObjectMount } from '../../domain/object-mount';
 import { BLIND_SPOT_SWATCH_CSS, visibleCoverage } from './coverage';
-import { formatValue, legendOf } from './legend';
+import { formatValue, legendOf } from '../../domain/layer-legend';
 import { zoneLoad } from './zone-load';
 import './zone-load.css';
 
@@ -683,7 +683,7 @@ export function LayersPanel({
         })}
       </ul>
       {setup ? null : (
-        <p className="panel__note">Добавить, переименовать, упорядочить и удалить слои — в «Настройках» у названия плана.</p>
+        <p className="panel__note">Состав слоёв — в «Настройках» ⚙.</p>
       )}
     </section>
   );

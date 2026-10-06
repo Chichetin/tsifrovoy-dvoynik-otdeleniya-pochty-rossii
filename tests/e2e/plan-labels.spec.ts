@@ -52,7 +52,12 @@ for (const width of [1280, 1440]) {
     const svgDownloading = page.waitForEvent('download');
     await exportPlan(page, 'SVG'); await passPhysicsBlock(page);
     const svgPath = await (await svgDownloading).path();
-    expect(readFileSync(svgPath!, 'utf8')).toContain('Стеллаж посылок 1');
+    // SVG ставит подпись только на свободное место (#143): у eq_41 его нет,
+    // соседние стеллажи подписаны полным именем с номером.
+    const svg = readFileSync(svgPath!, 'utf8');
+    expect(svg).toContain('data-id="eq_41"');
+    expect(svg).toContain('>Стеллаж посылок 2</text>');
+    expect(svg).toContain('>Стеллаж посылок 3</text>');
     await expandInventoryRows(page);
     await page.getByLabel('Инвентаризация').locator('.table__link')
       .filter({ hasText: /^Рабочее место оператора 1$/ }).click();

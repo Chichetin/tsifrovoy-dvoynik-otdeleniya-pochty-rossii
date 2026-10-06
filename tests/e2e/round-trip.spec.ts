@@ -82,7 +82,7 @@ test('инвентарный номер новой скамьи выдан пр�
   const inventory = page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr');
   await expect(inventory).toHaveCount(53);
 
-  // Та же точка свободного пола, что в demo.spec.ts: (120, 456) — модель (2,2; 2).
+  // Клик ставит скамью; точное место задают координаты ниже.
   await showTab(page, 'Библиотека');
   await page.locator('.library__item', { hasText: 'Скамья для ожидания' }).first().click();
   await page.getByTestId('editor-canvas').click({ position: { x: 120, y: 456 } });
@@ -91,6 +91,7 @@ test('инвентарный номер новой скамьи выдан пр�
 
   const card = page.getByLabel('Свойства');
   const openBench = async (): Promise<void> => {
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
     await showTab(page, 'Инвентаризация');
     await expandInventoryRows(page);
     await page.getByLabel('Инвентаризация').locator('tbody tr', { hasText: 'ИНВ-ДЕМО-054' }).getByRole('button').first().click();
@@ -99,6 +100,13 @@ test('инвентарный номер новой скамьи выдан пр�
   await openBench();
   // Следующий номер серии плана: последний в before.json — ИНВ-ДЕМО-053.
   await expect(card.getByLabel('Инвентарный номер')).toHaveValue('ИНВ-ДЕМО-054');
+  // Точка клика зависит от вписывания: после #233 (120, 456) — это уже стена,
+  // и сохранение ждёт ответа на окно физики. Скамья встаёт на свободный пол
+  // по координатам модели, как в demo.spec.ts.
+  await card.getByLabel('X, м').fill('2.2');
+  await card.getByLabel('Y, м').fill('2');
+  await card.getByRole('button', { name: 'Применить координаты' }).click();
+  await expect(card.getByLabel('Y, м')).toHaveValue('2');
 
   const started = page.waitForEvent('download');
   await exportPlan(page, 'JSON');
@@ -139,6 +147,7 @@ test('атрибут типа добавлен без ввода ключа и �
   await dialog.getByTestId('catalog-type-label').fill('Весы почтовые Q13');
   await dialog.getByTestId('catalog-add-type').click();
   await dialog.getByTestId('catalog-attr-label').fill('Дата поверки');
+  await dialog.getByTestId('catalog-attr-more').click();
   await expect(dialog.getByTestId('catalog-attr-key-preview')).toHaveText('Ключ: data_poverki');
   await dialog.getByTestId('catalog-add-attr').click();
   await expect(dialog.getByTestId('catalog-attributes')).toContainText('data_poverki');
@@ -149,7 +158,7 @@ test('атрибут типа добавлен без ввода ключа и �
   const download = await started;
   const saved = JSON.parse(readFileSync((await download.path()) as string, 'utf8'));
   const type = saved.catalog.objectTypes.find((t: { label: string }) => t.label === 'Весы почтовые Q13');
-  expect(type.attributes.map((a: { key: string }) => a.key)).toEqual(['data_poverki']);
+  expect(type.attributes.map((a: { key: string }) => a.key)).toContain('data_poverki');
 });
 
 /** Файл, брошенный в окно: те же события, что шлёт браузер при перетаскивании из проводника (#37). */

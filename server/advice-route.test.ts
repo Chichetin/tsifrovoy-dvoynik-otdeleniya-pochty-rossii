@@ -359,10 +359,20 @@ describe('A05: конфигурация', () => {
     ).toBeNull();
   });
 
+  test('адрес не из разрешённых провайдеров — режим без модели с причиной (#205)', () => {
+    const config = readConfig({
+      LLM_ENDPOINT: 'https://api.openai.com/v1/chat/completions',
+      LLM_MODEL: 'm',
+      LLM_API_KEY: 'k',
+    });
+    expect(config.llm).toBeNull();
+    expect(JSON.stringify(describeConfig(config))).toContain('api.openai.com не из разрешённых');
+  });
+
   test('ключ не попадает в то, что печатается в журнал', () => {
     const config = readConfig({
       LLM_PROVIDER: 'deepseek',
-      LLM_ENDPOINT: 'https://example.invalid/v1/chat/completions',
+      LLM_ENDPOINT: 'https://api.deepseek.com/v1/chat/completions',
       LLM_MODEL: 'test-model',
       LLM_API_KEY: 'sk-очень-секретный-ключ',
     });

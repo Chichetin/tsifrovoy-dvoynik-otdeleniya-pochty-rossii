@@ -45,9 +45,8 @@ async function placeFromLibrary(page: Page, label: string, x: number, y: number)
 }
 
 async function selectRow(page: Page, index: number): Promise<void> {
-  // После выбора на плане справа только «Свойства»: вкладка возвращает перечень.
-  const tab = page.getByRole('tab', { name: /^Инвентаризация/ });
-  if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
+  // #222: после выбора справа только «Свойства»; помощник снимает выбор и открывает перечень.
+  await showTab(page, 'Инвентаризация');
   // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
   // кликается, пока список не раскрыт.
   await expandInventoryRows(page);
@@ -255,8 +254,10 @@ test.describe('правка выбранного с клавиатуры', () =>
     await page.keyboard.press('Control+v');
     await expect(inventoryRows(page)).toHaveCount(54);
 
-    await showTab(page, 'Проверка');
+    // #222: the copy is selected, so «Проверка» sits hidden under the card.
+    // Its panel stays mounted and follows the plan, so the list is read there.
     const validation = page.getByLabel('Проверка плана');
+    await expect(validation).toHaveCount(1);
     await expect(validation.getByText(/уже присвоен/)).toHaveCount(0);
 
     // Специалист вписал копии номер оригинала — проверка это видит.

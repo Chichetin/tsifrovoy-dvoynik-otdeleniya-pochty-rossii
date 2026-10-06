@@ -1,0 +1,116 @@
+/* Variant E «Штамп» — the post office itself: paper labels with stitched edges, airmail stripe, a rubber stamp that
+   lands on the findings, a tracking line (Принято → Вручено) instead of a progress bar, handwriting for address notes.
+   Palette: hackathon blue as the counter, cream as paper, navy as ink, orange as the stamp. */
+@font-face{font-family:'Rubik Mono One';src:url(../assets/fonts/rubik-mono-one-cyrillic-400-normal.woff2) format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'Rubik Mono One';src:url(../assets/fonts/rubik-mono-one-latin-400-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'Marck Script';src:url(../assets/fonts/marck-script-cyrillic-400-normal.woff2) format('woff2');unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'Marck Script';src:url(../assets/fonts/marck-script-latin-400-normal.woff2) format('woff2');unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Onest;src:url(../assets/fonts/onest-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Onest;src:url(../assets/fonts/onest-latin-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';src:url(../assets/fonts/jetbrains-mono-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 800;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'JetBrains Mono';src:url(../assets/fonts/jetbrains-mono-latin-wght-normal.woff2) format('woff2');font-weight:100 800;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{
+  --bg:#2942BB;--surface:color-mix(in srgb,#2942BB 74%,#191D2E);--surface-elevated:#26316F;
+  --text:#fff;--text-muted:rgba(255,255,255,.74);--brand-primary:#2942BB;--brand-secondary:#555FA3;
+  --accent:#EB9C64;--accent-strong:#DD824F;--border:rgba(255,255,255,.3);--glow:rgba(235,156,100,.42);
+  --cream:#EEDDD3;--navy:#191D2E;--paper:#EEDDD3;--ink:#191D2E;--stage-bg:#191D2E;
+  --ease-out:cubic-bezier(.23,1,.32,1);--ease-io:cubic-bezier(.77,0,.175,1);
+  --display:'Rubik Mono One',sans-serif;--body:'Onest',sans-serif;--mono:'JetBrains Mono',monospace;--hand:'Marck Script',cursive;
+  color-scheme:dark;
+}
+body{font-family:var(--body);color:var(--text)}
+.bg{position:absolute;inset:0;overflow:hidden;background:
+  radial-gradient(60% 70% at 90% 12%,rgba(235,156,100,.16),transparent 62%),
+  radial-gradient(50% 60% at 0% 100%,rgba(85,95,163,.5),transparent 62%),var(--bg)}
+/* airmail stripe under the header */
+.bg::before{content:'';position:absolute;left:0;right:0;top:112px;height:12px;background:repeating-linear-gradient(135deg,#DD824F 0 26px,#EEDDD3 26px 52px,#2942BB 52px 78px,#EEDDD3 78px 104px)}
+.bg::after{content:'';position:absolute;left:0;right:0;bottom:0;height:12px;background:repeating-linear-gradient(135deg,#DD824F 0 26px,#EEDDD3 26px 52px,#2942BB 52px 78px,#EEDDD3 78px 104px)}
+.seam{display:none}
+.chrome{position:absolute;left:96px;right:96px;top:30px;z-index:5;display:flex;align-items:center;gap:22px}
+.logo{height:46px}.seal{height:54px}
+.chrome-title{margin-left:auto;font:500 18px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+/* tracking line */
+.chrome-foot{position:absolute;left:96px;right:96px;bottom:34px;z-index:5;display:flex;align-items:center;gap:32px}
+#rail{flex:none;position:relative;width:1480px;height:44px;display:flex;align-items:center}
+#rail i{flex:1;height:3px;background:rgba(255,255,255,.3);position:relative}
+#rail i::before{content:'';position:absolute;right:-8px;top:-7px;width:17px;height:17px;border-radius:50%;background:var(--bg);border:3px solid rgba(255,255,255,.55);z-index:1}
+#rail i.on{background:var(--cream)}
+#rail i.on::before{background:var(--cream);border-color:var(--cream)}
+#rail i.on:not(:has(~ .on))::before{background:var(--accent-strong);border-color:var(--cream);box-shadow:0 0 0 6px rgba(221,130,79,.3)}
+#rail i:nth-child(1)::after,#rail i:nth-child(4)::after,#rail i:nth-child(6)::after,#rail i:nth-child(11)::after{position:absolute;right:-30px;top:-30px;font:500 18px var(--mono);letter-spacing:.06em;color:var(--text-muted);white-space:nowrap}
+#rail i:nth-child(1)::after{content:'ПРИНЯТО'}
+#rail i:nth-child(4)::after{content:'В ПУТИ'}
+#rail i:nth-child(6)::after{content:'ПРОВЕРКА'}
+#rail i:nth-child(11)::after{content:'ВРУЧЕНО';right:-8px}
+#rail::after{content:'';position:absolute;left:0;top:7px;width:32px;height:26px;border:2px solid var(--ink);background:linear-gradient(90deg,transparent 40%,#DD824F 40% 60%,transparent 60%),var(--paper);z-index:2}
+#counter{font:500 20px var(--mono);color:var(--text-muted);min-width:90px;text-align:right}
+#timer{display:none;font:500 20px var(--mono);color:var(--text-muted);min-width:90px}
+#timer.show{display:block}#timer.low{color:var(--accent)}
+#notes{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;padding:16px 28px;background:rgba(25,29,46,.96);font:400 20px/1.5 var(--body);color:#fff}
+#notes.show{display:block}
+
+/* voice */
+.slide .sl-head{top:190px}
+.title{font:400 40px/1.18 var(--display);letter-spacing:-.03em}
+.s-title .title{font-size:82px;line-height:1.06;top:290px}
+.s-title .eyebrow{top:196px}
+.s-title .lead,.lead{font:400 34px/1.35 var(--hand);color:var(--cream)}
+.s-title .lead{top:760px;width:700px}
+.s-ai .title .ln{font-size:40px}
+.s-arch .title{font-size:36px}
+.eyebrow{color:var(--cream)}
+h3{font-family:var(--display);font-weight:400;letter-spacing:-.04em}
+.big,.counters b,.deltas b,.stats b,.row,.chart .val{font-family:var(--display);font-weight:400}
+.node h3,.view h3{font-size:22px}
+.q h3{font-size:25px;line-height:1.3}
+.link-card h3,.flow b,.limits h3,.stack h3{font-size:22px}
+.limits h3{font-size:28px}
+.tag{display:inline-block;background:var(--accent-strong);color:var(--ink);padding:5px 11px;font-weight:600;letter-spacing:.08em}
+/* paper labels: cream sheet, navy ink, stitched edge */
+.q,.node.input,.node.view,.pipe .node,.arch .loop,.link-card,.limits .col,.stack .col,.flow li,.team-card{
+  --text:#191D2E;--text-muted:rgba(25,29,46,.72);--border:rgba(25,29,46,.3);--bg:#EEDDD3;--soft:#2942BB;
+  background:var(--paper);color:var(--ink);outline:2px dashed rgba(25,29,46,.32);outline-offset:-10px;border:0;padding:30px 32px}
+.q{border-radius:4px}
+.node.view{padding:14px 20px 14px 14px;outline-offset:-6px}
+.view img{border:2px solid var(--ink)}
+.pipe .node{padding:26px 22px;border:0}
+.pipe .node.llm{background:var(--paper)}
+.pipe .node.code{background:#E3CABF}
+.pipe .node.gate{outline:3px solid var(--accent-strong);outline-offset:-3px}
+.pipe .node.ok{background:var(--ink);color:var(--paper);outline-color:rgba(238,221,211,.4)}
+.pipe .node.ok .tag{background:var(--paper)}
+.pipe .node.fb{outline:2px dashed var(--accent-strong)}
+.arch .hub{--text:#fff;background:#26316F;border:3px solid var(--cream);color:#fff}
+.arch .loop{border-left:4px solid var(--accent-strong);outline:0;padding:14px 20px;font-size:19px}
+.counters p{background:var(--paper);border:0;padding:20px 26px 24px;outline:2px dashed rgba(25,29,46,.32);outline-offset:-9px;color:var(--ink)}
+.counters b{color:var(--brand-primary)}.counters span{color:rgba(25,29,46,.75)}
+.link-card .risk,.link-card h3{color:var(--ink)}
+.limits .edge h3{color:#BF6A46}
+.portrait{border:3px solid var(--cream);background:var(--paper)}
+.team-card{background:transparent;outline:0;padding:0;color:#fff;--text:#fff;--text-muted:rgba(255,255,255,.74)}
+.shot{border:0;box-shadow:0 0 0 14px var(--paper),0 0 0 17px var(--ink),0 28px 70px rgba(25,29,46,.5)}
+.catalog img,.view img{border-radius:0}
+.catalog img{border:0;box-shadow:0 0 0 10px var(--paper),0 0 0 12px var(--ink)}
+.s-format .code{background:var(--paper);color:var(--ink);border-left:6px solid var(--accent-strong)}
+.s-format .code b{color:var(--brand-primary)}
+.bench th,.bench td{border-color:var(--border)}
+/* stamps: a postmark on the title, a rubber stamp on the findings */
+.s-title::before{content:'';position:absolute;left:1600px;top:140px;width:250px;height:250px;opacity:0;pointer-events:none;z-index:4;--tilt:-12deg;
+  background:center/contain no-repeat url("data:image/svg+xml;charset=utf-8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240'><defs><path id='c' d='M120,120 m-90,0 a90,90 0 1,1 180,0 a90,90 0 1,1 -180,0'/></defs><circle cx='120' cy='120' r='112' fill='none' stroke='%23EEDDD3' stroke-width='5'/><circle cx='120' cy='120' r='64' fill='none' stroke='%23EEDDD3' stroke-width='3'/><text font-family='monospace' font-size='19' font-weight='700' fill='%23EEDDD3' letter-spacing='3'><textPath href='%23c'>ПОЧТАТЕХ · ЦИФРОВОЙ ДВОЙНИК ОПС · 2026 ·</textPath></text><text x='120' y='116' text-anchor='middle' font-family='monospace' font-size='21' font-weight='700' fill='%23EEDDD3'>ИИ-</text><text x='120' y='140' text-anchor='middle' font-family='monospace' font-size='21' font-weight='700' fill='%23EEDDD3'>БЛАНКИ</text></svg>")}
+.s-check::after,.s-effect::after{content:'ПРОВЕРЕНО';position:absolute;pointer-events:none;z-index:4;opacity:0;font:400 46px var(--display);letter-spacing:-.02em;color:var(--accent-strong);border:8px double var(--accent-strong);padding:10px 24px;--tilt:-9deg;background:rgba(41,66,187,.35)}
+.s-check::after{left:1440px;top:520px}
+.s-effect::after{left:140px;top:650px;--tilt:-6deg}
+
+.lane span{display:none}
+.arch .hub h3{font-size:30px}
+.arch .hub{padding:26px 22px}
+.pipe .node.fb h3{font-size:22px}
+
+.seam-label{display:none}
+
+:root{--sweep:#DD824F}
+/* s3, s4, s6 cards: tighter paper labels so the text fits the fixed boxes */
+.arch .node,.check .node,.effect .find{padding:10px 22px;outline-offset:-6px}
+.arch .tag,.check .tag,.effect .tag{padding:2px 10px}
+.arch .hub{padding:22px}
+.check .node,.effect .find{background:var(--paper)}
