@@ -23,6 +23,8 @@ function load(path: string): PlanDocument {
 }
 
 const before = load('demo/before.json');
+// #237: стеллажу для посылок справочник задал зону хранения. Путь «тип без правила» проверяется на демо без этого правила.
+const noRackRule: PlanDocument = { ...before, catalog: { ...before.catalog, rules: before.catalog.rules.filter((rule) => rule.id !== 'rule_parcel_rack_storage') } };
 const after = load('demo/after.json');
 // The demo keeps two displays: the maximum is reached, not exceeded (#120). A third one exceeds it.
 const crowded: PlanDocument = {
@@ -146,6 +148,13 @@ describe('агент без модели', () => {
     expect(answer.recommendations[0]?.scenario).toBe('place');
   });
 
+  test('#237: «кассовое окно ближе к входу» — поиск по расстоянию до входа, первая строка его называет', () => {
+    const routed = routeAgentQuery(before, 'Где поставить кассовое окно ближе к входу?', false);
+    expect(routed[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_cashier_window', near: 'entrance' } });
+    const answer = answerWithoutModel(before, null, 'Где поставить кассовое окно ближе к входу?', 1, 'без LLM');
+    expect(answer.text.split('\n')[0]).toMatch(/до входа \d+(,\d+)? м/);
+  });
+
   test('#178: вопрос из подсказки «Предложить место» — перенос стоящего объекта; «я перенес» — не просьба', () => {
     const answer = answerWithoutModel(before, null, 'Предложить место для eq_1: куда перенести и почему?', 1, 'без LLM');
     expect(answer.steps[0]?.tool).toBe('find_place');
@@ -229,11 +238,11 @@ describe('ответ без модели называет зоны, типы и 
   });
 
   test('зона не названа: тип без правила ищется там, где такие объекты уже стоят, и зона названа', () => {
-    const calls = routeAgentQuery(before, 'куда поставить стеллаж для посылок?', false);
+    const calls = routeAgentQuery(noRackRule, 'куда поставить стеллаж для посылок?', false);
     expect(calls[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_parcel_rack', zoneId: 'z_storage' } });
-    const result = answerWithoutModel(before, null, 'куда поставить стеллаж для посылок?', 1, 'без LLM');
+    const result = answerWithoutModel(noRackRule, null, 'куда поставить стеллаж для посылок?', 1, 'без LLM');
     expect(result.recommendations[0]?.candidates[0]?.object.zoneId).toBe('z_storage');
-    const { text } = answer(before, 'куда поставить стеллаж для посылок?');
+    const { text } = answer(noRackRule, 'куда поставить стеллаж для посылок?');
     expect(text).toContain('«Хранение и посылки» (z_storage)');
     expect(text).toContain('правил для этого типа в справочнике нет');
     // #210: the action line and the note name the zone; «Место в зоне …» does not repeat it.
@@ -305,7 +314,7 @@ describe('ответ без модели называет зоны, типы и 
 
   test('в угаданной зоне места нет — поиск по всему плану, а не «место не найдено»', () => {
     const plan: PlanDocument = {
-      ...before,
+      ...noRackRule,
       zones: before.zones.map((zone) => (zone.id === 'z_storage' ? { ...zone, polygon: [[9.6, 6.2], [10.2, 6.2], [10.2, 6.8], [9.6, 6.8]] } : zone)),
     };
     const result = answerWithoutModel(plan, null, 'куда поставить стеллаж для посылок?', 1, 'без LLM');
@@ -318,7 +327,7 @@ describe('ответ без модели называет зоны, типы и 
 
   test('поровну объектов в двух зонах — первая по порядку плана', () => {
     const storageRacks = before.objects.filter((object) => object.typeId === 'ot_parcel_rack' && object.zoneId === 'z_storage');
-    const plan: PlanDocument = { ...before, objects: before.objects.filter((object) => !storageRacks.slice(1).includes(object)) };
+    const plan: PlanDocument = { ...noRackRule, objects: before.objects.filter((object) => !storageRacks.slice(1).includes(object)) };
     expect(routeAgentQuery(plan, 'куда поставить стеллаж для посылок?', false)[0]?.args.zoneId).toBe('z_back');
   });
 
@@ -343,4 +352,13 @@ describe('ответ без модели называет зоны, типы и 
     const { text } = answer(before, 'Куда поставить пандус?');
     expect(text).toContain(zoneId === null ? 'вне зон' : `(${zoneId})`);
   });
+});
+
+test('эффект изменения первой строкой называет удалённый объект: название, id, инв. №, зона (#238)', () => {
+  const edited: PlanDocument = { ...before, objects: before.objects.filter((object) => object.id !== 'eq_9') };
+  const { text } = answerWithoutModel(edited, before, 'Как мои изменения повлияли на свободную площадь?', 2, 'без LLM');
+  const lead = text.split('\n\n')[0]!;
+  expect(lead.startsWith('Изменения плана: свободно ')).toBe(true);
+  expect(lead).toContain('объектов 53 → 52');
+  expect(lead).toContain('Удалено: «Скамья у зоны очереди» (eq_9) · ИНВ-ДЕМО-009 · «Зона очереди».');
 });

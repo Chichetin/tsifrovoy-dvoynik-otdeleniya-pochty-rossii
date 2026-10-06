@@ -24,7 +24,7 @@ import { layoutZone } from './layout';
 import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
 import { findRelocations } from './relocation';
-import { calculateAdvice } from './index';
+import { calculateAdvice, placementAdvice } from './index';
 
 export type AgentToolState = {
   plan: PlanDocument;
@@ -63,7 +63,13 @@ const argSchemas = {
   plan_overview: z.object({}).passthrough(),
   zone_details: z.object({ zoneId: z.string().min(1) }),
   list_objects: z.object({ typeId: nullableId, zoneId: nullableId }),
-  find_place: z.object({ typeId: nullableId, zoneId: nullableId, objectId: nullableId }),
+  find_place: z.object({
+    typeId: nullableId,
+    zoneId: nullableId,
+    objectId: nullableId,
+    // #237: «ближе к входу»; другое значение не меняет порядок.
+    near: z.string().nullish().transform((value) => (value === 'entrance' ? 'entrance' : null)),
+  }),
   check_equipment: z.object({ zoneId: nullableId }),
   validate_plan: z.object({}).passthrough(),
   compare_with_original: z.object({}).passthrough(),
@@ -99,10 +105,10 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'find_place',
     description:
-      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало. С objectId — новое место для уже стоящего объекта: до трёх проверенных переносов и вариант «оставить как есть», у каждого зона, правила, зазор до стены, свободная площадь, объекты зон и покрытие камерами было → стало; переносы видны призраками, применит человек.',
+      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. near: "entrance" — человек просит ближе к входу: варианты идут по расстоянию до входа. У каждого варианта есть расстояние до ближайшего входа (layout.entrance.after). Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало. С objectId — новое место для уже стоящего объекта: до трёх проверенных переносов и вариант «оставить как есть», у каждого зона, правила, зазор до стены, свободная площадь, объекты зон и покрытие камерами было → стало; переносы видны призраками, применит человек.',
     parameters: {
       type: 'object',
-      properties: { typeId: { type: ['string', 'null'] }, zoneId: { type: ['string', 'null'] }, objectId: { type: ['string', 'null'] } },
+      properties: { typeId: { type: ['string', 'null'] }, zoneId: { type: ['string', 'null'] }, objectId: { type: ['string', 'null'] }, near: { type: ['string', 'null'] } },
     },
   },
   {
@@ -466,14 +472,14 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
     }
 
     case 'find_place': {
-      const { typeId, zoneId, objectId } = argSchemas.find_place.parse(rawArgs);
+      const { typeId, zoneId, objectId, near } = argSchemas.find_place.parse(rawArgs);
       if (objectId !== null) return relocate(state, objectId, zoneId);
       if (typeId === null) return fail(name, 'Поиск места', 'Нужен typeId нового объекта или objectId стоящего.');
       const typeLabel = state.names.objectTypeLabel(typeId);
       if (typeLabel === null) return fail(name, 'Тип оборудования не найден', `Типа «${typeId}» нет в справочнике. Типы — в plan_overview.catalogTypes.`);
       if (zoneId !== null && zoneName(state, zoneId) === null) return fail(name, 'Зона не найдена', `Зоны «${zoneId}» нет в плане.`);
-      const label = `Поиск места: «${typeLabel}»${zoneId === null ? '' : ` в зоне «${zoneName(state, zoneId)}»`}`;
-      const calculated = calculateAdvice(plan, { scenario: 'place', typeId, zoneId });
+      const label = `Поиск места: «${typeLabel}»${zoneId === null ? '' : ` в зоне «${zoneName(state, zoneId)}»`}${near === null ? '' : ', ближе к входу'}`;
+      const calculated = placementAdvice(plan, { scenario: 'place', typeId, zoneId }, near === 'entrance');
       if (!calculated.ok) return fail(name, label, calculated.issues.map((issue) => issue.message).join('; '));
       remember(state, calculated.value);
       for (const entry of calculated.value) state.placementTypes.set(entry.id, typeId);

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { formatArea, formatLength, formatMeasure, formatNumber, formatShort, NBSP } from './number-format';
+import { formatArea, formatLength, formatMeasure, formatNumber, findingsWord, formatShort, NBSP } from './number-format';
 
 describe('числа в интерфейсе по-русски', () => {
   test('дробная часть через запятую, два знака по умолчанию', () => {
@@ -36,4 +36,10 @@ describe('числа в интерфейсе по-русски', () => {
     expect(formatShort(1.25, 2)).toBe('1,25');
     expect(formatShort(0.6, 2)).toBe('0,6');
   });
+});
+
+test('«находка» склоняется по числу', () => {
+  expect([0, 1, 2, 4, 5, 11, 21, 22, 112].map(findingsWord)).toEqual([
+    'находок', 'находка', 'находки', 'находки', 'находок', 'находок', 'находка', 'находки', 'находок',
+  ]);
 });

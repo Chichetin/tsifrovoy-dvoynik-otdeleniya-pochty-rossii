@@ -333,11 +333,6 @@ export function App(): React.JSX.Element {
     if (tabs === initialTabs.current) return;
     saveSideTabs(sideTabsStorage(), tabs);
   }, [tabs]);
-  // #184: the tab to fold the assistant to when «Свойства» open.
-  const lastRightTab = useRef<RightTab>('inventory');
-  useEffect(() => {
-    if (tabs.right !== 'assistant') lastRightTab.current = tabs.right;
-  }, [tabs.right]);
   const showLeftTab = useCallback((left: LeftTab) => {
     setTabs((prev) => (prev.left === left ? prev : { ...prev, left }));
   }, []);
@@ -426,18 +421,9 @@ export function App(): React.JSX.Element {
     },
     [store],
   );
-  // #184: a click on the plan opens «Свойства», so the assistant tab folds to
-  // the tab the person had before it. The selection itself is not touched.
-  const leaveAssistant = useCallback(() => {
-    setTabs((prev) => (prev.right === 'assistant' ? { ...prev, right: lastRightTab.current } : prev));
-  }, []);
-  const planSelect = useCallback(
-    (ref: Ref | null) => {
-      select(ref);
-      if (ref !== null && ref.kind !== 'layer') leaveAssistant();
-    },
-    [select, leaveAssistant],
-  );
+  // #235: a click on the plan keeps an open assistant tab: its question field
+  // and «О выделенном» stay reachable. The card waits until another tab opens.
+  const planSelect = select;
   // #226: a double click on an object turns «Изменить форму» on for it.
   const reshapeObject = useCallback(
     (id: Id) => {
@@ -449,9 +435,8 @@ export function App(): React.JSX.Element {
   const planSelectMany = useCallback(
     (ids: readonly Id[]) => {
       selectMany(ids);
-      if (ids.length > 0) leaveAssistant();
     },
-    [selectMany, leaveAssistant],
+    [selectMany],
   );
 
   const dispatch = useCallback(
@@ -528,6 +513,14 @@ export function App(): React.JSX.Element {
       select(ref);
     },
     [select],
+  );
+  // #235: the inventory walk selects each object itself; its buttons stay visible.
+  const walkFocus = useCallback(
+    (ref: Ref) => {
+      focusOn(ref);
+      setTabsShownFor(store.getState().selection);
+    },
+    [focusOn, store],
   );
   // #25: quick search by Ctrl+K — focus returns where it was when it closes.
   const [searchOpen, setSearchOpen] = useState(false);
@@ -1513,7 +1506,7 @@ export function App(): React.JSX.Element {
                       askAgent(question);
                     }}
                   />
-                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={focusOn} selectedId={selection?.kind === 'object' ? selection.id : null} />
+                  <InventoryWalk document={document} walk={activeWalk} onWalkChange={setWalk} onCommand={dispatch} onFocus={walkFocus} selectedId={selection?.kind === 'object' ? selection.id : null} />
                   <InventoryPanel inventory={inventory} document={document} onFocus={focusOn} />
                 </>
               ),

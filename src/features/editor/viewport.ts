@@ -26,6 +26,16 @@ const FIT_PADDING_PX = 32;
  */
 export const OVERLAY_RESERVE_PX = 188;
 
+/**
+ * Band kept free right of a fitted plan (#236): the «hide interface» and
+ * captions buttons sit in the top-right corner, 2.875rem (46-52 px) from the
+ * edge to their left side. With the padding this keeps the plan extent 80 px
+ * from the right edge; the half wall thickness outside the extent still has a
+ * gap, so a wall or an object never lies under the buttons and a click into
+ * the room corner does not hit one.
+ */
+export const OVERLAY_RIGHT_RESERVE_PX = 48;
+
 /** Fallback when a plan has no extent at all — a fresh, empty document. */
 export const DEFAULT_SCALE = 48;
 
@@ -106,9 +116,9 @@ export function zoomByWheel(viewport: Viewport, anchor: Point, deltaY: number): 
 }
 
 /**
- * Places the given world extent into the canvas with a margin and a free band
- * at the bottom for the overlays. A short canvas gives the band at most a
- * third of its height. An empty or degenerate extent keeps a usable default
+ * Places the given world extent into the canvas with a margin and free bands
+ * at the bottom and on the right for the overlays. A short or narrow canvas
+ * gives each band at most a third of its side. An empty or degenerate extent keeps a usable default
  * instead of dividing by zero.
  */
 export function fitToExtent(
@@ -116,9 +126,11 @@ export function fitToExtent(
   canvas: CanvasSize,
   padding = FIT_PADDING_PX,
   bottomReserve = OVERLAY_RESERVE_PX,
+  rightReserve = OVERLAY_RIGHT_RESERVE_PX,
 ): Viewport {
   const reserve = Math.max(0, Math.min(bottomReserve, canvas.height / 3));
-  const usableWidth = Math.max(1, canvas.width - padding * 2);
+  const right = Math.max(0, Math.min(rightReserve, canvas.width / 3));
+  const usableWidth = Math.max(1, canvas.width - padding * 2 - right);
   const usableHeight = Math.max(1, canvas.height - padding * 2 - reserve);
 
   if (extent.length === 0) {
@@ -140,7 +152,7 @@ export function fitToExtent(
   const centreY = (box.minY + box.maxY) / 2;
   return {
     scale,
-    origin: [canvas.width / 2 - centreX * scale, (canvas.height - reserve) / 2 + centreY * scale],
+    origin: [(canvas.width - right) / 2 - centreX * scale, (canvas.height - reserve) / 2 + centreY * scale],
   };
 }
 

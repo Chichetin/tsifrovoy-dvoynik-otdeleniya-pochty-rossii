@@ -191,6 +191,19 @@
                   "id": "room_main"
                 }
               ]
+            },
+            {
+              "id": "adv_ot_bench_1.layout.entrance.after",
+              "metric": "layout.entrance",
+              "phase": "after",
+              "value": 5.292447,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
             }
           ]
         },
@@ -283,6 +296,19 @@
                   "id": "room_main"
                 }
               ]
+            },
+            {
+              "id": "adv_ot_bench_5.layout.entrance.after",
+              "metric": "layout.entrance",
+              "phase": "after",
+              "value": 6.907966,
+              "unit": "m",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
             }
           ]
         },
@@ -369,6 +395,19 @@
               "phase": "after",
               "value": 4,
               "unit": "count",
+              "refs": [
+                {
+                  "kind": "room",
+                  "id": "room_main"
+                }
+              ]
+            },
+            {
+              "id": "adv_ot_bench_2.layout.entrance.after",
+              "metric": "layout.entrance",
+              "phase": "after",
+              "value": 4.827007,
+              "unit": "m",
               "refs": [
                 {
                   "kind": "room",
@@ -472,6 +511,19 @@
           ]
         },
         {
+          "id": "adv_ot_bench_1.layout.entrance.after",
+          "metric": "layout.entrance",
+          "phase": "after",
+          "value": 5.292447,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
           "id": "adv_ot_bench_5.placement.distance",
           "metric": "placement.distance",
           "phase": "current",
@@ -537,6 +589,19 @@
           ]
         },
         {
+          "id": "adv_ot_bench_5.layout.entrance.after",
+          "metric": "layout.entrance",
+          "phase": "after",
+          "value": 6.907966,
+          "unit": "m",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
           "id": "adv_ot_bench_2.placement.distance",
           "metric": "placement.distance",
           "phase": "current",
@@ -594,6 +659,19 @@
           "phase": "after",
           "value": 4,
           "unit": "count",
+          "refs": [
+            {
+              "kind": "room",
+              "id": "room_main"
+            }
+          ]
+        },
+        {
+          "id": "adv_ot_bench_2.layout.entrance.after",
+          "metric": "layout.entrance",
+          "phase": "after",
+          "value": 4.827007,
+          "unit": "m",
           "refs": [
             {
               "kind": "room",
