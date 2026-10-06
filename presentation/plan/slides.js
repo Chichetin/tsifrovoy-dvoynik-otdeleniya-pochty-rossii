@@ -352,36 +352,20 @@
 </section>
 
 
-<!-- s12 ПОЧЕМУ ЭТО РАБОТАЕТ -->
-<section class="slide s-end" id="s12" data-kind="main" data-title="Итог" aria-label="Почему это работает">
-  <header class="p-head">
-    <p class="eyebrow in">Итог</p>
-    ${title('Главное', 'о сервисе')}
-  </header>
-  <div class="theses">
-    <article class="thesis" data-step="1"><span class="n">1</span><h3>Всё считается из плана</h3><p>Нарисовали план и сразу получили перечень, проверку, 3D и слои.</p></article>
-    <article class="thesis" data-step="2"><span class="n">2</span><h3>Числам ассистента можно доверять</h3><p>Их считает код, а план меняет только человек.</p></article>
-    <article class="thesis" data-step="3"><span class="n">3</span><h3>Новые типы без программиста</h3><p>Тип, зону или правило добавляют в интерфейсе.</p></article>
-  </div>
-  <img class="cat in" src="../assets/brand/cat-quill.webp" alt="" style="left:1540px;top:770px;width:280px">
-  ${note('Перечень, проверка и 3D получаются из плана сами. Числа ассистента посчитаны кодом. Новые типы пользователь добавляет без нас.')}
-</section>
-
-
-<!-- s15 TRIAL (after s12): the summary told through usability; the team picks this or s12 later -->
-<section class="slide s-end s-ux" id="s15" data-kind="main" data-title="Сделано для сотрудника" aria-label="Сделано для сотрудника отделения">
+<!-- s12 ИТОГ: the summary told through usability -->
+<section class="slide s-end s-ux" id="s12" data-kind="main" data-title="Итог" aria-label="Сделано для сотрудника отделения">
   <header class="p-head">
     <p class="eyebrow in">Итог</p>
     ${title('Сделано', 'для сотрудника отделения')}
   </header>
   <p class="ux-lead in">Главная цель — чтобы руководитель отделения, проектировщик и специалист по инвентаризации справлялись без нас.</p>
   <div class="theses">
-    <article class="thesis" data-step="1"><span class="n">1</span><h3>Ошибку видно заранее</h3><p>Силуэт зелёный, жёлтый или красный ещё до постановки. При переносе видны отступы до стен.</p></article>
+    <article class="thesis" data-step="1"><span class="n">1</span><h3>Понятно с первого раза</h3><p>Короткий тур при первом входе, подсказки и интерфейс на русском.</p></article>
     <article class="thesis" data-step="2"><span class="n">2</span><h3>Всё можно вернуть</h3><p>Любая правка отменяется Ctrl+Z. Ассистент сам ничего не двигает, ставит только «Применить».</p></article>
     <article class="thesis" data-step="3"><span class="n">3</span><h3>Программист не нужен</h3><p>Новый тип, зону или правило добавляют формой в «Настройках».</p></article>
-    <article class="thesis" data-step="4"><span class="n">4</span><h3>Понятно с первого раза</h3><p>Короткий тур при первом входе, подсказки и интерфейс на русском.</p></article>
+    <article class="thesis" data-step="4"><span class="n">4</span><h3>Ошибку видно заранее</h3><p>Силуэт зелёный, жёлтый или красный ещё до постановки. При переносе видны отступы до стен.</p></article>
   </div>
-  ${note('Всё, что мы показали, делалось с одной целью: чтобы сотрудник отделения работал с планом сам. Редактор подсказывает до ошибки, любую правку можно отменить, новый тип оборудования добавляется формой, а при первом входе есть короткий тур.')}
+  ${note('Всё, что мы показали, делалось с одной целью: чтобы сотрудник отделения работал с планом сам. При первом входе есть короткий тур, любую правку можно отменить, новый тип оборудования добавляется формой, а редактор подсказывает ещё до ошибки.')}
 </section>
 
 
