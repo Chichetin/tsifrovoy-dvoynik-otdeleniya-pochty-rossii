@@ -105,3 +105,5 @@ h3{font-family:var(--display);font-weight:400;letter-spacing:-.04em}
 .arch .hub h3{font-size:30px}
 .arch .hub{padding:26px 22px}
 .pipe .node.fb h3{font-size:16px}
+
+.seam-label{display:none}

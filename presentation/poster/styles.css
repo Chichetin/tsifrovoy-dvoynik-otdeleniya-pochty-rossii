@@ -69,5 +69,5 @@ h3{font-family:var(--display);font-weight:700;letter-spacing:-.02em}
 
 .lane span{display:none}
 
-.s-title::after{bottom:52px}
+.s-title::after{bottom:64px}
 .s-ai::after,.s-limits::after{top:146px}
