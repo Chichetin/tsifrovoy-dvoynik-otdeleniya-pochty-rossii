@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useRef, useState } from 'react';
+import { dispatchSuggestPlace } from '../../contracts/mode-b-events';
 import type { ObjectType } from '../../contracts/model';
 import type { LibraryPanelProps } from '../../contracts/ui';
 import { typeOutline } from '../../contracts/outline';
@@ -22,7 +23,8 @@ function groupByCategory(types: ObjectType[]): [string, ObjectType[]][] {
 
 export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProps): React.JSX.Element {
   const [query, setQuery] = useState('');
-  const [needType, setNeedType] = useState(false);
+  // Which button asked for a type when none was chosen: the shape or the place (#179).
+  const [needType, setNeedType] = useState<'shape' | 'place' | null>(null);
   // Roving tabindex (#146): the list is one Tab stop, arrows move inside it.
   const [rovingId, setRovingId] = useState<string | null>(null);
   const listRef = useRef<HTMLElement>(null);
@@ -69,21 +71,44 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
         placeholder="Поиск по названию или категории"
         onChange={(event) => setQuery(event.target.value)}
       />
-      {/* D-279: the armed type is drawn as a polygon instead of placed as a box. */}
-      <button
-        type="button"
-        className="files__button library__shape"
-        title="Клики по плану ставят вершины; замкнуть — клик по первой точке, Enter или двойной клик"
-        onClick={() => {
-          setNeedType(activeTypeId === null);
-          if (activeTypeId !== null) onTool({ kind: 'shape.draw', typeId: activeTypeId });
-        }}
-      >
-        Нарисовать свою фигуру
-      </button>
-      {needType && activeTypeId === null ? (
+      {/* Two actions for the chosen type, side by side, wrapping in a narrow column. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: '0.5rem' }}>
+        {/* D-279: the armed type is drawn as a polygon instead of placed as a box. */}
+        <button
+          type="button"
+          className="files__button library__shape"
+          title="Клики по плану ставят вершины; замкнуть — клик по первой точке, Enter или двойной клик"
+          onClick={() => {
+            setNeedType(activeTypeId === null ? 'shape' : null);
+            if (activeTypeId !== null) onTool({ kind: 'shape.draw', typeId: activeTypeId });
+          }}
+        >
+          Нарисовать свою фигуру
+        </button>
+        {/* #179: the assistant's mode B for a new object of the chosen type. The
+            type is disarmed, so a click on the plan does not place it meanwhile. */}
+        <button
+          type="button"
+          className="files__button library__shape"
+          data-testid="library-suggest-place"
+          title={activeTypeId === null
+            ? 'Выберите тип в списке: ассистент предложит до трёх мест для нового объекта'
+            : `Ассистент предложит до трёх мест для нового объекта «${catalog.objectTypes.find((type) => type.id === activeTypeId)?.label ?? activeTypeId}»`}
+          onClick={() => {
+            setNeedType(activeTypeId === null ? 'place' : null);
+            if (activeTypeId === null) return;
+            onTool({ kind: 'select' });
+            dispatchSuggestPlace({ typeId: activeTypeId });
+          }}
+        >
+          Предложить место
+        </button>
+      </div>
+      {needType !== null && activeTypeId === null ? (
         <p className="panel__empty" role="status">
-          Сначала выберите тип в списке — фигура станет объектом этого типа.
+          {needType === 'shape'
+            ? 'Сначала выберите тип в списке — фигура станет объектом этого типа.'
+            : 'Сначала выберите тип в списке — ассистент предложит место для нового объекта.'}
         </p>
       ) : null}
       {groups.length === 0 ? <p className="panel__empty">Ничего не найдено</p> : null}

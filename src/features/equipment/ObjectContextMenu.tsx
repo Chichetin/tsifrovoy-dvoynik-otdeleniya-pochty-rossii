@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { Equipment, Point } from '../../contracts/model';
+import { dispatchSuggestPlace } from '../../contracts/mode-b-events';
 import { OBJECT_MENU_ITEMS, type ObjectMenuAction } from './object-menu';
 
 const EDGE_PX = 8;
@@ -67,6 +68,17 @@ export function ObjectContextMenu({
     items[target]?.focus();
   };
 
+  const guarded = (action: ObjectMenuAction): boolean => action === 'rotate' || action === 'delete' || action === 'place';
+  // A place is found for one object: a group has no single ghost.
+  const disabledFor = (action: ObjectMenuAction): boolean =>
+    (object.locked === true && guarded(action)) || (action === 'place' && count > 1);
+  const titleFor = (action: ObjectMenuAction): string | undefined =>
+    object.locked === true && guarded(action)
+      ? 'Снимите замок объекта в свойствах'
+      : action === 'place' && count > 1
+        ? 'Место подбирается для одного объекта'
+        : undefined;
+
   return (
     <div
       ref={menu}
@@ -87,10 +99,17 @@ export function ObjectContextMenu({
           role="menuitem"
           className="object-menu__item"
           data-testid={`object-menu-${item.action}`}
-          disabled={object.locked === true && (item.action === 'rotate' || item.action === 'delete')}
-          title={object.locked === true && (item.action === 'rotate' || item.action === 'delete')
-            ? 'Снимите замок объекта в свойствах' : undefined}
-          onClick={() => onAction(item.action)}
+          disabled={disabledFor(item.action)}
+          title={titleFor(item.action)}
+          onClick={() => {
+            // #179: the assistant takes the request itself; the menu only closes.
+            if (item.action === 'place') {
+              onClose();
+              dispatchSuggestPlace({ objectId: object.id });
+              return;
+            }
+            onAction(item.action);
+          }}
         >
           <span>{item.label}</span>
           {item.keys === '' ? null : <kbd>{item.keys}</kbd>}

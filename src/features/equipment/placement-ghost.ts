@@ -6,6 +6,7 @@
  * means «refused» before the button is released.
  */
 
+import { readSuggestionGhost, SUGGESTION_GHOST_EVENT, type SuggestionGhost } from '../../contracts/mode-b-events';
 import { TOLERANCE, type Equipment, type Id, type ObjectType, type PlanDocument, type Point } from '../../contracts/model';
 import { findObjectType } from '../../domain/catalog';
 import { applyCommand, newObject } from '../../domain/commands';
@@ -112,4 +113,31 @@ export const placementGhost = {
     ghost = next;
     for (const listener of listeners) listener();
   },
+};
+
+/**
+ * #179: the assistant's chosen place for an object — a dashed outline where it
+ * would stand and an arrow from where it stands now (null for a new object).
+ * The assistant is another feature: it sends `SUGGESTION_GHOST_EVENT`
+ * (contracts/mode-b-events.ts). The window listener lives while the layer is
+ * subscribed; the last ghost stays here, so a remounted canvas draws it again.
+ */
+let suggestion: SuggestionGhost | null = null;
+const suggestionListeners = new Set<() => void>();
+
+function onSuggestion(event: Event): void {
+  suggestion = readSuggestionGhost((event as Event & { detail?: unknown }).detail);
+  for (const listener of suggestionListeners) listener();
+}
+
+export const suggestionGhost = {
+  subscribe(listener: () => void): () => void {
+    if (suggestionListeners.size === 0) window.addEventListener(SUGGESTION_GHOST_EVENT, onSuggestion);
+    suggestionListeners.add(listener);
+    return () => {
+      suggestionListeners.delete(listener);
+      if (suggestionListeners.size === 0) window.removeEventListener(SUGGESTION_GHOST_EVENT, onSuggestion);
+    };
+  },
+  getSnapshot: (): SuggestionGhost | null => suggestion,
 };

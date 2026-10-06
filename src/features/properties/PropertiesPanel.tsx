@@ -25,6 +25,7 @@ import type {
   Zone,
 } from '../../contracts/model';
 import type { Command } from '../../contracts/commands';
+import { dispatchSuggestPlace } from '../../contracts/mode-b-events';
 import type { PropertiesPanelProps } from '../../contracts/ui';
 import { attributeBoundsError, attributeRange, findObjectType, findZoneType } from '../../domain/catalog';
 import { MAINTENANCE_DATE_KEY, maintenanceDateError } from '../../domain/validation';
@@ -688,6 +689,21 @@ export function PropertiesPanel({
         </fieldset>
 
         {layerSelect(object.layerId, (layerId) => ({ ...object, layerId }))}
+
+        {/* #179: the assistant's mode B. The assistant is another feature: the
+            request goes as a window event (contracts/mode-b-events.ts). */}
+        <button
+          type="button"
+          className="files__button"
+          data-testid="props-suggest-place"
+          disabled={object.locked === true}
+          title={object.locked === true
+            ? 'Снимите замок объекта, чтобы искать для него место'
+            : 'До трёх мест на плане и «оставить как есть»; объект не двигается до «Подтвердить»'}
+          onClick={() => dispatchSuggestPlace({ objectId: object.id })}
+        >
+          Предложить место
+        </button>
 
         {hasOwnShape(plan.catalog, object) ? (
           <div className="props__shape" data-testid="props-shape">
