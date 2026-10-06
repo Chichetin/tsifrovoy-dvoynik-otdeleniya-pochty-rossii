@@ -1,0 +1,7 @@
+/* Variant B motion: the orange packet rides the progress track; the background pill drifts slowly.
+   Only transform and opacity move. */
+#rail::after{transform:translateX(calc(var(--progress,0) * 1430px));transition:transform .48s var(--ease-io)}
+.bg::after{animation:float 30s var(--ease-io) infinite alternate}
+@keyframes float{from{transform:translate3d(0,0,0)}to{transform:translate3d(60px,-30px,0)}}
+@media (prefers-reduced-motion:reduce){.bg::after{animation:none}#rail::after{transition:none}}
+.static .bg::after{animation:none}

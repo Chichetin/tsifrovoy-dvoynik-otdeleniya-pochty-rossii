@@ -1,0 +1,12 @@
+/* Slide-specific motion shared by every variant (transform, opacity, box-shadow only). */
+.s-effect .term{transition:transform .9s var(--ease-io)}
+.s-effect .dim{transition:transform .9s var(--ease-io)}
+.s-effect .trigger.on ~ .dimension .term{transform:translateX(655.5px)}
+.s-effect .trigger.on ~ .dimension .dim{transform:scaleX(.34)}
+.s-ai .node.gate{transition:box-shadow .4s var(--ease-out),border-color .4s var(--ease-out)}
+.s-ai .node.gate.on{box-shadow:0 0 0 2px var(--accent),0 0 48px var(--glow)}
+.s-chain .link-card{transition:opacity .32s var(--ease-out),transform .32s var(--ease-out),visibility 0s}
+.s-chain .link-card.done{opacity:.62}
+.q.done,.col.done{opacity:.72}
+.static .s-effect .term,.static .s-effect .dim{transition:none}
+@media (prefers-reduced-motion:reduce){.s-effect .term,.s-effect .dim{transition:none}}
