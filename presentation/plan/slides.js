@@ -41,6 +41,7 @@
     'print-sheet': 'print-sheet',
     versions: 'versions',
     'walk-3d': 'walk-3d',
+    'visitor-3d': 'visitor-3d',
     'smart-place': 'smart-place',
     'tour-card': 'tour-card',
     'csv-export': 'csv-export',
@@ -141,9 +142,18 @@
     <p class="eyebrow in">3D и слои</p>
     ${title('3D и слои', 'из того же плана')}
   </header>
-  <div style="position:absolute;left:96px;top:330px;width:1000px">
+  <div class="view3d-box">
     ${frame('view-3d', 'Тот же план в 3D', 'solo')}
-    <p class="cap">3D строится из плана. Своего состояния не хранит. Все 25 типов — узнаваемые модели.</p>
+    <p class="corner">25 типов — узнаваемые модели</p>
+  </div>
+  <div class="walk">
+    ${frame('visitor-3d', 'Зал глазами посетителя, камера на высоте 1,6 м', 'eye')}
+    <div class="walk-text">
+      <p class="tag">Вид от первого лица</p>
+      <h3>Можно пройтись по залу</h3>
+      <p class="keys"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> или стрелки — ходить</p>
+      <p class="keys"><kbd>Shift</kbd> — быстрее · мышь — осмотреться</p>
+    </div>
   </div>
   <div class="stack shotbox" style="left:1160px;top:330px;width:664px;height:373px">
     ${frame('layers-cameras', 'Слой камер с зонами обзора')}
@@ -153,7 +163,7 @@
   <ul class="chips layer-list" style="left:1160px;top:740px;width:664px">
     ${layers.map((name, i) => `<li data-step="${i + 1}">${name}</li>`).join('')}
   </ul>
-  ${note('3D строится из текущего плана: правка в 2D сразу видна в 3D. Информационные слои рисуют расчёт поверх плана: обзор камер, нагрузку зон, сотрудников, очередь и состояние оборудования.')}
+  ${note('3D строится из текущего плана и своего состояния не хранит: правка в 2D сразу видна в 3D. Кнопка «Глазами посетителя» ставит камеру у входа на высоте 1,6 м. Дальше по залу можно ходить клавишами WASD или стрелками, Shift — быстрее, мышью — осматриваться. Сквозь стены камера не проходит. Информационные слои рисуют расчёт поверх плана: обзор камер, нагрузку зон, сотрудников, очередь и состояние оборудования.')}
 </section>
 
 
