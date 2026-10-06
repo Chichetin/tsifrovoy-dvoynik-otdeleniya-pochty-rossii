@@ -1810,6 +1810,12 @@ span.inventory__num {
   font-size: 0.75rem;
 }
 
+.inventory__table td:first-child {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
 .inventory__table td,
 .inventory__table td .table__link {
   vertical-align: top;
