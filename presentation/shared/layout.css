@@ -161,7 +161,6 @@ h3{font:600 28px/1.2 var(--display);letter-spacing:-.01em}
 /* ===== s6 effect: the same check, run again ===== */
 .s-effect .sl-head{width:520px}
 .s-effect .lead{max-width:500px}
-.effect .src{position:absolute;left:96px;top:850px;width:500px;font:400 22px/1.45 var(--body);color:var(--text-muted);padding-left:20px;border-left:2px solid var(--accent)}
 .effect{left:0;top:0;width:1920px;height:1080px;pointer-events:none}
 .effect .finds{position:absolute;left:680px;top:170px;width:1144px;display:grid;grid-template-columns:1fr 1fr;gap:32px}
 .effect .find{position:relative;height:214px;padding:18px 24px;background:var(--surface)}
@@ -235,7 +234,6 @@ h3{font:600 28px/1.2 var(--display);letter-spacing:-.01em}
 .bench td{padding:20px 0;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
 .bench tr.hit td{color:var(--accent);font-weight:600}
 .bench .stats{display:flex;gap:80px;list-style:none;margin-top:46px}
-.bench .foot{margin-top:40px;font:400 22px/1.5 var(--body);color:var(--text-muted)}
 .s-stack .stack{left:96px;top:430px;width:1728px;display:grid;grid-template-columns:repeat(4,402px);column-gap:40px}
 .stack .col{border-top:1px solid var(--border);padding-top:22px}
 .stack h3{font-size:30px;margin-bottom:20px}
