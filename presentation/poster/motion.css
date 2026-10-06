@@ -1,0 +1,5 @@
+/* Variant D motion: the blue band at the top breathes by sliding its stripe; only transform and opacity. */
+.chrome::after{animation:stripe 14s var(--ease-io) infinite alternate}
+@keyframes stripe{from{transform:translateX(0)}to{transform:translateX(-120px)}}
+@media (prefers-reduced-motion:reduce){.chrome::after{animation:none}}
+.static .chrome::after{animation:none}

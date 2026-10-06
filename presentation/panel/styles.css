@@ -1,0 +1,65 @@
+/* Variant C «Пульт» — instrument panel: navy field, brand-blue panels, thin lines, Tektur for headings and numbers
+   (as in the team's previous deck), JetBrains Mono for readouts. Orange stays for findings and changes. */
+@font-face{font-family:Tektur;src:url(../assets/fonts/tektur-cyrillic-wght-normal.woff2) format('woff2');font-weight:400 900;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Tektur;src:url(../assets/fonts/tektur-latin-wght-normal.woff2) format('woff2');font-weight:400 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:Onest;src:url(../assets/fonts/onest-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:Onest;src:url(../assets/fonts/onest-latin-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:'JetBrains Mono';src:url(../assets/fonts/jetbrains-mono-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 800;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
+@font-face{font-family:'JetBrains Mono';src:url(../assets/fonts/jetbrains-mono-latin-wght-normal.woff2) format('woff2');font-weight:100 800;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{
+  --bg:#191D2E;--surface:#2942BB;--surface-elevated:#26316F;
+  --text:#fff;--text-muted:rgba(255,255,255,.68);--brand-primary:#2942BB;--brand-secondary:#555FA3;
+  --accent:#EB9C64;--accent-strong:#DD824F;--border:rgba(255,255,255,.24);--glow:rgba(235,156,100,.4);
+  --cream:#EEDDD3;--navy:#191D2E;--stage-bg:#0f111c;
+  --ease-out:cubic-bezier(.23,1,.32,1);--ease-io:cubic-bezier(.77,0,.175,1);
+  --display:'Tektur',sans-serif;--body:'Onest',sans-serif;--mono:'JetBrains Mono',monospace;color-scheme:dark;
+}
+body{font-family:var(--body);color:var(--text)}
+.bg{position:absolute;inset:0;overflow:hidden;background:
+  radial-gradient(rgba(255,255,255,.13) 1.3px,transparent 1.6px) 0 0/48px 48px,
+  radial-gradient(60% 75% at 88% 28%,rgba(41,66,187,.7),transparent 65%),
+  radial-gradient(50% 60% at 0% 100%,rgba(41,66,187,.35),transparent 65%),var(--bg)}
+.bg::before{content:'';position:absolute;inset:0;box-shadow:inset 0 0 0 1px var(--border);margin:20px}
+.bg::after{content:'';position:absolute;left:0;right:0;top:0;height:200px;background:linear-gradient(transparent,rgba(255,255,255,.05),transparent)}
+.seam{display:none}
+.chrome{position:absolute;left:96px;right:96px;top:44px;z-index:5;display:flex;align-items:center;gap:22px}
+.logo{height:46px}.seal{height:54px}
+.chrome-title{margin-left:auto;font:500 18px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)}
+.chrome-foot{position:absolute;left:96px;right:96px;bottom:44px;z-index:5;display:flex;align-items:center;gap:32px}
+#rail{flex:1;display:flex;gap:14px;align-items:center}
+#rail i{flex:none;width:12px;height:12px;border:1px solid var(--border);transition:background .3s var(--ease-out),border-color .3s var(--ease-out)}
+#rail i.on{background:var(--text);border-color:var(--text)}
+#counter{font:500 20px var(--mono);color:var(--text-muted);min-width:90px;text-align:right}
+#timer{display:none;font:500 20px var(--mono);color:var(--text-muted);min-width:90px}
+#timer.show{display:block}#timer.low{color:var(--accent)}
+#notes{display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;padding:16px 28px;background:rgba(25,29,46,.96);font:400 20px/1.5 var(--body);color:#fff}
+#notes.show{display:block}
+
+/* voice: Tektur headings, panels with corner marks */
+.title{font:500 62px/1.08 var(--display);letter-spacing:-.01em}
+.s-title .title{font-size:118px;line-height:1.02;letter-spacing:-.02em}
+.s-ai .title .ln{font-size:56px}
+.s-arch .title{font-size:50px}
+.s-check .title{font-size:54px}
+.s-chain .title,.s-limits .title{font-size:60px}
+h3{font-family:var(--display);font-weight:600;letter-spacing:0}
+.q h3{font-weight:500;font-size:38px}
+.node h3,.view h3{font-size:25px}
+.big,.counters b,.deltas b,.stats b,.row{font-family:var(--display);font-weight:600}
+.panel-corners,.node,.shot,.catalog img,.portrait,.link-card,.limits .col,.stack .col,.flow li{position:relative}
+.shot{border-color:var(--text);box-shadow:0 0 0 6px rgba(255,255,255,.06),0 30px 80px rgba(0,0,0,.5)}
+.arch .hub{background:var(--surface);border-color:var(--text)}
+.node.input,.node.view{background:rgba(255,255,255,.05)}
+.link-card,.limits .col,.stack .col,.flow li{background:rgba(255,255,255,.04);border:1px solid var(--border);border-top:3px solid var(--accent-strong);padding:26px}
+.limits .edge{border-top-color:var(--accent)}
+.chain .rail-line{display:none}
+.portrait{border-color:var(--text)}
+.q{background:rgba(255,255,255,.04);border:1px solid var(--border);border-left:4px solid var(--accent-strong);padding:22px 34px}
+.qa{gap:26px}
+.counters p{background:var(--surface);border:0;padding:18px 24px 20px}
+.counters b{color:var(--text)}
+.s-format .code{background:var(--surface);border-left-color:var(--accent)}
+.lane{border-top-color:var(--border)}
+.bench th,.bench td{border-color:var(--border)}
+
+.seam-label,.lane span{display:none}
