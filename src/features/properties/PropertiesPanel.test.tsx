@@ -402,7 +402,7 @@ describe('пустое состояние', () => {
   });
 });
 
-describe('смена типа зоны всегда переименовывает её в название типа', () => {
+describe('смена типа зоны переименовывает только название по умолчанию', () => {
   /** Живая карточка на `nested.json`: там три типа зон, между которыми есть что переключать. */
   function LiveNested({ selection }: { selection: Ref | null }): React.JSX.Element {
     const [document, setDocument] = useState(nestedPlan);
@@ -432,14 +432,14 @@ describe('смена типа зоны всегда переименовывае
     expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Склад посылок');
   });
 
-  test('введённое руками название смена типа заменяет (D-265)', () => {
+  test('введённое руками название смена типа не затирает (D-265, #215)', () => {
     render(<LiveNested selection={{ kind: 'zone', id: 'z_service' }} />);
 
-    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Операционный зал' } });
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Склад посылок' } });
     fireEvent.change(screen.getByLabelText('Тип зоны'), { target: { value: 'zt_waiting' } });
 
     expect(screen.getByLabelText<HTMLSelectElement>('Тип зоны').value).toBe('zt_waiting');
-    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Зона ожидания');
+    expect(screen.getByLabelText<HTMLInputElement>('Название').value).toBe('Склад посылок');
   });
 
   test('автоматическое имя новой зоны «Зона N» заменяется названием типа', () => {

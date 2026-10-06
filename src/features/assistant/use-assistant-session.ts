@@ -4,7 +4,7 @@ import type { AgentAnswer, AgentExchange, AssistantAction } from '../../contract
 import type { Command } from '../../contracts/commands';
 import type { Id, PlanDocument, Ref, Result } from '../../contracts/model';
 import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../contracts/ui';
-import { candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
+import { answerWithoutModel, appliedEffectLine, candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
 import { requestAgent, turnsOf } from './agent-client';
 
@@ -26,6 +26,8 @@ function editGhostsOf(commands: readonly Command[]): EditsPreview {
 
 /** #176: hints are on until the person turns them off. The one place to change the default. */
 export const HINTS_DEFAULT_ENABLED = true;
+/** #211: the note under the draft — the calculation is shown, the model is still writing. */
+export const DRAFT_REASON = 'расчёт показан сразу; модель ещё пишет объяснение — ответ обновится.';
 /** #176: a hint waits for the plan to settle — after a drag ends, not at each of its steps. */
 export const HINTS_DEBOUNCE_MS = 600;
 const HINTS_STORAGE_KEY = 'ops-twin.assistant-hints.v1';
@@ -291,6 +293,19 @@ export function useAssistantSession({
       };
       setActionStatus(null);
       setExchanges((previous) => [...previous, { id, question, revision, steps: [], answer: null, error: null }]);
+      // #211: the calculation answers at once, in the browser; the model's
+      // answer replaces it when it comes. After the question is on screen.
+      let draft: AgentAnswer | undefined;
+      window.setTimeout(() => {
+        if (sequence !== chatSequence.current) return;
+        try {
+          draft = answerWithoutModel(document, baseline, question, revision, DRAFT_REASON);
+        } catch {
+          return;
+        }
+        const shown = draft;
+        update((exchange) => (exchange.answer === null ? { ...exchange, draft: shown } : exchange));
+      }, 0);
       const input = { plan: document, revision, query: question, history: turnsOf(exchanges), before: baseline };
       void requestAgent(input, (step) => update((exchange) => ({ ...exchange, steps: [...exchange.steps, step] }))).then((result) => {
         if (sequence !== chatSequence.current) return;
@@ -298,7 +313,14 @@ export function useAssistantSession({
           update((exchange) => ({ ...exchange, error: result.issues.map((issue) => issue.message).join('; ') }));
           return;
         }
-        const answer = result.value;
+        // Without the model, the server's answer may stand on the few tools the
+        // model ran before it failed; a draft whose calculation understood the
+        // question (it ran tools) answers the question itself.
+        const answer =
+          result.value.mode !== 'llm' && draft !== undefined && draft.steps.length > 0
+            ? // The draft's own note says «ответ обновится»: the final answer never keeps it.
+              { ...draft, fallbackReason: result.value.fallbackReason ?? 'текст собран расчётом.' }
+            : result.value;
         update((exchange) => ({ ...exchange, answer }));
         // The agent shows what it found: the offered variant ghosted on the
         // plan, otherwise a ring round the first entity of the answer.
@@ -398,9 +420,13 @@ export function useAssistantSession({
           // A refused batch leaves the plan as it was: the ghosts stay to explain it.
           if (result.ok) setEditGhosts(null);
           const added = editGhostsOf(commands).put.filter((object) => !state.document.objects.some((entry) => entry.id === object.id));
+          // #212: what the applied edits did, «было → стало», counted by code;
+          // the other variants of the answer go stale with the plan revision.
+          const effect = result.ok ? appliedEffectLine(state.document, current().document, proposal.findings.errors) : null;
+          const what = proposal.title?.split(':')[0] ?? `правок: ${commands.length}`;
           setActionStatus(
             result.ok
-              ? `Применено правок: ${commands.length}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Отменить — Ctrl+Z.`
+              ? `Применено: ${what}${effect === null ? '' : ` — ${effect}`}.${added.length === 0 ? '' : ` Новые объекты: ${added.map((object) => object.id).join(', ')}.`} Остальные варианты устарели. Отменить — Ctrl+Z.`
               : `Не применено, план не изменён: ${result.issues.map((issue) => issue.message).join('; ')}`,
           );
           return;

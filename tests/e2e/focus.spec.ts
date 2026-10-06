@@ -78,12 +78,14 @@ async function selectByLabel(page: Page, label: string): Promise<string> {
   return (id as string).trim();
 }
 
-/** Утаскивает вид рукой так, чтобы найденный объект ушёл за край холста. */
+/** Утаскивает вид пробелом и мышью так, чтобы найденный объект ушёл за край холста. */
 async function panAway(page: Page): Promise<void> {
   const box = await canvas(page).boundingBox();
   expect(box).not.toBeNull();
   const { x, y, width, height } = box as { x: number; y: number; width: number; height: number };
-  await page.getByRole('button', { name: 'Обзор', exact: true }).click();
+  // #115: no separate pan tool — Space + drag pans in any tool.
+  await page.getByTestId('editor-canvas').focus();
+  await page.keyboard.down('Space');
   // Три взмаха: один сдвигает вид меньше чем на половину холста, а объект после
   // перехода стоит ровно в его середине.
   for (let stroke = 0; stroke < 3; stroke += 1) {
@@ -93,7 +95,7 @@ async function panAway(page: Page): Promise<void> {
     await page.mouse.move(x + 20, y + height / 2, { steps: 2 });
     await page.mouse.up();
   }
-  await page.getByRole('button', { name: 'Выбор', exact: true }).click();
+  await page.keyboard.up('Space');
 }
 
 test.describe('холст показывает то, о чём спрашивают', () => {
@@ -229,6 +231,7 @@ test.describe('холст показывает то, о чём спрашива�
 
     // Проверка нашла его: сотрудник видит название, а стабильный `id` остаётся
     // в структурном атрибуте ссылки и не загромождает подпись (D-235).
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
     await showTab(page, 'Проверка');
     const finding = page
       .getByLabel('Проверка плана')
@@ -249,6 +252,8 @@ test.describe('холст показывает то, о чём спрашива�
     await panAway(page);
     expect(await sees(page, OUTSIDE.x, OUTSIDE.y)).toBe(false);
 
+    // После #222 вкладки скрыты, пока объект выделен: снимаем выделение.
+    await page.keyboard.press('Escape');
     await showTab(page, 'Инвентаризация');
     await page
       .getByLabel('Инвентаризация')
@@ -260,6 +265,8 @@ test.describe('холст показывает то, о чём спрашива�
 
     // Объект, который и так виден целиком, вид не дёргает: масштаб тот же.
     const settled = await scale(page);
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
+    await showTab(page, 'Инвентаризация');
     await page
       .getByLabel('Инвентаризация')
       .getByRole('button', { name: MOVED_LABEL, exact: true })

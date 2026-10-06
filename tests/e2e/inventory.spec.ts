@@ -202,6 +202,9 @@ test.describe('перечень оборудования', () => {
     }
     await expect(checks.getByRole('checkbox', { name: 'Показать технические детали' })).toHaveCount(0);
     await terminal.first().click();
+    // #225: выбранная находка сначала показана карточкой находки, «Свойства» — по ссылке из неё.
+    await expect(page.getByTestId('finding-card')).toHaveAttribute('data-ref-id', 'eq_1');
+    await page.getByTestId('finding-open-props').click();
     await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'eq_1');
   });
 

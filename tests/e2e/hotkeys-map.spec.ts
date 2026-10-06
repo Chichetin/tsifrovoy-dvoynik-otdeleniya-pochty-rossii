@@ -91,6 +91,8 @@ test.describe('карта горячих клавиш', () => {
   test('? в поле карточки правит текст, накладка не открывается', async ({ page }) => {
     await page.goto('/');
     await placeFromLibrary(page, RACK, 420, 330);
+    // После #222 вкладки скрыты, пока объект выделен: снимаем выделение.
+    await page.keyboard.press('Escape');
     await showTab(page, 'Инвентаризация');
     await page.getByLabel('Инвентаризация').locator('table').first().locator('tbody tr').first().getByRole('button').first().click();
 
@@ -105,6 +107,7 @@ test.describe('карта горячих клавиш', () => {
   test('Delete не проходит к плану, пока открыта накладка', async ({ page }) => {
     await page.goto('/');
     await placeFromLibrary(page, RACK, 420, 330);
+    await page.keyboard.press('Escape'); // #222: вкладки скрыты при выделении
     await selectRow(page, 0);
     await expect(inventoryRows(page)).toHaveCount(1);
 

@@ -54,18 +54,23 @@ test('копия без номера — предупреждение с наз�
   ).toBeVisible();
   const ref = missing.getByRole('button', { name: 'Терминал электронной очереди' });
   await expect(ref).toHaveAttribute('data-ref-id', 'eq_54');
-  // The committed snapshot is refreshed on request only, so an ordinary run
-  // does not rewrite a tracked file: UPDATE_SNAPSHOTS=1 npx playwright test …
+  // The snapshot is taken on request only: UPDATE_SNAPSHOTS=1 npx playwright test …
+  // It goes to test-results/, not to the repository (#162).
   await missing.scrollIntoViewIfNeeded();
   if (process.env['UPDATE_SNAPSHOTS'] === '1') {
     await page.screenshot({
-      path: 'docs/verification/2026-09-29-inventory-number/missing-number-finding.png',
+      path: test.info().outputPath('missing-number-finding.png'),
       clip: (await missing.boundingBox()) ?? undefined,
     });
   }
 
   // Ссылка — клавиатурой: фокус на кнопке, Enter выбирает копию.
   await ref.focus();
+  await page.keyboard.press('Enter');
+  // #225: выбранная находка открывается карточкой находки; «Свойства» — по ссылке из неё.
+  const finding = page.getByTestId('finding-card');
+  await expect(finding).toHaveAttribute('data-ref-id', 'eq_54');
+  await finding.getByTestId('finding-open-props').focus();
   await page.keyboard.press('Enter');
   await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_54');
 

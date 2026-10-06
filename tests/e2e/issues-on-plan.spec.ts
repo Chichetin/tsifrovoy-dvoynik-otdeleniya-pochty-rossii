@@ -9,7 +9,7 @@
 
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
-import { showTab, sideTab } from './side-tabs';
+import { openRightTab, showTab } from './side-tabs';
 
 const EXAMPLE = join(process.cwd(), 'example_plan.json');
 
@@ -71,6 +71,7 @@ async function clickOnCanvas(page: Page, point: ScreenPoint): Promise<void> {
 }
 
 const card = (page: Page): Locator => page.getByLabel('Свойства');
+const findingCard = (page: Page): Locator => page.getByTestId('finding-card');
 
 async function numberOf(page: Page, label: string): Promise<number> {
   return Number(await card(page).getByLabel(label).inputValue());
@@ -174,50 +175,53 @@ test('клик по кружочку маркера открывает нахо�
 
   // Координаты стеллажа записаны безопасным путём — строкой списка, ещё до
   // клика по маркеру, чтобы ниже проверить, что клик по маркеру не толкнул
-  // объект под собой (не начал перетаскивание).
+  // объект под собой (не начал перетаскивание). #225: строка списка открывает
+  // карточку находки, «Свойства» — по ссылке из неё.
   await showTab(page, 'Проверка');
   const validation = page.getByLabel('Проверка плана');
   await validation.locator('button[data-ref-id="eq_rack_1"]').first().click();
+  await expect(findingCard(page)).toHaveAttribute('data-ref-id', 'eq_rack_1');
+  await findingCard(page).getByTestId('finding-open-props').click();
   const baselineX = await numberOf(page, 'X, м');
   const baselineY = await numberOf(page, 'Y, м');
   const markerPoint = await markerCentre(page, 'issue-marker:object:eq_rack_1');
   expect(markerPoint).not.toBeNull();
 
   // Выбор другого объекта прямо на плане — тем же путём, каким жюри выберет
-  // мышью: «Свойства» слева, правая колонка не трогается (D-268).
+  // мышью: «Свойства» справа, открытая вкладка под карточкой не меняется (#222).
   const otherPoint = await nodeCentre(page, '.equipment-eq_back_wp');
   expect(otherPoint).not.toBeNull();
   await clickOnCanvas(page, otherPoint as { x: number; y: number });
   await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_back_wp');
-  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
+  await expect(openRightTab(page)).toHaveText(/^Проверка/);
 
   // Во время рисования клик по тому же месту остаётся клик инструмента:
-  // список не открывается и выбор на плане не меняется. Escape здесь не
+  // находка не открывается и выбор на плане не меняется. Escape здесь не
   // нажимаем — он всегда снимает выделение вместе с черновиком контура
   // (комментарий EditorCanvas), а тут проверяется именно судьба выделения.
+  // Под карточкой — «Инвентаризация»: её открывают без выбора, затем выбирают снова.
   await showTab(page, 'Инвентаризация');
+  await clickOnCanvas(page, otherPoint as { x: number; y: number });
+  await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_back_wp');
   await page.getByRole('button', { name: 'Комната', exact: true }).click();
   await clickOnCanvas(page, markerPoint as { x: number; y: number });
-  await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
-  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'false');
+  await expect(openRightTab(page)).toHaveText(/^Инвентаризация/);
+  await expect(findingCard(page)).toHaveCount(0);
   await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_back_wp');
   await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
-  // Клик по кружочку маркера в «Выбор»: открывает «Проверку» развёрнутой, а
-  // не сворачивает до «Свойств» (путь focusOn, не selectOnPlan), сущность
-  // выбрана на плане, и клик не провалился в объект под маркером.
+  // Клик по кружочку маркера в «Выбор»: открывает находку (путь focusOn, не
+  // selectOnPlan) и ставит «Проверку» под карточку, сущность выбрана на
+  // плане, и клик не провалился в объект под маркером.
   await clickOnCanvas(page, markerPoint as { x: number; y: number });
-  await expect(sideTab(page, 'Проверка')).toHaveAttribute('aria-selected', 'true');
-  await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_rack_1');
-  expect(await numberOf(page, 'X, м')).toBeCloseTo(baselineX, 3);
-  expect(await numberOf(page, 'Y, м')).toBeCloseTo(baselineY, 3);
+  await expect(openRightTab(page)).toHaveText(/^Проверка/);
+  await expect(findingCard(page)).toHaveAttribute('data-ref-id', 'eq_rack_1');
   await expect
     .poll(async () => (await markers(page)).find((m) => m.focused)?.id)
     .toBe('issue-marker:object:eq_rack_1');
 
-  // Находки стеллажа в списке выделены и первая — в зоне видимости.
+  // Находки стеллажа в списке «Проверки» выделены (список под карточкой).
   const highlighted = validation.locator('.issues__item.is-focused');
-  await expect(highlighted.first()).toBeInViewport();
   const highlightedCount = await highlighted.count();
   expect(highlightedCount).toBeGreaterThan(0);
   const allAboutRack = await highlighted.evaluateAll((nodes) =>
@@ -230,6 +234,11 @@ test('клик по кружочку маркера открывает нахо�
   expect(allAboutRack).toBe(true);
   const ariaCurrentCount = await validation.locator('.issues__item[aria-current="true"]').count();
   expect(ariaCurrentCount).toBe(highlightedCount);
+
+  await findingCard(page).getByTestId('finding-open-props').click();
+  await expect(card(page)).toHaveAttribute('data-entity-id', 'eq_rack_1');
+  expect(await numberOf(page, 'X, м')).toBeCloseTo(baselineX, 3);
+  expect(await numberOf(page, 'Y, м')).toBeCloseTo(baselineY, 3);
 
   expect(errors).toEqual([]);
 });

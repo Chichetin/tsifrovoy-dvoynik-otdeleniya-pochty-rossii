@@ -27,15 +27,18 @@ import { SCHEMA_VERSION, TOLERANCE } from '../../contracts/model';
 import { parseCatalog, parsePlanDocument } from '../../contracts/schema';
 import { validateCatalog } from '../catalog';
 import { checkEquipment } from './equipment';
-import { contains, footprint, polygonSegmentDistance } from '../geometry';
+import { contains, footprint, intersects, openingCentre, polygonSegmentDistance } from '../geometry';
 import { validatePlan } from '../validation';
 import {
   PLACEMENT_ISSUE_CODES,
   PLACEMENT_SEARCH,
+  SERVICE_LINE,
   centreZoneId,
   findPlacements,
   placementZonePath,
+  searchPlacements,
   separationFor,
+  serviceLineSegments,
   spreadApart,
   zoneFit,
 } from './placement';
@@ -940,7 +943,8 @@ describe('A-fit: минимум — не запрет, расстановка п
     });
     if (!parsed.ok) throw new Error('data/catalog не разобрался');
     const home: Rule = countRule('rule_parcel_rack_storage', 'zt_storage', 'ot_parcel_rack', 0, null);
-    const real = parsed.value;
+    // #237: правило уже в справочнике — сравниваем с ним и без него.
+    const real: Catalog = { ...parsed.value, rules: parsed.value.rules.filter((rule) => rule.id !== home.id) };
     const extended: Catalog = { ...real, rules: [...real.rules, home] };
     expect(validateCatalog(extended)).toEqual([]);
 
@@ -1035,5 +1039,166 @@ describe('#177: место для стоящего объекта', () => {
     expect(relocations(document, 'eq_desk').map((option) => option.kind)).toEqual(['keep']);
     const missing = findRelocations(document, { objectId: 'eq_none', zoneId: null });
     expect(missing.ok ? null : missing.issues[0]!.code).toBe(PLACEMENT_ISSUE_CODES.OBJECT_MISSING);
+  });
+});
+
+describe('#213: окно и рабочее место — вдоль линии обслуживания, не в проходе', () => {
+  /** Зоны, в которые отпечаток заходит, кроме своей зоны и её родителей. */
+  function strayZones(document: PlanDocument, candidate: Equipment): string[] {
+    const parents = new Map(document.zones.map((entry) => [entry.id, entry.parentId]));
+    const chain = new Set<string>();
+    for (let current = candidate.zoneId; current !== null && current !== undefined && !chain.has(current); current = parents.get(current) ?? null) {
+      chain.add(current);
+    }
+    const shape = footprint(candidate);
+    return document.zones.filter((entry) => !chain.has(entry.id) && intersects(shape, entry.polygon)).map((entry) => entry.id);
+  }
+
+  test('демо: линия обслуживания — граница клиентского зала со служебной стороной', () => {
+    const demo = demoBefore();
+    const segments = serviceLineSegments(demo);
+    expect(segments.length).toBeGreaterThan(0);
+    for (const segment of segments) {
+      // Нормаль смотрит в клиентский зал.
+      const mid: Point = [(segment.from[0] + segment.to[0]) / 2, (segment.from[1] + segment.to[1]) / 2];
+      const probe: Point = [mid[0] + segment.inward[0] * 0.2, mid[1] + segment.inward[1] * 0.2];
+      expect(centreZoneId(demo, probe)).not.toBeNull();
+    }
+  });
+
+  test('демо: окно и рабочее место не у входа и не на границе двух зон; окно — в ряду окон', () => {
+    const demo = demoBefore();
+    const walls = new Map(demo.walls.map((wall) => [wall.id, wall]));
+    const entrances = demo.openings
+      .filter((opening) => opening.kind === 'entrance')
+      .map((opening) => openingCentre(opening, walls.get(opening.wallId)!));
+    expect(entrances.length).toBeGreaterThan(0);
+
+    // Было: окно (4,83; 0,93) и рабочее место (4,83; 0,82) — между зоной
+    // ожидания и входной зоной, в проходе; (8,38; 2,52) — между входной зоной и очередью.
+    for (const typeId of SERVICE_LINE.objectTypeIds) {
+      const candidates = values(demo, typeId, null);
+      expect(candidates.length, typeId).toBeGreaterThan(0);
+      for (const candidate of candidates) {
+        const shape = footprint(candidate.object);
+        for (const entrance of entrances) {
+          expect(polygonSegmentDistance(shape, entrance, entrance), `${typeId} ${candidate.id} у входа`).toBeGreaterThanOrEqual(
+            SERVICE_LINE.entranceClearance_m - TOLERANCE.coordinate_m,
+          );
+        }
+        expect(strayZones(demo, candidate.object), `${typeId} ${candidate.id} на границе зон`).toEqual([]);
+      }
+    }
+
+    // Перегородки к служебным зонам в демо заняты дверями — линия обслуживания
+    // там ряд окон: первый вариант продолжает его с тем же поворотом.
+    const windows = demo.objects.filter((entry) => entry.typeId === 'ot_cashier_window');
+    const [first] = values(demo, 'ot_cashier_window', null);
+    expect(first!.object.rotation_deg).toBe(windows[0]!.rotation_deg);
+    expect(first!.object.position[1]).toBeCloseTo(windows[0]!.position[1], 6);
+    for (const window of windows) expect(window.position[1]).toBeCloseTo(windows[0]!.position[1], 6);
+  });
+
+  test('граница клиентского зала со служебной зоной: первый вариант у неё, лицом в зал', () => {
+    const WINDOW: ObjectType = { ...DESK, id: 'ot_cashier_window', label: 'Кассовое окно' };
+    const document = plan({
+      zones: [
+        zone('z_client', 'zt_client', [[0, 0], [6, 0], [6, 8], [0, 8]]),
+        zone('z_service', 'zt_service', [[6, 0], [10, 0], [10, 8], [6, 8]]),
+      ],
+      catalog: { ...catalog(), objectTypes: [DESK, BLOCK, CAMERA, TERMINAL, WINDOW] },
+    });
+    const segments = serviceLineSegments(document);
+    expect(segments).toEqual([{ from: [6, 0], to: [6, 8], inward: [-1, 0] }]);
+
+    const [first] = values(document, 'ot_cashier_window', null);
+    expect(polygonSegmentDistance(footprint(first!.object), [6, 0], [6, 8])).toBeLessThanOrEqual(
+      SERVICE_LINE.maxGap_m + TOLERANCE.coordinate_m,
+    );
+    // Лицевая сторона — локальная +Y после поворота: (sin, cos) = (−1, 0).
+    expect(first!.object.rotation_deg).toBe(270);
+    expect(strayZones(document, first!.object)).toEqual([]);
+  });
+});
+
+describe('#237: место — в зоне типа из правил, «ближе к входу» — с расстоянием до входа', () => {
+  function teamCatalog(): Catalog {
+    const parsed = parseCatalog({
+      version: '1.0.0',
+      objectTypes: readRepoJson('data', 'catalog', 'object-types.json'),
+      zoneTypes: readRepoJson('data', 'catalog', 'zone-types.json'),
+      layerTypes: readRepoJson('data', 'catalog', 'layer-types.json'),
+      rules: readRepoJson('data', 'catalog', 'rules.json'),
+    });
+    if (!parsed.ok) throw new Error('data/catalog не разобрался');
+    return parsed.value;
+  }
+
+  function entranceDistance(candidate: { facts: { metric: string; phase: string; value: number }[] }): number {
+    const fact = candidate.facts.find((entry) => entry.metric === 'layout.entrance' && entry.phase === 'after');
+    if (fact === undefined) throw new Error('у варианта нет расстояния до входа');
+    return fact.value;
+  }
+
+  test('демо: скамья без зоны — в зоне ожидания или очереди, а не в комнате персонала', () => {
+    // Было (r1-24): скамья стоит и в комнате персонала, эта зона была уместной
+    // наравне с зоной ожидания, и у стены побеждала комната персонала.
+    const demo = demoBefore();
+    const candidates = values(demo, 'ot_bench', null);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) {
+      expect(['z_waiting', 'z_queue'], candidate.id).toContain(centreZoneId(demo, candidate.object.position));
+    }
+  });
+
+  test('стеллаж для посылок в плане со «Складом» — в склад, а не в клиентский зал', () => {
+    // Было (r2-19): правила для стеллажа нет, стеллажей в плане нет — искали по всему помещению.
+    const document = plan({
+      zones: [
+        zone('z_client', 'zt_client', [[0, 0], [6, 0], [6, 8], [0, 8]]),
+        { ...zone('z_store', 'zt_storage', [[6, 0], [10, 0], [10, 8], [6, 8]]), name: 'Склад' },
+      ],
+      catalog: teamCatalog(),
+    });
+
+    const candidates = values(document, 'ot_parcel_rack', null);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_store');
+  });
+
+  test('демо: у варианта окна — расстояние до входа; «ближе к входу» упорядочивает по нему', () => {
+    const demo = demoBefore();
+    const walls = new Map(demo.walls.map((wall) => [wall.id, wall]));
+    const entrances = demo.openings
+      .filter((opening) => opening.kind === 'entrance')
+      .map((opening) => openingCentre(opening, walls.get(opening.wallId)!));
+    const request = { scenario: 'place', typeId: 'ot_cashier_window', zoneId: null } as const;
+
+    const plain = values(demo, 'ot_cashier_window', null);
+    expect(plain.length).toBeGreaterThan(0);
+    for (const candidate of plain) {
+      const nearest = Math.min(...entrances.map((centre) => Math.hypot(candidate.object.position[0] - centre[0], candidate.object.position[1] - centre[1])));
+      expect(entranceDistance(candidate)).toBeCloseTo(nearest, 6);
+    }
+
+    const near = searchPlacements(demo, request, null, true);
+    if (!near.ok) throw new Error('ожидался результат');
+    expect(near.value.length).toBeGreaterThan(0);
+    // Линия обслуживания (#213) по-прежнему идёт первой, внутри неё — ближе к входу.
+    expect(entranceDistance(near.value[0]!)).toBeLessThanOrEqual(entranceDistance(plain[0]!) + TOLERANCE.coordinate_m);
+    const bench = searchPlacements(demo, { scenario: 'place', typeId: 'ot_bench', zoneId: null }, null, true);
+    if (!bench.ok) throw new Error('ожидался результат');
+    const distances = bench.value.map(entranceDistance);
+    expect(distances.length).toBeGreaterThan(1);
+    expect(distances).toEqual([...distances].sort((a, b) => a - b));
+    // Проход у входа по-прежнему закрыт.
+    for (const candidate of near.value) {
+      for (const entrance of entrances) {
+        expect(polygonSegmentDistance(footprint(candidate.object), entrance, entrance)).toBeGreaterThanOrEqual(
+          SERVICE_LINE.entranceClearance_m - TOLERANCE.coordinate_m,
+        );
+      }
+    }
   });
 });

@@ -21,7 +21,7 @@ import { measurePlan } from '../metrics';
 import { checkEquipment } from './equipment';
 import { cameraPlacementAdvice } from './camera-placement';
 import { comparePlans } from './compare';
-import { PLACEMENT_SEARCH, findPlacements, zoneFit, type ZoneFit } from './placement';
+import { PLACEMENT_SEARCH, searchPlacements, zoneFit, zoneTiers, type ZoneFit } from './placement';
 
 export { checkEquipment } from './equipment';
 export {
@@ -45,7 +45,8 @@ export type {
 } from './camera-coverage';
 export { checkAgentEdits, proposalCommands } from './agent-edits';
 export { candidateObjectForInsert } from './candidate-object';
-export { comparePlans, diffPlans } from './compare';
+export { asRelocation } from './relocation';
+export { appliedEffectLine, comparePlans, diffPlans } from './compare';
 export { EDIT_HINT_LIMIT, editHint, editHintNumbers, editHintSnapshot, editHintText } from './edit-hints';
 export type { EditHint, EditHintItem, EditHintNumber, EditHintSnapshot, EditHintTone } from './edit-hints';
 export {
@@ -166,9 +167,18 @@ function zoneFitNotes(
     .filter((zone) => fit.zoneIds?.includes(zone.id))
     .map((zone) => `«${zone.name}» (${zone.id})`)
     .join(', ');
+  const tiers = zoneTiers(plan, fit, request.zoneId === null && request.anchor === undefined);
+  const first = tiers.length > 1 && tiers[0] !== null
+    ? plan.zones
+        .filter((zone) => tiers[0]!.has(zone.id))
+        .map((zone) => `«${zone.name}» (${zone.id})`)
+        .join(', ')
+    : null;
+  const order =
+    first === null ? '' : ` Сначала — зоны типа из правил команды: ${first}; остальные — если там места нет.`;
   const scope =
     request.zoneId === null
-      ? `Искали только в зонах, где «${typeLabel}» уместен: ${zones}.`
+      ? `Искали только в зонах, где «${typeLabel}» уместен: ${zones}.${order}`
       : `Во вложенных зонах другого назначения места не предлагаются: «${typeLabel}» уместен в зонах ${zones}.`;
   return {
     assumptions: [`${scope} ${basis}`, nested],
@@ -179,9 +189,11 @@ function zoneFitNotes(
   };
 }
 
-function placementAdvice(
+/** #237: `nearEntrance` — «ближе к входу»: из найденных вариантов ближе к входу первыми. */
+export function placementAdvice(
   plan: PlanDocument,
   request: Extract<AdviceRequest, { scenario: 'place' }>,
+  nearEntrance = false,
 ): Result<Recommendation[]> {
   // A sector type (camera) with a blind spot to close is placed by coverage (#32, D-308).
   if (request.anchor === undefined) {
@@ -189,7 +201,7 @@ function placementAdvice(
     if (byCoverage !== null) return byCoverage;
   }
 
-  const found = findPlacements(plan, request);
+  const found = searchPlacements(plan, request, null, nearEntrance);
   if (!found.ok) return found;
 
   const measured = measurePlan(plan);
@@ -260,6 +272,13 @@ function placementAdvice(
           request.anchor === undefined
             ? 'При прочих равных место у стены лучше места посреди зала — середина нужна людям для прохода.'
             : 'Точку указали вручную: варианты ранжируются по близости к ней, а не к стене.',
+          ...(nearEntrance
+            ? [
+                candidates.some((candidate) => candidate.facts.some((fact) => fact.metric === 'layout.entrance'))
+                  ? 'Ближе к входу: из найденных вариантов первыми идут те, что ближе к входу (от центра варианта до центра ближайшего входа). Поиск от входа не ведётся.'
+                  : 'Ближе к входу: в плане нет входа — расстояние до входа не посчитать.',
+              ]
+            : []),
           ...ruleNotes(plan, request.typeId),
           ...fitNotes.assumptions,
         ],
@@ -292,4 +311,4 @@ export { acceptFactChoice, acceptToolResult, createAgentSession, MAX_TOOL_OUTPUT
 export type { AgentSession, FactChoiceOutcome, ToolResultMessage } from './agent-turn';
 export { composeFallbackText, hideNamedIds, QUOTED_ID_PATTERN, routeAgentQuery } from './agent-fallback';
 export { answerWithoutModel, finishAgentAnswer } from './agent';
-export { collectAgentFacts, renderAgentFact, renderAgentFactSelection } from './agent-facts';
+export { collectAgentFacts, renderAgentFact, renderAgentFactSelection, WHY_LEAD } from './agent-facts';

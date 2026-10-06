@@ -287,7 +287,16 @@ export function FileControls({
       onError: (message) => setDraftError(message),
     });
     writer.current = created;
+    // Правка за 700 мс до закрытия вкладки не должна пропасть.
+    const flushNow = (): void => created.flush();
+    const onHide = (): void => {
+      if (window.document.visibilityState === 'hidden') flushNow();
+    };
+    window.addEventListener('pagehide', flushNow);
+    window.document.addEventListener('visibilitychange', onHide);
     return () => {
+      window.removeEventListener('pagehide', flushNow);
+      window.document.removeEventListener('visibilitychange', onHide);
       created.cancel();
       writer.current = null;
     };
@@ -558,7 +567,7 @@ export function FileControls({
    */
   const exportSvg = (): void => {
     exportSequence.current += 1;
-    handToBrowser(new Blob([renderPlanSvg(plan)], { type: 'image/svg+xml' }), svgFileName(plan));
+    handToBrowser(new Blob([renderPlanSvg(plan, { overlays: true })], { type: 'image/svg+xml' }), svgFileName(plan));
     // Own result state, like «Сохранить»: otherwise a stale «План не открыт…»
     // would stay on screen next to a file that downloaded fine.
     setErrorDetails([]);
@@ -630,12 +639,12 @@ export function FileControls({
     {
       key: 'png',
       label: 'PNG — картинка',
-      hint: 'Растровая картинка для презентации и переписки. В неё входят зоны, стены, оборудование и подписи включённых слоёв. Тепловая нагрузка и сектора камер не входят',
+      hint: 'Растровая картинка для презентации и переписки. В неё входят зоны, стены, оборудование, подписи и информационные слои, которые включены, с легендой и маркеры находок проверки',
     },
     {
       key: 'svg',
       label: 'SVG — векторная картинка',
-      hint: 'Векторная картинка для согласования и печати. В неё входят зоны, стены, оборудование и подписи включённых слоёв. Тепловая нагрузка и сектора камер не входят',
+      hint: 'Векторная картинка для согласования и печати. В неё входят зоны, стены, оборудование, подписи и информационные слои, которые включены, с легендой и маркеры находок проверки',
     },
     {
       key: 'csv',

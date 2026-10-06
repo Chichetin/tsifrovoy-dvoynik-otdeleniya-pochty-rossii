@@ -10,21 +10,8 @@
 import type { Id, PlanDocument } from '../../contracts/model';
 import { cameraCoverage, type CameraCoverage } from '../../domain/advice';
 import { findLayerType } from '../../domain/catalog';
+import { BLIND_SPOT } from '../../domain/layer-legend';
 
-/** Hatch of a blind spot: dark red lines, distinct from the violet sectors and the pastel zones. */
-export const BLIND_SPOT = {
-  /** Solid colour of the hatch: the legend swatch, where lines are few and short. */
-  color: '#C92A2A',
-  /**
-   * Lines on the plan: the same red, a little see-through, so zone names and
-   * object labels under a large blind spot stay readable.
-   */
-  line: 'rgba(201, 42, 42, 0.6)',
-  /** Faint tint under the lines, so a thin strip still reads as an area. */
-  tint: 'rgba(201, 42, 42, 0.06)',
-  /** Distance between hatch lines, screen px. */
-  spacing_px: 9,
-} as const;
 
 /** CSS for the panel's swatch: the same diagonal hatch as on the canvas. */
 export const BLIND_SPOT_SWATCH_CSS =

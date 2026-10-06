@@ -210,3 +210,34 @@ export function measurePlan(plan: PlanDocument): Result<Metrics> {
     value: { room: metricsOf(plan.room.boundary, plan.room.boundary, occupied), zones },
   };
 }
+
+export type ZoneOverview = { area_m2: number | null; objects: number; findings: number };
+
+/** Inclusive counts for overview cards. One finding counts once per zone,
+ * even when it refers to both the zone and an object inside it. */
+export function zoneOverview(plan: PlanDocument, issues: Issue[], metrics: Result<Metrics>): Map<Id, ZoneOverview> {
+  const parents = new Map(plan.zones.map((zone) => [zone.id, zone.parentId]));
+  const cards = new Map(plan.zones.map((zone) => [zone.id, {
+    area_m2: metrics.ok ? metrics.value.zones[zone.id]?.total_m2 ?? null : null,
+    objects: 0, findings: 0,
+  }]));
+  const ancestry = (id: Id | null): Set<Id> => {
+    const result = new Set<Id>();
+    while (id !== null && parents.has(id) && !result.has(id)) {
+      result.add(id);
+      id = parents.get(id) ?? null;
+    }
+    return result;
+  };
+  const objects = new Map(plan.objects.map((object) => [object.id, ancestry(object.zoneId)]));
+  for (const zones of objects.values()) for (const id of zones) cards.get(id)!.objects += 1;
+  for (const issue of issues) {
+    const affected = new Set<Id>();
+    for (const ref of issue.refs) {
+      const zones = ref.kind === 'zone' ? ancestry(ref.id) : ref.kind === 'object' ? objects.get(ref.id) : undefined;
+      for (const id of zones ?? []) affected.add(id);
+    }
+    for (const id of affected) cards.get(id)!.findings += 1;
+  }
+  return cards;
+}

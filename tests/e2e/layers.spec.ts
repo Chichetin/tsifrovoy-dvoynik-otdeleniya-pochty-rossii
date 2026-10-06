@@ -502,6 +502,8 @@ test.describe('слои в браузере', () => {
     await expect(ceiling).toHaveAttribute('aria-pressed', 'true');
 
     const opened = await savePlan(page);
+    // #233: the mini-map covers the lower left corner of the plan, where eq_26 stands.
+    await page.getByRole('button', { name: 'Скрыть мини-карту' }).click();
     const camera = '.equipment-eq_26';
     const bench = '.equipment-eq_6';
     await expect.poll(() => konvaCount(page, camera)).toBe(1);

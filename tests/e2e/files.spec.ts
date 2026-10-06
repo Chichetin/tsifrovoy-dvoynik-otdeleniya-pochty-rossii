@@ -73,6 +73,21 @@ async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<
 }
 
 /**
+ * Ставит первый тип из библиотеки в точку плана, заданную в метрах. Масштаб
+ * вписывания зависит от раскладки, поэтому точка считается по видимой области,
+ * которую холст сам публикует в `data-visible`.
+ */
+async function placeFirstLibraryItemAtMeters(page: Page, mx: number, my: number): Promise<void> {
+  const canvas = page.getByTestId('editor-canvas');
+  const box = await canvas.boundingBox();
+  const raw = await canvas.getAttribute('data-visible');
+  if (box === null || raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX] = raw.split(',').map(Number) as [number, number, number];
+  const scale = box.width / (maxX - minX);
+  await placeFirstLibraryItem(page, (mx - minX) * scale, box.height - (my - minY) * scale);
+}
+
+/**
  * Второй файл для сценария «открыл другой план»: тот же пример организаторов,
  * но с другим названием отделения и тремя позициями вместо двенадцати — по
  * названию в предложении черновика видно, какой из двух планов запомнен.
@@ -342,7 +357,7 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('draft-restore')).toHaveCount(0);
 
     // Правка второго плана — то, что нельзя потерять при закрытии вкладки.
-    await placeFirstLibraryItem(page, 320, 240);
+    await placeFirstLibraryItemAtMeters(page, 4, 4.5);
     await expect(inventoryRows(page)).toHaveCount(4);
     // Ждём именно записи правки, а не подписи времени: подпись уже стоит от
     // черновика открытого файла, а дебаунс — 700 мс.

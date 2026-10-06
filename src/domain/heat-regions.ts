@@ -14,8 +14,8 @@
  */
 
 import * as polyclip from 'polyclip-ts';
-import type { Attributes, Id, Polygon, Zone } from '../../contracts/model';
-import { signedArea } from '../../domain/geometry';
+import type { Attributes, Id, Polygon, Zone } from '../contracts/model';
+import { signedArea } from './geometry';
 
 /** Область одной зоны: внешнее кольцо и дыры под вложенными зонами. */
 export type HeatRegion = { zoneId: Id; value: number; rings: Polygon[] };

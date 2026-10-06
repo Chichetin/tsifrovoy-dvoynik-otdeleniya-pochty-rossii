@@ -8,10 +8,10 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { PlanDocument } from '../../contracts/model';
+import type { ObjectType, PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import { validateCatalog } from '../../domain/catalog';
-import { applyCommand } from '../../domain/commands';
+import { applyCommand, newObject } from '../../domain/commands';
 import {
   TEAM_ASSUMPTION_PROVENANCE,
   addAttribute,
@@ -89,6 +89,28 @@ describe('новый тип оборудования', () => {
       object: { ...first, id: 'eq_safe_1', typeId: id, size_m: safe.size_m, position: [5, 5] },
     });
     expect(placed.ok).toBe(true);
+  });
+
+  test('физический тип получает общие атрибуты перечня и номер серии при постановке (#214)', () => {
+    const plan = loadPlan('minimal.json');
+    const objectTypes = JSON.parse(
+      readFileSync(join(process.cwd(), 'data', 'catalog', 'object-types.json'), 'utf8'),
+    ) as ObjectType[];
+    const withList = { ...plan, catalog: { ...plan.catalog, objectTypes } };
+    const { catalog, id } = addObjectType(withList.catalog, safe);
+    const added = catalog.objectTypes.find((t) => t.id === id);
+    expect(added?.attributes.map((a) => a.key)).toEqual(['equipmentStatus', 'inventoryNumber']);
+
+    const mark = addObjectType(withList.catalog, { ...safe, label: 'Метка', physical: false });
+    expect(mark.catalog.objectTypes.find((t) => t.id === mark.id)?.attributes).toEqual([]);
+
+    const replaced = applyCommand(withList, { type: 'catalog.replace', catalog });
+    expect(replaced.ok).toBe(true);
+    if (!replaced.ok || added === undefined) return;
+    const placed = newObject(replaced.value, added, { position: [5, 5], rotation_deg: 0 });
+    // The fixture's own series is «ОПС-0001»: the new safe takes the next one.
+    expect(placed?.attributes.inventoryNumber).toBe('ОПС-0002');
+    expect(placed?.attributes.equipmentStatus).toBe('unknown');
   });
 
   test('тип, которым пользуется объект, удалить нельзя — команда отказывает', () => {

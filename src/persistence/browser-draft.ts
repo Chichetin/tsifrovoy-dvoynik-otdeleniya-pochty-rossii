@@ -131,6 +131,8 @@ export type DraftWriter = {
   schedule: (source: DraftSource) => void;
   /** Drops a pending write: used on unmount and when the plan is replaced. */
   cancel: () => void;
+  /** Writes a pending draft now: the tab is being hidden or closed. No pending write — does nothing. */
+  flush: () => void;
 };
 
 /**
@@ -144,26 +146,40 @@ export function createDraftWriter(
   const delayMs = options.delayMs ?? DRAFT_DEBOUNCE_MS;
   const now = options.now ?? (() => Date.now());
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: DraftSource | null = null;
 
   const cancel = (): void => {
     if (timer !== null) clearTimeout(timer);
     timer = null;
+    pending = null;
+  };
+
+  const run = (source: DraftSource): void => {
+    const input = typeof source === 'function' ? source() : source;
+    if (input === null) return;
+    const written = writeDraft(storage, input, now());
+    if (written.ok) {
+      options.onSaved?.(written.value);
+      return;
+    }
+    options.onError?.(written.issues.map((issue) => issue.message).join('; '));
   };
 
   return {
     cancel,
+    flush(): void {
+      if (timer === null || pending === null) return;
+      const source = pending;
+      cancel();
+      run(source);
+    },
     schedule(source: DraftSource): void {
       cancel();
+      pending = source;
       timer = setTimeout(() => {
         timer = null;
-        const input = typeof source === 'function' ? source() : source;
-        if (input === null) return;
-        const written = writeDraft(storage, input, now());
-        if (written.ok) {
-          options.onSaved?.(written.value);
-          return;
-        }
-        options.onError?.(written.issues.map((issue) => issue.message).join('; '));
+        pending = null;
+        run(source);
       }, delayMs);
     },
   };

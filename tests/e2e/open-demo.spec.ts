@@ -43,7 +43,7 @@ for (const viewport of [{ width: 1280, height: 800 }, { width: 1440, height: 900
     await expect(page.getByRole('menuitem', { name: 'Исходный демо-план' })).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'Изменённый демо-план' })).toBeFocused();
-    await page.screenshot({ path: `docs/verification/2026-09-28-open-demo-${viewport.width}.png` });
+    await page.screenshot({ path: test.info().outputPath(`open-demo-${viewport.width}.png`) });
     page.once('dialog', (dialog) => void dialog.accept());
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('files-notice')).toContainText(after.name);
