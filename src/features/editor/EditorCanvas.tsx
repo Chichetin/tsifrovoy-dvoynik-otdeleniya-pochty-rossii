@@ -677,6 +677,27 @@ export function EditorCanvas({
     };
   }, [panEnd, panStep]);
 
+  // #190: Konva ends a drag on the window's mouseup. A release over a disabled
+  // button sends pointerup but no mouseup, and the object stayed glued to the
+  // pointer. When the drag outlives its pointerup, the mouseup is sent here.
+  useEffect(() => {
+    const onPointerUp = (event: PointerEvent): void => {
+      if (event.pointerType !== 'mouse' || !Konva.isDragging()) return;
+      window.setTimeout(() => {
+        if (!Konva.isDragging()) return;
+        window.dispatchEvent(new MouseEvent('mouseup', {
+          clientX: event.clientX,
+          clientY: event.clientY,
+          button: event.button,
+          shiftKey: event.shiftKey,
+          altKey: event.altKey,
+        }));
+      }, 0);
+    };
+    window.addEventListener('pointerup', onPointerUp, true);
+    return () => window.removeEventListener('pointerup', onPointerUp, true);
+  }, []);
+
   // Escape cancels the drawing in progress; with nothing in progress it clears
   // the selection. Both are what a drawing tool is expected to do.
   //
