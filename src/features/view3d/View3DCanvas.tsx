@@ -451,6 +451,7 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
         style={lost ? { display: 'none' } : undefined}
       />
       {lost ? null : (
+        <>
         <div className="view3d__tools view3d__tools--grouped">
           <fieldset className="view3d__viewpoints" onKeyDown={(event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -481,9 +482,6 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
               </button>
             </div>
           </fieldset>
-          <button type="button" className="files__button view3d__download" onClick={savePicture}>
-            Скачать картинку 3D
-          </button>
           {visitorMode ? null : <p className="view3d__walk-help">Тачпад: два пальца — вращать, щипок — приблизить, Shift + два пальца — сдвинуть. Мышь: перетаскивание — вращать, колесо — приблизить, правая кнопка — сдвинуть. Стрелки — вращать.</p>}
           {visitorMode ? <p className="view3d__walk-help" role="status">Нажмите на сцену. WASD или стрелки — ходить; Shift — быстрее; перетаскивание мышью — смотреть; F — вернуться к обзору.</p> : null}
           {saveError === null ? null : (
@@ -492,6 +490,10 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
             </p>
           )}
         </div>
+        <button type="button" className="files__button view3d__download" onClick={savePicture}>
+          Скачать картинку 3D
+        </button>
+        </>
       )}
     </>
   );
