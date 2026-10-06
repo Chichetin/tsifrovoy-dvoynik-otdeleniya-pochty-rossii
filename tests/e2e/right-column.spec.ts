@@ -320,3 +320,15 @@ test('счётчик на вкладке «Проверка» равен чис�
   await expect(badge()).toHaveText('1');
   await expect(badge()).not.toHaveClass(/is-error/);
 });
+
+test('обход инвентаризации не прячет кнопки «На месте» (#235)', async ({ page }) => {
+  await openDemo(page);
+  await page.getByRole('button', { name: 'Начать обход' }).click();
+  const here = page.getByRole('button', { name: 'На месте' });
+  for (let step = 0; step < 5; step += 1) {
+    await expect(here).toBeVisible();
+    await here.click();
+  }
+  await expect(here).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('walk-after.png') });
+});
