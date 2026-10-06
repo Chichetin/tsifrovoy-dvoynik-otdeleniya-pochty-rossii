@@ -1,5 +1,5 @@
 /* Variant G «План»: slide content for the defense deck, written from the plan (PRESENTATION_PLAN, 06.10.2026).
-   13 main slides (s1–s13: s10 architecture and s13 demo come from ../shared/slides.js) and 7 backup slides (b1–b7, key Q or ↓). Backup facts come from ../shared/slides.js.
+   14 main slides (s1–s14: s10 architecture and s14 demo come from ../shared/slides.js) and 7 backup slides (b1–b7, key Q or ↓). Backup facts come from ../shared/slides.js.
    Screenshots that exist in ../assets/shots are used. A missing one is a framed slot with its file name:
    capture it on the demo plan at the defense SHA, put the .webp into ../assets/shots and add the name to SHOTS.
    Hooks for motion are described at the top of ../shared/motion-core.js. */
@@ -336,8 +336,8 @@
 </section>
 
 
-<!-- s12 ПОЧЕМУ ЭТО РАБОТАЕТ + ВОПРОСЫ -->
-<section class="slide s-end" id="s12" data-kind="main" data-title="Итог и вопросы" aria-label="Почему это работает, вопросы">
+<!-- s12 ПОЧЕМУ ЭТО РАБОТАЕТ -->
+<section class="slide s-end" id="s12" data-kind="main" data-title="Итог" aria-label="Почему это работает">
   <header class="p-head">
     <p class="eyebrow in">Итог</p>
     ${title('Почему', 'это работает?')}
@@ -347,20 +347,27 @@
     <article class="thesis" data-step="2"><span class="n">2</span><h3>Ассистенту можно верить</h3><p>Числа считает код. Без человека ничего не меняется.</p></article>
     <article class="thesis" data-step="3"><span class="n">3</span><h3>Новое — без кода</h3><p>Тип, зону или правило добавляют в интерфейсе.</p></article>
   </div>
-  <div class="ending" data-step="4">
-    <p class="one-line"><b>План понятен</b> · <b>ассистенту можно верить</b> · <b>новое — без кода</b></p>
-    <div class="team-arches">
-      ${team.map(([name, role], i) => `<figure><div class="portrait"><img src="../assets/team/member-${i + 1}.png" alt="${name}"></div><figcaption><b>${name}</b><span>${role}</span></figcaption></figure>`).join('')}
-    </div>
-    <div class="qr"><img src="../assets/brand/qr-service.svg" alt="QR-код: адрес сервиса"><p>158.160.157.55:8080</p><p class="ask">↓ Вопросы</p></div>
-    <img class="cat-end" src="../assets/brand/cat-glasses.webp" alt="">
-  </div>
-  ${note('Итог: по плану сразу всё видно, ассистенту можно верить, а новое добавляется без кода. Сервис открыт по QR-коду, логин не нужен. Спасибо, готовы ответить на вопросы.')}
+  ${note('Итог: по плану сразу всё видно, ассистенту можно верить, а новое добавляется без кода.')}
 </section>
 
 
-<!-- s13 ДЕМО: the video fills the stage and plays when the slide opens (../shared/app.js) -->
-<section class="slide s-demo" id="s13" data-kind="main" data-title="Демо" aria-label="Демо">
+<!-- s13 НАША КОМАНДА + ВОПРОСЫ: portraits fly in spinning, land on wrong names, then swap to their own (motion.js) -->
+<section class="slide s-team" id="s13" data-kind="main" data-title="Наша команда" aria-label="Наша команда, вопросы">
+  <header class="p-head">
+    <p class="eyebrow in">ИИ-бланки</p>
+    <h2 class="title">${ln('Наша команда')}</h2>
+  </header>
+  <div class="team-arches">
+    ${team.map(([name, role], i) => `<figure><div class="portrait"><img src="../assets/team/member-${i + 1}.png" alt="${name}"></div><figcaption><b>${name}</b><span>${role}</span></figcaption></figure>`).join('')}
+  </div>
+  <div class="qr in"><img src="../assets/brand/qr-service.svg" alt="QR-код: адрес сервиса"><p>158.160.157.55:8080</p><p class="ask">↓ Вопросы</p></div>
+  <img class="cat-end in" src="../assets/brand/cat-glasses.webp" alt="">
+  ${note('Наша команда. Сервис открыт по QR-коду, логин не нужен. Дальше — демо, потом вопросы.')}
+</section>
+
+
+<!-- s14 ДЕМО: the video fills the stage and plays when the slide opens (../shared/app.js) -->
+<section class="slide s-demo" id="s14" data-kind="main" data-title="Демо" aria-label="Демо">
   <video class="demo" src="../assets/demo/demo.mp4" poster="../assets/demo/demo-poster.webp" muted playsinline preload="auto" aria-label="Демо: перетаскивание терминала в 2D, слой камер, облёт 3D и вид глазами посетителя"></video>
   ${note('Демо без звука, 44 секунды. 2D: тянем терминал очереди к входу — находка уходит, балл 87 → 97. Слой камер. 3D: облёт сбоку, затем глазами посетителя. После демо — вопросы: стрелка вниз.')}
 </section>
