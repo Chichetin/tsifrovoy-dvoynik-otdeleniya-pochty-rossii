@@ -128,6 +128,21 @@ describe('createDraftWriter', () => {
     expect(readDraft(storage)?.text).toBe('третий');
   });
 
+  test('flush пишет отложенную правку сразу, без отложенной — ничего', () => {
+    const storage = memoryStorage();
+    const writer = createDraftWriter(storage, { delayMs: 700 });
+    writer.flush();
+    expect(readDraft(storage)).toBeNull();
+
+    writer.schedule({ text: 'правка', name: 'план' });
+    writer.flush();
+    expect(readDraft(storage)?.text).toBe('правка');
+
+    storage.removeItem(DRAFT_KEY);
+    vi.advanceTimersByTime(700);
+    expect(readDraft(storage)).toBeNull();
+  });
+
   test('план сериализуется один раз на серию правок, а не на каждую', () => {
     const storage = memoryStorage();
     const writer = createDraftWriter(storage, { delayMs: 500 });

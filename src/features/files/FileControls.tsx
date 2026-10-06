@@ -287,7 +287,16 @@ export function FileControls({
       onError: (message) => setDraftError(message),
     });
     writer.current = created;
+    // Правка за 700 мс до закрытия вкладки не должна пропасть.
+    const flushNow = (): void => created.flush();
+    const onHide = (): void => {
+      if (window.document.visibilityState === 'hidden') flushNow();
+    };
+    window.addEventListener('pagehide', flushNow);
+    window.document.addEventListener('visibilitychange', onHide);
     return () => {
+      window.removeEventListener('pagehide', flushNow);
+      window.document.removeEventListener('visibilitychange', onHide);
       created.cancel();
       writer.current = null;
     };
