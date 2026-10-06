@@ -10,7 +10,7 @@ import { OpeningPreviewLayer } from '../features/plan-tools/OpeningPreviewLayer'
  * recomputed from the document, never stored beside it.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Layer } from 'react-konva';
 import { useStore } from 'zustand';
 import type { Candidate } from '../contracts/advice';
@@ -361,7 +361,11 @@ export function App(): React.JSX.Element {
   // panels are hidden (they stay mounted) until the selection goes.
   // #225: a finding opened from «Проверка» or a marker takes the card's place.
   const [findingRef, setFindingRef] = useState<Ref | null>(null);
-  const issues = useMemo(() => validatePlan(document), [document]);
+  // #190: the check and the areas follow the plan one render later. A drop
+  // shows the object at once; on 1000 objects the 0.1 s of checking and
+  // measuring runs in the next render, which React may interrupt.
+  const checkedDocument = useDeferredValue(document);
+  const issues = useMemo(() => validatePlan(checkedDocument), [checkedDocument]);
   const propsShown = selection !== null && selection.kind !== 'layer' && tabs.right !== 'assistant';
   const findingIssues = useMemo(
     () =>
@@ -742,7 +746,7 @@ export function App(): React.JSX.Element {
   // #125: the header score reads the same findings as «Проверка».
   const health = useMemo(() => planHealth(issues), [issues]);
   const [healthRequest, setHealthRequest] = useState(0);
-  const metrics = useMemo(() => measurePlan(document), [document]);
+  const metrics = useMemo(() => measurePlan(checkedDocument), [checkedDocument]);
   const zoneOverviewActive = viewport.scale < ZONE_OVERVIEW_SCALE;
   const overviewDocument = useMemo(() => {
     if (!zoneOverviewActive) return shownDocument;

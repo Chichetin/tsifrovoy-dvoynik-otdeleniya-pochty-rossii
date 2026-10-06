@@ -9,8 +9,8 @@
  * `stepsMs` runs from the first counted step to the second frame after the
  * last one; `worstFrameMs` and `medianFrameMs` are gaps between animation
  * frames during the steps; `busyMs` — main-thread work per step; `releaseMs` —
- * the longest frame after the button is released or, for the wheel, within
- * 0.4 s after the last notch; `dropped` — whether the drop moved the object;
+ * the longest frame within 0.4 s after the button is released or after the
+ * last wheel notch; `dropped` — whether the drop moved the object;
  * `draws` counts Konva layer repaints per layer during the steps.
  *
  * Run: npx tsx scripts/measure-drag.ts [runs] [plans] [gestures]
@@ -35,6 +35,12 @@ const STEPS = 30;
 const PAN_PX = 8;
 const NOTCHES = 10;
 const CLICKS = 10;
+/**
+ * Below 14 px/m the plan shows zone cards instead of the objects in them
+ * (#123). The 1000-object plan opens fitted below that, so the script zooms
+ * in on the dragged object first: the gestures are timed on drawn objects.
+ */
+const DETAIL_SCALE = 18;
 
 type PlanCase = {
   file: Buffer | null;
@@ -128,6 +134,35 @@ async function centreOf(page: Page, id: string): Promise<{ x: number; y: number 
   return { x: box.x + centre.x, y: box.y + centre.y };
 }
 
+/** The dragged object as the plan file has it; null for the start plan. */
+function fileObject(plan: PlanCase): { position: [number, number]; zoneId?: string | null } | null {
+  if (plan.file === null) return null;
+  // The project format has `objects`; example_plan.json has `equipment`.
+  const json = JSON.parse(plan.file.toString()) as Record<string, { id: string; position: [number, number]; zoneId?: string | null }[] | undefined>;
+  return (json['objects'] ?? json['equipment'] ?? []).find((object) => object.id === plan.object) ?? null;
+}
+
+/** Wheel notches over the dragged object until the plan shows objects, not zone cards. */
+async function zoomToDetail(page: Page, plan: PlanCase): Promise<void> {
+  const canvas = page.getByTestId('editor-canvas');
+  const scale = async (): Promise<number> =>
+    Number.parseFloat((await page.getByTestId('canvas-scale').getAttribute('title')) ?? '0');
+  const target = fileObject(plan)?.position;
+  for (let notch = 0; notch < 20 && (await scale()) < DETAIL_SCALE; notch += 1) {
+    if (target === undefined) throw new Error(`объект ${plan.object} не виден и его нет в файле плана`);
+    const box = (await canvas.boundingBox())!;
+    const [minX, minY, maxX, maxY] = ((await canvas.getAttribute('data-visible')) ?? '').split(',').map(Number) as [number, number, number, number];
+    await page.mouse.move(
+      box.x + ((target[0] - minX) / (maxX - minX)) * box.width,
+      box.y + ((maxY - target[1]) / (maxY - minY)) * box.height,
+    );
+    await page.mouse.wheel(0, -100);
+    // The wheel hands the view to the app after a pause (#223).
+    await page.waitForTimeout(300);
+    await page.evaluate(CALM);
+  }
+}
+
 type Clock = { stepsMs: number; gaps: number[]; draws: Record<string, number>; busyMs: number };
 
 /**
@@ -153,7 +188,7 @@ type Run = {
   worstFrameMs: number;
   medianFrameMs: number;
   busyMs: number;
-  /** The longest frame from the release to the second frame after it; null without a release. */
+  /** The longest frame within 0.4 s after the release; null without a release. */
   releaseMs: number | null;
   /** Whether the drop moved the object; null for a gesture without one. */
   dropped: boolean | null;
@@ -174,7 +209,16 @@ async function measure(planName: string, gesture: Gesture): Promise<Run> {
       await page.getByTestId('plan-file-input').setInputFiles({ name: 'plan.json', mimeType: 'application/json', buffer: plan.file });
     }
     // Opening 1000 objects keeps the page busy for a while.
-    await page.waitForFunction(`!!window.Konva?.stages[0]?.findOne('.equipment-${plan.object}')`, undefined, { timeout: 180_000 });
+    // The plan is open when its object or the card of the object's zone is drawn.
+    const zone = fileObject(plan)?.zoneId;
+    await page.waitForFunction(
+      `!!window.Konva?.stages[0]?.findOne('.equipment-${plan.object}') || !!window.Konva?.stages[0]?.findOne('.zone-overview-${zone ?? '-'}')`,
+      undefined,
+      { timeout: 180_000 },
+    );
+    await page.evaluate(CALM);
+    await zoomToDetail(page, plan);
+    await page.waitForFunction(`!!window.Konva?.stages[0]?.findOne('.equipment-${plan.object}')`, undefined, { timeout: 60_000 });
     await page.evaluate(CALM);
 
     if (gesture === 'captions') await page.getByRole('button', { name: 'Подписи объектов' }).click();
@@ -241,7 +285,11 @@ async function measure(planName: string, gesture: Gesture): Promise<Run> {
     // viewport. The wheel has no release: the view settles once it stops.
     let releaseMs: number | null = null;
     if (button !== null) {
-      const release = await timed(page, cdp, 1, () => page.mouse.up({ button: button! }));
+      // 0.4 s: the check and the areas follow the drop in a later render (#190).
+      const release = await timed(page, cdp, 1, async () => {
+        await page.mouse.up({ button: button! });
+        await page.waitForTimeout(400);
+      });
       releaseMs = Math.max(...release.gaps);
     } else if (gesture === 'zoom') {
       const settle = await timed(page, cdp, 1, () => page.waitForTimeout(400));

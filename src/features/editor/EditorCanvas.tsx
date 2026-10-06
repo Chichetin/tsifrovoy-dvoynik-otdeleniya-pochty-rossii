@@ -58,8 +58,40 @@ const HIGHLIGHT_MS = 1600;
 const MIN_RING_PX = 28;
 const RING_GAP_PX = 14;
 
+/**
+ * #190: above this many Konva nodes a pan or wheel frame does not repaint the
+ * plan: it moves the canvases already drawn. The demo plan has about 400
+ * nodes, the plan of 1000 objects about 6400 (one repaint 25–45 ms).
+ */
+const LIVE_DRAW_NODES = 2000;
+
 /** Mouse buttons that pan instead of drawing: middle, and right. */
 const PAN_BUTTONS = new Set([1, 2]);
+
+/**
+ * #190: changes Konva attributes without Konva's own redraw. A changed
+ * attribute of the stage asks every layer to redraw its scene and its hit
+ * canvas in the next frame. A gesture frame paints the scene itself, so that
+ * second paint doubled each pan or wheel step on a large plan.
+ */
+function quietly(change: () => void): void {
+  const auto = Konva.autoDrawEnabled;
+  Konva.autoDrawEnabled = false;
+  try {
+    change();
+  } finally {
+    Konva.autoDrawEnabled = auto;
+  }
+}
+
+function nodeCount(container: Konva.Container): number {
+  let count = 0;
+  for (const child of container.getChildren()) {
+    count += 1;
+    if (child instanceof Konva.Container) count += nodeCount(child);
+  }
+  return count;
+}
 
 /** Мировой контур в плоский список экранных координат для Konva. */
 function screenPoints(extent: Polygon, viewport: { origin: Point; scale: number }): number[] {
@@ -121,6 +153,14 @@ export function EditorCanvas({
   // The grid is drawn for the live viewport, so the stage transform is undone
   // for its layer: a pan or a zoom never shows an edge without grid lines.
   const gridLayerRef = useRef<Konva.Layer>(null);
+  // How the current gesture shows the live viewport: false — the stage
+  // transform and one repaint a frame; true — a CSS transform of the drawn
+  // layer canvases and a repaint of the grid only. null — no gesture.
+  const shiftCanvases = useRef<boolean | null>(null);
+  const gestureOver = useCallback(
+    (): boolean => settleTimer.current === null && panFrame.current === null && !dragPan.current,
+    [],
+  );
   /** Puts the stage transform onto the live viewport; true when it changed. */
   const showLive = useCallback((): boolean => {
     const node = stage.current;
@@ -131,11 +171,32 @@ export function EditorCanvas({
     const x = live.origin[0] - k * drawn.origin[0];
     const y = live.origin[1] - k * drawn.origin[1];
     if (node.scaleX() === k && node.x() === x && node.y() === y) return false;
-    node.scale({ x: k, y: k });
-    node.position({ x, y });
-    gridLayerRef.current?.scale({ x: 1 / k, y: 1 / k });
-    gridLayerRef.current?.position({ x: -x / k, y: -y / k });
+    quietly(() => {
+      node.scale({ x: k, y: k });
+      node.position({ x, y });
+      gridLayerRef.current?.scale({ x: 1 / k, y: 1 / k });
+      gridLayerRef.current?.position({ x: -x / k, y: -y / k });
+    });
     return true;
+  }, []);
+  /** Puts the drawn layer canvases, all but the grid, onto the live viewport by CSS. */
+  const showShifted = useCallback((): void => {
+    const node = stage.current;
+    if (node === null) return;
+    const drawn = drawnViewport.current;
+    const live = liveViewport.current;
+    const k = live.scale / drawn.scale;
+    const x = live.origin[0] - k * drawn.origin[0];
+    const y = live.origin[1] - k * drawn.origin[1];
+    const transform = k === 1 && x === 0 && y === 0 ? '' : `matrix(${k}, 0, 0, ${k}, ${x}, ${y})`;
+    for (const layer of node.getLayers()) {
+      if (layer === gridLayerRef.current) continue;
+      const style = layer.getNativeCanvasElement().style;
+      style.transformOrigin = '0 0';
+      style.transform = transform;
+      // Its own compositor layer: the browser moves the canvas, not repaints it.
+      style.willChange = transform === '' ? '' : 'transform';
+    }
   }, []);
   const drawAll = useCallback((): void => {
     stage.current?.batchDraw();
@@ -158,31 +219,39 @@ export function EditorCanvas({
     settleTimer.current = null;
     foldPending();
     if (liveViewport.current === drawnViewport.current) {
+      if (shiftCanvases.current === true) showShifted();
       if (showLive() || hitStale.current) drawAll();
+      if (gestureOver()) shiftCanvases.current = null;
       return;
     }
     wheelCommit.current = liveViewport.current;
     onViewport(liveViewport.current);
-  }, [drawAll, foldPending, onViewport, showLive]);
+  }, [drawAll, foldPending, gestureOver, onViewport, showLive, showShifted]);
   const flushPan = useCallback((): void => {
     foldPending();
+    const node = stage.current;
+    if (node !== null) shiftCanvases.current ??= nodeCount(node) > LIVE_DRAW_NODES;
     // Called from an animation frame: the scene is painted right here.
-    if (showLive()) {
-      for (const layer of stage.current?.getLayers() ?? []) layer.drawScene();
+    if (shiftCanvases.current === true) {
+      showShifted();
+      gridLayerRef.current?.drawScene();
+      hitStale.current = true;
+    } else if (showLive()) {
+      for (const layer of node?.getLayers() ?? []) layer.drawScene();
       hitStale.current = true;
     }
     if (settleTimer.current !== null) window.clearTimeout(settleTimer.current);
     settleTimer.current = null;
     // A drag pan hands the view over on release, not after a pause.
     if (!dragPan.current) settleTimer.current = window.setTimeout(commitWheel, WHEEL_SETTLE_MS);
-  }, [commitWheel, foldPending, showLive]);
+  }, [commitWheel, foldPending, showLive, showShifted]);
   /** One step of a drag pan: the stage moves in the next animation frame. */
   const panStep = useCallback(
     (delta: Point): void => {
       if (!dragPan.current) {
         dragPan.current = true;
         // A pan is not a hover or a click on what lies under the pointer.
-        stage.current?.listening(false);
+        quietly(() => stage.current?.listening(false));
       }
       liveViewport.current = panBy(liveViewport.current, delta);
       if (panFrame.current === null) panFrame.current = requestAnimationFrame(flushPan);
@@ -193,7 +262,7 @@ export function EditorCanvas({
   const panEnd = useCallback((): void => {
     if (!dragPan.current) return;
     dragPan.current = false;
-    stage.current?.listening(true);
+    quietly(() => stage.current?.listening(true));
     commitWheel();
   }, [commitWheel]);
   // Runs after react-konva has updated the shapes, in the same frame: the
@@ -211,10 +280,21 @@ export function EditorCanvas({
       liveViewport.current = session.viewport;
     }
     wheelCommit.current = null;
+    if (shiftCanvases.current === true) {
+      drawAll();
+      // Runs after the layers' own repaint in the same frame: the CSS shift
+      // shrinks to whatever the gesture did since the commit.
+      const frame = requestAnimationFrame(() => {
+        showShifted();
+        if (gestureOver()) shiftCanvases.current = null;
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (gestureOver()) shiftCanvases.current = null;
     if (showLive() || hitStale.current) drawAll();
     // The grid shape reads the live viewport: its props do not change with it.
     else gridLayerRef.current?.batchDraw();
-  }, [drawAll, session.viewport, showLive]);
+  }, [drawAll, gestureOver, session.viewport, showLive, showShifted]);
   useEffect(
     () => () => {
       if (panFrame.current !== null) cancelAnimationFrame(panFrame.current);

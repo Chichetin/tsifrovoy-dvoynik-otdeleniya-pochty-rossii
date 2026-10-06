@@ -124,14 +124,48 @@ function floorObjects(catalog: Catalog, objects: Equipment[]): Equipment[] {
   );
 }
 
-function unionOfFootprints(objects: Equipment[]): Clipped {
-  if (objects.length === 0) return [];
-  const [first, ...rest] = objects;
+function unionOfFootprints(shapes: Polygon[]): Clipped {
+  const [first, ...rest] = shapes;
   if (first === undefined) return [];
-  return polyclip.union(
-    asGeometry(footprint(first)),
-    ...rest.map((object) => asGeometry(footprint(object))),
-  );
+  return polyclip.union(asGeometry(first), ...rest.map(asGeometry));
+}
+
+/** Boxes closer than this go through polyclip together, touching ones too. */
+const NEAR_M = 1e-6;
+
+/**
+ * The occupied floor of the room, piece by piece. The union and the clip to the
+ * room are exact but slow: on 1000 objects 0.3 s after every drop (#190). A
+ * footprint whose box is apart from every other box and that lies wholly in the
+ * room is a piece by itself, so it skips polyclip. Only the others are unioned
+ * and clipped. The areas are the same; the vertex order of a piece may differ.
+ */
+function occupiedFloor(objects: Equipment[], room: Polygon): Occupied[] {
+  const shapes = objects.map((object) => {
+    const outer = footprint(object);
+    return { outer, box: boundingBox(outer), apart: true };
+  });
+  const byLeft = [...shapes].sort((a, b) => a.box.minX - b.box.minX);
+  for (let i = 0; i < byLeft.length; i += 1) {
+    const a = byLeft[i]!;
+    for (let j = i + 1; j < byLeft.length; j += 1) {
+      const b = byLeft[j]!;
+      if (b.box.minX > a.box.maxX + NEAR_M) break;
+      if (b.box.minY > a.box.maxY + NEAR_M || a.box.minY > b.box.maxY + NEAR_M) continue;
+      a.apart = false;
+      b.apart = false;
+    }
+  }
+  const pieces: Occupied[] = [];
+  const rest: Polygon[] = [];
+  for (const shape of shapes) {
+    if (shape.apart && isSimplePolygon(shape.outer) && contains(room, shape.outer)) {
+      pieces.push({ polygon: [closed(shape.outer)], box: shape.box, outer: shape.outer, solid: true });
+    } else {
+      rest.push(shape.outer);
+    }
+  }
+  return [...pieces, ...occupiedPieces(intersect(unionOfFootprints(rest), room))];
 }
 
 /**
@@ -196,9 +230,7 @@ export function measurePlan(plan: PlanDocument): Result<Metrics> {
 
   // Footprints are unioned once and clipped to the room: an object sticking out
   // of the branch takes only the floor that is actually inside it.
-  const occupied = occupiedPieces(
-    intersect(unionOfFootprints(floorObjects(plan.catalog, plan.objects)), plan.room.boundary),
-  );
+  const occupied = occupiedFloor(floorObjects(plan.catalog, plan.objects), plan.room.boundary);
 
   const zones: Record<Id, AreaMetrics> = {};
   for (const zone of plan.zones) {

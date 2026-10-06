@@ -54,7 +54,10 @@ export function ZoneOverviewLayer({ document: plan, viewport, issues, metrics, o
       return <Group key={zone.id} x={x} y={y} name={`zone-overview-${zone.id}`} listening={onFocus !== undefined}
         onClick={() => onFocus?.({ kind: 'zone', id: zone.id })} onTap={() => onFocus?.({ kind: 'zone', id: zone.id })}>
         <Line points={[anchor[0]-x, anchor[1]-y, width/2, height/2]} stroke="#AAB7C4" strokeWidth={1} listening={false} />
-        <Rect width={width} height={height} cornerRadius={4} fill="#FFFFFF" opacity={0.96}
+        {/* #190: without perfectDrawEnabled a translucent shape with a fill and
+            a stroke is drawn through a canvas the size of the stage. Fifty
+            cards made each repaint of the overview 0.13 s. */}
+        <Rect width={width} height={height} cornerRadius={4} fill="#FFFFFF" opacity={0.96} perfectDrawEnabled={false}
           stroke={card.findings > 0 ? '#A15C00' : '#AAB7C4'} strokeWidth={1} />
         <Text width={width} height={22} y={2} padding={1} text={zone.name} fontSize={9} fontStyle="bold"
           align="center" ellipsis wrap="word" fill="#212529" />
