@@ -481,15 +481,6 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
               </button>
             </div>
           </fieldset>
-          {visitorMode ? null : (
-            <div className="view3d__turn" role="group" aria-label="Поворот камеры">
-              {([['←', 'Повернуть влево', -KEY_TURN, 0], ['→', 'Повернуть вправо', KEY_TURN, 0],
-                ['↑', 'Опустить камеру', 0, -KEY_TURN], ['↓', 'Поднять камеру', 0, KEY_TURN]] as const).map(([label, name, dTheta, dPhi]) => (
-                <button key={label} type="button" className="files__button" aria-label={name} title={name}
-                  onClick={() => { if (stage.current) orbit(stage.current, dTheta, dPhi); }}>{label}</button>
-              ))}
-            </div>
-          )}
           <button type="button" className="files__button view3d__download" onClick={savePicture}>
             Скачать картинку 3D
           </button>
