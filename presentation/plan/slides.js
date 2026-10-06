@@ -22,7 +22,7 @@
     'plan-check': 'plan-check',
     'editor-offsets': 'editor-drag',
     'view-3d': 'view-3d',
-    'layers-cameras': 'layers',
+    'layers-cameras': 'layers-cameras',
     'layers-heat': 'layers-heat',
     'layers-state': 'layers-state',
     silhouette: 'silhouette',
@@ -163,11 +163,14 @@
     <p class="eyebrow in">Можно пролистнуть</p>
     ${title('Ещё девять', 'приятных мелочей')}
   </header>
+  <!-- Steps 1–9 enlarge one photo each; step 10 returns the plain grid. Markers are hidden, only their .cur class matters. -->
   <div class="tiles">
-    ${tiles.map(([name, line, shotName], i) => `<article class="tile" data-step="1" style="--i:${i}">
+    ${tiles.map(([name, line, shotName], i) => `<article class="tile in" style="--i:${i};--ox:${['left', 'center', 'right'][i % 3]};--oy:${['top', 'center', 'bottom'][Math.floor(i / 3)]}">
       ${frame(shotName, name)}
       <div><h3>${name}</h3><p>${line}</p></div>
+      <i class="zoom-at" data-step="${i + 1}" aria-hidden="true"></i>
     </article>`).join('')}
+    <i class="zoom-at" data-step="${tiles.length + 1}" aria-hidden="true"></i>
   </div>
   ${note('Коротко о мелочах, которые экономят время. Можно спросить голосом, напечатать план в масштабе, сохранить версию и пройти по залу от первого лица.')}
 </section>
