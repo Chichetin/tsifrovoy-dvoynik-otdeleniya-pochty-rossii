@@ -13,7 +13,7 @@
 
 import { readFileSync } from 'node:fs';
 import {
-  expect,
+  expect as baseExpect,
   test,
   type Locator,
   type Page,
@@ -25,6 +25,11 @@ import {
 import { encodePlan } from '../../src/persistence/codec';
 import { importOrganizerExample } from '../../src/persistence/organizer-import';
 import { showTab } from './side-tabs';
+
+// Первый кадр без GPU (SwiftShader) собирает шейдеры 7-12 с, пока машина занята:
+// предел в 5 с по умолчанию ловит не поломку, а медленный старт.
+const expect = baseExpect.configure({ timeout: 60_000 });
+test.describe.configure({ timeout: 180_000 });
 
 const SWIFTSHADER_ARGS = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
 const NO_WEBGL_ARGS = ['--disable-webgl', '--disable-3d-apis'];
@@ -59,6 +64,23 @@ async function withBrowser(
 
 async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
+}
+
+/**
+ * Clicks the room floor away from walls and from the object placed in the centre.
+ * The point comes from the view the canvas publishes (`data-visible`: «minX,minY,maxX,maxY»,
+ * screen Y down, model Y up): a pixel offset goes stale when the fit of the plan changes.
+ */
+async function clickEmptyFloor(page: Page): Promise<void> {
+  const canvas = page.getByTestId('editor-canvas');
+  const box = await canvas.boundingBox();
+  const raw = await canvas.getAttribute('data-visible');
+  if (box === null || raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX, maxY] = raw.split(',').map(Number) as [number, number, number, number];
+  // The room starts at (0, 0); a point 1.5 m inside from the south-west corner.
+  const x = ((1.5 - minX) / (maxX - minX)) * box.width;
+  const y = ((maxY - 1.5) / (maxY - minY)) * box.height;
+  await canvas.click({ position: { x, y } });
 }
 
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<string> {
@@ -140,6 +162,9 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       await placeFirstLibraryItem(page, 320, 240);
 
       // Выбор через строку инвентаризации: 3D показывает общий selection.
+      // A placed object is selected: the card covers the tabs until «×» drops it.
+      await page.getByRole('button', { name: 'Снять выделение' }).click();
+      await showTab(page, 'Инвентаризация');
       await inventoryRows(page).first().getByRole('button').first().click();
       const selected = page.getByLabel('Свойства');
       const id = await selected.getAttribute('data-entity-id');
@@ -161,7 +186,7 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       await page.locator('.library__item').first().click();
       await page.getByTestId('editor-canvas').click();
       // Сначала выбираем фон, чтобы последующий выбор точно пришёл из 3D.
-      await page.getByTestId('editor-canvas').click({ position: { x: 80, y: 120 } });
+      await clickEmptyFloor(page);
       await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'room_main');
 
       await switchTo(page, '3D');

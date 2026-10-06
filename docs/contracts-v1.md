@@ -47,6 +47,7 @@ type ObjectType = {
   physical: boolean; occupiesFloor: boolean;
   symbol: 'rect' | 'circle' | 'triangle'; outline?: Polygon;
   model3d?: string; // D-356: имя файла models/<model3d>.glb, [a-z0-9_-], без пути
+  pictogram?: PlanPictogramName; // D-376: знак на плане из PLAN_PICTOGRAM_NAMES; нет поля — знак справочника команды по id, иначе нет
   color: string;
   attributes: AttributeDef[]; provenance: string;
 };
@@ -319,6 +320,8 @@ Timeout внешнего API — 15 с, не более одного повто�
 команды: `EditorSession.previewEdits` и `EquipmentLayerProps.previewEdits`
 (`EditsPreview`: `put` — объекты после правок, `removed` — удалённые `id`).
 `apply-edits` по щелчку человека применяет `commands` одним `batch`: один шаг отмены.
+`AgentExchange.draft` (#211) — ответ расчёта без LLM. Браузер считает его сразу после
+вопроса и показывает, пока сервер ждёт модель. Пришёл `answer` — он заменяет черновик.
 Новый `id` из `add`, который хранилище уже списало (D-019), UI выпускает заново.
 
 Инструмент `layout_zone` (#122) принимает `zoneId` и необязательный список `typeIds`.

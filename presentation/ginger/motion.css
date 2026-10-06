@@ -1,0 +1,3 @@
+/* Variant F motion: the skateboarding cat moves along the progress line (transform only). */
+#rail::after{transform:translateX(calc(var(--progress,0) * 1420px));transition:transform .55s var(--ease-io)}
+@media (prefers-reduced-motion:reduce){#rail::after{transition:none}}

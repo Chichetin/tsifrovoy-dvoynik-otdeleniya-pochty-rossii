@@ -5,7 +5,7 @@
 
 import type { AgentAnswer, AgentStep } from '../../contracts/advice-chat';
 import type { PlanDocument } from '../../contracts/model';
-import { composeFallbackText, followUpCalls, limitCalls, routeAgentQuery, widenCalls, type AgentToolCall, type AgentToolRecord } from './agent-fallback';
+import { composeFallbackText, followUpCalls, limitCalls, reviewCalls, routeAgentQuery, widenCalls, type AgentToolCall, type AgentToolRecord } from './agent-fallback';
 import { createAgentToolState, runAgentTool, type AgentToolState } from './agent-tools';
 
 export function finishAgentAnswer(
@@ -61,5 +61,6 @@ export function answerWithoutModel(
   run(widenCalls(state, routed));
   run(limitCalls(state));
   run(followUpCalls(state));
+  run(reviewCalls(state, records));
   return finishAgentAnswer(state, revision, 'fallback', composeFallbackText(state, records, notes, namedZones), steps, reason);
 }

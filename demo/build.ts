@@ -51,6 +51,7 @@ import type {
 import { LIMITS, SCHEMA_VERSION } from '../src/contracts/model';
 import { parseCatalog } from '../src/contracts/schema';
 import {
+  asRelocation,
   calculateAdvice,
   defaultExplanation,
   renderExplanation,
@@ -256,6 +257,13 @@ function one(recommendations: Recommendation[], id: Id): Recommendation {
   return found;
 }
 
+/** The place recommendation for the queue terminal, applied as a move of `eq_1`. */
+export function moved(plan: PlanDocument, recommendation: Recommendation): Recommendation {
+  const result = asRelocation(plan, recommendation, QUEUE_TERMINAL_ID);
+  if (!result.ok) fail('Перенос терминала очереди не считается', result.issues);
+  return result.value;
+}
+
 function firstCandidate(recommendation: Recommendation): Equipment {
   const candidate = recommendation.candidates[0];
   if (candidate === undefined) {
@@ -427,9 +435,12 @@ export function calculateDemo(): DemoCalculation {
     advise(before, REQUESTS.bench),
     'adv_place_ot_bench_z_waiting',
   );
-  const terminalPlace = one(
-    advise(before, REQUESTS.terminal),
-    'adv_place_ot_queue_terminal_z_entrance',
+  // The search offers a spot for one more terminal; the demo moves the one that
+  // stands too far instead, so the forecast is the move's (#203): count 1 → 1,
+  // distance to the entrance «было → стало».
+  const terminalPlace = moved(
+    before,
+    one(advise(before, REQUESTS.terminal), 'adv_place_ot_queue_terminal_z_entrance'),
   );
   const missingBench = one(equipment, 'adv_rule_bench_min_z_waiting_missing');
 

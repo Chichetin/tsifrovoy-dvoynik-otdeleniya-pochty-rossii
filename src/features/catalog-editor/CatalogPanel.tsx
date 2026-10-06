@@ -11,7 +11,8 @@
  */
 
 import { useState } from 'react';
-import type { Catalog, Id, ObjectSymbol, PlanDocument } from '../../contracts/model';
+import { PLAN_PICTOGRAM_NAMES, type Catalog, type Id, type ObjectSymbol, type PlanDocument, type PlanPictogramName } from '../../contracts/model';
+import { PLAN_PICTOGRAM_PATHS } from '../../domain/plan-pictogram';
 import type { CommandSink } from '../../contracts/ui';
 import {
   addAttribute,
@@ -48,6 +49,30 @@ const SYMBOLS: { value: ObjectSymbol; label: string }[] = [
   { value: 'triangle', label: 'треугольник' },
 ];
 
+/** Names of the plan signs (D-376) in the «Знак на плане» list. */
+const PICTOGRAM_LABELS: Record<PlanPictogramName, string> = {
+  workplace: 'рабочее место',
+  seat: 'сиденье',
+  cashier: 'касса',
+  terminal: 'терминал',
+  mailbox: 'почтовый ящик',
+  display: 'экран',
+  printer: 'принтер',
+  camera: 'камера',
+  sensor: 'датчик',
+  rack: 'стеллаж',
+  scales: 'весы',
+  computer: 'компьютер',
+  pinpad: 'пинпад',
+  alarm: 'сигнализация',
+  socket: 'розетка',
+  ramp: 'пандус',
+  switchboard: 'электрощит',
+  hvac: 'вентиляция',
+  heater: 'водонагреватель',
+  stand: 'стенд',
+};
+
 /** Metres typed by a person: a comma is a decimal point; anything else is refused, not replaced. */
 function metres(value: string): number | null {
   const parsed = Number(value.trim().replace(',', '.'));
@@ -63,6 +88,14 @@ function bound(value: string): number | null | undefined {
 }
 
 const ATTRIBUTE_KEY = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+const ATTRIBUTE_TYPE_WORDS: Record<NewAttribute['type'], string> = {
+  string: 'строка',
+  number: 'число',
+  boolean: 'да/нет',
+};
+
+const NEW_CATEGORY = '__new';
+
 const BOOLEAN_WORDS: Record<string, boolean> = { да: true, true: true, нет: false, false: false };
 
 /**
@@ -93,10 +126,12 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
 
   const [typeLabel, setTypeLabel] = useState('');
   const [typeCategory, setTypeCategory] = useState('');
+  const [newCategory, setNewCategory] = useState(false);
   const [typeWidth, setTypeWidth] = useState('0.6');
   const [typeDepth, setTypeDepth] = useState('0.6');
   const [typeHeight, setTypeHeight] = useState('0.8');
   const [typeSymbol, setTypeSymbol] = useState<ObjectSymbol>('rect');
+  const [typePictogram, setTypePictogram] = useState<PlanPictogramName | ''>('');
   const [typeColor, setTypeColor] = useState('#4C6EF5');
   const [typePhysical, setTypePhysical] = useState(true);
 
@@ -143,7 +178,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const twin = catalog.zoneTypes.find((t) => t.label.trim().toLowerCase() === label.toLowerCase());
     if (twin !== undefined) {
-      setError(`Тип зоны «${twin.label}» уже есть в справочнике (${twin.id}); дайте новому другое название.`);
+      setError(`Тип зоны «${twin.label}» уже есть в справочнике; дайте новому другое название.`);
       return;
     }
     const { catalog: next, id } = addZoneType(catalog, { label, color: zoneColor });
@@ -162,7 +197,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const twin = catalog.objectTypes.find((t) => t.label.trim().toLowerCase() === label.toLowerCase());
     if (twin !== undefined) {
-      setError(`Тип «${twin.label}» уже есть в справочнике (${twin.id}); дайте новому другое название.`);
+      setError(`Тип «${twin.label}» уже есть в справочнике; дайте новому другое название.`);
       return;
     }
     const width = metres(typeWidth);
@@ -174,12 +209,13 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const { catalog: next, id } = addObjectType(catalog, {
       label,
-      category: typeCategory.trim() === '' ? 'Свой тип' : typeCategory,
+      category: chosenCategory === '' ? 'Свой тип' : chosenCategory,
       size_m: [width, depth],
       height_m: height,
       physical: typePhysical,
       occupiesFloor: typePhysical,
       symbol: typeSymbol,
+      ...(typePictogram === '' ? {} : { pictogram: typePictogram }),
       color: typeColor,
     });
     if (apply(next)) {
@@ -188,6 +224,8 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
       setTypesExpanded(true);
     }
   };
+
+  const chosenCategory = (newCategory ? typeCategory : typeCategory === '' ? (categories[0] ?? '') : typeCategory).trim();
 
   const generatedKey = attributeKeyFromLabel(attrLabel, chosen?.attributes.map((a) => a.key) ?? []);
 
@@ -199,7 +237,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
     }
     const key = attrKey.trim() === '' ? generatedKey : attrKey.trim();
     if (!ATTRIBUTE_KEY.test(key)) {
-      setError('Ключ атрибута — латиница, цифры и «_», начинается с буквы: например, serialNumber.');
+      setError('Ключ атрибута — латиница, цифры и «_», начинается с буквы: например, data_poverki.');
       return;
     }
     const raw = attrDefault.trim();
@@ -276,13 +314,29 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
             </label>
             <label className="assistant__field">
               Категория
-              <input list="catalog-categories" value={typeCategory} onChange={(e) => setTypeCategory(e.target.value)} />
-              <datalist id="catalog-categories">
+              <select
+                value={newCategory ? NEW_CATEGORY : chosenCategory}
+                onChange={(e) => {
+                  const isNew = e.target.value === NEW_CATEGORY;
+                  setNewCategory(isNew);
+                  setTypeCategory(isNew ? '' : e.target.value);
+                }}
+                data-testid="catalog-type-category"
+              >
                 {categories.map((c) => (
-                  <option key={c} value={c} />
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
-              </datalist>
+                <option value={NEW_CATEGORY}>Новая…</option>
+              </select>
             </label>
+            {newCategory ? (
+              <label className="assistant__field">
+                Название категории
+                <input value={typeCategory} onChange={(e) => setTypeCategory(e.target.value)} />
+              </label>
+            ) : null}
             <div className="catalog__row">
               <label className="assistant__field">
                 Ширина, м
@@ -307,6 +361,41 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                     </option>
                   ))}
                 </select>
+              </label>
+              <label className="assistant__field">
+                Знак на плане
+                {/* Styles live in src/app; inline layout keeps the preview next to the list. */}
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                  <select
+                    value={typePictogram}
+                    onChange={(e) => setTypePictogram(e.target.value as PlanPictogramName | '')}
+                    data-testid="catalog-type-pictogram"
+                  >
+                    <option value="">нет</option>
+                    {PLAN_PICTOGRAM_NAMES.map((name) => (
+                      <option key={name} value={name}>
+                        {PICTOGRAM_LABELS[name]}
+                      </option>
+                    ))}
+                  </select>
+                  <svg
+                    className="library__swatch library__swatch--icon"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                    data-testid="catalog-type-pictogram-preview"
+                  >
+                    {typePictogram === '' ? null : (
+                      <path
+                        d={PLAN_PICTOGRAM_PATHS[typePictogram]}
+                        fill="none"
+                        stroke={typeColor}
+                        strokeWidth={1.8}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                  </svg>
+                </span>
               </label>
               <label className="assistant__field">
                 Цвет
@@ -436,7 +525,7 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                   const readers = layersReading(catalog, a.key);
                   return (
                     <li key={a.key}>
-                      {a.label} <span className="table__muted">({a.key}, {a.type}{a.required ? ', обязательный' : ''})</span>
+                      {a.label} <span className="table__muted">({ATTRIBUTE_TYPE_WORDS[a.type]}{a.required ? ', обязательный' : ''}{attrKeyOpen ? `, ключ: ${a.key}` : ''})</span>
                       {readers.length === 0 ? null : (
                         <span className="table__muted" data-testid="catalog-attr-layer-note">
                           {' '}· читает слой «{readers.map((l) => l.label).join('», «')}»
@@ -464,9 +553,6 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                   <input value={attrLabel} onChange={(e) => setAttrLabel(e.target.value)} placeholder="Состояние" data-testid="catalog-attr-label" />
                 </label>
               </div>
-              <p className="panel__note" data-testid="catalog-attr-key-preview">
-                Ключ: {attrKey.trim() === '' ? generatedKey : attrKey.trim()}
-              </p>
               {/* A button, not <details>: the Settings Tab trap skips <summary> and cannot focus a field in a closed <details>. */}
               <button
                 type="button"
@@ -478,8 +564,9 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                 {attrKeyOpen ? '▾' : '▸'} дополнительно
               </button>
               {attrKeyOpen ? (
+                <>
                 <label className="assistant__field">
-                  Ключ
+                  Ключ (служебное имя)
                   <input
                     value={attrKey}
                     onChange={(e) => setAttrKey(e.target.value)}
@@ -487,6 +574,10 @@ export function CatalogPanel({ document: plan, onCommand, section }: CatalogPane
                     data-testid="catalog-attr-key"
                   />
                 </label>
+                <span className="table__muted" data-testid="catalog-attr-key-preview">
+                  Ключ: {attrKey.trim() === '' ? generatedKey : attrKey.trim()}
+                </span>
+                </>
               ) : null}
               <div className="catalog__row">
                 <label className="assistant__field">

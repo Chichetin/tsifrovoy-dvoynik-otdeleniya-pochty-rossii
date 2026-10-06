@@ -20,6 +20,14 @@ function overview() {
 }
 
 describe('факты чата связаны с метрикой и предметом', () => {
+  test('#217: сводка отдаёт модели загрузку зон и порог слоя тепла', () => {
+    const { state, facts } = overview();
+    const queue = facts.find((f) => f.metric === 'zone.load' && f.refs[0]?.id === 'z_queue')!;
+    expect(queue.value).toBe(100);
+    const result = renderAgentFactSelection({ factIds: [queue.id] }, facts, state);
+    expect(result.ok && result.text).toBe('Загрузка зоны — «Зона очереди» (z_queue); перегружена, порог перегрузки 100 %: 100 % (сейчас).');
+  });
+
   test('свободная и общая площадь имеют разные ключи и неизменяемые значения', () => {
     const { state, facts } = overview();
     const free = facts.find((f) => f.metric === 'area.free' && f.refs[0]?.kind === 'room')!;
@@ -70,7 +78,7 @@ describe('факты чата связаны с метрикой и предме
     const output = runAgentTool(state, 'compare_with_original', {}).output;
     const facts = collectAgentFacts(state, [{ name: 'compare_with_original', output }]);
     const delta = facts.find((f) => f.metric === 'area.free' && f.phase === 'delta')!;
-    expect(renderAgentFact(facts.find((f) => f.metric === 'placement.distance')!)).toContain('Суммарное перемещение');
+    expect(renderAgentFact(facts.find((f) => f.metric === 'placement.distance')!)).toContain('суммарное перемещение сохранившихся объектов между снимками');
     expect(delta.value).toBeCloseTo(-0.8);
     const result = renderAgentFactSelection({ factIds: [delta.id] }, facts, state);
     expect(result.ok).toBe(true);
@@ -127,7 +135,7 @@ describe('факты чата связаны с метрикой и предме
     expect(shared[0]!.id).not.toBe(shared[1]!.id);
     expect(shared[0]!.value).not.toBe(shared[1]!.value);
     for (const fact of shared) {
-      expect(renderAgentFact(fact)).toContain('до середины ограничивающего прямоугольника');
+      expect(renderAgentFact(fact)).toContain('Расстояние от варианта до центра зоны');
       const rendered = renderAgentFactSelection({ factIds: [fact.id] }, facts, state);
       expect(rendered.ok).toBe(true);
       if (rendered.ok) expect(rendered.text).toContain(fact.scope);
@@ -139,7 +147,9 @@ describe('факты чата связаны с метрикой и предме
     runAgentTool(state, 'find_place', { typeId: 'ot_bench', zoneId: null });
     const count = collectAgentFacts(state, []).find((f) => f.metric === 'equipment.count')!;
     expect(count.value).toBe(before.objects.filter((o) => o.typeId === 'ot_bench').length);
-    expect(count.scope).toContain('ot_bench');
+    // #210: the type reads by its name, its raw id stays out of the text.
+    expect(count.scope).toContain('«Скамья для ожидания»');
+    expect(count.scope).not.toContain('ot_bench');
     expect(count.scope).not.toContain('без вложенных зон');
     expect(count.scope).not.toContain('rule_bench_min');
   });
@@ -154,7 +164,7 @@ describe('факты чата связаны с метрикой и предме
     expect([...state.recommendations.values()][0]!.candidates).toEqual([]);
     const count = collectAgentFacts(state, []).find((f) => f.metric === 'equipment.count')!;
     expect(renderAgentFact(count)).toContain(type.label);
-    expect(renderAgentFact(count)).toContain(type.id);
+    expect(renderAgentFact(count)).not.toContain(type.id);
   });
 
   test('произвольные поля, сообщения ошибок и атрибуты не становятся доказательствами', () => {
@@ -185,7 +195,7 @@ describe('факты чата связаны с метрикой и предме
     const facts = collectAgentFacts(state, [{ name: 'list_objects', output }]);
     expect(facts).toHaveLength(1);
     expect(facts[0]!.value).toBe(before.objects.filter((o) => o.typeId === 'ot_workplace' && o.zoneId === 'z_client').length);
-    expect(renderAgentFact(facts[0]!)).toContain('ot_workplace');
+    expect(renderAgentFact(facts[0]!)).toContain('«Рабочее место оператора»');
     expect(renderAgentFact(facts[0]!)).toContain('z_client');
   });
 

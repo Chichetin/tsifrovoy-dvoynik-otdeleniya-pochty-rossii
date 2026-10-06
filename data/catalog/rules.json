@@ -62,5 +62,16 @@
     "scope": "inclusive",
     "min": null,
     "max": 2
+  },
+  {
+    "id": "rule_parcel_rack_storage",
+    "source": "team-assumption",
+    "rationale": "Правило команды: стеллаж для посылок стоит в зоне хранения посылок; минимум 0 — пустая зона хранения не нарушение.",
+    "kind": "count",
+    "zoneTypeId": "zt_storage",
+    "objectTypeId": "ot_parcel_rack",
+    "scope": "inclusive",
+    "min": 0,
+    "max": null
   }
 ]

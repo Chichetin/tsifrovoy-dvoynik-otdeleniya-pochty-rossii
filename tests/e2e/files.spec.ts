@@ -29,6 +29,20 @@ const DRAFT_KEY = 'ops-twin.draft.v1';
 const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
 
 /**
+ * #245: third load of the dev server page in one tab fails with
+ * net::ERR_INSUFFICIENT_RESOURCES while Chromium's HTTP cache revalidates
+ * ~200 unbundled Vite modules; the app does not start and the test sees no
+ * draft offer, although the draft is in localStorage. A test that loads the
+ * page three times switches the cache off. The reload stays a real reload of
+ * the same tab: pagehide, localStorage and the start render are unchanged.
+ */
+async function reloadsWithoutHttpCache(page: Page): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+}
+
+/**
  * Черновик в localStorage держит план с нужным числом объектов. Надписи о
  * черновике в шапке больше нет (D-288), да и раньше её было мало: она
  * появлялась уже от стартового пустого плана, и под нагрузкой перезагрузка
@@ -70,6 +84,21 @@ async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<
   await showTab(page, 'Библиотека');
   await page.locator('.library__item').first().click();
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
+}
+
+/**
+ * Ставит первый тип из библиотеки в точку плана, заданную в метрах. Масштаб
+ * вписывания зависит от раскладки, поэтому точка считается по видимой области,
+ * которую холст сам публикует в `data-visible`.
+ */
+async function placeFirstLibraryItemAtMeters(page: Page, mx: number, my: number): Promise<void> {
+  const canvas = page.getByTestId('editor-canvas');
+  const box = await canvas.boundingBox();
+  const raw = await canvas.getAttribute('data-visible');
+  if (box === null || raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX] = raw.split(',').map(Number) as [number, number, number];
+  const scale = box.width / (maxX - minX);
+  await placeFirstLibraryItem(page, (mx - minX) * scale, box.height - (my - minY) * scale);
 }
 
 /**
@@ -306,6 +335,7 @@ test.describe('файлы плана', () => {
   });
 
   test('черновик не затирается, пока на предложение не ответили', async ({ page }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);
@@ -327,6 +357,7 @@ test.describe('файлы плана', () => {
   test('после «Открыть существующий» и правки черновик снова пишется: предлагают новый, а не старый', async ({
     page,
   }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
@@ -342,7 +373,7 @@ test.describe('файлы плана', () => {
     await expect(page.getByTestId('draft-restore')).toHaveCount(0);
 
     // Правка второго плана — то, что нельзя потерять при закрытии вкладки.
-    await placeFirstLibraryItem(page, 320, 240);
+    await placeFirstLibraryItemAtMeters(page, 4, 4.5);
     await expect(inventoryRows(page)).toHaveCount(4);
     // Ждём именно записи правки, а не подписи времени: подпись уже стоит от
     // черновика открытого файла, а дебаунс — 700 мс.
@@ -359,6 +390,7 @@ test.describe('файлы плана', () => {
   test('«Удалить» убирает черновик, и после перезагрузки его больше не предлагают', async ({
     page,
   }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);
@@ -376,6 +408,7 @@ test.describe('файлы плана', () => {
   // работу, не ответив на него, теперь нельзя — зато «Не сейчас» убирает
   // вопрос, не трогая черновик: он предлагается снова.
   test('«Не сейчас» оставляет черновик на месте', async ({ page }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);

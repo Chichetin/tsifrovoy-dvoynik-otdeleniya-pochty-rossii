@@ -8,4 +8,6 @@
 
 Никаких импортов реализации из domain, state, features, persistence или server. React-типы разрешены только в ui.ts; server/domain не импортируют ui.ts.
 
+Имена знаков плана — `PLAN_PICTOGRAM_NAMES` в model.ts, поле `ObjectType.pictogram` (D-376). Рисунок знака — в `src/domain/plan-pictogram.ts`.
+
 [Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md)

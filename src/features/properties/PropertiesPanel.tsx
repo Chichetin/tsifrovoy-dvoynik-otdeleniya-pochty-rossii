@@ -48,6 +48,9 @@ const ALIGN_BUTTONS: readonly (readonly [AlignEdge, string])[] = [
   ['bottom', 'По низу'],
 ];
 
+/** Attributes shown right under the name of an object card (#239). */
+const TOP_ATTRIBUTE_KEYS = ['inventoryNumber', 'equipmentStatus'];
+
 const noGesturePreview = () => null;
 const subscribeToNothing = (): (() => void) => () => {};
 
@@ -107,6 +110,15 @@ function zoneName(plan: PlanDocument, zoneId: string | null): string {
   const zone = plan.zones.find((item) => item.id === zoneId);
   if (zone === undefined) return 'вне зон';
   return zone.name.trim() === '' ? zone.id : zone.name;
+}
+
+/**
+ * A name the editor gave, not the person: blank, the «Зона N» of a new zone, or
+ * the label of a zone type. Only such a name follows a type change (#215).
+ */
+function isDefaultZoneName(plan: PlanDocument, name: string): boolean {
+  const trimmed = name.trim();
+  return trimmed === '' || /^Зона \d+$/.test(trimmed) || plan.catalog.zoneTypes.some((type) => type.label === trimmed);
 }
 
 export function PropertiesPanel({
@@ -443,15 +455,15 @@ export function PropertiesPanel({
             onChange={(event) => {
               // Смена типа переименовывает зону в название типа — одной
               // командой, чтобы «Отменить» возвращало и тип, и имя. Обратной
-              // связи нет: правка имени тип не трогает. Ручное название тоже
-              // заменяется (D-265).
+              // связи нет: правка имени тип не трогает. Название, введённое
+              // человеком, остаётся (D-265, #215).
               const typeId = event.target.value;
               const renamed = findZoneType(plan.catalog, typeId);
               setDraft((draft) => without(draft, 'name'));
               commit('typeId', {
                 ...zone,
                 typeId,
-                name: renamed === null ? zone.name : renamed.label,
+                name: renamed === null || !isDefaultZoneName(plan, zone.name) ? zone.name : renamed.label,
               });
             }}
           >
@@ -586,6 +598,16 @@ export function PropertiesPanel({
       );
     }
 
+    const topAttribute = (key: string): React.JSX.Element[] =>
+      type === null
+        ? []
+        : attributeFields(
+            type.attributes.filter((def) => def.key === key),
+            object.attributes,
+            (name, value) => commandFor({ ...object, attributes: { ...object.attributes, [name]: value } }),
+            colorChoices,
+          );
+
     return (
       <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={object.id}>
 
@@ -601,6 +623,13 @@ export function PropertiesPanel({
             }
           />,
         )}
+
+        {/* #239: number, zone and state sit right under the name: no scrolling to find them. */}
+        {topAttribute('inventoryNumber')}
+        <p className="props__line" data-testid="props-zone">
+          Зона: {zoneName(plan, object.zoneId)}
+        </p>
+        {topAttribute('equipmentStatus')}
 
         <label className="props__line">
           <input type="checkbox" checked={object.locked === true}
@@ -662,10 +691,6 @@ export function PropertiesPanel({
         </fieldset>
 
         {layerSelect(object.layerId, (layerId) => ({ ...object, layerId }))}
-
-        <p className="props__line" data-testid="props-zone">
-          Зона: {zoneName(plan, object.zoneId)}
-        </p>
 
         {/* #179: the assistant's mode B. The assistant is another feature: the
             request goes as a window event (features/assistant/place-suggestion.ts). */}
@@ -745,7 +770,7 @@ export function PropertiesPanel({
         {type === null
           ? null
           : attributeFields(
-              type.attributes,
+              type.attributes.filter((def) => !TOP_ATTRIBUTE_KEYS.includes(def.key)),
               object.attributes,
               (key, value) => commandFor({ ...object, attributes: { ...object.attributes, [key]: value } }),
               colorChoices,

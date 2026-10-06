@@ -15,6 +15,7 @@ import { inflateRawSync } from 'node:zlib';
 import { afterAll, describe, expect, test } from 'vitest';
 import {
   REQUESTS,
+  moved,
   rebuildFromFile,
   renderModeSection,
   withModeSection,
@@ -83,6 +84,13 @@ test('вопрос о составе зоны ведёт к зоне, даже �
   // «Весы» stem to three letters, below the type threshold: the question used to fall to plan_overview.
   expect(routeAgentQuery(plan, 'Где поставить ещё весы?', false)[0]).toMatchObject({ name: 'find_place', args: { typeId: 'ot_scales' } });
   expect(routeAgentQuery(plan, 'Покажи весь план', false)[0]?.name).toBe('plan_overview');
+});
+
+test('#217: в исходном демо ассистент без модели называет перегруженную зону очереди', () => {
+  const plan = JSON.parse(readFileSync(join(DEMO_DIR, 'before.json'), 'utf8')) as PlanDocument;
+  const [overview] = routeAgentQuery(plan, 'Какие зоны перегружены?', false);
+  expect(overview?.name).toBe('plan_overview');
+  expect(overview?.note).toContain('«Зона очереди» (z_queue) — 100 %');
 });
 
 test('стартовый план совпадает с исходным демо из ZIP и показывает находки (#111)', () => {
@@ -211,7 +219,7 @@ describe('комплект демо-проекта', () => {
     const fromCalculation: Recommendation[] = [
       ...run(before, REQUESTS.equipment),
       ...run(before, REQUESTS.bench),
-      ...run(before, REQUESTS.terminal),
+      ...run(before, REQUESTS.terminal).map((entry) => moved(before, entry)),
       ...run(after, { scenario: 'compare', before }),
     ];
     for (const stored of recommendationFile.recommendations) {
@@ -282,6 +290,22 @@ describe('комплект демо-проекта', () => {
     expect(isTerminal?.attributes).toEqual(wasTerminal?.attributes);
     expect(isTerminal?.position).not.toEqual(wasTerminal?.position);
     expect(isTerminal?.zoneId).toBe('z_entrance');
+  });
+
+  test('перенос терминала очереди: факты переноса, а не добавления (#203)', () => {
+    const terminal = recommendationFile.recommendations.find(
+      (entry) => entry.id === 'adv_place_ot_queue_terminal_z_entrance',
+    );
+    const applied = recommendationFile.applied.find((entry) => entry.objectId === 'eq_1');
+    const candidate = terminal?.candidates.find((entry) => entry.id === applied?.candidateId);
+    const fact = (metric: string, phase: string): number | undefined =>
+      candidate?.facts.find((entry) => entry.metric === metric && entry.phase === phase)?.value;
+    expect(fact('equipment.count', 'current')).toBe(1);
+    expect(fact('equipment.count', 'after')).toBe(1);
+    expect(round2(fact('layout.entrance', 'current') ?? Number.NaN)).toBe(value('entrance.distance')[0]);
+    expect(round2(fact('layout.entrance', 'after') ?? Number.NaN)).toBe(value('entrance.distance')[1]);
+    expect(recommendationFile.texts['adv_place_ot_queue_terminal_z_entrance']).toContain('1 → 1');
+    expect(demoFile('effect.md')).not.toContain('1 → 2»');
   });
 
   test('эффект в effect.md совпадает с расчётом по обоим планам', () => {

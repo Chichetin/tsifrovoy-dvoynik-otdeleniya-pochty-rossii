@@ -19,6 +19,25 @@ export const SCALE_LIMITS = { min: 4, max: 400 } as const;
 /** Free space left around the plan when fitting it into the canvas. */
 const FIT_PADDING_PX = 32;
 
+/**
+ * Band kept free under a fitted plan (#233, #243): the scale panel and the
+ * cursor coordinates sit along the bottom edge, their top 40 px above it.
+ * With the padding the plan extent ends 56 px above the edge. The assistant
+ * avatar (bottom-right, 58 px from the right edge) stays right of the plan
+ * because of the right band below.
+ */
+export const OVERLAY_RESERVE_PX = 24;
+
+/**
+ * Band kept free right of a fitted plan (#236): the «hide interface» and
+ * captions buttons sit in the top-right corner, 2.875rem (46-52 px) from the
+ * edge to their left side. With the padding this keeps the plan extent 80 px
+ * from the right edge; the half wall thickness outside the extent still has a
+ * gap, so a wall or an object never lies under the buttons and a click into
+ * the room corner does not hit one.
+ */
+export const OVERLAY_RIGHT_RESERVE_PX = 48;
+
 /** Fallback when a plan has no extent at all — a fresh, empty document. */
 export const DEFAULT_SCALE = 48;
 
@@ -55,7 +74,7 @@ export function wheelIntent(input: WheelInput): WheelIntent {
  * D-272: the screen shift for an accumulated two-finger swipe. The wheel delta
  * says where the reader wants to scroll, so the plan moves the other way — the
  * same as a page under the same fingers. Only the wheel/trackpad pan goes
- * through here; drag pans (middle button, «Обзор») pass the pointer's own
+ * through here; drag pans (middle button, Space + drag) pass the pointer's own
  * movement to `panBy` as is.
  */
 export function wheelPan(delta: Point): Point {
@@ -99,16 +118,22 @@ export function zoomByWheel(viewport: Viewport, anchor: Point, deltaY: number): 
 }
 
 /**
- * Places the given world extent into the canvas with a margin. An empty or
- * degenerate extent keeps a usable default instead of dividing by zero.
+ * Places the given world extent into the canvas with a margin and free bands
+ * at the bottom and on the right for the overlays. A short or narrow canvas
+ * gives each band at most a third of its side. An empty or degenerate extent keeps a usable default
+ * instead of dividing by zero.
  */
 export function fitToExtent(
   extent: Polygon,
   canvas: CanvasSize,
   padding = FIT_PADDING_PX,
+  bottomReserve = OVERLAY_RESERVE_PX,
+  rightReserve = OVERLAY_RIGHT_RESERVE_PX,
 ): Viewport {
-  const usableWidth = Math.max(1, canvas.width - padding * 2);
-  const usableHeight = Math.max(1, canvas.height - padding * 2);
+  const reserve = Math.max(0, Math.min(bottomReserve, canvas.height / 3));
+  const right = Math.max(0, Math.min(rightReserve, canvas.width / 3));
+  const usableWidth = Math.max(1, canvas.width - padding * 2 - right);
+  const usableHeight = Math.max(1, canvas.height - padding * 2 - reserve);
 
   if (extent.length === 0) {
     return { scale: DEFAULT_SCALE, origin: [padding, canvas.height - padding] };
@@ -129,7 +154,7 @@ export function fitToExtent(
   const centreY = (box.minY + box.maxY) / 2;
   return {
     scale,
-    origin: [canvas.width / 2 - centreX * scale, canvas.height / 2 + centreY * scale],
+    origin: [(canvas.width - right) / 2 - centreX * scale, (canvas.height - reserve) / 2 + centreY * scale],
   };
 }
 

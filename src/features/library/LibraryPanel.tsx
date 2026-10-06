@@ -166,7 +166,7 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                         fill={type.color}
                       />
                     </svg>
-                  ) : planPictogram(type.id) !== null ? (
+                  ) : planPictogram(type) !== null ? (
                     <svg
                       className="library__swatch library__swatch--icon"
                       viewBox="0 0 24 24"
@@ -174,7 +174,7 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
                       data-testid={`library-icon-${type.id}`}
                     >
                       <path
-                        d={PLAN_PICTOGRAM_PATHS[planPictogram(type.id)!]}
+                        d={PLAN_PICTOGRAM_PATHS[planPictogram(type)!]}
                         fill="none"
                         stroke={type.color}
                         strokeWidth={1.8}

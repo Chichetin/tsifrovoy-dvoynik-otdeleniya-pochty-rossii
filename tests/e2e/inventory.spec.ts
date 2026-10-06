@@ -191,16 +191,21 @@ test.describe('перечень оборудования', () => {
     });
     await expect(terminal).toHaveText('Терминал электронной очереди');
 
-    // Само предложение и ссылка читаются без внутренних кодов. Они доступны
-    // только после явного раскрытия технических деталей.
+    // Само предложение и ссылка читаются без внутренних кодов. Флажка
+    // технических деталей больше нет (#105): id остаётся у ссылки, а клик по
+    // ней выбирает на плане именно этот объект.
     const messages = checks.locator('.issues__message');
     await expect(messages.filter({ hasText: 'Скамья для ожидания' }).first()).toBeVisible();
     await expect(messages.filter({ hasText: 'от главного входа' }).first()).toBeVisible();
     for (const message of await messages.allTextContents()) {
       expect(message).not.toMatch(/\b(?:ot|op|w)_[a-z0-9_]+\b/i);
     }
-    await checks.getByRole('checkbox', { name: 'Показать технические детали' }).check();
-    await expect(checks.getByText('object:eq_1').first()).toBeVisible();
+    await expect(checks.getByRole('checkbox', { name: 'Показать технические детали' })).toHaveCount(0);
+    await terminal.first().click();
+    // #225: выбранная находка сначала показана карточкой находки, «Свойства» — по ссылке из неё.
+    await expect(page.getByTestId('finding-card')).toHaveAttribute('data-ref-id', 'eq_1');
+    await page.getByTestId('finding-open-props').click();
+    await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'eq_1');
   });
 
   test('поиск находит объект по инвентарному номеру и по зоне', async ({ page }) => {

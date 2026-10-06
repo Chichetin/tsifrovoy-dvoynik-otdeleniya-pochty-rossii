@@ -153,6 +153,24 @@ describe('round-trip', () => {
     expect(encodeOrThrow(plan)).not.toContain('"model3d"');
   });
 
+  test('знак типа на плане (D-376) переживает сохранение и открытие и стоит после 3D-модели', () => {
+    const plan = decodeFixture('minimal.json');
+    const [type, ...others] = plan.catalog.objectTypes;
+    if (type === undefined) throw new Error('нет типа объекта');
+    const withSign: PlanDocument = {
+      ...plan,
+      catalog: { ...plan.catalog, objectTypes: [{ ...type, model3d: 'desk', pictogram: 'workplace' }, ...others] },
+    };
+    const text = encodeOrThrow(withSign);
+    const reopened = decodePlan(text);
+    if (!reopened.ok) throw new Error('не открылся');
+    expect(reopened.value).toEqual(withSign);
+    const written = JSON.parse(text) as { catalog: { objectTypes: Record<string, unknown>[] } };
+    const keys = Object.keys(first(written.catalog.objectTypes, 'тип'));
+    expect(keys.slice(keys.indexOf('model3d'), keys.indexOf('model3d') + 3)).toEqual(['model3d', 'pictogram', 'color']);
+    expect(encodeOrThrow(plan)).not.toContain('"pictogram"');
+  });
+
   test('порядок ключей в файле не зависит от порядка ключей в памяти', () => {
     const plan = decodeFixture('minimal.json');
     const withOrder = (order: 'forward' | 'reverse'): PlanDocument => ({

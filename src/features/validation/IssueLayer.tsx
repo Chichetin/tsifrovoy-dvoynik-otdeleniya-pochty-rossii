@@ -30,14 +30,9 @@ import { Circle, Group, Label, Line, Tag, Text } from 'react-konva';
 import type { Ref, Viewport } from '../../contracts/model';
 import { modelToScreen } from '../../domain/geometry';
 import { formatLength } from '../../domain/number-format';
+import { HIGHLIGHT_COLORS, issueMarkers } from '../../domain/issue-markers';
 import type { ValidationIssue } from '../../domain/validation';
-import {
-  HIGHLIGHT_COLORS,
-  highlightsFor,
-  issueMarkers,
-  markerAnchor,
-  measuresFor,
-} from './issue-highlight';
+import { highlightsFor, markerAnchor, measuresFor } from './issue-highlight';
 
 export type IssueLayerProps = {
   issues: ValidationIssue[];

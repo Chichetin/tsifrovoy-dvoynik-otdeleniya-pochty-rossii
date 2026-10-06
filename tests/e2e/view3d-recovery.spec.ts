@@ -1,6 +1,10 @@
 import { readFileSync } from 'node:fs';
-import { test, expect, exportPlan } from './fixtures';
+import { test, expect as baseExpect, exportPlan } from './fixtures';
 import type { PlanDocument } from '../../src/contracts/model';
+
+// Первый кадр без GPU (SwiftShader) собирает шейдеры 7-12 с: предел в 5 с ловит медленный старт, не поломку.
+const expect = baseExpect.configure({ timeout: 60_000 });
+test.describe.configure({ timeout: 180_000 });
 
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
 

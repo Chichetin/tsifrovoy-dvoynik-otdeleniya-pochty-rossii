@@ -19,11 +19,12 @@ import { measurePlan } from '../metrics';
 import { planIndex, type PlanIndex } from '../plan-index';
 import { validatePlan } from '../validation';
 import { checkAgentEdits, relocationProposal } from './agent-edits';
+import { ruleSourceLabel, zoneLoadView } from './agent-fallback';
 import { layoutZone } from './layout';
 import { placementZonePath } from './placement';
 import { cameraCoverage } from './camera-coverage';
 import { findRelocations } from './relocation';
-import { calculateAdvice } from './index';
+import { calculateAdvice, placementAdvice } from './index';
 
 export type AgentToolState = {
   plan: PlanDocument;
@@ -62,7 +63,13 @@ const argSchemas = {
   plan_overview: z.object({}).passthrough(),
   zone_details: z.object({ zoneId: z.string().min(1) }),
   list_objects: z.object({ typeId: nullableId, zoneId: nullableId }),
-  find_place: z.object({ typeId: nullableId, zoneId: nullableId, objectId: nullableId }),
+  find_place: z.object({
+    typeId: nullableId,
+    zoneId: nullableId,
+    objectId: nullableId,
+    // #237: «ближе к входу»; другое значение не меняет порядок.
+    near: z.string().nullish().transform((value) => (value === 'entrance' ? 'entrance' : null)),
+  }),
   check_equipment: z.object({ zoneId: nullableId }),
   validate_plan: z.object({}).passthrough(),
   compare_with_original: z.object({}).passthrough(),
@@ -79,7 +86,7 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'plan_overview',
     description:
-      'Сводка текущего плана: площадь помещения, занято и свободно, зоны с площадями и числом объектов, оборудование по типам, информационные слои, покрытие клиентских зон камерами (доля, слепые пятна), число ошибок проверки. Вызывай первым, если вопрос общий.',
+      'Сводка текущего плана: площадь помещения, занято и свободно, зоны с площадями и числом объектов, оборудование по типам, информационные слои, загрузка зон по слою тепла (значение, порог перегрузки, перегружена ли зона), покрытие клиентских зон камерами (доля, слепые пятна), число ошибок проверки. Вызывай первым, если вопрос общий.',
     parameters: { type: 'object', properties: {} },
   },
   {
@@ -98,10 +105,10 @@ export const AGENT_TOOL_SPECS: { name: AgentToolName; description: string; param
   {
     name: 'find_place',
     description:
-      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало. С objectId — новое место для уже стоящего объекта: до трёх проверенных переносов и вариант «оставить как есть», у каждого зона, правила, зазор до стены, свободная площадь, объекты зон и покрытие камерами было → стало; переносы видны призраками, применит человек.',
+      'Расчёт свободного места для нового объекта типа typeId (в зоне zoneId или по уместным зонам, если null). Возвращает до трёх вариантов с позицией и свободной площадью было → стало. near: "entrance" — человек просит ближе к входу: варианты идут по расстоянию до входа. У каждого варианта есть расстояние до ближайшего входа (layout.entrance.after). Для камеры (ot_camera) место выбирается так, чтобы закрыть самое большое слепое пятно клиентских зон, и считается покрытие камерами было → стало. С objectId — новое место для уже стоящего объекта: до трёх проверенных переносов и вариант «оставить как есть», у каждого зона, правила, зазор до стены, свободная площадь, объекты зон и покрытие камерами было → стало; переносы видны призраками, применит человек.',
     parameters: {
       type: 'object',
-      properties: { typeId: { type: ['string', 'null'] }, zoneId: { type: ['string', 'null'] }, objectId: { type: ['string', 'null'] } },
+      properties: { typeId: { type: ['string', 'null'] }, zoneId: { type: ['string', 'null'] }, objectId: { type: ['string', 'null'] }, near: { type: ['string', 'null'] } },
     },
   },
   {
@@ -251,10 +258,15 @@ function recommendationView(state: AgentToolState, recommendation: Recommendatio
       facts: Object.fromEntries(candidate.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
     })),
     changes: recommendation.changes.slice(0, 20).map((change) => ({ kind: change.kind, id: change.ref.id, name: state.names.nameOf(change.ref) })),
-    ruleIds: recommendation.ruleIds,
+    rules: ruleSources(state.plan, recommendation.ruleIds),
     assumptions: recommendation.assumptions,
     limitations: recommendation.limitations,
   };
+}
+
+/** #178: rules with whose they are — the words the model must use for them. */
+function ruleSources(plan: PlanDocument, ids: readonly Id[]): { id: Id; source: string }[] {
+  return plan.catalog.rules.filter((rule) => ids.includes(rule.id)).map((rule) => ({ id: rule.id, source: ruleSourceLabel(rule) }));
 }
 
 function remember(state: AgentToolState, recommendations: Recommendation[]): void {
@@ -295,6 +307,20 @@ function coverageView(state: AgentToolState): unknown {
   return null;
 }
 
+/** #217: zone load against the heat layer threshold; `null` without a heat layer type. */
+function loadView(state: AgentToolState): unknown {
+  const view = zoneLoadView(state.plan);
+  if (view === null) return null;
+  return {
+    layerTypeId: view.layerTypeId,
+    layerId: view.layerId,
+    attribute: view.attribute,
+    unit: view.unit,
+    threshold: view.threshold,
+    zones: view.zones.map((zone) => ({ zoneId: zone.zoneId, name: zone.name, value: round(zone.value), overloaded: zone.overloaded })),
+  };
+}
+
 function overview(state: AgentToolState): AgentToolOutcome {
   const { plan } = state;
   const measured = measurePlan(plan);
@@ -329,6 +355,7 @@ function overview(state: AgentToolState): AgentToolOutcome {
         warnings: issues.filter((issue) => issue.severity !== 'error').length,
       },
       cameraCoverage: coverageView(state),
+      zoneLoad: loadView(state),
     },
     step: { tool: 'plan_overview', label: 'Сводка плана: площади, зоны, оборудование', ok: true },
   };
@@ -353,6 +380,9 @@ function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): Agent
       proposalId = proposal.id;
     }
     for (const zone of option.zones) addRef(state, { kind: 'zone', id: zone.id });
+    // #178: only what the move changes — room totals stay the same and would push
+    // the four options past the output budget, leaving the model without variants.
+    const changed = new Set(option.facts.filter((fact) => fact.phase === 'delta' && fact.value !== 0).map((fact) => fact.metric));
     return {
       kind: option.kind,
       proposalId,
@@ -362,13 +392,13 @@ function relocate(state: AgentToolState, objectId: Id, zoneId: Id | null): Agent
       ruleIds: option.ruleIds,
       wallGap_m: Number.isFinite(option.wallGap_m) ? round(option.wallGap_m) : null,
       newWarnings: option.warnings,
-      facts: Object.fromEntries(option.facts.map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
+      facts: Object.fromEntries(option.facts.filter((fact) => changed.has(fact.metric)).map((fact) => [`${fact.metric}.${fact.phase}`, round(fact.value)])),
       zoneEffects: option.zoneEffects.map((effect) => ({ zoneId: effect.zoneId, name: zoneName(state, effect.zoneId), free_m2: { before: round(effect.free_m2.before), after: round(effect.free_m2.after) }, objects: effect.objects })),
       coveragePercent: option.coverage === null ? null : { before: maybe(option.coverage.before), after: maybe(option.coverage.after) },
     };
   });
   return {
-    output: { objectId, options, note: 'Переносы показаны на плане призраками; инвентарный номер и атрибуты объекта не меняются. Применит человек кнопкой «Применить правки», отмена — Ctrl+Z.' },
+    output: { objectId, options, rules: ruleSources(state.plan, [...new Set(options.flatMap((option) => option.ruleIds))]), note: 'Переносы показаны на плане призраками; инвентарный номер и атрибуты объекта не меняются. Применит человек кнопкой «Применить правки», отмена — Ctrl+Z.' },
     step: { tool: 'find_place', label: `${label}: переносов ${options.length - 1}`, ok: true },
   };
 }
@@ -442,14 +472,14 @@ export function runAgentTool(state: AgentToolState, name: string, rawArgs: unkno
     }
 
     case 'find_place': {
-      const { typeId, zoneId, objectId } = argSchemas.find_place.parse(rawArgs);
+      const { typeId, zoneId, objectId, near } = argSchemas.find_place.parse(rawArgs);
       if (objectId !== null) return relocate(state, objectId, zoneId);
       if (typeId === null) return fail(name, 'Поиск места', 'Нужен typeId нового объекта или objectId стоящего.');
       const typeLabel = state.names.objectTypeLabel(typeId);
       if (typeLabel === null) return fail(name, 'Тип оборудования не найден', `Типа «${typeId}» нет в справочнике. Типы — в plan_overview.catalogTypes.`);
       if (zoneId !== null && zoneName(state, zoneId) === null) return fail(name, 'Зона не найдена', `Зоны «${zoneId}» нет в плане.`);
-      const label = `Поиск места: «${typeLabel}»${zoneId === null ? '' : ` в зоне «${zoneName(state, zoneId)}»`}`;
-      const calculated = calculateAdvice(plan, { scenario: 'place', typeId, zoneId });
+      const label = `Поиск места: «${typeLabel}»${zoneId === null ? '' : ` в зоне «${zoneName(state, zoneId)}»`}${near === null ? '' : ', ближе к входу'}`;
+      const calculated = placementAdvice(plan, { scenario: 'place', typeId, zoneId }, near === 'entrance');
       if (!calculated.ok) return fail(name, label, calculated.issues.map((issue) => issue.message).join('; '));
       remember(state, calculated.value);
       for (const entry of calculated.value) state.placementTypes.set(entry.id, typeId);

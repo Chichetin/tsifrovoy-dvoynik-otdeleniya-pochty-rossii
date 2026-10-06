@@ -209,5 +209,10 @@ export type AgentExchange = {
   /** Tool calls seen so far; the answer carries the final list. */
   steps: AgentStep[];
   answer: AgentAnswer | null;
+  /**
+   * #211: the calculation's own answer, made in the browser at once, while the
+   * model works. Shown until `answer` arrives; never sent to the server.
+   */
+  draft?: AgentAnswer;
   error: string | null;
 };
