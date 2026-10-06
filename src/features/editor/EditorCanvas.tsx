@@ -301,13 +301,6 @@ export function EditorCanvas({
     },
     [],
   );
-  const applyViewport = useCallback(
-    (next: Viewport): void => {
-      liveViewport.current = next;
-      onViewport(next);
-    },
-    [onViewport],
-  );
   /** Документ, который уже вписан: смена плана — это другой id или другое имя. */
   const fitted = useRef<string | null>(null);
   /** Номер последнего запроса, подсветка которого уже погасла. */
