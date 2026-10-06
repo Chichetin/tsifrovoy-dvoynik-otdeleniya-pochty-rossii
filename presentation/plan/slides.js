@@ -65,11 +65,11 @@
 
   // s10: what reads the document and what it is built with. None keeps a copy of the plan.
   const reads = [
-    ['r1', '2D и 3D', 'React + Konva · Three.js'],
-    ['r2', 'Инвентаризация', 'TypeScript · выгрузка CSV'],
-    ['r3', 'Площади', 'polyclip-ts · объединение'],
-    ['r4', 'Проверка', 'TypeScript · тесты Vitest'],
-    ['r5', 'Ассистент', 'DeepSeek · Yandex AI Studio'],
+    ['r1', '2D и 3D', 'рисуют то, что в плане'],
+    ['r2', 'Инвентаризация', 'перечень и CSV из плана'],
+    ['r3', 'Площади', 'свободные метры по зонам'],
+    ['r4', 'Проверка', 'находки после каждой правки'],
+    ['r5', 'Ассистент', 'советует, но сам не правит'],
   ];
 
   const checks = ['пересечения', 'выход за помещение', 'стена', 'загороженная дверь', 'техника без стола', 'повтор инвентарного номера', 'комплектование'];
@@ -299,18 +299,18 @@
     ${title('План меняют', 'только команды')}
   </header>
   <div class="arch" data-links="w1>w2|v; w2>w3|v; w3>hub; hub>r1 r2 r3 r4 r5; r5>srv|v">
-    <div class="node wr" data-node="w1" style="--y:0"><p class="tag">Вход · React</p><h3>Жест, карточка, файл</h3><p>и «Применить» ассистента</p></div>
-    <div class="node wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда · Zustand</p><h3>16 типов и batch</h3><p>всё или ничего · одна запись undo</p></div>
-    <div class="node wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Допуск · TypeScript</p><h3>6 правил физики</h3><p>новое нарушение — отказ</p></div>
+    <div class="node wr" data-node="w1" style="--y:0"><p class="tag">Откуда правка</p><h3>Мышь, карточка, файл</h3><p>или «Применить» у ассистента</p></div>
+    <div class="node wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда · Zustand</p><h3>Правка становится командой</h3><p>группу правок отменяет один Ctrl+Z</p></div>
+    <div class="node wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Проверка до записи</p><h3>6 правил физики</h3><p>ломает план — не запишется</p></div>
     <div class="node hub" data-node="hub" data-step="1" data-packet>
-      <p class="tag">Единое состояние</p>
+      <p class="tag">Одно состояние</p>
       <h3>План в JSON</h3>
-      <ul><li>схема Zod, версия 1</li><li>метры · центр · Y вверх</li><li>справочник внутри</li><li>store Zustand, undo</li></ul>
+      <ul><li>формат держит схема Zod</li><li>справочник лежит внутри</li><li>метры, ось Y вверх</li></ul>
     </div>
     <div class="reads">
       ${reads.map(([id, name, fn]) => `<div class="node rd" data-node="${id}" data-step="2" data-packet><h3>${name}</h3><p>${fn}</p></div>`).join('')}
     </div>
-    <div class="node srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер · Node.js</p><h3>Fastify повторяет расчёт</h3><p>Zod проверяет файл → тот же TypeScript-расчёт → модели только факты → код проверяет ответ</p></div>
+    <div class="node srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер · Fastify</p><h3>Браузеру на слово не верит</h3><p>Проверяет файл той же схемой и считает тем же кодом. Ответ модели сверяет с расчётом.</p></div>
   </div>
   ${note('Всё состояние сервиса — план в JSON, его проверяет схема Zod. В браузере план лежит в store Zustand. Изменить его может только команда: жест на плане, карточка, открытие файла или кнопка «Применить» ассистента. Группа правок проходит одной командой и отменяется одним undo. Перед записью команду проверяют шесть правил физики, и если появилось новое нарушение, правка отклоняется. Всё остальное считается из плана: 2D на React и Konva, 3D на Three.js, инвентаризация, площади, проверка и ассистент. Своих копий плана у них нет. Сервер на Fastify браузеру не доверяет: он проверяет файл той же схемой и повторяет расчёт тем же кодом на TypeScript.')}
 </section>
