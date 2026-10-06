@@ -80,7 +80,10 @@ h3{font-family:var(--display);font-weight:700;letter-spacing:-.025em}
 .lane span{display:none}
 .pipe .node{padding:20px 18px}
 .pipe .node.fb h3{font-size:22px}
-.pipe .node p:last-child{font-size:20px}
+.pipe .node p:last-child{font-size:22px}
 
 :root{--sweep-inset:26px}
 .bg::after{animation:float-y 9s ease-in-out infinite alternate}
+/* s3, s4, s6 cards: fixed boxes need the plain padding */
+.arch .node,.check .node,.effect .find{padding:14px 22px}
+.arch .hub{padding:24px}

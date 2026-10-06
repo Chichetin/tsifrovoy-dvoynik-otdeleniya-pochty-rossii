@@ -39,6 +39,7 @@ body{font-family:var(--body);color:var(--text)}
 .s-title .lead{top:730px}
 .s-ai .title .ln{font-size:60px}
 .s-arch .title{font-size:56px}.s-check .title{font-size:58px}
+.s-scale .title{font-size:54px}
 .eyebrow{color:var(--brand-primary);font-weight:700}
 .tag{display:inline-block;background:var(--accent-strong);color:var(--navy);padding:5px 12px;font-weight:600;letter-spacing:.08em}
 .node .tag,.q .tag,.link-card .tag{margin-bottom:14px}
