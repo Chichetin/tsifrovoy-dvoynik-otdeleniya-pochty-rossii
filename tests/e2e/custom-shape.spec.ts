@@ -6,7 +6,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, type Page, exportPlan, hideMinimap, passPhysicsBlock } from './fixtures';
+import { expect, test, type Page, exportPlan, passPhysicsBlock } from './fixtures';
 import { showTab } from './side-tabs';
 
 type Screen = { x: number; y: number };
@@ -129,8 +129,6 @@ function growableTarget(): Saved['objects'][number] {
 test('режим формы выключается Enter и сменой инструмента', async ({ page }) => {
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-  // #123: the minimap covers the demo's bottom-left benches, the target among them.
-  await hideMinimap(page);
   const target = growableTarget();
   const centre = await nodeOnPage(page, `equipment-${target.id}`);
   await enterShapeEdit(page, centre);
@@ -157,8 +155,6 @@ test('форма вершиной → новый тип → объект это�
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/');
   await page.getByTestId('plan-file-input').setInputFiles(DEMO);
-  // #123: the minimap covers the demo's bottom-left benches, the target among them.
-  await hideMinimap(page);
 
   // The complete edit → type → placement → reopened-file route still runs in
   // one session; mode exit/re-entry has its own focused test above.

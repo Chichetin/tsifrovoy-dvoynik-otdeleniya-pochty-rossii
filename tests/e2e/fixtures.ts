@@ -88,17 +88,6 @@ export async function passPhysicsBlock(page: Page): Promise<void> {
   if ((await anyway.count()) > 0) await anyway.click();
 }
 
-/**
- * #123: the minimap lies over the bottom-left corner of the plan and takes the
- * clicks there. A spec that draws or picks in that corner hides it first; the
- * minimap itself is not what such a spec checks.
- */
-export async function hideMinimap(page: Page): Promise<void> {
-  const hide = page.getByRole('button', { name: 'Скрыть мини-карту' });
-  if ((await hide.count()) > 0) await hide.click();
-  await expect(page.locator('#plan-minimap')).toHaveCount(0);
-}
-
 export async function exportPlan(page: Page, item: 'JSON' | 'PNG' | 'SVG'): Promise<void> {
   if (item === 'JSON') {
     await page.getByRole('button', { name: 'Сохранить план' }).click();
