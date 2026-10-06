@@ -75,36 +75,36 @@ export function LibraryPanel({ catalog, activeTypeId, onTool }: LibraryPanelProp
       />
       {/* Two actions for the chosen type, side by side, wrapping in a narrow column. */}
       <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: '0.5rem' }}>
-      {/* D-279: the armed type is drawn as a polygon instead of placed as a box. */}
-      <button
-        type="button"
-        className="files__button library__shape"
-        title="Клики по плану ставят вершины; замкнуть — клик по первой точке, Enter или двойной клик"
-        onClick={() => {
-          setNeedType(activeTypeId === null ? 'shape' : null);
-          if (activeTypeId !== null) onTool({ kind: 'shape.draw', typeId: activeTypeId });
-        }}
-      >
-        Нарисовать свою фигуру
-      </button>
-      {/* #179: the assistant's mode B for a new object of the chosen type. The
-          type is disarmed, so a click on the plan does not place it meanwhile. */}
-      <button
-        type="button"
-        className="files__button library__shape"
-        data-testid="library-suggest-place"
-        title={activeTypeId === null
-          ? 'Выберите тип в списке: ассистент предложит до трёх мест для нового объекта'
-          : `Ассистент предложит до трёх мест для нового объекта «${catalog.objectTypes.find((type) => type.id === activeTypeId)?.label ?? activeTypeId}»`}
-        onClick={() => {
-          setNeedType(activeTypeId === null ? 'place' : null);
-          if (activeTypeId === null) return;
-          onTool({ kind: 'select' });
-          window.dispatchEvent(new CustomEvent(SUGGEST_PLACE_EVENT, { detail: { typeId: activeTypeId } }));
-        }}
-      >
-        Предложить место
-      </button>
+        {/* D-279: the armed type is drawn as a polygon instead of placed as a box. */}
+        <button
+          type="button"
+          className="files__button library__shape"
+          title="Клики по плану ставят вершины; замкнуть — клик по первой точке, Enter или двойной клик"
+          onClick={() => {
+            setNeedType(activeTypeId === null ? 'shape' : null);
+            if (activeTypeId !== null) onTool({ kind: 'shape.draw', typeId: activeTypeId });
+          }}
+        >
+          Нарисовать свою фигуру
+        </button>
+        {/* #179: the assistant's mode B for a new object of the chosen type. The
+            type is disarmed, so a click on the plan does not place it meanwhile. */}
+        <button
+          type="button"
+          className="files__button library__shape"
+          data-testid="library-suggest-place"
+          title={activeTypeId === null
+            ? 'Выберите тип в списке: ассистент предложит до трёх мест для нового объекта'
+            : `Ассистент предложит до трёх мест для нового объекта «${catalog.objectTypes.find((type) => type.id === activeTypeId)?.label ?? activeTypeId}»`}
+          onClick={() => {
+            setNeedType(activeTypeId === null ? 'place' : null);
+            if (activeTypeId === null) return;
+            onTool({ kind: 'select' });
+            window.dispatchEvent(new CustomEvent(SUGGEST_PLACE_EVENT, { detail: { typeId: activeTypeId } }));
+          }}
+        >
+          Предложить место
+        </button>
       </div>
       {needType !== null && activeTypeId === null ? (
         <p className="panel__empty" role="status">

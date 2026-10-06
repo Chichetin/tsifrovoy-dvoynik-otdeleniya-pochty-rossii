@@ -11,8 +11,7 @@
 import type { Candidate, Fact } from '../../contracts/advice';
 import type { Command } from '../../contracts/commands';
 import type { Equipment, Id, PlanDocument, Point, Result } from '../../contracts/model';
-import { calculateAdvice, placementZonePath } from '../../domain/advice';
-import { findRelocations, type RelocationOption } from '../../domain/advice/relocation';
+import { calculateAdvice, findRelocations, placementZonePath, type RelocationOption } from '../../domain/advice';
 import { formatMeasure } from '../../domain/number-format';
 
 /**

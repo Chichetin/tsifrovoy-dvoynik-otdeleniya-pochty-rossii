@@ -17,7 +17,9 @@ describe('#179: варианты «Предложить место»', () => {
     expect(options.length).toBeLessThanOrEqual(4);
     expect(options.at(-1)!.kind).toBe('keep');
     expect(options.at(-1)!.object).toBeNull();
-    for (const option of options.filter((entry) => entry.kind === 'move')) {
+    const moves = options.filter((entry) => entry.kind === 'move');
+    expect(moves.length).toBeGreaterThan(0);
+    for (const option of moves) {
       expect(option.command?.type).toBe('object.put');
       expect(option.object?.id).toBe('eq_work_1');
       expect(applyCommand(plan, option.command!).ok).toBe(true);
@@ -32,7 +34,9 @@ describe('#179: варианты «Предложить место»', () => {
     const { subject, options } = result.value;
     expect(subject).toMatchObject({ kind: 'type', id: 'ot_workplace', from: null });
     expect(options.at(-1)).toMatchObject({ kind: 'keep', title: 'Не добавлять', object: null });
-    for (const option of options.filter((entry) => entry.kind === 'add')) {
+    const adds = options.filter((entry) => entry.kind === 'add');
+    expect(adds.length).toBeGreaterThan(0);
+    for (const option of adds) {
       expect(option.candidate).not.toBeNull();
       expect(option.object?.typeId).toBe('ot_workplace');
       expect(option.numbers.map((number) => number.label)).toContain('Свободно в помещении');

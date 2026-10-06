@@ -1,9 +1,10 @@
 /**
  * #24: the menu of an object — what a right click or `Shift+F10` offers.
  *
- * The actions themselves are commands the app already has; this file only
- * names them. «Предложить место» (#179) goes to the assistant as a window
- * event (`SUGGEST_PLACE_EVENT`): the menu fires it, the app is not involved. The object under a click is `findPlacementPick` with any type.
+ * This file only names the actions. Most are commands the app already has;
+ * «Предложить место» (#179) is not: the menu fires `SUGGEST_PLACE_EVENT` and
+ * the assistant takes it, the app is not involved. The object under a click
+ * is `findPlacementPick` with any type.
  */
 
 import { ROTATION_SNAP_DEG } from './transform';
