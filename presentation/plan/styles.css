@@ -111,13 +111,12 @@ code{font:500 .9em var(--mono)}
 /* ===== s5 tiles ===== */
 .tiles{position:absolute;left:96px;top:336px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px 28px}
 .tile{display:flex;align-items:center;gap:22px;border:1px solid var(--border);border-radius:36px;padding:16px;height:196px;background:rgba(25,29,46,.18)}
-.tile{position:relative;transition:opacity .45s var(--ease-out),border-color .45s,background .45s}
-.tile .view{flex:none;width:168px;height:164px;border-radius:24px;transform-origin:var(--ox) var(--oy);transition:transform .6s var(--ease-io),box-shadow .6s var(--ease-io),border-color .6s}
-/* zoom: the current step's tile lifts its photo; the other tiles step back */
+.tile{position:relative;transform-origin:var(--ox) var(--oy);transition:transform .6s var(--ease-io),opacity .45s var(--ease-out),border-color .45s,background .45s,box-shadow .6s var(--ease-io)}
+.tile .view{flex:none;width:168px;height:164px;border-radius:24px}
+/* zoom: the current step's whole tile grows from its outer corner; the other tiles step back */
 .zoom-at{display:none}
 .tiles:has(.tile .zoom-at.cur) .tile:not(:has(.zoom-at.cur)){opacity:.3}
-.tile:has(.zoom-at.cur){z-index:5;border-color:var(--accent);background:rgba(25,29,46,.55)}
-.tile:has(.zoom-at.cur) .view{transform:scale(2.6);border-color:var(--accent);box-shadow:0 40px 120px rgba(25,29,46,.75)}
+.tile:has(.zoom-at.cur){z-index:5;transform:scale(1.7);border-color:var(--accent);background:#232b6e;box-shadow:0 40px 120px rgba(25,29,46,.75)}
 .tile .view.ph b{font-size:15px;padding:0 8px}
 .tile .view.ph span{font-size:13px;letter-spacing:.08em}
 .tile h3{font-size:27px}
