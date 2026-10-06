@@ -57,8 +57,9 @@
   и `PRESENTATION_FONT_BOLD`.
 - `presentation-pdf.ts` — PDF защиты из HTML-слайдов `presentation/`: каждый слайд
   открывается в `?static`, снимок 1920×1080 — одна страница. Рядом пишет `.sha256`,
-  при размере больше 20 МБ падает. Команда:
-  `npx tsx scripts/presentation-pdf.ts [--variant route] [--backup] [--dir presentation] [--out output/pdf/ops-digital-twin-defense.pdf]`.
+  при размере больше 20 МБ падает. Слайд из `--steps` печатается без `?static`, по странице
+  на шаг: в `?static` его шаги накладываются. Команда:
+  `npx tsx scripts/presentation-pdf.ts [--variant plan] [--backup] [--steps s6] [--dir presentation] [--out output/pdf/ops-digital-twin-defense.pdf]`.
 
 Для повтора P01: запустить собранный сервис с `STATIC_DIR` равным абсолютному
 пути к `dist`, выполнить `npx tsx scripts/capture-presentation.ts`, затем
