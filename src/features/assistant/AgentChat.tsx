@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { AgentAnswer, AgentEdit, AgentEditPose, AgentExchange, AssistantAction } from '../../contracts/advice-chat';
-import { LIMITS, type PlanDocument, type Ref } from '../../contracts/model';
+import { LIMITS, type PlanDocument, type Ref, type Rule } from '../../contracts/model';
 import { QUOTED_ID_PATTERN, WHY_LEAD } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
@@ -92,22 +92,46 @@ function refFor(plan: PlanDocument, id: string): Ref | null {
   return null;
 }
 
-/** The name of a type or a layer the token is the id of; null — not a catalog id. */
-function catalogName(names: PlanIndex, id: string): string | null {
-  return names.objectTypeLabel(id) ?? names.zoneTypeLabel(id) ?? names.layerName(id);
+/** A rule has no label: its title is read from its data, as in «Проверка». */
+function ruleTitle(rule: Rule, names: PlanIndex): string {
+  const type = names.objectTypeLabel(rule.objectTypeId) ?? 'оборудование';
+  if (rule.kind === 'distance-to-entrance') return `${type} — не дальше ${formatShort(rule.maxDistance_m, 2)} м от входа`;
+  const where = `${type}, зона «${names.zoneTypeLabel(rule.zoneTypeId) ?? 'без названия'}»`;
+  if (rule.min !== null && rule.max !== null) return `${where}: от ${rule.min} до ${rule.max}`;
+  if (rule.min !== null) return `${where}: не меньше ${rule.min}`;
+  if (rule.max !== null) return `${where}: не больше ${rule.max}`;
+  return where;
+}
+
+/** Ids of the plan's kinds: one the plan no longer has still must not show (#252). */
+const PLAN_ID_PREFIX = /^(?:z|eq|ot|zt|l|op|rule)_/i;
+
+/**
+ * #252: the name a catalog id or a plan-shaped id reads by without «Отладка»:
+ * a type, a zone type, a layer, a rule; «без названия» for an id the plan has
+ * not got. Null — not an id, the text stays.
+ */
+function catalogName(plan: PlanDocument, names: PlanIndex, id: string): string | null {
+  const rule = plan.catalog.rules.find((entry) => entry.id === id);
+  if (rule !== undefined) return ruleTitle(rule, names);
+  return names.objectTypeLabel(id) ?? names.zoneTypeLabel(id) ?? names.layerName(id) ?? (PLAN_ID_PREFIX.test(id) ? 'без названия' : null);
+}
+
+/** «name» — or the bare name where the text already has the quotes around the id. */
+function quoted(name: string, text: string, start: number, length: number): string {
+  return text[start - 1] === '«' && text[start + length] === '»' ? name : `«${name}»`;
 }
 
 /**
- * #252: a question as the person reads it — every plan id replaced by its name.
- * The question sent keeps the ids: the calculation resolves them.
+ * #252: a text as the person reads it without «Отладка» — every id replaced by
+ * its name. A question sent keeps the ids: the calculation resolves them.
  */
 export function namedText(text: string, plan: PlanDocument, names: PlanIndex): string {
-  return text.replace(ANSWER_REF_PATTERN, (whole: string, quotedName?: string, quotedId?: string) => {
-    const token = quotedId ?? whole;
-    const ref = refFor(plan, token);
-    const name = ref === null ? catalogName(names, token) : names.nameOf(ref);
-    if (name === null) return whole;
-    return quotedName === undefined ? `«${name}»` : `«${quotedName}»`;
+  return text.replace(ANSWER_REF_PATTERN, (whole: string, quotedName: string | undefined, _quotedId: string | undefined, start: number) => {
+    if (quotedName !== undefined) return `«${quotedName}»`;
+    const ref = refFor(plan, whole);
+    const name = ref === null ? catalogName(plan, names, whole) : names.nameOf(ref);
+    return name === null ? whole : quoted(name, text, start, whole.length);
   });
 }
 
@@ -155,10 +179,10 @@ function AnswerText({ text, plan, names, stale, debug, onFocus }: { text: string
       parts.push(paragraph.slice(last, start));
       if (ref === null) {
         // A rule or a type: the id is not a plan entity a click can show.
-        // A type or a layer reads by its name; a rule id stays as the
-        // calculation wrote it (#10 review). «Отладка» shows the raw text (#252).
-        const name = debug ? null : catalogName(names, token);
-        parts.push(name === null ? whole : quotedName === undefined ? `«${name}»` : `«${quotedName}»`);
+        // Without «Отладка» it reads by its name (#252); with it — as the
+        // calculation wrote it.
+        const name = debug ? null : quotedName ?? catalogName(plan, names, token);
+        parts.push(name === null ? whole : quotedName === undefined ? quoted(name, paragraph, start, whole.length) : `«${name}»`);
       } else {
         const label = names.nameOf(ref) ?? quotedName ?? token;
         parts.push(
@@ -195,14 +219,24 @@ function AnswerText({ text, plan, names, stale, debug, onFocus }: { text: string
   );
 }
 
+/** «1 шаг», «2 шага», «5 шагов», «11 шагов». */
+function stepsWord(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (tens >= 11 && tens <= 14) return 'шагов';
+  if (ones === 1) return 'шаг';
+  if (ones >= 2 && ones <= 4) return 'шага';
+  return 'шагов';
+}
+
 /** #252: the agent's steps are folded while it works and after; a click or Enter opens them. */
 function StepLog({ exchange, working, debug }: { exchange: AgentExchange; working: boolean; debug: boolean }): React.JSX.Element | null {
   const steps = exchange.answer?.steps ?? exchange.steps;
   if (steps.length === 0 && !working) return null;
-  const count = `${steps.length} ${steps.length === 1 ? 'шаг' : steps.length > 1 && steps.length < 5 ? 'шага' : 'шагов'}`;
+  const count = `${steps.length} ${stepsWord(steps.length)}`;
   return (
     <details className="agent__log">
-      <summary>{working ? `Работаю с планом… ${count}` : `Ход проверки: ${count}`}</summary>
+      <summary>{working ? (steps.length === 0 ? 'Работаю с планом…' : `Работаю с планом… ${count}`) : `Ход проверки: ${count}`}</summary>
       <ol className="agent__steps">
         {steps.map((step, index) => (
           <li key={index} className={step.ok ? undefined : 'is-failed'}>
@@ -230,7 +264,7 @@ function poseText(pose: AgentEditPose | null, names: PlanIndex): string {
 
 /** What the model asked for, in words: shown next to the reason it was refused. Ids only in «Отладка» (#252). */
 function editText(edit: AgentEdit, names: PlanIndex, debug: boolean): string {
-  const object = (id: string): string => (debug ? id : `«${names.objectLabel(id) ?? 'объект'}»`);
+  const object = (id: string): string => (debug ? id : `«${names.objectLabel(id) ?? 'без названия'}»`);
   switch (edit.op) {
     case 'move':
       return `сдвинуть ${object(edit.id)} на (${metres(edit.dx_m)}; ${metres(edit.dy_m)}) м`;
@@ -247,7 +281,7 @@ function editText(edit: AgentEdit, names: PlanIndex, debug: boolean): string {
 }
 
 /** #126: every edit of the answer — «было → стало» with ids, and each refusal with its reason. */
-function EditList({ answer, names, debug }: { answer: AgentAnswer; names: PlanIndex; debug: boolean }): React.JSX.Element | null {
+function EditList({ answer, plan, names, debug }: { answer: AgentAnswer; plan: PlanDocument; names: PlanIndex; debug: boolean }): React.JSX.Element | null {
   if (answer.proposals.length === 0) return null;
   return (
     <>
@@ -256,7 +290,7 @@ function EditList({ answer, names, debug }: { answer: AgentAnswer; names: PlanIn
           <p className="agent__mode">
             {proposal.title ?? 'Правки'}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
           </p>
-          <ul className="agent__steps" aria-label={`${proposal.title?.split(':')[0] ?? 'Правки'}: было → стало`}>
+          <ul className="agent__steps" aria-label="Правки: было → стало">
             {proposal.changes.map((change) => (
               <li key={`${change.op}-${change.id}`}>
                 <span className="agent__tick" aria-hidden="true">✓</span>
@@ -266,7 +300,7 @@ function EditList({ answer, names, debug }: { answer: AgentAnswer; names: PlanIn
             {proposal.rejected.map((entry, index) => (
               <li key={`rejected-${index}`} className="is-failed">
                 <span className="agent__tick" aria-hidden="true">×</span>
-                Отклонено: {editText(entry.edit, names, debug)} — {entry.reason}
+                Отклонено: {editText(entry.edit, names, debug)} — {debug ? entry.reason : namedText(entry.reason, plan, names)}
               </li>
             ))}
           </ul>
@@ -357,7 +391,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                         </ul>
                       </details>
                     )}
-                    <EditList answer={answer} names={names} debug={debug} />
+                    <EditList answer={answer} plan={plan} names={names} debug={debug} />
                     {answer.actions.length === 0 ? null : (
                       <div className="agent__actions" role="group" aria-label="Действия по ответу">
                         {answer.actions

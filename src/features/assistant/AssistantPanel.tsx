@@ -20,6 +20,7 @@ import { hideNamedIds, placementZonePath, renderExplanation } from '../../domain
 import { AgentChat } from './AgentChat';
 import { EditHints } from './EditHints';
 import { focusTitle, useDebugMode } from './debug-mode';
+import { PlaceSuggestion } from './PlaceSuggestion';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
@@ -62,6 +63,14 @@ const CHANGE_LABELS: Record<ChangeKind, string> = {
   moved: 'перемещён',
   updated: 'изменён',
 };
+
+/** «(правило rule_x)», «(rule_x)»: the rule is already said in words; the id is for «Отладка». */
+const PARENTHESISED_IDS = /\s*\((?:правил[оа]?\s+)?(?:z|eq|ot|zt|l|op|rule)_[a-z0-9_]*(?:,\s*[a-z0-9_]+)*\)/gi;
+
+/** #252: a card line without «Отладка» — «name» (id) reads «name», a bracketed id goes. */
+function plainLine(text: string): string {
+  return hideNamedIds(text).replace(PARENTHESISED_IDS, '');
+}
 
 const PHASE_LABELS: Record<Fact['phase'], string> = {
   current: 'сейчас',
@@ -213,6 +222,8 @@ export function AssistantPanel({
   return (
     <section className="panel assistant" aria-label="Ассистент">
       <h2 className="panel__title">Ассистент</h2>
+
+      <PlaceSuggestion />
 
       <EditHints names={names} onFocus={onFocus} onExplain={onAskAgent} />
 
@@ -453,7 +464,7 @@ export function AssistantPanel({
                     <summary>Допущения и правила ({recommendation.assumptions.length})</summary>
                     <ul>
                       {recommendation.assumptions.map((assumption) => (
-                        <li key={assumption}>{debug ? assumption : hideNamedIds(assumption)}</li>
+                        <li key={assumption}>{debug ? assumption : plainLine(assumption)}</li>
                       ))}
                     </ul>
                   </details>
@@ -461,7 +472,7 @@ export function AssistantPanel({
 
                 <ul className="advice__limitations">
                   {recommendation.limitations.map((limitation) => (
-                    <li key={limitation}>{hideNamedIds(limitation)}</li>
+                    <li key={limitation}>{debug ? limitation : plainLine(limitation)}</li>
                   ))}
                 </ul>
               </article>

@@ -191,20 +191,29 @@ function wholePanelText(plan: PlanDocument, response: AdviceResponse): string {
   return container.querySelector('.advice')?.parentElement?.textContent ?? '';
 }
 
+/** #252: every plan-shaped id, a rule and an opening included. */
+const ANY_ID_PATTERN = /\b(?:z|eq|ot|zt|l|op|rule)_[a-z0-9_]*\b/i;
+
 describe('#252: id зон и объектов — только в «Отладке»', () => {
   const object = before.objects[0]!;
   const questions = [...QUESTIONS, `Предложить место для ${object.id}: куда перенести и почему?`];
 
   test.each(questions)('чат целиком без «Отладки»: «%s»', (question) => {
-    expect(wholeChatText(before, question, null)).not.toMatch(BARE_ID_PATTERN);
+    const text = wholeChatText(before, question, null);
+    // The answer is there: an empty panel would pass the check below for nothing.
+    expect(document.querySelector('.agent__text')?.textContent ?? '').not.toBe('');
+    expect(text).not.toMatch(ANY_ID_PATTERN);
   });
 
   test('карточки сценариев целиком без «Отладки»', () => {
-    expect(wholePanelText(before, placeResponse(before, 'ot_workplace', null))).not.toMatch(BARE_ID_PATTERN);
-    cleanup();
-    expect(wholePanelText(before, equipmentResponse(before))).not.toMatch(BARE_ID_PATTERN);
-    cleanup();
-    expect(wholePanelText(after, compareResponse(before, after))).not.toMatch(BARE_ID_PATTERN);
+    const responses = [placeResponse(before, 'ot_workplace', null), equipmentResponse(before), compareResponse(before, after)];
+    for (const [index, response] of responses.entries()) {
+      expect(response.recommendations.length).toBeGreaterThan(0);
+      const text = wholePanelText(index === 2 ? after : before, response);
+      expect(text).not.toBe('');
+      expect(text).not.toMatch(ANY_ID_PATTERN);
+      cleanup();
+    }
   });
 
   test('с «Отладкой» id видны в чате и в карточке', () => {

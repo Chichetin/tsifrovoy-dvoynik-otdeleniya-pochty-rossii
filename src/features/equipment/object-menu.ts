@@ -1,18 +1,21 @@
 /**
  * #24: the menu of an object — what a right click or `Shift+F10` offers.
  *
- * The actions themselves are commands the app already has; this file only
- * names them. The object under a click is `findPlacementPick` with any type.
+ * This file only names the actions. Most are commands the app already has;
+ * «Предложить место» (#179) is not: the menu calls `dispatchSuggestPlace`
+ * (contracts/mode-b-events.ts) and the assistant takes it, the app is not
+ * involved. The object under a click is `findPlacementPick` with any type.
  */
 
 import { ROTATION_SNAP_DEG } from './transform';
 
-export type ObjectMenuAction = 'rotate' | 'duplicate' | 'delete' | 'inventory' | 'ask';
+export type ObjectMenuAction = 'rotate' | 'duplicate' | 'delete' | 'inventory' | 'place' | 'ask';
 
 export const OBJECT_MENU_ITEMS: readonly { action: ObjectMenuAction; label: string; keys: string }[] = [
   { action: 'rotate', label: `Повернуть на ${ROTATION_SNAP_DEG}°`, keys: 'R' },
   { action: 'duplicate', label: 'Дублировать', keys: 'Ctrl+D' },
   { action: 'delete', label: 'Удалить', keys: 'Del' },
   { action: 'inventory', label: 'Показать в инвентаризации', keys: '' },
+  { action: 'place', label: 'Предложить место', keys: '' },
   { action: 'ask', label: 'Спросить ассистента', keys: '' },
 ];

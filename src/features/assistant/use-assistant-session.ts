@@ -7,6 +7,7 @@ import type { AssistantPanelRequest, EditsPreview, RequestState } from '../../co
 import { answerWithoutModel, appliedEffectLine, candidateObjectForInsert, editHint, editHintSnapshot, editHintText, proposalCommands, type EditHint, type EditHintSnapshot } from '../../domain/advice';
 import { requestAdvice } from './advice-client';
 import { requestAgent, turnsOf } from './agent-client';
+import { usePlaceSuggestionSession } from './use-place-suggestion';
 
 type OpenPanel = Extract<AssistantAction, { kind: 'open-panel' }>['panel'];
 
@@ -36,7 +37,7 @@ const HINTS_HISTORY = 30;
 /** A hint as shown: the calculation and its text. `seq` grows with every new hint. */
 export type ShownHint = EditHint & { id: string; seq: number; text: string };
 /** `clearedThrough` — hints up to this `seq` were cleared by «Очистить». */
-export type HintsView = { enabled: boolean; hints: readonly ShownHint[]; unseen: number; clearedThrough: number };
+export type HintsView = { hints: readonly ShownHint[]; unseen: number; clearedThrough: number };
 
 /**
  * One settled edit: its hint, the snapshot it started from and every document
@@ -66,8 +67,8 @@ let hintsView: HintsView | null = null;
 const hintsListeners = new Set<() => void>();
 
 function readHints(): HintsView {
-  // #252: hints are always on — the «Подсказки» switch is gone.
-  hintsView ??= { enabled: true, hints: [], unseen: 0, clearedThrough: 0 };
+  // #252: hints are always on — no switch.
+  hintsView ??= { hints: [], unseen: 0, clearedThrough: 0 };
   return hintsView;
 }
 
@@ -128,7 +129,7 @@ export function useAssistantSession({
   highlight: (ref: Ref) => void;
   focusOn: (ref: Ref) => void;
   showLeftTab: (tab: 'layers') => void;
-  showRightTab: (panel: OpenPanel) => void;
+  showRightTab: (panel: OpenPanel | 'assistant') => void;
 }) {
   const [advice, setAdvice] = useState<AdviceResponse | null>(null);
   const [adviceState, setAdviceState] = useState<RequestState>({ status: 'idle' });
@@ -215,22 +216,16 @@ export function useAssistantSession({
     if (variant === hintVariant.current) return;
     hintVariant.current = variant;
     forgetHints();
-    if (readHints().enabled) hintBase.current = { snapshot: editHintSnapshot(state.document), variant };
+    hintBase.current = { snapshot: editHintSnapshot(state.document), variant };
   });
 
   useEffect(() => {
-    if (!hints.enabled) {
-      hintBase.current = null;
-      hintPath.current = [];
-      hintHistory.current = [];
-      return;
-    }
     const path = hintPath.current;
     if (hintBase.current !== null && path.at(-1) !== document) path.push(document);
     // The starting point is taken at once; an edit waits for the plan to settle.
     const timer = window.setTimeout(settleHints, hintBase.current === null ? 0 : HINTS_DEBOUNCE_MS);
     return () => window.clearTimeout(timer);
-  }, [document, hints.enabled, settleHints]);
+  }, [document, settleHints]);
 
   const ask = useCallback(
     (request: AssistantPanelRequest, query?: string) => {
@@ -437,11 +432,16 @@ export function useAssistantSession({
   // изменился» is too mild a warning for that — the answer goes away entirely.
   // The in-flight answer is invalidated before the visible one is cleared:
   // otherwise «Новый» clears the panel and the old answer repopulates it.
+  // #179, mode B: «Предложить место» — options, the chosen ghost, «Подтвердить».
+  const showAssistant = useCallback(() => showRightTab('assistant'), [showRightTab]);
+  const { forget: forgetPlace } = usePlaceSuggestionSession({ revision, current, dispatchAndSelect, showAssistant });
+
   const forget = useCallback(() => {
     resetAdvice();
     clearChat();
     forgetHints();
-  }, [resetAdvice, clearChat, forgetHints]);
+    forgetPlace();
+  }, [resetAdvice, clearChat, forgetHints, forgetPlace]);
 
   return {
     advice,
@@ -455,7 +455,6 @@ export function useAssistantSession({
     clearChat,
     forget,
     hints: hints.hints,
-    hintsEnabled: hints.enabled,
     /** Hints not seen yet — the number for the assistant button (#180). */
     hintCount: hints.unseen,
     markHintsSeen,

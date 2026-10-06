@@ -301,7 +301,8 @@ test.describe('ассистент в браузере', () => {
     await expect(panel(page).locator('.advice__refs')).toContainText(/Клиентский зал|Служебная зона/);
     await expect(panel(page).locator('.advice__refs')).not.toContainText('Зона очереди');
     await panel(page).locator('.advice__more summary').click();
-    await expect(panel(page).locator('.advice__more')).toContainText('rule_workplace_min');
+    // #252: the rule's id is service information — only with «Отладка».
+    await expect(panel(page).locator('.advice__more')).not.toContainText('rule_workplace_min');
     await expect(panel(page).locator('.advice__more')).toContainText('по текущей расстановке');
     // The rule is named as the team's (#100 dropped the repeated «не норматив Почты»).
     await expect(panel(page).locator('.advice__more')).toContainText('Правило команды');

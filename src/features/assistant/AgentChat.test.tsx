@@ -111,6 +111,22 @@ describe('чат агента', () => {
     expect(screen.getByRole('button', { name: zone.name }).getAttribute('title')).toBe('Показать на плане');
   });
 
+  test('#252: причина отказа правки без «Отладки» — без id, даже если объекта нет в плане', () => {
+    const shown = answer({
+      proposals: [{ id: 'p1', commands: [], changes: [], rejected: [{ edit: { op: 'delete', id: 'eq_missing' }, reason: 'Объекта «eq_missing» нет в плане.' }], facts: [], findings: { errors: { before: 0, after: 0 }, warnings: { before: 0, after: 0 } } }],
+    });
+    const { container } = renderChat([{ id: 'a', question: 'Удали', revision: 0, steps: [], answer: shown, error: null }]);
+    const rejected = container.querySelector('.agent__edits .is-failed')!;
+    expect(rejected.textContent).toContain('Объекта «без названия» нет в плане.');
+    expect(rejected.textContent).not.toContain('eq_missing');
+    expect(container.querySelector('.agent__edits ul')!.getAttribute('aria-label')).toBe('Правки: было → стало');
+  });
+
+  test('#252: агент работает, шагов ещё нет — «Работаю с планом…» без «0 шагов»', () => {
+    const { container } = renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: null, error: null }]);
+    expect(container.querySelector('.agent__log summary')!.textContent).toBe('Работаю с планом…');
+  });
+
   test('#252: вопрос с id читается по именам, отправляется с id', () => {
     renderChat([{ id: 'a', question: `Что находится в зоне «${zone.name}» (${zone.id})?`, revision: 0, steps: [], answer: answer(), error: null }]);
     const question = document.querySelector('.agent__question')!;
@@ -136,18 +152,18 @@ describe('чат агента', () => {
     expect(screen.getByRole('button', { name: zone.name })).toBeDefined();
   });
 
-  test('id, за которым в тексте не стоит зона или объект (например тип или правило), без кнопки; тип — по имени, в «Отладке» — как есть (D-320, #252)', () => {
-    const shown = answer({ text: 'Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.' });
+  test('id, за которым в тексте не стоит зона или объект (например тип или правило), без кнопки; тип и правило — по имени, в «Отладке» — как есть (D-320, #252)', () => {
+    const shown = answer({ text: 'Правило rule_workplace_min и тип «Рабочее место» (ot_workplace) в тексте.' });
     renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
     const text = (): Element => screen.getByRole('group', { name: 'Действия по ответу' }).parentElement!.querySelector('.agent__text')!;
     // Neither is a plan entity a click could show: no button. The type reads
-    // by its name; a rule id has no name and stays as the calculation wrote it.
-    expect(text().textContent).toBe('Правило rule_bench_min и тип «Рабочее место» в тексте.');
+    // by its name, the rule by its data.
+    expect(text().textContent).toBe(`Правило «${typeLabel}, зона «Клиентская зона»: не меньше 1» и тип «Рабочее место» в тексте.`);
     expect(text().querySelector('button')).toBeNull();
     cleanup();
     setDebugMode(true);
     renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
-    expect(text().textContent).toBe('Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.');
+    expect(text().textContent).toBe('Правило rule_workplace_min и тип «Рабочее место» (ot_workplace) в тексте.');
   });
 
   test('ответ без модели: вариант с кнопкой «Применить» — основной, причина названа', () => {
