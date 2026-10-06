@@ -1380,12 +1380,11 @@ export function EquipmentLayer({
               );
             })}
 
-        {/* Four clearances to wall faces and the nearest neighbour: a
-            dashed line along the shortest gap and its length in metres. */}
+        {/* Clearance to the nearest neighbour: a dashed line along the
+            shortest gap and its length in metres. Wall gaps are not drawn. */}
         {gesture?.gaps === undefined
           ? null
-          : [...gesture.gaps.axes.map((gap, i) => ({kind: `wall-${i}`, gap})),
-            {kind: 'object', gap: gesture.gaps.object}].map(({kind, gap}) => {
+          : [{kind: 'object', gap: gesture.gaps.object}].map(({kind, gap}) => {
               if (gap === null || gap === undefined) return null;
               const [x1, y1] = modelToScreen(gap.from, viewport);
               const [x2, y2] = modelToScreen(gap.to, viewport);
