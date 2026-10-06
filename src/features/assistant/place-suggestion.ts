@@ -106,7 +106,7 @@ function relocationOptions(plan: PlanDocument, objectId: Id): Result<PlaceOption
     moves += 1;
     const travelled = option.facts.find((fact) => fact.metric === 'placement.distance' && fact.phase === 'delta')?.value ?? 0;
     const parts = [`Перенос на ${metres(travelled)}`];
-    if (Number.isFinite(option.wallGap_m)) parts.push(`до стены ${metres(option.wallGap_m)}`);
+    if (Number.isFinite(option.wallGap_m)) parts.push(option.wallGap_m < 0.005 ? 'вплотную к стене' : `до стены ${metres(option.wallGap_m)}`);
     parts.push(option.warnings === 0 ? 'новых находок проверки нет' : `новых предупреждений: ${option.warnings}`);
     return {
       id: option.id, kind: 'move', title: `Вариант ${moves}`, zone, zoneIds, numbers,

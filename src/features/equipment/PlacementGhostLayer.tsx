@@ -22,8 +22,20 @@ const HALO = '#FFFFFF';
  */
 function SuggestionGhostShape({ viewport }: { viewport: Viewport }): React.JSX.Element | null {
   const ghost = useSyncExternalStore(suggestionGhost.subscribe, suggestionGhost.getSnapshot);
+  const label = useRef<Konva.Label>(null);
+  const ring = ghost === null ? [] : footprint(ghost.to).map((point) => modelToScreen(point, viewport));
+  const lowest = ring.length === 0 ? 0 : Math.max(...ring.map(([, y]) => y));
+  // The label names the option: it stays inside the canvas when the ghost is at
+  // an edge, under the ghost when there is no room above it.
+  useLayoutEffect(() => {
+    const node = label.current;
+    const stage = node?.getStage();
+    if (node == null || stage == null) return;
+    node.x(Math.max(EDGE_PX, Math.min(node.x(), stage.width() - node.width() - EDGE_PX)));
+    if (node.y() < EDGE_PX) node.y(lowest + 6);
+    node.getLayer()?.batchDraw();
+  });
   if (ghost === null) return null;
-  const ring = footprint(ghost.to).map((point) => modelToScreen(point, viewport));
   const [cx, cy] = modelToScreen(ghost.to.position, viewport);
   const from = ghost.from === null ? null : modelToScreen(ghost.from, viewport);
   const top = Math.min(...ring.map(([, y]) => y));
@@ -49,7 +61,7 @@ function SuggestionGhostShape({ viewport }: { viewport: Viewport }): React.JSX.E
         listening={false}
       />
       {ghost.label === '' ? null : (
-        <Label name="suggestion-ghost-label" x={cx - LABEL_WIDTH_PX / 2} y={top - 26} listening={false}>
+        <Label ref={label} name="suggestion-ghost-label" x={cx - LABEL_WIDTH_PX / 2} y={top - 26} listening={false}>
           <Tag fill={HALO} stroke={SUGGESTED} cornerRadius={3} opacity={0.95} />
           <Text text={ghost.label} width={LABEL_WIDTH_PX} fontSize={12} fontStyle="bold" fill={SUGGESTED_TEXT} padding={4} align="center" />
         </Label>
