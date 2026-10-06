@@ -18,7 +18,8 @@
  * Without APP_URL the script builds the app and serves it with `vite preview`
  * on PREVIEW_PORT (default 5189) — what the deployed service ships. APP_URL
  * measures an app that is already running (`npm run dev`). PW_CHANNEL=msedge
- * or chrome picks an installed browser, as in e2e; HEADED=1 shows the window.
+ * or chrome picks an installed browser, as in e2e; HEADED=1 shows the window;
+ * GPU=1 paints with the graphics card.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -197,7 +198,12 @@ type Run = {
 
 async function measure(planName: string, gesture: Gesture): Promise<Run> {
   const plan = PLANS[planName]!;
-  const browser = await chromium.launch({ channel: resolveChannel(process.env.PW_CHANNEL), headless: process.env['HEADED'] !== '1' });
+  const browser = await chromium.launch({
+    channel: resolveChannel(process.env.PW_CHANNEL),
+    headless: process.env['HEADED'] !== '1',
+    // Headless Chromium paints canvas on the CPU; GPU=1 uses the graphics card, as a person's browser does.
+    args: process.env['GPU'] === '1' ? ['--enable-gpu', '--ignore-gpu-blocklist'] : [],
+  });
   try {
     const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
     await context.addInitScript(() => window.localStorage.setItem('ops-twin.onboarding.v1', 'done'));

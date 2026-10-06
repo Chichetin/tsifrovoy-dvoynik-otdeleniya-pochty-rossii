@@ -481,15 +481,6 @@ export default function View3DCanvas({ scene, visitor, selection, onSelect, file
               </button>
             </div>
           </fieldset>
-          {visitorMode ? null : (
-            <div className="view3d__turn" role="group" aria-label="Поворот камеры">
-              {([['←', 'Повернуть влево', -KEY_TURN, 0], ['→', 'Повернуть вправо', KEY_TURN, 0],
-                ['↑', 'Опустить камеру', 0, -KEY_TURN], ['↓', 'Поднять камеру', 0, KEY_TURN]] as const).map(([label, name, dTheta, dPhi]) => (
-                <button key={label} type="button" className="files__button" aria-label={name} title={name}
-                  onClick={() => { if (stage.current) orbit(stage.current, dTheta, dPhi); }}>{label}</button>
-              ))}
-            </div>
-          )}
           <button type="button" className="files__button view3d__download" onClick={savePicture}>
             Скачать картинку 3D
           </button>
@@ -575,7 +566,13 @@ function createStage(container: HTMLDivElement): Stage {
     spreadLabels(labels, camera, renderer);
     renderer.render(world, camera);
   };
-  controls.addEventListener('change', render);
+  // #247: a touchpad sends several wheel events per frame. One frame draws once,
+  // not once per event: a draw costs about 7 ms of the main thread.
+  let frame = 0;
+  const requestRender = (): void => {
+    if (frame === 0) frame = requestAnimationFrame(() => { frame = 0; render(); });
+  };
+  controls.addEventListener('change', requestRender);
 
   const stage: Stage = {
     renderer,
@@ -592,7 +589,8 @@ function createStage(container: HTMLDivElement): Stage {
     dispose: () => {
       renderer.domElement.removeEventListener('wheel', touchpad);
       renderer.domElement.removeEventListener('keydown', arrowTurn);
-      controls.removeEventListener('change', render);
+      cancelAnimationFrame(frame);
+      controls.removeEventListener('change', requestRender);
       controls.dispose();
       clearGroup(group);
       placeLabels(labels, []);
