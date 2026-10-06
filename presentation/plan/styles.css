@@ -249,6 +249,12 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:40px
 .thesis .n{display:block;font:600 100px/1 var(--num);color:var(--accent);margin-bottom:18px}
 .thesis h3{font-size:38px;line-height:1.15}
 .thesis p{font:400 27px/1.4 var(--body);color:var(--text-muted);margin-top:14px}
+.s-ux .ux-lead{position:absolute;left:96px;top:330px;width:1500px;font:400 30px/1.4 var(--body);color:var(--text-muted)}
+.s-ux .theses{top:440px;grid-template-columns:repeat(4,1fr);gap:24px}
+.s-ux .thesis{min-height:440px;border-radius:48px;padding:32px 32px 36px}
+.s-ux .thesis .n{font-size:84px}
+.s-ux .thesis h3{font-size:32px}
+.s-ux .thesis p{font-size:25px}
 /* ===== s13 team ===== */
 .team-arches{position:absolute;left:96px;top:340px;display:flex;gap:24px}
 .team-arches figure{width:260px}
@@ -262,6 +268,7 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:40px
 .qr p{margin-top:14px;font:500 24px var(--mono)}
 .qr .ask{font:700 32px var(--body);color:var(--accent);margin-top:16px}
 .cat-end{position:absolute;left:1560px;top:760px;width:250px}
+.cat{position:absolute;z-index:1;pointer-events:none}
 
 /* ===== backup slides ===== */
 .cards{position:absolute;left:96px;top:352px;width:1728px;display:grid;gap:28px}

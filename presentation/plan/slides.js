@@ -223,6 +223,7 @@
       <p class="corner">План 87 → 100</p>
     </div>
   </div>
+  <img class="cat in" src="../assets/brand/cat-skate.webp" alt="" style="left:520px;top:790px;width:260px">
   ${note('Многие ошибки редактор не даёт сделать: правку в стену он отклоняет прямо во время жеста. Остальные проверка находит и ставит значок на сам объект. По кнопке «Почему?» видно правило и откуда оно взято. Исправление предлагает ассистент. На демо-плане терминал очереди стоял в 6,62 м от входа при норме 3 м, после правки — в 2,25 м.')}
 </section>
 
@@ -362,7 +363,25 @@
     <article class="thesis" data-step="2"><span class="n">2</span><h3>Числам ассистента можно доверять</h3><p>Их считает код, а план меняет только человек.</p></article>
     <article class="thesis" data-step="3"><span class="n">3</span><h3>Новые типы без программиста</h3><p>Тип, зону или правило добавляют в интерфейсе.</p></article>
   </div>
+  <img class="cat in" src="../assets/brand/cat-quill.webp" alt="" style="left:1540px;top:770px;width:280px">
   ${note('Перечень, проверка и 3D получаются из плана сами. Числа ассистента посчитаны кодом. Новые типы пользователь добавляет без нас.')}
+</section>
+
+
+<!-- s15 TRIAL (after s12): the summary told through usability; the team picks this or s12 later -->
+<section class="slide s-end s-ux" id="s15" data-kind="main" data-title="Сделано для сотрудника" aria-label="Сделано для сотрудника отделения">
+  <header class="p-head">
+    <p class="eyebrow in">Итог</p>
+    ${title('Сделано', 'для сотрудника отделения')}
+  </header>
+  <p class="ux-lead in">Главная цель — чтобы руководитель отделения, проектировщик и специалист по инвентаризации справлялись без нас.</p>
+  <div class="theses">
+    <article class="thesis" data-step="1"><span class="n">1</span><h3>Ошибку видно заранее</h3><p>Силуэт зелёный, жёлтый или красный ещё до постановки. При переносе видны отступы до стен.</p></article>
+    <article class="thesis" data-step="2"><span class="n">2</span><h3>Всё можно вернуть</h3><p>Любая правка отменяется Ctrl+Z. Ассистент сам ничего не двигает, ставит только «Применить».</p></article>
+    <article class="thesis" data-step="3"><span class="n">3</span><h3>Программист не нужен</h3><p>Новый тип, зону или правило добавляют формой в «Настройках».</p></article>
+    <article class="thesis" data-step="4"><span class="n">4</span><h3>Понятно с первого раза</h3><p>Короткий тур при первом входе, подсказки и интерфейс на русском.</p></article>
+  </div>
+  ${note('Всё, что мы показали, делалось с одной целью: чтобы сотрудник отделения работал с планом сам. Редактор подсказывает до ошибки, любую правку можно отменить, новый тип оборудования добавляется формой, а при первом входе есть короткий тур.')}
 </section>
 
 
@@ -396,6 +415,7 @@
     <section class="pill" data-step="2"><h3>Граница</h3><ul><li>Проходы, эргономику и маршруты не проверяем</li><li>Комплектование — допущение команды, не норматив Почты</li><li>«Не найдено» — не найдено на сетке 0,1 м за 60 000 проб</li></ul></section>
     <section class="pill" data-step="3"><h3>Рост</h3><ul><li>Другое отделение — другой JSON, код тот же</li><li>Новое правило — строка справочника, серьёзность — из источника</li><li>Другая модель — LLM_PROVIDER и LLM_MODEL в .env</li></ul></section>
   </div>
+  <img class="cat in" src="../assets/brand/cat-glasses.webp" alt="" style="left:1560px;top:800px;width:260px">
   ${note('Мы проверяем геометрию размещения и расстояние до входа, а эффект правки показываем в числах. Ширину проходов, эргономику и маршруты не проверяем. Правила комплектования придумала команда, это не норматив Почты. «Не найдено» значит, что перебор не нашёл места, а не что места нет. Расширяется всё данными: другое отделение — это другой JSON, новое правило — строка справочника, другая модель — переменная окружения.')}
 </section>
 
@@ -484,6 +504,7 @@
     <section class="pill" data-step="3"><h3>Модель</h3><p>DeepSeek V4 Flash через Yandex AI Studio<br>Провайдер и модель — из .env<br>Без API — «Без LLM»</p></section>
     <section class="pill" data-step="4"><h3>Запуск</h3><p>npm ci → npm run dev<br><span class="nw">docker compose up --build -d</span><br>Сервер — Fastify<br>Файл плана до 5 МиБ</p></section>
   </div>
+  <img class="cat in" src="../assets/brand/cat-laptop.webp" alt="" style="left:1540px;top:740px;width:290px">
   ${note('Версии взяты из package.json. Расчёт написан без UI, его используют и браузер, и сервер. Одна Zod-схема проверяет файл в браузере и план на сервере. Модель подключается по OpenAI-совместимому адресу из .env, разрешены Qwen, DeepSeek, GigaChat и YandexGPT.')}
 </section>
 
@@ -498,6 +519,7 @@
     <article class="pill" data-step="3"><span class="n">4</span><h3>Сохранить</h3><p>JSON со справочником внутри</p></article>
     <article class="pill" data-step="4"><span class="n">5</span><h3>Открыть заново</h3><p>правка на месте, ошибки до входа нет</p></article>
   </div>
+  <img class="cat in" src="../assets/brand/cat-quill.webp" alt="" style="left:1560px;top:730px;width:260px">
   ${note('Проверяющий открывает редактор, загружает демо, меняет план, сохраняет и открывает заново. Оба плана из ZIP открываются с зонами, оборудованием, id и атрибутами. После переноса терминала ошибка расстояния до входа пропадает. Предупреждение о скамье остаётся, пока не поставить вторую.')}
 </section>`;
 
