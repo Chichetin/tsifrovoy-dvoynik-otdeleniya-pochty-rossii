@@ -1,0 +1,7 @@
+/* Variant E motion: the parcel rides the tracking line; stamps land with one quick hit (transform and opacity only). */
+#rail::after{transform:translateX(calc(var(--progress,0) * 1440px));transition:transform .5s var(--ease-io)}
+.slide.active.s-title::before,.slide.active.s-check::after,.slide.active.s-effect::after{animation:stamp .28s var(--ease-out) 1s both}
+.slide.active.s-title::before{animation-delay:.9s}
+@keyframes stamp{0%{opacity:0;transform:rotate(-18deg) scale(1.7)}65%{opacity:1}100%{opacity:.94;transform:rotate(var(--tilt,-9deg)) scale(1)}}
+@media (prefers-reduced-motion:reduce){.slide.active.s-title::before,.slide.active.s-check::after,.slide.active.s-effect::after{animation:none;opacity:.94;transform:rotate(var(--tilt,-9deg))}#rail::after{transition:none}}
+.static .s-title::before,.static .s-check::after,.static .s-effect::after{animation:none!important;opacity:.94;transform:rotate(var(--tilt,-9deg))}
