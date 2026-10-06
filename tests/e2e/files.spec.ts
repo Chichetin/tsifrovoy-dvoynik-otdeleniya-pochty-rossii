@@ -29,6 +29,20 @@ const DRAFT_KEY = 'ops-twin.draft.v1';
 const SECOND_PLAN_NAME = 'ОПС-2 (второй файл)';
 
 /**
+ * #245: third load of the dev server page in one tab fails with
+ * net::ERR_INSUFFICIENT_RESOURCES while Chromium's HTTP cache revalidates
+ * ~200 unbundled Vite modules; the app does not start and the test sees no
+ * draft offer, although the draft is in localStorage. A test that loads the
+ * page three times switches the cache off. The reload stays a real reload of
+ * the same tab: pagehide, localStorage and the start render are unchanged.
+ */
+async function reloadsWithoutHttpCache(page: Page): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
+}
+
+/**
  * Черновик в localStorage держит план с нужным числом объектов. Надписи о
  * черновике в шапке больше нет (D-288), да и раньше её было мало: она
  * появлялась уже от стартового пустого плана, и под нагрузкой перезагрузка
@@ -321,6 +335,7 @@ test.describe('файлы плана', () => {
   });
 
   test('черновик не затирается, пока на предложение не ответили', async ({ page }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);
@@ -342,6 +357,7 @@ test.describe('файлы плана', () => {
   test('после «Открыть существующий» и правки черновик снова пишется: предлагают новый, а не старый', async ({
     page,
   }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await expect(inventoryRows(page)).toHaveCount(12);
@@ -374,6 +390,7 @@ test.describe('файлы плана', () => {
   test('«Удалить» убирает черновик, и после перезагрузки его больше не предлагают', async ({
     page,
   }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);
@@ -391,6 +408,7 @@ test.describe('файлы плана', () => {
   // работу, не ответив на него, теперь нельзя — зато «Не сейчас» убирает
   // вопрос, не трогая черновик: он предлагается снова.
   test('«Не сейчас» оставляет черновик на месте', async ({ page }) => {
+    await reloadsWithoutHttpCache(page);
     await page.goto('/');
     await openFile(page, EXAMPLE);
     await draftHolds(page, 12);
