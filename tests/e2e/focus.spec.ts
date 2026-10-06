@@ -147,6 +147,16 @@ test.describe('холст показывает то, о чём спрашива�
     await page.mouse.move(x + 200, y + 200);
     for (let step = 0; step < 6; step += 1) await page.mouse.wheel(0, -240);
     await expect.poll(async () => holdsWholeRoom(await visibleBox(page))).toBe(false);
+    // Колесо применяется с задержкой: ждём, пока масштаб перестанет меняться.
+    let previous = -1;
+    await expect
+      .poll(async () => {
+        const current = await scale(page);
+        const settled = current === previous;
+        previous = current;
+        return settled;
+      }, { intervals: [200] })
+      .toBe(true);
     const zoomed = await scale(page);
 
     await page.keyboard.press('Shift+KeyF');
