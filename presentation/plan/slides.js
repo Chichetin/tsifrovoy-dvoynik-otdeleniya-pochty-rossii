@@ -72,6 +72,14 @@
     ['r5', 'Ассистент', 'советует, но сам не правит'],
   ];
 
+  // s11: what the service is built with (versions from package.json).
+  const stack = [
+    ['Браузер', 'React 19 и Vite 8. 2D рисует react-konva, 3D — Three.js, правки и undo хранит Zustand.'],
+    ['Расчёт', 'Один код для браузера и сервера. Формат проверяет схема Zod, площади считает polyclip-ts.'],
+    ['Модель', 'DeepSeek V4 Flash через Yandex AI Studio. Провайдер и модель меняются в .env.'],
+    ['Сервер и запуск', 'Node.js и Fastify. Всё поднимается одной командой:<br><code class="nw">docker compose up --build -d</code>'],
+  ];
+
   const checks = ['пересечения', 'выход за помещение', 'стена', 'загороженная дверь', 'техника без стола', 'повтор инвентарного номера', 'комплектование'];
   const layers = ['Камеры и зоны обзора', 'Тепловая нагрузка', 'Сотрудники по зонам'];
 
@@ -316,18 +324,13 @@
 </section>
 
 
-<!-- s11 КАК УСТРОЕНО И ЗАМЕРЫ -->
-<section class="slide s-arch" id="s11" data-kind="main" data-title="Как устроено и замеры" aria-label="Как устроено и сколько выдерживает">
+<!-- s11 ЗАМЕРЫ И СТЕК -->
+<section class="slide s-arch" id="s11" data-kind="main" data-title="Замеры и стек" aria-label="Сколько выдерживает и на чём сделано">
   <header class="p-head">
-    <p class="eyebrow in">Одно состояние</p>
-    ${title('Как устроено', 'и сколько выдерживает')}
+    <p class="eyebrow in">Замеры и стек</p>
+    ${title('Сколько выдерживает', 'и на чём сделано')}
   </header>
-  <div class="hub-box" data-links="hub>a1 a2 a3 a4 a5" style="left:96px;top:330px;width:820px;height:520px">
-    <div class="node hub" data-node="hub"><p class="tag">Файл</p><h3>plan.json</h3></div>
-    ${['2D', 'Инвентаризация', 'Проверка', '3D', 'Ассистент'].map((name, i) => `<div class="node leaf" data-node="a${i + 1}" data-step="${i + 1}" data-packet style="--k:${i}"><h3>${name}</h3></div>`).join('')}
-  </div>
-  <p class="foot-note in" style="left:96px;top:880px">Все модули читают один файл, копий нет.</p>
-  <div class="bench-box" style="left:1000px;top:330px;width:824px">
+  <div class="bench-box" style="left:96px;top:330px;width:820px">
     <p class="tag in">Первое открытие, 50 зон</p>
     <p class="huge in"><span class="sm"><b data-count="1000" data-dur="900">1000</b> объектов —</span><span class="lg"><b data-count="0.54" data-dec="2" data-delay="500">0,54</b> с</span></p>
     <ul class="counters mini in">
@@ -337,12 +340,14 @@
     </ul>
     <ul class="chips col">
       <li>1588 unit + 228 e2e тестов — все зелёные</li>
-      <li>Запуск — одна команда: <code>docker compose up --build -d</code></li>
       <li>Сервис в облаке: 158.160.157.55:8080, без логина</li>
     </ul>
   </div>
+  <div class="stack-grid">
+    ${stack.map(([name, text], i) => `<article class="pill" data-step="${i + 1}"><h3>${name}</h3><p>${text}</p></article>`).join('')}
+  </div>
   <p class="fine">Замер 04.10.2026, Ryzen AI 9 365, Edge, production-сборка, медиана 5 прогонов. Команда — в README.</p>
-  ${note('Редактор, инвентаризация, проверка, 3D и ассистент читают один и тот же план. План на тысячу объектов открывается примерно за полсекунды. Все тесты проходят, сервис уже развёрнут в облаке.')}
+  ${note('План на тысячу объектов и пятьдесят зон открывается примерно за полсекунды, выбор объекта занимает 38 миллисекунд. Мерили на production-сборке, команда замера есть в README. Сделано на React и Vite: 2D рисует react-konva, 3D — Three.js. Расчёт один и тот же в браузере и на сервере, формат проверяет одна схема Zod. Модель — DeepSeek через Yandex AI Studio, её можно поменять в .env. Запускается одной командой docker compose, сервис уже работает в облаке.')}
 </section>
 
 

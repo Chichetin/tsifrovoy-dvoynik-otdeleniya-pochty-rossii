@@ -227,12 +227,12 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:40px
 .slide.s-demo{z-index:10;background:#000}
 .s-demo .demo{position:absolute;inset:0;width:1920px;height:1080px;object-fit:contain;background:#000}
 
-/* ===== s11 architecture and numbers ===== */
-.hub-box{position:absolute}
-.hub-box .node{position:absolute;grid-column:auto;grid-row:auto}
-.hub-box .hub{left:0;top:190px;width:290px;height:130px;border:2px solid var(--text);background:var(--surface)}
-.hub-box .hub h3{font:600 36px var(--mono)}
-.hub-box .leaf{left:480px;top:calc(var(--k) * 100px);width:340px;height:76px;border-radius:999px}
+/* ===== s11 numbers and stack ===== */
+.stack-grid{position:absolute;left:1000px;top:330px;width:824px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.stack-grid .pill{border-radius:40px;padding:26px 30px 28px}
+.stack-grid .pill h3{font-size:30px}
+.stack-grid .pill p{font-size:24px;line-height:1.35}
+.stack-grid code{font-size:19px;white-space:nowrap}
 .bench-box{position:absolute}
 .bench-box .huge{font-family:var(--body);line-height:1}
 .huge .sm{display:block;font:500 34px var(--mono);margin:12px 0 4px}
