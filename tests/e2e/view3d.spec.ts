@@ -66,6 +66,23 @@ async function clickCanvas(page: Page, x: number, y: number): Promise<void> {
   await page.getByTestId('editor-canvas').click({ position: { x, y } });
 }
 
+/**
+ * Clicks the room floor away from walls and from the object placed in the centre.
+ * The point comes from the view the canvas publishes (`data-visible`: «minX,minY,maxX,maxY»,
+ * screen Y down, model Y up): a pixel offset goes stale when the fit of the plan changes.
+ */
+async function clickEmptyFloor(page: Page): Promise<void> {
+  const canvas = page.getByTestId('editor-canvas');
+  const box = await canvas.boundingBox();
+  const raw = await canvas.getAttribute('data-visible');
+  if (box === null || raw === null) throw new Error('холст не сообщил видимую область');
+  const [minX, minY, maxX, maxY] = raw.split(',').map(Number) as [number, number, number, number];
+  // The room starts at (0, 0); a point 1.5 m inside from the south-west corner.
+  const x = ((1.5 - minX) / (maxX - minX)) * box.width;
+  const y = ((maxY - 1.5) / (maxY - minY)) * box.height;
+  await canvas.click({ position: { x, y } });
+}
+
 async function placeFirstLibraryItem(page: Page, x: number, y: number): Promise<string> {
   await showTab(page, 'Библиотека');
   const item = page.locator('.library__item').first();
@@ -169,7 +186,7 @@ test.describe('3D-вид: программный WebGL (SwiftShader)', () => {
       await page.locator('.library__item').first().click();
       await page.getByTestId('editor-canvas').click();
       // Сначала выбираем фон, чтобы последующий выбор точно пришёл из 3D.
-      await page.getByTestId('editor-canvas').click({ position: { x: 80, y: 120 } });
+      await clickEmptyFloor(page);
       await expect(page.getByLabel('Свойства')).toHaveAttribute('data-entity-id', 'room_main');
 
       await switchTo(page, '3D');
