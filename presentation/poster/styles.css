@@ -68,3 +68,6 @@ h3{font-family:var(--display);font-weight:700;letter-spacing:-.02em}
 .view img,.catalog img{border-color:var(--text)}
 
 .lane span{display:none}
+
+.s-title::after{bottom:52px}
+.s-ai::after,.s-limits::after{top:146px}

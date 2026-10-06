@@ -120,7 +120,7 @@
         if (b.dataset.step) path.dataset.step = b.dataset.step;
         svg.append(path);
         if (b.dataset.packet !== undefined) {
-          const dot = svgEl('circle', { class: 'dot', id: `dot-${path.id}`, 'data-packet': path.id, 'data-delay': n * 90 + 100, 'data-dur': 800, r: 6 });
+          const dot = svgEl('circle', { class: 'dot', id: `dot-${path.id}`, 'data-linked': '', 'data-packet': path.id, 'data-delay': n * 90 + 100, 'data-dur': 800, r: 6 });
           path.dataset.dot = dot.id;
           svg.append(dot);
         }
@@ -152,27 +152,32 @@
     }
 
     function settle() {
+      clearTimeout(timer);
       running.forEach((a) => a.cancel());
       running.clear();
-      document.querySelectorAll('.slide.leaving').forEach((s) => s.classList.remove('leaving'));
+      document.querySelectorAll('.slide.leaving, .slide.moving').forEach((s) => s.classList.remove('leaving', 'moving'));
     }
 
+    // The old slide leaves first and the new one follows, so two slides are never readable at once.
+    // Only transform and opacity: clip-path would repaint the whole slide every frame.
+    const OUT = 170; // ms the old slide needs to leave
+    const lead = () => (cfg.transition === 'push' ? 160 : Math.round(OUT * 0.7 + 90)); // when content may start moving
     const TRANSITIONS = {
       wipe: (inc, out, dir) => [
-        run(inc, [{ clipPath: dir > 0 ? 'inset(0 0 0 100%)' : 'inset(0 100% 0 0)' }, { clipPath: 'inset(0 0 0 0)' }], { duration: cfg.ms, easing: cfg.easeMove }),
-        run(out, [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-70 * dir}px)`, opacity: 0 }], { duration: cfg.ms * 0.8 }),
+        run(out, [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${-48 * dir}px)` }], { duration: OUT }),
+        run(inc, [{ opacity: 0, transform: `translateX(${48 * dir}px)` }, { opacity: 1, transform: 'translateX(0)' }], { duration: cfg.ms * 0.7, delay: OUT * 0.7 }),
       ],
       push: (inc, out, dir) => [
+        run(out, [{ transform: 'translateX(0)' }, { transform: `translateX(${-100 * dir}%)` }], { duration: cfg.ms, easing: cfg.easeMove }),
         run(inc, [{ transform: `translateX(${100 * dir}%)` }, { transform: 'translateX(0)' }], { duration: cfg.ms, easing: cfg.easeMove }),
-        run(out, [{ transform: 'translateX(0)', opacity: 1 }, { transform: `translateX(${-30 * dir}%)`, opacity: 0.4 }], { duration: cfg.ms, easing: cfg.easeMove }),
       ],
       rise: (inc, out, dir) => [
-        run(inc, [{ opacity: 0, transform: `translateY(${36 * dir}px)` }, { opacity: 1, transform: 'translateY(0)' }], { duration: cfg.ms * 0.8 }),
-        run(out, [{ opacity: 1 }, { opacity: 0 }], { duration: cfg.ms * 0.5 }),
+        run(out, [{ opacity: 1 }, { opacity: 0 }], { duration: OUT }),
+        run(inc, [{ opacity: 0, transform: `translateY(${28 * dir}px)` }, { opacity: 1, transform: 'translateY(0)' }], { duration: cfg.ms * 0.7, delay: OUT * 0.7 }),
       ],
       zoom: (inc, out) => [
-        run(inc, [{ opacity: 0, transform: 'scale(1.04)' }, { opacity: 1, transform: 'scale(1)' }], { duration: cfg.ms * 0.8 }),
-        run(out, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.97)' }], { duration: cfg.ms * 0.6 }),
+        run(out, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.98)' }], { duration: OUT }),
+        run(inc, [{ opacity: 0, transform: 'scale(1.03)' }, { opacity: 1, transform: 'scale(1)' }], { duration: cfg.ms * 0.7, delay: OUT * 0.7 }),
       ],
     };
 
@@ -236,7 +241,7 @@
 
     function reveal(scope, slideLevel) {
       const found = [...(scope.matches(HOOKS) ? [scope] : []), ...scope.querySelectorAll(HOOKS)];
-      found.filter((el) => !slideLevel || inStepOnly(el)).forEach(apply);
+      found.filter((el) => !el.hasAttribute('data-linked') && (!slideLevel || inStepOnly(el))).forEach(apply);
     }
 
     function reset(scope) {
@@ -244,12 +249,20 @@
       scope.querySelectorAll('[data-twin].on').forEach((el) => el.classList.remove('on'));
     }
 
+    // A slide that has left starts clean: no step stays on, so nothing flashes when it comes back.
+    function clear(slide) {
+      reset(slide);
+      slide.querySelectorAll('[data-step]').forEach((el) => el.classList.remove('on', 'cur', 'done'));
+    }
+
+    let timer = 0;
     function entrance(slide) {
+      const start = lead();
       const lines = [...slide.querySelectorAll('.ln > span')];
-      lines.forEach((el, i) => run(el, [{ transform: 'translateY(112%)' }, { transform: 'translateY(0)' }], { duration: 560, delay: 120 + i * 70 }));
+      lines.forEach((el, i) => run(el, [{ transform: 'translateY(112%)' }, { transform: 'translateY(0)' }], { duration: 520, delay: start + i * 70 }));
       const items = [...slide.querySelectorAll('.in')];
-      items.forEach((el, i) => run(el, ENTER[cfg.enter], { delay: 180 + i * cfg.stagger }));
-      reveal(slide, true);
+      items.forEach((el, i) => run(el, ENTER[cfg.enter], { duration: 380, delay: start + 60 + i * cfg.stagger }));
+      timer = setTimeout(() => { if (slide.classList.contains('active')) reveal(slide, true); }, start);
     }
 
     return {
@@ -262,19 +275,23 @@
           document.querySelectorAll('[data-twin]').forEach((el) => el.classList.add('on'));
         }
         slides.forEach((s) => s.classList.remove('leaving'));
+        // decode screenshots now, not in the middle of the first transition
+        document.querySelectorAll('.slide img').forEach((img) => { img.decode?.().catch(() => {}); });
       },
       enter(slide, prev, dir) {
         settle();
         if (staticMode) return;
         if (prev && prev !== slide && canMove()) {
-          prev.classList.add('leaving');
+          prev.classList.add('leaving', 'moving');
+          slide.classList.add('moving');
           const anims = (TRANSITIONS[cfg.transition] ?? TRANSITIONS.wipe)(slide, prev, dir).filter(Boolean);
           Promise.allSettled(anims.map((a) => a.finished)).then(() => {
-            prev.classList.remove('leaving');
-            if (!prev.classList.contains('active')) reset(prev);
+            prev.classList.remove('leaving', 'moving');
+            slide.classList.remove('moving');
+            if (!prev.classList.contains('active')) clear(prev);
           });
         } else if (prev && prev !== slide) {
-          reset(prev);
+          clear(prev);
         }
         entrance(slide);
       },
