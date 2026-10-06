@@ -249,17 +249,26 @@ function* serviceRowCells(rows: ServiceRow[], room: BoundingBox, step: number): 
   }
 }
 
-function serviceLineFor(plan: PlanDocument, type: ObjectType): ServiceLine | null {
-  const types: readonly Id[] = SERVICE_LINE.objectTypeIds;
-  if (!types.includes(type.id)) return null;
+/** Центры всех входов плана. */
+function entranceCentres(plan: PlanDocument): Point[] {
   const walls = new Map(plan.walls.map((wall) => [wall.id, wall]));
-  const entrances = plan.openings
+  return plan.openings
     .filter((opening) => opening.kind === 'entrance')
     .flatMap((opening) => {
       const wall = walls.get(opening.wallId);
       return wall === undefined ? [] : [openingCentre(opening, wall)];
     });
-  return { segments: serviceLineSegments(plan), rows: serviceRows(plan, type.id), entrances };
+}
+
+/** #237: от центра места до центра ближайшего входа; входов нет — null. */
+function nearestEntrance(position: Point, entrances: Point[]): number | null {
+  return entrances.length === 0 ? null : round6(Math.min(...entrances.map((centre) => distance(position, centre))));
+}
+
+function serviceLineFor(plan: PlanDocument, type: ObjectType): ServiceLine | null {
+  const types: readonly Id[] = SERVICE_LINE.objectTypeIds;
+  if (!types.includes(type.id)) return null;
+  return { segments: serviceLineSegments(plan), rows: serviceRows(plan, type.id), entrances: entranceCentres(plan) };
 }
 
 /** Отпечаток ближе `entranceClearance_m` к центру входа — это проход. */
@@ -342,7 +351,7 @@ type Cell = { position: Point; rotations: readonly number[]; onLine: boolean };
 
 type Blocker = { polygon: Polygon; box: BoundingBox };
 
-type VerifiedProbe = Probe & { object: Equipment; warnings: number; wallGap_m: number };
+type VerifiedProbe = Probe & { object: Equipment; warnings: number; wallGap_m: number; entrance_m: number | null };
 
 /**
  * Отрезки, которые для ранжирования считаются стеной.
@@ -463,6 +472,24 @@ export function zoneFit(plan: PlanDocument, typeId: Id, zoneId: Id | null): Zone
     placedZoneTypeIds,
     zoneIds,
   };
+}
+
+/**
+ * #237: порядок поиска по уместным зонам. Без зоны и без точки от человека
+ * сначала ищем в зонах типа из правил комплектования, и только если там места
+ * нет — во всех уместных зонах, то есть и там, где такой тип уже стоит. Иначе
+ * скамья из зоны ожидания уходила в комнату персонала: там тоже стоит скамья,
+ * и место у стены там нашлось раньше.
+ */
+export function zoneTiers(plan: PlanDocument, fit: ZoneFit, free: boolean): (Set<Id> | null)[] {
+  if (fit.zoneIds === null) return [null];
+  const all = new Set(fit.zoneIds);
+  if (!free) return [all];
+  const ruleZoneTypes = new Set(
+    plan.catalog.rules.flatMap((rule) => (rule.kind === 'count' && fit.ruleIds.includes(rule.id) ? [rule.zoneTypeId] : [])),
+  );
+  const first = new Set(plan.zones.filter((zone) => all.has(zone.id) && ruleZoneTypes.has(zone.typeId)).map((zone) => zone.id));
+  return first.size === 0 || first.size === all.size ? [all] : [first, all];
 }
 
 /**
@@ -928,11 +955,15 @@ function fact(
  */
 export const findPlacements: FindPlacements = (plan, request) => searchPlacements(plan, request);
 
-/** #177: spots nearer than `minSeparation_m` to `avoid` (the object's own spot) are «оставить как есть». */
+/**
+ * #177: spots nearer than `minSeparation_m` to `avoid` (the object's own spot) are «оставить как есть».
+ * #237: `nearEntrance` — человек просит «ближе к входу»: варианты идут по расстоянию до входа.
+ */
 export function searchPlacements(
   plan: PlanDocument,
   request: Parameters<FindPlacements>[1],
   avoid: Point | null = null,
+  nearEntrance = false,
 ): ReturnType<FindPlacements> {
   const type = findObjectType(plan.catalog, request.typeId);
   if (type === null) {
@@ -988,33 +1019,42 @@ export function searchPlacements(
   const anchor = request.anchor ?? outlineCentre(target ?? plan.room.boundary);
   const wallEdges = wallEdgesFor(plan, type);
   const fit = zoneFit(plan, type.id, request.zoneId);
-  const allowed = fit.zoneIds === null ? null : new Set(fit.zoneIds);
-  const probes = sweep(
-    plan,
-    type,
-    target,
-    anchor,
-    layer.id,
-    request.anchor === undefined ? wallEdges : null,
-    allowed,
-    // Точку указал человек — правило линии её не переспоривает.
-    request.anchor === undefined ? serviceLineFor(plan, type) : null,
-  );
-
+  // Точку указал человек — правило линии её не переспоривает.
+  const line = request.anchor === undefined ? serviceLineFor(plan, type) : null;
+  const entrances = entranceCentres(plan);
   const baseline = new Set(validatePlan(plan).map(issueKey));
   const taken = takenIds(plan);
   const zoneIndex = prepareZones(plan.zones);
   const verified: VerifiedProbe[] = [];
-  for (const probe of probes) {
-    const id = reserveId(taken, `adv_${type.id}`, verified.length + 1);
-    const trial = objectOfType(type, { id, position: probe.position, rotation_deg: probe.rotation_deg, layerId: layer.id });
-    const object = { ...trial, zoneId: resolveZone(trial, plan.zones, zoneIndex).zoneId };
-    const warnings = verify(plan, baseline, object);
-    if (warnings === null) {
-      taken.delete(id);
-      continue;
+  for (const allowed of zoneTiers(plan, fit, request.zoneId === null && request.anchor === undefined)) {
+    const probes = sweep(
+      plan,
+      type,
+      target,
+      anchor,
+      layer.id,
+      request.anchor === undefined ? wallEdges : null,
+      allowed,
+      line,
+    );
+    for (const probe of probes) {
+      const id = reserveId(taken, `adv_${type.id}`, verified.length + 1);
+      const trial = objectOfType(type, { id, position: probe.position, rotation_deg: probe.rotation_deg, layerId: layer.id });
+      const object = { ...trial, zoneId: resolveZone(trial, plan.zones, zoneIndex).zoneId };
+      const warnings = verify(plan, baseline, object);
+      if (warnings === null) {
+        taken.delete(id);
+        continue;
+      }
+      verified.push({
+        ...probe,
+        object,
+        warnings,
+        wallGap_m: wallGap(footprint(object), wallEdges),
+        entrance_m: nearestEntrance(probe.position, entrances),
+      });
     }
-    verified.push({ ...probe, object, warnings, wallGap_m: wallGap(footprint(object), wallEdges) });
+    if (verified.length > 0) break;
   }
 
   // Ranking: no new problems first, then — по обстановке — близость к стене или
@@ -1031,6 +1071,8 @@ export function searchPlacements(
       a.warnings - b.warnings ||
       // #213: у линии обслуживания — раньше остальных (только окно и рабочее место).
       Number(b.onLine) - Number(a.onLine) ||
+      // #237: «ближе к входу» — по расстоянию до ближайшего входа.
+      (nearEntrance ? compareLengths(a.entrance_m ?? 0, b.entrance_m ?? 0) : 0) ||
       (pinned
         ? compareLengths(a.distance_m, b.distance_m) || compareLengths(a.wallGap_m, b.wallGap_m)
         : compareLengths(a.wallGap_m, b.wallGap_m) || compareLengths(a.distance_m, b.distance_m)) ||
@@ -1085,6 +1127,10 @@ export function searchPlacements(
         fact(`${id}.equipment.count.after`, 'equipment.count', 'after', currentCount + 1, 'count', [
           roomRef,
         ]),
+        // #237: расстояние от центра варианта до центра ближайшего входа.
+        ...(entry.entrance_m === null
+          ? []
+          : [fact(`${id}.layout.entrance.after`, 'layout.entrance', 'after', entry.entrance_m, 'm', [roomRef])]),
       ],
     });
   }

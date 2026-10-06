@@ -172,6 +172,9 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       // Candidate fact IDs are local to their search, not globally unique.
       const metricLabel = recommendation.scenario === 'compare' && fact.metric === 'layout.entrance'
         ? 'Расстояние от центра объекта до входа по правилу distance-to-entrance'
+        // #237: у нового объекта — только «после»; у переноса есть и «было».
+        : recommendation.scenario === 'place' && fact.metric === 'layout.entrance' && !recommendation.facts.some((f) => f.metric === 'layout.entrance' && f.phase === 'current')
+          ? 'Расстояние от центра варианта до центра ближайшего входа'
         : fact.metric !== 'placement.distance' ? undefined
         : recommendation.scenario === 'compare' ? 'Перемещено объектов, м (сумма): суммарное перемещение сохранившихся объектов между снимками'
           : 'Расстояние от варианта до центра зоны';

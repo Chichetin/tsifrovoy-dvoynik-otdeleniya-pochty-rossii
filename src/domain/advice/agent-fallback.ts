@@ -186,11 +186,12 @@ function zonelessRuleNotes(plan: PlanDocument, typeId: Id): string[] {
     });
 }
 
-function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall {
+function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null, nearEntrance: boolean): AgentToolCall {
   const preferred = zoneId === null ? preferredZone(plan, typeId) : null;
   const zoneless = zonelessRuleNotes(plan, typeId);
+  const near = nearEntrance ? { near: 'entrance' } : {};
   if (preferred === null) {
-    const call: AgentToolCall = { name: 'find_place', args: { typeId, zoneId } };
+    const call: AgentToolCall = { name: 'find_place', args: { typeId, zoneId, ...near } };
     return zoneless.length === 0 ? call : { ...call, note: zoneless.join(' ') };
   }
   const rules =
@@ -203,15 +204,15 @@ function placeCall(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentTool
     `Зона в вопросе не названа — место ищется в зоне ${zoneTitle(plan, preferred)}: там уже стоят объекты типа ${typeTitle(plan, typeId)}, а ${rules}.`,
     ...zoneless,
   ].join(' ');
-  return { name: 'find_place', args: { typeId, zoneId: preferred }, note, guessedZone: preferred };
+  return { name: 'find_place', args: { typeId, zoneId: preferred, ...near }, note, guessedZone: preferred };
 }
 
 /** The route for «where to put a <type>»: a refusal over an exceeded maximum, else the search. */
-function placeRoute(plan: PlanDocument, typeId: Id, zoneId: Id | null): AgentToolCall[] {
+function placeRoute(plan: PlanDocument, typeId: Id, zoneId: Id | null, nearEntrance = false): AgentToolCall[] {
   const target = zoneId ?? preferredZone(plan, typeId);
   const exceeded = maxStatesAt(plan, typeId, target).filter((state) => state.count > state.max);
   if (target !== null && exceeded.length > 0) return refusalCalls(plan, typeId, target, exceeded, zoneId === null);
-  return [placeCall(plan, typeId, zoneId)];
+  return [placeCall(plan, typeId, zoneId, nearEntrance)];
 }
 
 /**
@@ -226,7 +227,7 @@ export function widenCalls(state: AgentToolState, routed: readonly AgentToolCall
   for (const entry of places) state.recommendations.delete(entry.id);
   return [{
     name: 'find_place',
-    args: { typeId: guess.args.typeId, zoneId: null },
+    args: { typeId: guess.args.typeId, zoneId: null, ...(guess.args.near === undefined ? {} : { near: guess.args.near }) },
     note: `В зоне ${zoneTitle(state.plan, guess.guessedZone)} места нет — вариант по всему плану.`,
   }];
 }
@@ -271,6 +272,8 @@ const LAYOUT_VERB = /(?:^|[^а-я])(разложи|расставь|перест
 /** #126: an imperative verb makes a clause an edit; «где поставить» stays a question about a place. */
 const EDIT_VERB = /(?:^|[^а-я])(раздвинь|сдвинь|передвинь|подвинь|перемести|поверни|разверни|удали|убери|добавь|поставь)(?:[^а-я]|$)/;
 /** #150: a question about a place — the only reading that turns a type name into a search. */
+/** #237: «ближе к входу», «у входа», «рядом с входом» — варианты по расстоянию до входа. */
+const NEAR_ENTRANCE = /ближе (?:к|ко) вход|(?:^|[^а-я])у входа|(?:рядом|возле|около) (?:с )?вход/;
 const PLACE_INTENT = /постав|добав|размест|установ|повес|помест|куда|где|мест[оау]|влез|вместит|нужн/;
 const DIRECTIONS: Record<string, [number, number]> = { влево: [-1, 0], вправо: [1, 0], вверх: [0, 1], вниз: [0, -1] };
 
@@ -473,7 +476,7 @@ export function routeAgentQuery(plan: PlanDocument, query: string, hasBefore: bo
   if (cameras !== null && !STORAGE_ROOM.test(text) && CAMERA_COVERAGE.test(text)) {
     return placeRoute(plan, cameras.typeId, zoneId);
   }
-  if (typeId !== null && PLACE_INTENT.test(text)) return placeRoute(plan, typeId, zoneId);
+  if (typeId !== null && PLACE_INTENT.test(text)) return placeRoute(plan, typeId, zoneId, NEAR_ENTRANCE.test(text));
   if (zoneId !== null) {
     return [{ name: 'zone_details', args: { zoneId } }, { name: 'show_on_plan', args: { ids: [zoneId] } }];
   }
@@ -810,12 +813,15 @@ export function answerLead(state: AgentToolState, records: readonly AgentToolRec
       const freeAfter = value('area.free', 'after');
       const countBefore = value('equipment.count', 'current');
       const countAfter = value('equipment.count', 'after');
+      const entrance = value('layout.entrance', 'after');
       const numbers = [
         effect?.before.total.percent == null || effect.after.total.percent == null
           ? null
           : `клиентские зоны видны камерами на ${formatShort(Math.round(effect.before.total.percent * 10) / 10)} → ${formatShort(Math.round(effect.after.total.percent * 10) / 10)} %`,
         freeBefore === undefined || freeAfter === undefined ? null : `свободно ${formatArea(freeBefore)} → ${formatArea(freeAfter)}`,
         countBefore === undefined || countAfter === undefined ? null : `таких объектов ${countBefore} → ${countAfter}`,
+        // #237: от центра варианта до центра ближайшего входа.
+        entrance === undefined ? null : `до входа ${metres2(entrance)}`,
       ].filter(Boolean);
       const where = candidate.object.zoneId === null ? 'вне зон' : `в зону ${zoneTitle(plan, candidate.object.zoneId)}`;
       return `Поставьте «${candidate.object.label}» ${where}${numbers.length === 0 ? '' : `: ${numbers.join(', ')}`}.`;

@@ -156,7 +156,8 @@ export function asRelocation(plan: PlanDocument, recommendation: Recommendation,
       measured.find((fact) => fact.metric === metric && fact.phase === phase && fact.id.startsWith(prefix))?.value;
     const freeAfter = value('area.free', 'after', 'adv_compare.area.free');
     if (freeAfter === undefined) continue;
-    const facts: Fact[] = candidate.facts.map((fact) => {
+    // #237: расстояние до входа у переноса — своё, «было → стало» ниже.
+    const facts: Fact[] = candidate.facts.filter((fact) => fact.metric !== 'layout.entrance').map((fact) => {
       if (fact.metric === 'area.free' && fact.phase === 'after') return { ...fact, value: freeAfter };
       if (fact.metric === 'equipment.count' && fact.phase === 'after') return { ...fact, value: count(applied.value) };
       if (fact.metric === 'equipment.count' && fact.phase === 'current') return { ...fact, value: count(plan) };
