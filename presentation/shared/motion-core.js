@@ -142,6 +142,8 @@
     };
     const running = new Set();
     let seq = 0;
+    const loops = new Set();
+    let ambientTimer = 0;
 
     function run(el, frames, opts = {}) {
       if (!el || !canMove()) return null;
@@ -153,32 +155,22 @@
 
     function settle() {
       clearTimeout(timer);
+      clearTimeout(ambientTimer);
       running.forEach((a) => a.cancel());
       running.clear();
-      document.querySelectorAll('.slide.leaving, .slide.moving').forEach((s) => s.classList.remove('leaving', 'moving'));
+      stopLoops();
+      document.querySelectorAll('.slide.moving').forEach((s) => s.classList.remove('moving'));
     }
 
-    // The old slide leaves first and the new one follows, so two slides are never readable at once.
+    // Only the incoming slide animates. app.js has already hidden the old one, so nothing of it can show up again
+    // (the earlier version let the old slide fade out and then snap back for a few frames in Firefox).
     // Only transform and opacity: clip-path would repaint the whole slide every frame.
-    const OUT = 170; // ms the old slide needs to leave
-    const lead = () => (cfg.transition === 'push' ? 160 : Math.round(OUT * 0.7 + 90)); // when content may start moving
+    const lead = () => (cfg.transition === 'push' ? 120 : 80); // when the content may start moving
     const TRANSITIONS = {
-      wipe: (inc, out, dir) => [
-        run(out, [{ opacity: 1, transform: 'translateX(0)' }, { opacity: 0, transform: `translateX(${-48 * dir}px)` }], { duration: OUT }),
-        run(inc, [{ opacity: 0, transform: `translateX(${48 * dir}px)` }, { opacity: 1, transform: 'translateX(0)' }], { duration: cfg.ms * 0.7, delay: OUT * 0.7 }),
-      ],
-      push: (inc, out, dir) => [
-        run(out, [{ transform: 'translateX(0)' }, { transform: `translateX(${-100 * dir}%)` }], { duration: cfg.ms, easing: cfg.easeMove }),
-        run(inc, [{ transform: `translateX(${100 * dir}%)` }, { transform: 'translateX(0)' }], { duration: cfg.ms, easing: cfg.easeMove }),
-      ],
-      rise: (inc, out, dir) => [
-        run(out, [{ opacity: 1 }, { opacity: 0 }], { duration: OUT }),
-        run(inc, [{ opacity: 0, transform: `translateY(${28 * dir}px)` }, { opacity: 1, transform: 'translateY(0)' }], { duration: cfg.ms * 0.7, delay: OUT * 0.7 }),
-      ],
-      zoom: (inc, out) => [
-        run(out, [{ opacity: 1, transform: 'scale(1)' }, { opacity: 0, transform: 'scale(.98)' }], { duration: OUT }),
-        run(inc, [{ opacity: 0, transform: 'scale(1.03)' }, { opacity: 1, transform: 'scale(1)' }], { duration: cfg.ms * 0.7, delay: OUT * 0.7 }),
-      ],
+      wipe: (inc, dir) => [run(inc, [{ opacity: 0, transform: `translateX(${56 * dir}px)` }, { opacity: 1, transform: 'translateX(0)' }], { duration: cfg.ms * 0.7 })],
+      push: (inc, dir) => [run(inc, [{ transform: `translateX(${100 * dir}%)` }, { transform: 'translateX(0)' }], { duration: cfg.ms, easing: cfg.easeMove })],
+      rise: (inc, dir) => [run(inc, [{ opacity: 0, transform: `translateY(${30 * dir}px)` }, { opacity: 1, transform: 'translateY(0)' }], { duration: cfg.ms * 0.7 })],
+      zoom: (inc) => [run(inc, [{ opacity: 0, transform: 'scale(1.03)' }, { opacity: 1, transform: 'scale(1)' }], { duration: cfg.ms * 0.7 })],
     };
 
     const ENTER = {
@@ -255,6 +247,77 @@
       slide.querySelectorAll('[data-step]').forEach((el) => el.classList.remove('on', 'cur', 'done'));
     }
 
+    // ---------- ambient motion: the slide keeps living while the speaker talks ----------
+    // Loops run only on the active slide and stop on every navigation. Movement is linear (constant flow).
+    function stopLoops() {
+      loops.forEach((a) => a.cancel());
+      loops.clear();
+      document.querySelectorAll('[data-loop]').forEach((el) => el.removeAttribute('data-loop'));
+    }
+
+    // A packet runs along a path for `travel` ms, hides, and starts again every `period` ms.
+    function loopAlong(dot, path, { period, travel, delay = 0 }) {
+      if (!canMove() || dot.hasAttribute('data-loop')) return;
+      const length = path.getTotalLength();
+      const share = Math.min(0.9, travel / period);
+      const count = 28;
+      const frames = [];
+      for (let i = 0; i <= count; i++) {
+        const p = path.getPointAtLength((length * i) / count);
+        frames.push({ transform: `translate(${p.x}px,${p.y}px)`, opacity: i === 0 || i === count ? 0 : 1, offset: (i / count) * share });
+      }
+      const end = path.getPointAtLength(length);
+      frames.push({ transform: `translate(${end.x}px,${end.y}px)`, opacity: 0, offset: 1 });
+      dot.setAttribute('data-loop', '');
+      loops.add(dot.animate(frames, { duration: period, delay, iterations: Infinity, easing: 'linear' }));
+    }
+
+    // A ring expands, fades, rests, and repeats.
+    function loopPing(ring, delay) {
+      if (!canMove() || ring.hasAttribute('data-loop')) return;
+      ring.setAttribute('data-loop', '');
+      loops.add(ring.animate([{ opacity: 0.9, transform: 'scale(.5)' }, { opacity: 0, transform: 'scale(2.2)' }], { duration: 900, delay, endDelay: 1700, iterations: Infinity, easing: cfg.ease }));
+    }
+
+    const isShown = (el) => { const step = el.closest('[data-step]'); return !step || step.classList.contains('on'); };
+
+    function ambient(slide) {
+      if (!canMove() || !slide.classList.contains('active')) return;
+      // the pipeline passes a packet from node to node; everything else flows in parallel
+      const relay = slide.classList.contains('s-ai');
+      slide.querySelectorAll('.links .link').forEach((path, i) => {
+        if (!isShown(path)) return;
+        let dot = path.dataset.dot ? document.getElementById(path.dataset.dot) : null;
+        if (!dot) {
+          dot = svgEl('circle', { class: 'dot', id: `dot-${path.id}`, 'data-linked': '', 'data-packet': path.id, r: 6 });
+          path.dataset.dot = dot.id;
+          path.parentNode.append(dot);
+        }
+        loopAlong(dot, path, relay ? { period: 5600, travel: 700, delay: Math.min(i, 4) * 700 } : { period: 2800, travel: 1000, delay: i * 200 });
+      });
+      slide.querySelectorAll('[data-ping]').forEach((ring, i) => { if (isShown(ring)) loopPing(ring, i * 450); });
+      slide.querySelectorAll('[data-packet]:not([data-linked])').forEach((dot) => {
+        const path = document.getElementById(dot.dataset.packet);
+        if (path) loopAlong(dot, path, { period: 3800, travel: 1100, delay: 300 });
+      });
+      const curve = slide.querySelector('.chart .curve');
+      if (curve) {
+        curve.id ||= 'curve-path';
+        let dot = slide.querySelector('.chart .amb-dot');
+        if (!dot) {
+          dot = svgEl('circle', { class: 'dot amb-dot', 'data-linked': '', 'data-packet': curve.id, r: 9 });
+          curve.parentNode.append(dot);
+        }
+        loopAlong(dot, curve, { period: 4200, travel: 2200, delay: 400 });
+      }
+    }
+
+    const ambientAfter = (slide, ms) => {
+      clearTimeout(ambientTimer);
+      stopLoops();
+      ambientTimer = setTimeout(() => ambient(slide), ms);
+    };
+
     let timer = 0;
     function entrance(slide) {
       const start = lead();
@@ -263,6 +326,7 @@
       const items = [...slide.querySelectorAll('.in')];
       items.forEach((el, i) => run(el, ENTER[cfg.enter], { duration: 380, delay: start + 60 + i * cfg.stagger }));
       timer = setTimeout(() => { if (slide.classList.contains('active')) reveal(slide, true); }, start);
+      ambientAfter(slide, slide.classList.contains('s-title') ? 2400 : 1500);
     }
 
     return {
@@ -281,17 +345,11 @@
       enter(slide, prev, dir) {
         settle();
         if (staticMode) return;
-        if (prev && prev !== slide && canMove()) {
-          prev.classList.add('leaving', 'moving');
+        if (prev && prev !== slide) clear(prev);
+        if (canMove()) {
           slide.classList.add('moving');
-          const anims = (TRANSITIONS[cfg.transition] ?? TRANSITIONS.wipe)(slide, prev, dir).filter(Boolean);
-          Promise.allSettled(anims.map((a) => a.finished)).then(() => {
-            prev.classList.remove('leaving', 'moving');
-            slide.classList.remove('moving');
-            if (!prev.classList.contains('active')) clear(prev);
-          });
-        } else if (prev && prev !== slide) {
-          clear(prev);
+          const anims = (TRANSITIONS[cfg.transition] ?? TRANSITIONS.wipe)(slide, dir).filter(Boolean);
+          Promise.allSettled(anims.map((x) => x.finished)).then(() => slide.classList.remove('moving'));
         }
         entrance(slide);
       },
@@ -302,6 +360,7 @@
         } else {
           slide.querySelectorAll('[data-step]').forEach((el) => { if (Number(el.dataset.step) > n) reset(el); });
         }
+        ambientAfter(slide, 1200);
       },
     };
   }

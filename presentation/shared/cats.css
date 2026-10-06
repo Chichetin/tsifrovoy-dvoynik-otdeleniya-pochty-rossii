@@ -4,7 +4,8 @@
 .s-title::after{right:96px;bottom:74px;width:340px;height:230px;background-image:url(../assets/brand/cat-laptop.webp)}
 .s-ai::after{right:96px;top:122px;width:250px;height:206px;background-image:url(../assets/brand/cat-quill.webp)}
 .s-limits::after{right:96px;top:132px;width:230px;height:172px;background-image:url(../assets/brand/cat-skate.webp)}
-.slide.active.s-title::after,.slide.active.s-ai::after,.slide.active.s-limits::after{animation:cat-in .5s var(--ease-out) .55s both}
+.slide.active.s-title::after,.slide.active.s-ai::after,.slide.active.s-limits::after{animation:cat-in .5s var(--ease-out) .55s both,cat-bob 4.6s ease-in-out 1.2s infinite alternate}
+@keyframes cat-bob{from{translate:0 0}to{translate:0 -9px}}
 @keyframes cat-in{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.slide.active.s-title::after,.slide.active.s-ai::after,.slide.active.s-limits::after{animation:none}}
 .static .s-title::after,.static .s-ai::after,.static .s-limits::after{animation:none!important}

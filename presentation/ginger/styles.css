@@ -81,3 +81,6 @@ h3{font-family:var(--display);font-weight:700;letter-spacing:-.025em}
 .pipe .node{padding:20px 18px}
 .pipe .node.fb h3{font-size:22px}
 .pipe .node p:last-child{font-size:20px}
+
+:root{--sweep-inset:26px}
+.bg::after{animation:float-y 9s ease-in-out infinite alternate}

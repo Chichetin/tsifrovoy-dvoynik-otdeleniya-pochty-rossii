@@ -5,3 +5,5 @@
 @keyframes stamp{0%{opacity:0;transform:rotate(-18deg) scale(1.7)}65%{opacity:1}100%{opacity:.94;transform:rotate(var(--tilt,-9deg)) scale(1)}}
 @media (prefers-reduced-motion:reduce){.slide.active.s-title::before,.slide.active.s-check::after,.slide.active.s-effect::after{animation:none;opacity:.94;transform:rotate(var(--tilt,-9deg))}#rail::after{transition:none}}
 .static .s-title::before,.static .s-check::after,.static .s-effect::after{animation:none!important;opacity:.94;transform:rotate(var(--tilt,-9deg))}
+
+@media (prefers-reduced-motion:no-preference){@keyframes stripes{to{background-position-x:147px}}.bg::before,.bg::after{animation:stripes 7s linear infinite}}

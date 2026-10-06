@@ -1,0 +1,50 @@
+/* Ambient motion shared by every variant: the slide keeps living while the speaker talks.
+   Runs only on the active slide. Constant flow is linear; sways are ease-in-out. Moves transform, translate, opacity,
+   fill-opacity, and a 3px background-position bar. Off for reduced motion and in ?static. */
+.q,.link-card,.limits .col,.stack .col,.flow li,.counters p,.stats li,.pipe .node{position:relative}
+@media (prefers-reduced-motion:no-preference){
+  @keyframes sweep{from{background-position:-45% 0}to{background-position:145% 0}}
+  @keyframes scan-y{from{transform:translateY(-140px)}to{transform:translateY(720px)}}
+  @keyframes halo{0%{opacity:.8;transform:scale(1)}100%{opacity:0;transform:scale(1.1)}}
+  @keyframes halo-seq{0%{opacity:0}3%{opacity:.95}14%{opacity:0}100%{opacity:0}}
+  @keyframes nudge-x{0%,100%{translate:0 0}50%{translate:12px 0}}
+  @keyframes nudge-y{0%,100%{translate:0 0}50%{translate:0 8px}}
+  @keyframes float-y{from{translate:0 0}to{translate:0 -10px}}
+  @keyframes zone-pulse{from{fill-opacity:.08}to{fill-opacity:.3}}
+  @keyframes ring-breathe{from{transform:scale(.95);stroke-opacity:.3}to{transform:scale(1.05);stroke-opacity:1}}
+
+  /* a bright segment runs along the top edge of every card, one after another */
+  .slide.active :is(.q,.link-card,.limits .col,.stack .col,.flow li,.counters p,.stats li)::after{
+    content:'';position:absolute;left:var(--sweep-inset,12px);right:var(--sweep-inset,12px);top:0;height:3px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,var(--sweep,var(--accent)),transparent) -45% 0/45% 100% no-repeat;
+    animation:sweep 3.4s linear infinite}
+  .slide.active :is(.q,.link-card,.limits .col,.stack .col,.flow li,.counters p,.stats li):nth-child(2)::after{animation-delay:.55s}
+  .slide.active :is(.q,.link-card,.limits .col,.stack .col,.flow li,.counters p,.stats li):nth-child(3)::after{animation-delay:1.1s}
+  .slide.active :is(.q,.link-card,.limits .col,.stack .col,.flow li,.counters p,.stats li):nth-child(4)::after{animation-delay:1.65s}
+  .slide.active :is(.q,.link-card,.limits .col,.stack .col,.flow li,.counters p,.stats li):nth-child(5)::after{animation-delay:2.2s}
+
+  /* the check scans the plan; the same bar reads the file format */
+  .slide.active :is(.shot,.s-format .code)::after{
+    content:'';position:absolute;left:0;right:0;top:0;height:130px;pointer-events:none;
+    background:linear-gradient(transparent,color-mix(in srgb,var(--sweep,var(--accent)) 34%,transparent),transparent);
+    animation:scan-y 4.2s linear infinite}
+  .s-format .code{overflow:hidden}
+
+  /* the shared state breathes; pipeline nodes light up in the order a packet reaches them */
+  .slide.active .arch .hub::after{content:'';position:absolute;inset:-8px;border:2px solid var(--sweep,var(--accent));border-radius:inherit;pointer-events:none;animation:halo 2.8s ease-out infinite}
+  .slide.active .pipe .node::after{content:'';position:absolute;inset:-6px;border:2px solid var(--sweep,var(--accent));border-radius:inherit;pointer-events:none;opacity:0;
+    animation:halo-seq 5.6s linear infinite;animation-delay:calc((var(--c,1) - 1) * .7s)}
+  .slide.active .pipe .node.fb::after{animation-delay:3.5s}
+
+  .slide.active .dimension .norm-zone{animation:zone-pulse 2.6s ease-in-out infinite alternate}
+  .slide.active .effect .arrow{animation:nudge-x 1.8s ease-in-out infinite}
+  .slide.active .team-ending span:last-child{animation:nudge-y 1.6s ease-in-out infinite}
+  .slide.active .cat{animation:float-y 4.6s ease-in-out infinite alternate}
+  .slide.active .twin svg{animation:float-y 6s ease-in-out infinite alternate}
+  .slide.active .rings .r{transform-box:fill-box;transform-origin:center;animation:ring-breathe 3.6s ease-in-out infinite alternate}
+  .slide.active .rings .r:nth-of-type(2){animation-delay:.45s}
+  .slide.active .rings .r:nth-of-type(3){animation-delay:.9s}
+  .slide.active .rings .r:nth-of-type(4){animation-delay:1.35s}
+  .links .dot,.chart .dot{fill:var(--sweep,var(--accent))}
+}
+.static *,.static *::before,.static *::after{animation:none!important}
