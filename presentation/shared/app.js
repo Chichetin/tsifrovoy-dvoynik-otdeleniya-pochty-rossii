@@ -76,6 +76,17 @@
     store.set(storeKey, hash.slice(1));
   }
 
+  // s12: the demo video plays from the start when its slide opens and stops when the slide closes.
+  // The key that opened the slide lets the page go full screen; without a key the request fails quietly.
+  function playVideo(target, previous) {
+    previous.querySelector('video')?.pause();
+    const video = target.querySelector('video');
+    if (!video || staticMode) return;
+    video.currentTime = 0;
+    video.play().catch(() => {});
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
+  }
+
   function show(target, wantedStep = 0, remember = true) {
     if (!target) return;
     const previous = current;
@@ -85,7 +96,10 @@
     step = Math.max(0, Math.min(wantedStep, maxStep(target)));
     if (!startedAt && target !== main[0]) startedAt = Date.now();
     render();
-    if (target !== previous || !entered) motion?.enter(target, target === previous ? null : previous, dir);
+    if (target !== previous || !entered) {
+      motion?.enter(target, target === previous ? null : previous, dir);
+      playVideo(target, previous);
+    }
     entered = true;
     if (step) motion?.step(target, step, 0);
   }

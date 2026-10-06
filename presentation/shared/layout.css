@@ -243,3 +243,7 @@ h3{font:600 28px/1.2 var(--display);letter-spacing:-.01em}
 .flow li{border-top:3px solid var(--text);padding-top:20px}
 .flow b{display:block;font:600 30px/1.2 var(--display);margin-bottom:14px;letter-spacing:-.02em}
 .flow span{font:400 26px/1.4 var(--body);color:var(--text-muted)}
+
+/* s12: the demo video covers the whole stage, the chrome included */
+.slide.s-demo{z-index:10;background:#000}
+.s-demo .demo{position:absolute;inset:0;width:1920px;height:1080px;object-fit:contain;background:#000}

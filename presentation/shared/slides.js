@@ -2,7 +2,7 @@
    docs/decisions.md, README.md («Проверенный объём данных», «Файл плана и методы расчёта»), demo/effect.md,
    src/domain/validation (index.ts, health.ts), data/catalog/*.json, eslint.config.js, package.json.
    Layout and look live in layout.css and each variant's styles.css.
-   Slide order: 11 main slides (s1–s11), then 6 backup slides for questions (b1–b6, key Q or ↓).
+   Slide order: 12 main slides (s1–s12, s12 is the demo video), then 6 backup slides for questions (b1–b6, key Q or ↓).
    Hooks for motion are described at the top of motion-core.js. */
 (() => {
   const ln = (text) => `<span class="ln"><span>${text}</span></span>`;
@@ -269,9 +269,16 @@
   <div class="team-grid in">
     ${team.map(([name, role], i) => `<article class="team-card"><div class="portrait portrait-${i + 1}"><img src="../assets/team/member-${i + 1}.png" alt="${name}"></div><h3>${name}</h3><p>${role}</p></article>`).join('')}
   </div>
-  <div class="team-ending in"><span>Цифровой двойник ОПС · 158.160.157.55:8080</span><span>↓ Вопросы</span></div>
+  <div class="team-ending in"><span>Цифровой двойник ОПС · 158.160.157.55:8080</span><span>→ Демо</span></div>
   <img class="cat" src="../assets/brand/cat-glasses.webp" alt="">
-  ${note('Спасибо. Сервис открыт по адресу на слайде, логин не нужен. Готовы ответить на вопросы. Запасные слайды — стрелка вниз.')}
+  ${note('Спасибо. Сервис открыт по адресу на слайде, логин не нужен. Дальше — 45 секунд демо.')}
+</section>
+
+
+<!-- s12 ДЕМО: the video fills the stage and plays when the slide opens (app.js) -->
+<section class="slide s-demo" id="s12" data-kind="main" data-title="Демо" data-seam="1824" aria-label="Демо">
+  <video class="demo" src="../assets/demo/demo.mp4" poster="../assets/demo/demo-poster.webp" muted playsinline preload="auto" aria-label="Демо: перетаскивание терминала в 2D, слой камер, облёт 3D и вид глазами посетителя"></video>
+  ${note('Демо без звука, 45 секунд. 2D: тянем терминал очереди к входу — находка уходит, балл 87 → 97. Слой камер. 3D: облёт сбоку, затем глазами посетителя. После демо — вопросы: стрелка вниз.')}
 </section>
 
 
