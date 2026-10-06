@@ -10,11 +10,13 @@
 import type { Recommendation } from '../../contracts/advice';
 import { AGENT_LIMITS, type AgentEdit } from '../../contracts/advice-chat';
 import type { CountRule, Id, PlanDocument, Rule } from '../../contracts/model';
+import { INVENTORY_NUMBER_KEY } from '../commands';
 import { countInZoneScope } from '../inventory';
 import { formatArea, formatShort } from '../number-format';
 import type { AgentToolState } from './agent-tools';
 import { cameraCandidateEffect } from './camera-placement';
 import { fallbackExplanation } from './templates';
+import { validatePlan } from '../validation';
 
 /**
  * `note` — what the router assumed or found that the question did not say; it goes into the answer.
@@ -778,6 +780,58 @@ export function reviewCalls(state: AgentToolState, records: readonly AgentToolRe
 
 const metres2 = (value: number): string => `${formatShort(value, 2)} м`;
 
+/** At most this many objects are named per kind of change; the rest are counted. */
+const NAMED_CHANGES = 3;
+
+function zoneNameOf(plan: PlanDocument, objectId: Id): string {
+  const zoneId = plan.objects.find((entry) => entry.id === objectId)?.zoneId ?? null;
+  return zoneId === null ? 'вне зон' : `«${plan.zones.find((entry) => entry.id === zoneId)?.name ?? zoneId}»`;
+}
+
+/** «Название» (id) · инв. № · «зона» — how an inventory specialist finds the object. */
+function objectTitle(plan: PlanDocument, id: Id, zoneText: string = zoneNameOf(plan, id)): string {
+  const object = plan.objects.find((entry) => entry.id === id);
+  if (object === undefined) return id;
+  const inventory = object.attributes[INVENTORY_NUMBER_KEY];
+  return [`«${object.label}» (${id})`, typeof inventory === 'string' && inventory.trim() !== '' ? inventory : null, zoneText].filter(Boolean).join(' · ');
+}
+
+/**
+ * #238: the effect of an edit in the words of the office — free area, object
+ * count and check errors before → after, then what was added, removed or moved:
+ * name, id, inventory number, zone (before → after for a move).
+ */
+function changeLead(before: PlanDocument, after: PlanDocument, compared: Recommendation): string {
+  const value = (id: string): number | undefined => compared.facts.find((fact) => fact.id === id)?.value;
+  const errors = (plan: PlanDocument): number => validatePlan(plan).filter((issue) => issue.severity === 'error').length;
+  const freeBefore = value('adv_compare.area.free.before');
+  const freeAfter = value('adv_compare.area.free.after');
+  const countBefore = value('adv_compare.equipment.count.before');
+  const countAfter = value('adv_compare.equipment.count.after');
+  const numbers = [
+    freeBefore === undefined || freeAfter === undefined ? null : `свободно ${formatArea(freeBefore)} → ${formatArea(freeAfter)}`,
+    countBefore === undefined || countAfter === undefined ? null : `объектов ${countBefore} → ${countAfter}`,
+    `ошибок проверки ${errors(before)} → ${errors(after)}`,
+  ].filter(Boolean);
+  const named = (titles: string[]): string =>
+    titles.length <= NAMED_CHANGES ? titles.join('; ') : `${titles.slice(0, NAMED_CHANGES).join('; ')} и ещё ${titles.length - NAMED_CHANGES}`;
+  const ids = (kind: string): Id[] => compared.changes.filter((change) => change.ref.kind === 'object' && change.kind === kind).map((change) => change.ref.id);
+  const added = ids('added').map((id) => objectTitle(after, id));
+  const removed = ids('removed').map((id) => objectTitle(before, id));
+  const moved = ids('moved').map((id) => {
+    const from = zoneNameOf(before, id);
+    const to = zoneNameOf(after, id);
+    return objectTitle(after, id, from === to ? to : `${from} → ${to}`);
+  });
+  const lists = [
+    added.length === 0 ? null : `Добавлено: ${named(added)}.`,
+    removed.length === 0 ? null : `Удалено: ${named(removed)}.`,
+    moved.length === 0 ? null : `Перенесено: ${named(moved)}.`,
+  ].filter(Boolean);
+  const head = `Изменения плана: ${numbers.join(', ')}.`;
+  return lists.length === 0 ? `${head} Объекты не добавлены, не удалены и не перенесены.` : `${head} ${lists.join(' ')}`;
+}
+
 /**
  * #210: the first line of an answer — what to do, with which object, and the
  * calculated «было → стало». Code writes it from the tool results; null when
@@ -803,9 +857,15 @@ export function answerLead(state: AgentToolState, records: readonly AgentToolRec
     return `Перенесите ${name} ${zone === undefined ? 'на новое место вне зон' : `в зону ${zoneTitle(plan, zone.id)}`}${numbers.length === 0 ? '' : `: ${numbers.join(', ')}`}.`;
   }
 
+  // #238: the model may stop at find_place without suggest_candidate; the
+  // calculation's best candidate still leads the answer.
   const offered = state.actions.find((action) => action.kind === 'apply-candidate');
-  if (offered?.kind === 'apply-candidate') {
-    const candidate = state.recommendations.get(offered.recommendationId)?.candidates.find((entry) => entry.id === offered.candidateId);
+  const chosen = offered?.kind === 'apply-candidate'
+    ? state.recommendations.get(offered.recommendationId)?.candidates.find((entry) => entry.id === offered.candidateId)
+    : undefined;
+  const firstPlaced = [...state.recommendations.values()].find((entry) => entry.scenario === 'place' && entry.candidates.length > 0)?.candidates[0];
+  {
+    const candidate = chosen ?? firstPlaced;
     if (candidate !== undefined) {
       const value = (metric: string, phase: string): number | undefined => candidate.facts.find((fact) => fact.metric === metric && fact.phase === phase)?.value;
       const effect = cameraCandidateEffect(plan, candidate);
@@ -847,6 +907,9 @@ export function answerLead(state: AgentToolState, records: readonly AgentToolRec
     return `Сравните варианты раскладки на плане. ${layout.title?.split(':')[0] ?? 'Вариант 1'}: ${passage}ошибок проверки ${layout.findings.errors.before} → ${layout.findings.errors.after}.`;
   }
 
+  const compared = [...state.recommendations.values()].find((entry) => entry.scenario === 'compare');
+  if (compared !== undefined && state.before !== null) return changeLead(state.before, plan, compared);
+
   const stocking = [...state.recommendations.values()].find((entry) => entry.scenario === 'equipment');
   if (stocking !== undefined) {
     const rule = plan.catalog.rules.find((entry) => entry.id === stocking.ruleIds[0]);
@@ -858,6 +921,13 @@ export function answerLead(state: AgentToolState, records: readonly AgentToolRec
       const verb = bound.metric === 'equipment.min' ? `Добавьте ${type} в зону` : `Уберите лишнее ${type} из зоны`;
       return `${verb} ${zoneTitle(plan, zoneId)}: ${count} → ${bound.value} шт. (${ruleSourceLabel(rule)}).`;
     }
+  }
+
+  // #238: a check with nothing to fix still answers first, in plain words.
+  const equipment = records.find((record) => record.name === 'check_equipment')?.output as { zoneId?: Id | null; recommendations?: unknown[] } | null | undefined;
+  if (equipment != null && Array.isArray(equipment.recommendations) && equipment.recommendations.length === 0) {
+    const where = typeof equipment.zoneId === 'string' ? ` в зоне ${zoneTitle(plan, equipment.zoneId)}` : '';
+    return `Комплектование по правилам справочника${where} в норме: нарушений нет.`;
   }
 
   const check = records.find((record) => record.name === 'validate_plan')?.output as ValidationView | null | undefined;
