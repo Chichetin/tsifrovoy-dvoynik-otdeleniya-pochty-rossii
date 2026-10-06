@@ -271,14 +271,14 @@
   </div>
   <div class="team-ending in"><span>Цифровой двойник ОПС · 158.160.157.55:8080</span><span>→ Демо</span></div>
   <img class="cat" src="../assets/brand/cat-glasses.webp" alt="">
-  ${note('Спасибо. Сервис открыт по адресу на слайде, логин не нужен. Дальше — 45 секунд демо.')}
+  ${note('Спасибо. Сервис открыт по адресу на слайде, логин не нужен. Дальше — демо, 44 секунды.')}
 </section>
 
 
 <!-- s12 ДЕМО: the video fills the stage and plays when the slide opens (app.js) -->
 <section class="slide s-demo" id="s12" data-kind="main" data-title="Демо" data-seam="1824" aria-label="Демо">
   <video class="demo" src="../assets/demo/demo.mp4" poster="../assets/demo/demo-poster.webp" muted playsinline preload="auto" aria-label="Демо: перетаскивание терминала в 2D, слой камер, облёт 3D и вид глазами посетителя"></video>
-  ${note('Демо без звука, 45 секунд. 2D: тянем терминал очереди к входу — находка уходит, балл 87 → 97. Слой камер. 3D: облёт сбоку, затем глазами посетителя. После демо — вопросы: стрелка вниз.')}
+  ${note('Демо без звука, 44 секунды. 2D: тянем терминал очереди к входу — находка уходит, балл 87 → 97. Слой камер. 3D: облёт сбоку, затем глазами посетителя. После демо — вопросы: стрелка вниз.')}
 </section>
 
 
