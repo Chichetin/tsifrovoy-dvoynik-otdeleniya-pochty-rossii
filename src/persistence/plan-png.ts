@@ -5,6 +5,8 @@
  * SVG, прогнанный через `<canvas>` (`Image` → `drawImage` → `toBlob`), без
  * новых зависимостей. Тот же документ даёт тот же SVG и, значит, ту же
  * картинку; скрытые слои, повороты и цвета берутся из одного источника.
+ * Включённые информационные слои с легендой и маркеры находок входят в
+ * картинку, как на экране (#216).
  *
  * Растеризация зависит от браузера (`<canvas>`, декодирование `Image`), и
  * если он откажет — это не молчаливый пустой файл, а явная причина, которую
@@ -25,7 +27,8 @@ function svgPixelSize(svg: string): { width: number; height: number } | null {
 
 /** Растеризует текущий документ в PNG. Отказ — это отклонённый промис с причиной для человека. */
 export function renderPlanPng(plan: PlanDocument): Promise<Blob> {
-  const svg = renderPlanSvg(plan);
+  // What the canvas shows: visible information layers with a legend and finding markers (#216).
+  const svg = renderPlanSvg(plan, { overlays: true });
   const size = svgPixelSize(svg);
   if (size === null) {
     return Promise.reject(new Error('Не удалось определить размер картинки плана.'));

@@ -52,6 +52,8 @@ export type ScenePrism = {
   color: string;
   /** 1 is opaque; openings are translucent panes. */
   opacity: number;
+  /** Windows block walking; entrance and door panes only show the opening. */
+  openingKind?: Opening['kind'];
   /** #59: the type's 3D model that stands in for the prism of an object. */
   model?: SceneModel;
 };
@@ -301,6 +303,7 @@ function openingPrism(opening: Opening, walls: Wall[]): ScenePrism[] {
       base_m: opening.sill_m,
       height_m: opening.height_m,
       color: SCENE_COLORS[opening.kind],
+      openingKind: opening.kind,
       opacity: OPENING_OPACITY,
     },
   ];

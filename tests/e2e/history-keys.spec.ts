@@ -56,6 +56,7 @@ test.describe('история правок с клавиатуры', () => {
   test('в поле карточки Ctrl+Z правит текст, объект остаётся на плане', async ({ page }) => {
     await page.goto('/');
     await placeFromLibrary(page, RACK, 420, 330);
+    await showTab(page, 'Инвентаризация');
     await inventoryRows(page).first().getByRole('button').first().click();
 
     const name = card(page).getByLabel('Название');

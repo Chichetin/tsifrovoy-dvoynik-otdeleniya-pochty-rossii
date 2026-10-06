@@ -6,11 +6,12 @@
 import { z } from 'zod';
 import type { Candidate, Fact, FactPhase, FactUnit, MetricCode, Recommendation } from '../../contracts/advice';
 import type { Id, Ref } from '../../contracts/model';
-import type { AgentToolRecord } from './agent-fallback';
+import { relocationParagraphs, type AgentToolRecord } from './agent-fallback';
 import type { AgentToolState } from './agent-tools';
 import { cameraCandidateEffect } from './camera-placement';
+import { verifyWhyText, type WhyNumber, type WhyScope, type WhyUnit } from './explanation';
 
-type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent';
+type ChatMetric = MetricCode | 'validation.errors' | 'validation.warnings' | 'zones.count' | 'equipment.violations' | 'coverage.percent' | 'zone.load';
 /** Chat-only unit: the share of client zones seen by cameras (#32), not part of the advice contract. */
 type ChatUnit = FactUnit | 'percent';
 export type AgentFact = Omit<Fact, 'metric' | 'unit'> & {
@@ -41,6 +42,7 @@ const METRIC_LABELS: Record<ChatMetric, string> = {
   'zones.count': 'Количество зон',
   'equipment.violations': 'Нарушения правил комплектования',
   'coverage.percent': 'Доля клиентских зон, видимая камерами',
+  'zone.load': 'Загрузка зоны',
 };
 const PHASE_LABELS: Record<FactPhase, string> = {
   current: 'сейчас', before: 'было', after: 'стало', delta: 'изменение',
@@ -87,6 +89,18 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       const room = record(output.room);
       if (room !== null) areas(`${prefix}.room`, room, roomRefs, roomScope);
       add(`${prefix}.objects`, 'equipment.count', output.objectsTotal, roomRefs, roomScope);
+      // #217: before the zone areas — the facts budget must not cut them off.
+      const load = record(output.zoneLoad);
+      if (load !== null && load.unit === '%' && typeof load.threshold === 'number' && Array.isArray(load.zones)) {
+        for (const raw of load.zones) {
+          const zone = record(raw);
+          if (zone === null || typeof zone.zoneId !== 'string' || typeof zone.value !== 'number' || !state.plan.zones.some((z) => z.id === zone.zoneId)) continue;
+          const refs: Ref[] = [{ kind: 'zone', id: zone.zoneId }];
+          const status = zone.overloaded === true ? 'перегружена' : 'не перегружена';
+          const scope = `${subject(state, refs)}; ${status}, порог перегрузки ${String(load.threshold).replace('.', ',')} %`;
+          facts.push({ id: `${prefix}.${zone.zoneId}.load`, metric: 'zone.load', phase: 'current', value: zone.value, unit: 'percent', refs, scope });
+        }
+      }
       if (Array.isArray(output.zones)) {
         add(`${prefix}.zones`, 'zones.count', output.zones.length, roomRefs, roomScope);
         for (const raw of output.zones) {
@@ -126,7 +140,7 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       const filter = record(output.filter);
       if (filter !== null) {
         const refs: Ref[] = typeof filter.zoneId === 'string' ? [{ kind: 'zone', id: filter.zoneId }] : roomRefs;
-        const scope = [subject(state, refs), typeof filter.zoneId === 'string' ? 'без вложенных зон' : '', typeof filter.typeId === 'string' ? `тип «${state.names.objectTypeLabel(filter.typeId) ?? filter.typeId}» (${filter.typeId})` : 'все типы'].filter(Boolean).join('; ');
+        const scope = [subject(state, refs), typeof filter.zoneId === 'string' ? 'без вложенных зон' : '', typeof filter.typeId === 'string' ? `тип «${state.names.objectTypeLabel(filter.typeId) ?? filter.typeId}»` : 'все типы'].filter(Boolean).join('; ');
         add(`${prefix}.objects`, 'equipment.count', output.count, refs, scope);
       }
     }
@@ -151,16 +165,19 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
       const candidate = recommendation.candidates.find((c) => c.facts.some((f) => f.id === fact.id));
       const scope = [
         subject(state, fact.refs),
-        fact.metric.startsWith('equipment.') && typeId !== undefined ? `тип «${state.names.objectTypeLabel(typeId) ?? typeId}» (${typeId})` : '',
+        fact.metric.startsWith('equipment.') && typeId !== undefined ? `тип «${state.names.objectTypeLabel(typeId) ?? typeId}»` : '',
         fact.metric.startsWith('equipment.') && rule?.kind === 'count' ? `правило ${rule.id}, ${rule.scope === 'direct' ? 'без вложенных зон' : 'включая вложенные зоны'}` : '',
-        candidate === undefined ? '' : `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`,
+        candidate === undefined ? '' : candidateScope(recommendation, candidate),
       ].filter(Boolean).join('; ');
       // Candidate fact IDs are local to their search, not globally unique.
       const metricLabel = recommendation.scenario === 'compare' && fact.metric === 'layout.entrance'
         ? 'Расстояние от центра объекта до входа по правилу distance-to-entrance'
+        // #237: у нового объекта — только «после»; у переноса есть и «было».
+        : recommendation.scenario === 'place' && fact.metric === 'layout.entrance' && !recommendation.facts.some((f) => f.metric === 'layout.entrance' && f.phase === 'current')
+          ? 'Расстояние от центра варианта до центра ближайшего входа'
         : fact.metric !== 'placement.distance' ? undefined
         : recommendation.scenario === 'compare' ? 'Перемещено объектов, м (сумма): суммарное перемещение сохранившихся объектов между снимками'
-          : 'Расстояние от центра кандидата до середины ограничивающего прямоугольника выбранной зоны или помещения';
+          : 'Расстояние от варианта до центра зоны';
       facts.push({ ...fact, id: JSON.stringify([recommendation.id, fact.id]), sourceFactId: fact.id, refs: fact.refs.map((ref) => ({ ...ref })), scope, recommendationId: recommendation.id, ...(candidate === undefined ? {} : { candidateId: candidate.id }), ...(metricLabel === undefined ? {} : { metricLabel }) });
     }
   }
@@ -185,7 +202,8 @@ export function collectAgentFacts(state: AgentToolState, records: readonly Agent
 }
 
 function candidateScope(recommendation: Recommendation, candidate: Candidate): string {
-  return `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}», центр [${candidate.object.position.map((v) => String(v).replace('.', ',')).join('; ')}] м, поворот ${candidate.object.rotation_deg}°`;
+  // #210: no coordinates — the variant is on the plan; its number and label name it.
+  return `вариант ${recommendation.candidates.indexOf(candidate) + 1} «${candidate.object.label}»`;
 }
 
 /**
@@ -225,18 +243,91 @@ export function renderAgentFact(fact: AgentFact): string {
   return `${fact.metricLabel ?? METRIC_LABELS[fact.metric]} — ${fact.scope}: ${number} ${unit} (${PHASE_LABELS[fact.phase]}).`;
 }
 
-const selectionSchema = z.object({ factIds: z.array(z.string().min(1)).min(1).max(12) }).strict();
-export type AgentFactSelection = { ok: true; text: string; refs: Ref[] } | { ok: false; reason: string };
+/** #178: «почему сюда» — 2–3 sentences; longer is a report, not a reason. */
+export const WHY_MAX_CHARS = 600;
+/** Opens the model's own paragraph, so the reader knows who wrote it. */
+export const WHY_LEAD = 'Почему так (текст LLM, id и числа сверены с расчётом): ';
 
-/** No free prose or value overrides can pass this boundary, even in words. */
-export function renderAgentFactSelection(input: unknown, facts: readonly AgentFact[], state: AgentToolState): AgentFactSelection {
+const selectionSchema = z.object({
+  factIds: z.array(z.string().min(1)).min(1).max(12),
+  why: z.string().trim().min(1).max(WHY_MAX_CHARS).optional(),
+}).strict();
+/** `why: true` — the facts held, the model's own text did not. */
+export type AgentFactSelection = { ok: true; text: string; refs: Ref[] } | { ok: false; reason: string; why?: true };
+
+/** Tools whose results are the variants a «почему сюда» text compares. */
+const VARIANT_TOOLS = new Set(['find_place', 'layout_zone']);
+/** Where a variant stands is not a reason; leaving coordinates out keeps the numbers few. */
+const POSE_KEYS = new Set(['position_m', 'rotation_deg']);
+const UNITS: readonly WhyUnit[] = ['m', 'm2', 'percent', 'count'];
+
+/** The unit a tool output key names: `free_m2`, `wallGap_m`, `coveragePercent`, `area.free.after`. */
+function keyUnit(key: string, inherited: WhyUnit): WhyUnit {
+  if (/_m2$|^area\./.test(key)) return 'm2';
+  if (/_m$|^placement\.distance|^layout\./.test(key)) return 'm';
+  if (/percent|^coverage\./i.test(key)) return 'percent';
+  return inherited;
+}
+
+/**
+ * What the «почему сюда» text may name: plan ids and names, the facts offered,
+ * the numbers of the tools that gave the variants, and how many variants there are.
+ */
+function whyScope(state: AgentToolState, facts: readonly AgentFact[], records: readonly AgentToolRecord[]): WhyScope {
+  const { plan } = state;
+  const numbers: WhyNumber[] = facts.map((fact) => ({ value: fact.value, unit: fact.unit }));
+  // A value without a unit in its key or beside it (`{value, unit}`) is a count.
+  const collect = (value: unknown, unit: WhyUnit): void => {
+    if (typeof value === 'number' && Number.isFinite(value)) numbers.push({ value, unit });
+    else if (Array.isArray(value)) for (const entry of value) collect(entry, unit);
+    else if (typeof value === 'object' && value !== null) {
+      const own = UNITS.find((entry) => entry === (value as { unit?: unknown }).unit) ?? unit;
+      for (const [key, entry] of Object.entries(value)) if (!POSE_KEYS.has(key)) collect(entry, keyUnit(key, own));
+    }
+  };
+  for (const entry of records) {
+    const output = record(entry.output);
+    if (VARIANT_TOOLS.has(entry.name) && output !== null && !('error' in output)) collect(output, 'count');
+  }
+  // A rule's own limits («не дальше 3 м от входа») are plan data, not the model's.
+  collect(plan.catalog.rules, 'count');
+  // Candidates of a placement and titled proposals (#122 layouts, #177 moves) are «Вариант N».
+  const variants = Math.max(
+    0,
+    ...[...state.recommendations.values()].map((recommendation) => recommendation.candidates.length),
+    ...state.proposals.map((proposal) => Number(/^Вариант (\d+)/.exec(proposal.title ?? '')?.[1] ?? 0)),
+  );
+  numbers.push({ value: variants, unit: 'count' });
+  const { catalog } = plan;
+  return {
+    ids: new Set([...plan.zones, ...plan.objects, ...plan.layers, ...catalog.objectTypes, ...catalog.zoneTypes, ...catalog.rules].map((entry) => entry.id)),
+    rules: new Set(catalog.rules.map((rule) => rule.id)),
+    shown: new Set([...plan.zones, ...plan.objects].map((entry) => entry.id)),
+    names: new Map([
+      ...plan.zones.map((zone) => [zone.id, zone.name] as const),
+      ...plan.objects.map((object) => [object.id, object.label] as const),
+      ...plan.layers.map((layer) => [layer.id, layer.name] as const),
+      ...catalog.objectTypes.map((type) => [type.id, type.label] as const),
+      ...catalog.zoneTypes.map((type) => [type.id, type.label] as const),
+    ]),
+    numbers,
+    variants,
+  };
+}
+
+/**
+ * No value overrides can pass this boundary. Free prose passes only as `why`
+ * (#178), after `verifyWhyText` found every id, number and variant in the
+ * calculation; it opens the answer, the chosen facts follow as code wrote them.
+ */
+export function renderAgentFactSelection(input: unknown, facts: readonly AgentFact[], state: AgentToolState, records: readonly AgentToolRecord[] = []): AgentFactSelection {
   let payload = input;
   if (typeof input === 'string') {
     try { payload = JSON.parse(input); }
     catch { return { ok: false, reason: 'Ожидался выбор рассчитанных фактов, а не свободный текст.' }; }
   }
   const parsed = selectionSchema.safeParse(payload);
-  if (!parsed.success) return { ok: false, reason: 'Ответ должен содержать только factIds рассчитанных фактов.' };
+  if (!parsed.success) return { ok: false, reason: `Ответ должен содержать только factIds рассчитанных фактов и, к вариантам места, why до ${WHY_MAX_CHARS} символов.` };
   const byId = new Map(facts.map((fact) => [fact.id, fact]));
   const selected: AgentFact[] = [];
   for (const id of parsed.data.factIds) {
@@ -258,5 +349,13 @@ export function renderAgentFactSelection(input: unknown, facts: readonly AgentFa
   }
   const refs = new Map<string, Ref>();
   for (const fact of selected) for (const ref of fact.refs) refs.set(`${ref.kind}:${ref.id}`, { ...ref });
-  return { ok: true, text: [...selected.map(renderAgentFact), ...notes].join('\n\n'), refs: [...refs.values()] };
+  let why: string[] = [];
+  if (parsed.data.why !== undefined) {
+    const checked = verifyWhyText(parsed.data.why, whyScope(state, facts, records));
+    if (!checked.ok) return { ok: false, reason: checked.issues.map((entry) => entry.message).join(' '), why: true };
+    why = [`${WHY_LEAD}${checked.value}`];
+  }
+  // The variants' own numbers follow the model's words, written by code (#178).
+  const variants = relocationParagraphs(state, records);
+  return { ok: true, text: [...why, ...variants, ...selected.map(renderAgentFact), ...notes].join('\n\n'), refs: [...refs.values()] };
 }

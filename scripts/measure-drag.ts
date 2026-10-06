@@ -18,7 +18,8 @@
  * Without APP_URL the script builds the app and serves it with `vite preview`
  * on PREVIEW_PORT (default 5189) — what the deployed service ships. APP_URL
  * measures an app that is already running (`npm run dev`). PW_CHANNEL=msedge
- * or chrome picks an installed browser, as in e2e; HEADED=1 shows the window.
+ * or chrome picks an installed browser, as in e2e; HEADED=1 shows the window;
+ * GPU=1 paints with the graphics card.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -162,7 +163,12 @@ type Run = {
 
 async function measure(planName: string, gesture: Gesture): Promise<Run> {
   const plan = PLANS[planName]!;
-  const browser = await chromium.launch({ channel: resolveChannel(process.env.PW_CHANNEL), headless: process.env['HEADED'] !== '1' });
+  const browser = await chromium.launch({
+    channel: resolveChannel(process.env.PW_CHANNEL),
+    headless: process.env['HEADED'] !== '1',
+    // Headless Chromium paints canvas on the CPU; GPU=1 uses the graphics card, as a person's browser does.
+    args: process.env['GPU'] === '1' ? ['--enable-gpu', '--ignore-gpu-blocklist'] : [],
+  });
   try {
     const context = await browser.newContext({ viewport: { width: 1600, height: 1000 } });
     await context.addInitScript(() => window.localStorage.setItem('ops-twin.onboarding.v1', 'done'));
@@ -174,7 +180,16 @@ async function measure(planName: string, gesture: Gesture): Promise<Run> {
       await page.getByTestId('plan-file-input').setInputFiles({ name: 'plan.json', mimeType: 'application/json', buffer: plan.file });
     }
     // Opening 1000 objects keeps the page busy for a while.
-    await page.waitForFunction(`!!window.Konva?.stages[0]?.findOne('.equipment-${plan.object}')`, undefined, { timeout: 180_000 });
+    if (plan.file !== null) {
+      await page.waitForFunction(() => document.body.innerText.includes('строк 1000'), undefined, { timeout: 180_000 });
+    }
+    // A fitted large plan shows zones only (ZONE_OVERVIEW_SCALE): «+» zooms in
+    // around the canvas centre until the objects are drawn.
+    const found = `!!window.Konva?.stages[0]?.findOne('.equipment-${plan.object}')`;
+    for (let click = 0; click < 8 && !(await page.evaluate(found)); click += 1) {
+      await page.getByRole('button', { name: 'Увеличить', exact: true }).click();
+    }
+    await page.waitForFunction(found, undefined, { timeout: 30_000 });
     await page.evaluate(CALM);
 
     if (gesture === 'captions') await page.getByRole('button', { name: 'Подписи объектов' }).click();

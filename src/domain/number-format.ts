@@ -52,3 +52,13 @@ export function formatArea(value: number): string {
 export function formatLength(value: number): string {
   return formatMeasure(value, 'м');
 }
+
+/** «1 находка», «2 находки», «5 находок». */
+export function findingsWord(count: number): string {
+  const tens = count % 100;
+  const ones = count % 10;
+  if (tens >= 11 && tens <= 14) return 'находок';
+  if (ones === 1) return 'находка';
+  if (ones >= 2 && ones <= 4) return 'находки';
+  return 'находок';
+}

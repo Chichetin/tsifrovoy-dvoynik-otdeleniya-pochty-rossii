@@ -52,4 +52,20 @@ describe('размещение названия зоны', () => {
     const multiline = zoneCaptionBoxes({ ...plan, zones: [{ ...zone, name: 'ЗАЛ\n№1' }] }, viewport).get(zone.id)!;
     expect(multiline.height).toBeGreaterThanOrEqual(26);
   });
+  test('#223: повтор при другом масштабе или другом плане считает заново, при сдвиге — только сдвигает', () => {
+    const parsed = parsePlanDocument(JSON.parse(readFileSync('demo/before.json', 'utf8')));
+    if (!parsed.ok) throw new Error('Нет демо');
+    const plan = parsed.value;
+    const near = zoneCaptionBoxes(plan, { origin: [0, 0], scale: 40 });
+    const shifted = zoneCaptionBoxes(plan, { origin: [-35, 17], scale: 40 });
+    for (const [id, box] of near) {
+      expect(shifted.get(id)).toEqual({ ...box, x: box.x - 35, y: box.y + 17 });
+    }
+    const far = zoneCaptionBoxes(plan, { origin: [0, 0], scale: 80 });
+    expect(far.get('z_staff')).not.toEqual(near.get('z_staff'));
+    expect(zoneCaptionBoxes(plan, { origin: [0, 0], scale: 40 })).toEqual(near);
+    const renamed = { ...plan, zones: plan.zones.map((zone) => zone.id === 'z_staff' ? { ...zone, name: 'А\nБ\nВ\nГ\nД\nЕ\nЖ\nЗ' } : zone) };
+    expect(zoneCaptionBoxes(renamed, { origin: [0, 0], scale: 40 }).get('z_staff')!.height)
+      .toBeGreaterThan(near.get('z_staff')!.height);
+  });
 });

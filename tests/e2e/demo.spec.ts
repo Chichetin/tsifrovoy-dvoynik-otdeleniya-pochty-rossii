@@ -49,6 +49,9 @@ async function openFromArchive(page: Page, name: string): Promise<void> {
 async function selectByLabel(page: Page, label: string): Promise<void> {
   // Перечень свёрнут по умолчанию — строка за пределами первых трёх не
   // кликается, пока список не раскрыт.
+  // #222: при выделении справа только «Свойства», вкладки скрыты — сначала снять выделение.
+  const close = page.getByRole('button', { name: 'Снять выделение' });
+  if (await close.isVisible()) await close.click();
   await expandInventoryRows(page);
   await page
     .getByLabel('Инвентаризация')

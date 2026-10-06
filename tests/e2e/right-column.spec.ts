@@ -13,7 +13,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from './fixtures';
-import { showTab, sideTab } from './side-tabs';
+import { openRightTab, showTab, sideTab } from './side-tabs';
 
 const DEMO = join(process.cwd(), 'demo', 'before.json');
 const TABS_KEY = 'ops-twin.side-tabs.v1';
@@ -66,7 +66,7 @@ test('без выбора карточки «Свойства» нет вовс�
   await expect(page.getByRole('button', { name: 'Свойства выбранного' })).toHaveCount(0);
 });
 
-test('выбор ставит «Свойства» над правыми вкладками; левая колонка и вкладки на месте (#105)', async ({ page }) => {
+test('выбор ставит справа одни «Свойства»: вкладки скрыты, открытая сохраняется; левая колонка на месте (#222)', async ({ page }) => {
   await openDemo(page);
   await selectFirstObject(page);
 
@@ -81,7 +81,12 @@ test('выбор ставит «Свойства» над правыми вкл�
   await expect(page.getByLabel('Библиотека оборудования')).toBeVisible();
   await expect(sideTab(page, 'Библиотека')).toHaveAttribute('aria-selected', 'true');
   await expect(leftAside(page).getByRole('region', { name: 'Свойства' })).toHaveCount(0);
-  // Справа вкладки под карточкой, открытая вкладка не сменилась.
+  // #222 (заменяет #105): справа одна карточка, ряд вкладок и их панели скрыты.
+  await expect(aside(page).getByRole('tablist')).toHaveCount(0);
+  await expect(inventoryRows(page).first()).toBeHidden();
+  // Открытая вкладка не сменилась: после снятия выбора она снова на экране.
+  await expect(openRightTab(page)).toHaveText(/^Инвентаризация/);
+  await closeProps(page).click();
   await expect(sideTab(page, 'Инвентаризация')).toHaveAttribute('aria-selected', 'true');
   await expect(inventoryRows(page).first()).toBeVisible();
 });
@@ -314,4 +319,16 @@ test('счётчик на вкладке «Проверка» равен чис�
   await expect(page.getByLabel('Проверка плана').locator('.issues__item')).toHaveCount(1);
   await expect(badge()).toHaveText('1');
   await expect(badge()).not.toHaveClass(/is-error/);
+});
+
+test('обход инвентаризации не прячет кнопки «На месте» (#235)', async ({ page }) => {
+  await openDemo(page);
+  await page.getByRole('button', { name: 'Начать обход' }).click();
+  const here = page.getByRole('button', { name: 'На месте' });
+  for (let step = 0; step < 5; step += 1) {
+    await expect(here).toBeVisible();
+    await here.click();
+  }
+  await expect(here).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('walk-after.png') });
 });
