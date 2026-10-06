@@ -424,7 +424,9 @@ test.describe('инструменты плана', () => {
     // порог начала drag), с точностью до сантиметра. Мутант «стены остаются» — красный.
     const corner = start.room.boundary[0];
     if (corner === undefined) throw new Error('у помещения нет контура');
-    const midway = (value: number): number => Math.floor((value - 0.3) / 0.5) * 0.5 + 0.25;
+    // Не ближе 0,25 м к старому углу: иначе вершину держит направляющая от
+    // соседней вершины контура с той же координатой.
+    const midway = (value: number): number => Math.floor((value - 0.5) / 0.5) * 0.5 + 0.25;
     const aim: Point = [midway(corner[0]), midway(corner[1])];
     // Пол между контуром и внешней зоной: выбирается помещение.
     await clickAt(page, px(size, 0.12, 0.12));
@@ -882,6 +884,16 @@ test.describe('инструменты плана', () => {
     expect(opening).toBeDefined();
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     expect(await card.getByLabel('Ширина, м').inputValue()).toBe('0.9');
+    // Повторный выбор — по центру проёма в метрах: доля сцены зависит от вписывания.
+    const wall = withOpening.walls.find((entry) => entry.id === opening!.wallId);
+    if (wall === undefined) throw new Error('у проёма нет стены');
+    const length = Math.hypot(wall.to[0] - wall.from[0], wall.to[1] - wall.from[1]);
+    const along = (opening!.offset_m + opening!.width_m / 2) / length;
+    const openingCentre = await worldPixel(
+      page,
+      wall.from[0] + (wall.to[0] - wall.from[0]) * along,
+      wall.from[1] + (wall.to[1] - wall.from[1]) * along,
+    );
 
     // Enter «завершает» проём — снимает выделение. Карточка «Свойства» без
     // выделения не рендерится вовсе (D-249), поэтому её и не остаётся на странице.
@@ -890,7 +902,7 @@ test.describe('инструменты плана', () => {
 
     // Выбрать проём заново, чтобы проверить смену инструмента.
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
-    await clickAt(page, openingPoint);
+    await clickAt(page, openingCentre);
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
 
     // Заказ от 22.09: переключение на любой другой инструмент снимает
@@ -900,7 +912,7 @@ test.describe('инструменты плана', () => {
     await page.getByRole('button', { name: 'Выбор', exact: true }).click();
 
     // Ширина правится только карточкой; в плане длина стены больше 0,9 м.
-    await clickAt(page, openingPoint);
+    await clickAt(page, openingCentre);
     await expect(card).toHaveAttribute('data-entity-id', opening!.id);
     await card.getByLabel('Ширина, м').fill('1.4');
     const widened = await savePlan(page);
