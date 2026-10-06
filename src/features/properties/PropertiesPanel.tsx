@@ -48,6 +48,9 @@ const ALIGN_BUTTONS: readonly (readonly [AlignEdge, string])[] = [
   ['bottom', 'По низу'],
 ];
 
+/** Attributes shown right under the name of an object card (#239). */
+const TOP_ATTRIBUTE_KEYS = ['inventoryNumber', 'equipmentStatus'];
+
 const noGesturePreview = () => null;
 const subscribeToNothing = (): (() => void) => () => {};
 
@@ -592,6 +595,16 @@ export function PropertiesPanel({
       );
     }
 
+    const topAttribute = (key: string): React.JSX.Element[] =>
+      type === null
+        ? []
+        : attributeFields(
+            type.attributes.filter((def) => def.key === key),
+            object.attributes,
+            (name, value) => commandFor({ ...object, attributes: { ...object.attributes, [name]: value } }),
+            colorChoices,
+          );
+
     return (
       <section ref={card} className="panel props" aria-label="Свойства" data-entity-id={object.id}>
 
@@ -607,6 +620,13 @@ export function PropertiesPanel({
             }
           />,
         )}
+
+        {/* #239: number, zone and state sit right under the name: no scrolling to find them. */}
+        {topAttribute('inventoryNumber')}
+        <p className="props__line" data-testid="props-zone">
+          Зона: {zoneName(plan, object.zoneId)}
+        </p>
+        {topAttribute('equipmentStatus')}
 
         <label className="props__line">
           <input type="checkbox" checked={object.locked === true}
@@ -668,10 +688,6 @@ export function PropertiesPanel({
         </fieldset>
 
         {layerSelect(object.layerId, (layerId) => ({ ...object, layerId }))}
-
-        <p className="props__line" data-testid="props-zone">
-          Зона: {zoneName(plan, object.zoneId)}
-        </p>
 
         {hasOwnShape(plan.catalog, object) ? (
           <div className="props__shape" data-testid="props-shape">
@@ -736,7 +752,7 @@ export function PropertiesPanel({
         {type === null
           ? null
           : attributeFields(
-              type.attributes,
+              type.attributes.filter((def) => !TOP_ATTRIBUTE_KEYS.includes(def.key)),
               object.attributes,
               (key, value) => commandFor({ ...object, attributes: { ...object.attributes, [key]: value } }),
               colorChoices,
