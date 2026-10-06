@@ -1,5 +1,5 @@
-/* Variant G «План»: slide content for the 11-slide defense deck, written from the plan (PRESENTATION_PLAN, 06.10.2026).
-   11 main slides (s1–s11) and 7 backup slides (b1–b7, key Q or ↓). Backup facts come from ../shared/slides.js.
+/* Variant G «План»: slide content for the defense deck, written from the plan (PRESENTATION_PLAN, 06.10.2026).
+   13 main slides (s1–s13: s10 architecture and s13 demo come from ../shared/slides.js) and 7 backup slides (b1–b7, key Q or ↓). Backup facts come from ../shared/slides.js.
    Screenshots that exist in ../assets/shots are used. A missing one is a framed slot with its file name:
    capture it on the demo plan at the defense SHA, put the .webp into ../assets/shots and add the name to SHOTS.
    Hooks for motion are described at the top of ../shared/motion-core.js. */
@@ -16,12 +16,35 @@
   ];
 
   // slot name -> file in ../assets/shots. Names from the plan that have no file yet stay slots.
+  // Shots from 06.10: demo plan and the 3D showroom, local main, viewport 1600×900.
   const SHOTS = {
     'plan-2d': 'plan-check',
     'plan-check': 'plan-check',
     'editor-offsets': 'editor-drag',
     'view-3d': 'view-3d',
     'layers-cameras': 'layers',
+    'layers-heat': 'layers-heat',
+    'layers-state': 'layers-state',
+    silhouette: 'silhouette',
+    'silhouette-red': 'silhouette-red',
+    'context-menu': 'context-menu',
+    'why-card': 'why-card',
+    'apply-fix': 'apply-fix',
+    inventory: 'inventory',
+    checklist: 'checklist',
+    catalog: 'catalog',
+    'shape-edit': 'shape-edit',
+    assistant: 'assistant',
+    'assistant-journal': 'assistant-journal',
+    'voice-input': 'voice-input',
+    showroom: 'showroom',
+    'print-sheet': 'print-sheet',
+    versions: 'versions',
+    'walk-3d': 'walk-3d',
+    'smart-place': 'smart-place',
+    'tour-card': 'tour-card',
+    'csv-export': 'csv-export',
+    hotkeys: 'hotkeys',
   };
   const frame = (name, alt, cls = '') => (SHOTS[name]
     ? `<figure class="view ${cls}"><img src="../assets/shots/${SHOTS[name]}.webp" alt="${alt}"></figure>`
@@ -32,11 +55,20 @@
     ['Шоурум 3D', '28 моделей; 3 добавлены только данными', 'showroom'],
     ['Печать в масштабе', 'A4/A3, 1:50 или 1:100, легенда и штамп', 'print-sheet'],
     ['Версии плана', '«До перепланировки» откроется позже', 'versions'],
-    ['Ходьба в 3D', 'Пройдите по залу от первого лица', 'walk-3d.webm'],
+    ['Ходьба в 3D', 'Пройдите по залу от первого лица', 'walk-3d'],
     ['Умная постановка', 'Монитор берёт высоту стола, щит разворачивается в зал', 'smart-place'],
     ['Обучение', 'Короткий тур при первом входе', 'tour-card'],
     ['Выгрузка CSV', 'Инвентаризация — в таблицу одним кликом', 'csv-export'],
     ['Горячие клавиши', 'Карта по «?», поворот на 1°', 'hotkeys'],
+  ];
+
+  // s10: what reads the document. Each one is a function of the plan, none keeps a copy.
+  const reads = [
+    ['r1', '2D и 3D', 'рисуют документ'],
+    ['r2', 'Инвентаризация', 'buildInventory(plan)'],
+    ['r3', 'Площади', 'measurePlan(plan)'],
+    ['r4', 'Проверка', 'validatePlan(plan)'],
+    ['r5', 'Ассистент', 'calculateAdvice(plan)'],
   ];
 
   const checks = ['пересечения', 'выход за помещение', 'стена', 'загороженная дверь', 'техника без стола', 'повтор инвентарного номера', 'комплектование'];
@@ -88,9 +120,9 @@
   </header>
   <div class="stack shotbox" style="left:96px;top:330px;width:1000px;height:562px">
     ${frame('plan-2d', 'Редактор: шесть инструментов в верхней панели')}
-    <div data-step="2">${frame('silhouette', 'Ролик: объект ведут к стене, силуэт зелёный, жёлтый, красный', 'fill')}</div>
+    <div data-step="2">${frame('silhouette', 'Силуэт при постановке: зелёный, жёлтый, красный', 'fill')}</div>
     <div data-step="3">${frame('editor-offsets', 'Перенос терминала: отступы до стен и соседей', 'fill')}</div>
-    <div data-step="4">${frame('context-menu + align-group', 'Меню по правому щелчку и выравнивание группы', 'fill')}</div>
+    <div data-step="4">${frame('context-menu', 'Меню по правому щелчку и выравнивание группы', 'fill')}</div>
   </div>
   <div class="steps" style="left:1160px;top:330px;width:664px">
     <article class="pill" data-step="1"><h3>Шесть инструментов</h3><p>Выбор, Комната, Зона, Перегородка, Проём, Линейка.</p></article>
@@ -133,7 +165,7 @@
   </header>
   <div class="tiles">
     ${tiles.map(([name, line, shotName], i) => `<article class="tile" data-step="1" style="--i:${i}">
-      <figure class="view ph" role="img" aria-label="${name}"><span>Снимок</span><b>${shotName}</b></figure>
+      ${frame(shotName, name)}
       <div><h3>${name}</h3><p>${line}</p></div>
     </article>`).join('')}
   </div>
@@ -160,12 +192,12 @@
     <div class="desc" data-step="4"><p>Ассистент рисует вариант. Человек нажимает «Применить».</p></div>
   </div>
   <div class="stack shotbox" style="left:880px;top:480px;width:944px;height:531px">
-    <div>${frame('silhouette', 'Последний кадр ролика: красный силуэт у стены, причина отказа', 'fill')}</div>
+    <div>${frame('silhouette-red', 'Красный силуэт на занятом месте, причина отказа рядом', 'fill')}</div>
     <div data-step="2">${frame('plan-check', 'Проверка: значок находки прямо на объекте', 'fill')}
       <svg class="marks" viewBox="0 0 100 56.25" aria-hidden="true"><circle class="ring keep" cx="26" cy="29.4" r="2.6"/><circle class="ring" data-ping cx="26" cy="29.4" r="2.6"/></svg>
     </div>
     <div data-step="3">${frame('why-card', 'Раскрытая карточка «Почему?»', 'fill')}</div>
-    <div data-step="4">${frame('apply-fix.webm', 'Ролик: вариант полупрозрачно, «Применить», значок находки исчезает', 'fill')}
+    <div data-step="4">${frame('apply-fix', 'Вариант исправления полупрозрачно на плане и кнопка «Подтвердить»', 'fill')}
       <p class="dim-line">до входа: <b data-count="2.25" data-from="6.62" data-dec="2" data-dur="1400">2,25</b> м <span>(было 6,62 · норма ≤ 3 м)</span></p>
       <p class="corner">План 87 → 100</p>
     </div>
@@ -248,8 +280,34 @@
 </section>
 
 
-<!-- s10 КАК УСТРОЕНО И ЗАМЕРЫ -->
-<section class="slide s-arch" id="s10" data-kind="main" data-title="Как устроено и замеры" aria-label="Как устроено и сколько выдерживает">
+<!-- s10 АРХИТЕКТУРА: content from ../shared/slides.js s9 -->
+<section class="slide s-sys" id="s10" data-kind="main" data-title="Архитектура" aria-label="Архитектура">
+  <header class="p-head">
+    <p class="eyebrow in">Архитектура</p>
+    ${title('Правка — командой,', 'остальное — расчёт')}
+  </header>
+  <div class="arch" data-links="w1>w2|v; w2>w3|v; w3>hub; hub>r1 r2 r3 r4 r5; r5>srv|v">
+    <div class="node wr" data-node="w1" style="--y:0"><p class="tag">Вход</p><h3>Жест, карточка, файл</h3><p>и «Применить» ассистента</p></div>
+    <div class="node wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда</p><h3>16 типов и batch</h3><p>всё или ничего · одна запись undo</p></div>
+    <div class="node wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Допуск</p><h3>6 правил физики</h3><p>новое нарушение — отказ</p></div>
+    <div class="node hub" data-node="hub" data-step="1" data-packet>
+      <p class="tag">Единое состояние</p>
+      <h3>PlanDocument</h3>
+      <ul><li>schemaVersion 1</li><li>метры · центр · Y вверх</li><li>справочник внутри</li><li>правка → revision + 1</li></ul>
+    </div>
+    <div class="reads">
+      ${reads.map(([id, name, fn]) => `<div class="node rd" data-node="${id}" data-step="2" data-packet><h3>${name}</h3><p>${fn}</p></div>`).join('')}
+    </div>
+    <div class="node srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер</p><h3>Повторяет расчёт сам</h3><p>Zod-схема → тот же src/domain → модели только факты → проверка ответа</p></div>
+    <div class="node fence" data-step="4"><p class="tag">Граница · ESLint</p><p>src/domain не импортирует react, konva, three, zustand, store и server</p></div>
+    <div class="node fence" data-step="4"><p class="tag">revision</p><p>Ответ ассистента несёт revision. После правки он устарел</p></div>
+  </div>
+  ${note('Состояние одно — PlanDocument. Его меняют только команды. Жест на плане, карточка, файл и кнопка «Применить» ассистента дают команду. Группа — это batch: всё или ничего, одна запись undo. Перед записью — допуск: шесть правил физики. Новое нарушение — правка отклонена. Всё остальное — функции плана: инвентаризация, площади, проверка, 3D, расчёт ассистента. Копий плана нет. Сервер не верит браузеру: проверяет файл схемой и повторяет расчёт тем же кодом. Границы модулей держит ESLint. Ответ ассистента привязан к revision: после правки он помечен устаревшим.')}
+</section>
+
+
+<!-- s11 КАК УСТРОЕНО И ЗАМЕРЫ -->
+<section class="slide s-arch" id="s11" data-kind="main" data-title="Как устроено и замеры" aria-label="Как устроено и сколько выдерживает">
   <header class="p-head">
     <p class="eyebrow in">Одно состояние</p>
     ${title('Как устроено', 'и сколько выдерживает')}
@@ -278,8 +336,8 @@
 </section>
 
 
-<!-- s11 ПОЧЕМУ ЭТО РАБОТАЕТ + ВОПРОСЫ -->
-<section class="slide s-end" id="s11" data-kind="main" data-title="Итог и вопросы" aria-label="Почему это работает, вопросы">
+<!-- s12 ПОЧЕМУ ЭТО РАБОТАЕТ + ВОПРОСЫ -->
+<section class="slide s-end" id="s12" data-kind="main" data-title="Итог и вопросы" aria-label="Почему это работает, вопросы">
   <header class="p-head">
     <p class="eyebrow in">Итог</p>
     ${title('Почему', 'это работает?')}
@@ -298,6 +356,13 @@
     <img class="cat-end" src="../assets/brand/cat-glasses.webp" alt="">
   </div>
   ${note('Итог: по плану сразу всё видно, ассистенту можно верить, а новое добавляется без кода. Сервис открыт по QR-коду, логин не нужен. Спасибо, готовы ответить на вопросы.')}
+</section>
+
+
+<!-- s13 ДЕМО: the video fills the stage and plays when the slide opens (../shared/app.js) -->
+<section class="slide s-demo" id="s13" data-kind="main" data-title="Демо" aria-label="Демо">
+  <video class="demo" src="../assets/demo/demo.mp4" poster="../assets/demo/demo-poster.webp" muted playsinline preload="auto" aria-label="Демо: перетаскивание терминала в 2D, слой камер, облёт 3D и вид глазами посетителя"></video>
+  ${note('Демо без звука, 44 секунды. 2D: тянем терминал очереди к входу — находка уходит, балл 87 → 97. Слой камер. 3D: облёт сбоку, затем глазами посетителя. После демо — вопросы: стрелка вниз.')}
 </section>
 
 

@@ -1,4 +1,4 @@
-/* Variant G «План» — 11-slide defense deck. Grammar of the organizers' pill: rounded outlines, light Onest headings with a bold
+/* Variant G «План» — 13-slide defense deck. Grammar of the organizers' pill: rounded outlines, light Onest headings with a bold
    last line, a progress track with an orange packet. Only the hackathon palette. Positions are in 1920×1080 stage pixels. */
 @font-face{font-family:Onest;src:url(../assets/fonts/onest-cyrillic-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116}
 @font-face{font-family:Onest;src:url(../assets/fonts/onest-latin-wght-normal.woff2) format('woff2');font-weight:100 900;unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+2000-206F,U+2074,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
@@ -178,7 +178,31 @@ code{font:500 .9em var(--mono)}
 .principles .thumb{position:absolute;right:28px;bottom:24px;width:120px;height:68px;border-radius:20px;box-shadow:none;border-width:1px}
 .principles .thumb span{display:none}.principles .thumb b{font-size:11px;padding:0 6px}
 
-/* ===== s10 architecture and numbers ===== */
+/* ===== s10 architecture: layout from ../shared/layout.css, pills of this variant ===== */
+.s-sys .title .ln{display:inline-block;margin-right:.28em}
+.arch{position:absolute;left:96px;top:300px;width:1728px;height:640px}
+.arch .node{position:absolute;grid-column:auto;grid-row:auto;border-radius:32px;justify-content:flex-start}
+.arch .node h3{font-size:26px}
+.arch .node p:last-child{font:400 22px/1.35 var(--body);color:var(--text-muted);margin-top:4px}
+.arch .wr{left:0;top:calc(var(--y) * 146px);width:440px;height:130px;padding:14px 26px}
+.arch .hub{left:540px;top:46px;width:400px;border:2px solid var(--text);padding:26px 28px 22px;background:var(--surface);border-radius:44px}
+.arch .hub h3{font:600 40px var(--body);letter-spacing:-.03em;margin-bottom:16px}
+.arch .hub ul{list-style:none;font:500 22px/1.6 var(--mono);color:var(--cream)}
+.arch .reads{position:absolute;left:1040px;top:0;width:688px;height:422px;display:flex;flex-direction:column;justify-content:space-between}
+.arch .rd{position:relative;flex-direction:row;align-items:center;gap:20px;padding:0 28px;height:74px;border-radius:999px}
+.arch .rd h3{width:290px;flex:none}
+.arch .rd p:last-child{font:500 22px var(--mono);color:var(--cream);margin:0}
+.arch .srv{left:1040px;top:456px;width:688px;height:164px;padding:14px 26px}
+.arch .srv p:last-child{font:500 22px/1.4 var(--mono);color:var(--cream)}
+.arch .fence{top:456px;height:164px;padding:14px 26px;border-style:dashed}
+.arch .fence:nth-last-child(2){left:0;width:440px}
+.arch .fence:last-child{left:540px;width:400px}
+
+/* ===== s13 demo: the video covers the stage and the chrome ===== */
+.slide.s-demo{z-index:10;background:#000}
+.s-demo .demo{position:absolute;inset:0;width:1920px;height:1080px;object-fit:contain;background:#000}
+
+/* ===== s11 architecture and numbers ===== */
 .hub-box{position:absolute}
 .hub-box .node{position:absolute;grid-column:auto;grid-row:auto}
 .hub-box .hub{left:0;top:190px;width:290px;height:130px;border:2px solid var(--text);background:var(--surface)}
@@ -194,7 +218,7 @@ code{font:500 .9em var(--mono)}
 .bench-box .chips li{font-size:21px;white-space:nowrap}
 .bench-box .chips code{font-size:18px}
 
-/* ===== s11 ending ===== */
+/* ===== s12 ending ===== */
 .theses{position:absolute;left:96px;top:360px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
 .thesis{border:1px solid var(--border);border-radius:56px;padding:36px 40px 44px;min-height:360px;background:rgba(25,29,46,.18)}
 .thesis .n{display:block;font:600 100px/1 var(--num);color:var(--accent);margin-bottom:18px}
