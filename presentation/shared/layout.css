@@ -77,6 +77,43 @@ h3{font:600 28px/1.2 var(--display);letter-spacing:-.01em}
 .links .link.dashed{stroke-dasharray:8 8}
 .links .dot{fill:var(--accent)}
 
+/* ===== s3 editor: what the user sees while editing ===== */
+.s-editor .sl-head{width:640px}
+.s-editor .title{font-size:52px}
+.hints{left:96px;top:440px;width:640px;list-style:none;display:grid;gap:22px;font:400 24px/1.38 var(--body)}
+.hints li{border-top:1px solid var(--border);padding-top:12px}
+.hints b{display:block;font:600 22px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--soft,var(--cream));margin-bottom:4px}
+.ui-shot{position:absolute;left:800px;top:170px;width:1024px;height:754px;border:1px solid var(--border);overflow:hidden;box-shadow:0 30px 80px rgba(25,29,46,.45)}
+.ui-shot img{width:100%;height:100%}
+
+/* ===== s4 features: four lists and the layers picture ===== */
+.s-feats .sl-head{width:1728px}
+.s-feats .title .ln{display:inline-block;margin-right:.28em}
+.s-feats .feats{left:96px;top:330px;width:1728px;height:650px;display:grid;grid-template-columns:520px 520px 616px;grid-template-rows:1fr 1fr;gap:28px 36px}
+.feats .col{border-top:1px solid var(--border);padding-top:16px}
+.feats h3{font-size:30px;margin-bottom:12px}
+.feats ul{list-style:none;display:grid;gap:8px;font:400 23px/1.3 var(--body);color:var(--text-muted)}
+.feats li{padding-left:22px;position:relative}
+.feats li::before{content:'';position:absolute;left:0;top:.6em;width:10px;height:2px;background:var(--accent)}
+.layers-shot{grid-column:3;grid-row:1 / span 2;display:flex;flex-direction:column;gap:14px}
+.layers-shot img{width:616px;height:393px;border:1px solid var(--border);object-fit:cover}
+.layers-shot figcaption{font:500 22px/1.4 var(--mono);color:var(--soft,var(--cream))}
+
+/* ===== s5 3D: the scene, the visitor view, facts ===== */
+.s-3d .sl-head{width:1728px}
+.s-3d .title .ln{display:inline-block;margin-right:.28em}
+.hero3d{position:absolute;left:96px;top:320px;width:1120px;height:472px;border:1px solid var(--border);overflow:hidden;background:#F5F6F8;box-shadow:0 30px 80px rgba(25,29,46,.45)}
+.hero3d img{width:100%;height:100%}
+.facts3d{position:absolute;left:96px;top:820px;width:1120px;display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+.facts3d section,.doc3d{border-top:2px solid var(--accent);padding-top:12px}
+.facts3d p:last-child,.doc3d p:last-child{font:400 24px/1.35 var(--body)}
+.visitor3d{position:absolute;left:1248px;top:320px;width:576px}
+.visitor3d img{width:576px;height:230px;border:1px solid var(--border)}
+.visitor3d figcaption{margin-top:14px;font:400 24px/1.35 var(--body);color:var(--text-muted)}
+.visitor3d b{display:block;font:600 28px var(--display);color:var(--text);margin-bottom:4px}
+.doc3d{position:absolute;left:1248px;top:820px;width:576px}
+.speed3d{position:absolute;left:1248px;top:700px;width:576px;font:500 22px/1.4 var(--mono);color:var(--soft,var(--cream))}
+
 /* ===== s4 check: what is checked, where severity comes from, how the score is counted ===== */
 .s-check .sl-head{width:720px}
 .s-check .title{font-size:50px}
@@ -145,31 +182,10 @@ h3{font:600 28px/1.2 var(--display);letter-spacing:-.01em}
 .effect .tradeoff{position:absolute;left:680px;top:850px;width:1144px;font:400 27px/1.45 var(--body);color:var(--text-muted)}
 .effect .tradeoff b{color:var(--text);font:600 32px var(--display);margin-right:14px}
 
-/* ===== s7 scale and data ===== */
-.s-scale .sl-head{width:800px}
-.scale{left:0;top:0;width:1920px;height:1080px;pointer-events:none}
-.scale .chart{position:absolute;left:96px;top:370px;width:800px}
-.chart svg{width:800px;height:440px}
-.chart .axis{stroke:var(--border);stroke-width:2}
-.chart .curve{fill:none;stroke:var(--accent);stroke-width:5;stroke-linejoin:round}
-.chart .pt{fill:var(--bg);stroke:var(--accent);stroke-width:4}
-.chart .val{fill:var(--text);font:600 30px var(--display);text-anchor:middle}
-.chart .cap{fill:var(--text-muted);font:500 22px var(--mono);text-anchor:middle}
-.chart text.cap[x="80"]{text-anchor:start}
-.chart .cap.lab-r{text-anchor:end}
-.scale .stats{position:absolute;left:96px;top:830px;list-style:none;display:flex;gap:56px;width:800px}
+/* ===== shared numbers row (b4 bench) ===== */
 .stats li{display:flex;flex-direction:column}
 .stats b{font:600 40px/1.1 var(--display);letter-spacing:-.03em}
 .stats span{font:400 22px/1.3 var(--body);color:var(--text-muted);margin-top:6px}
-.scale .foot{position:absolute;left:96px;top:920px;width:880px;font:400 22px/1.4 var(--body);color:var(--text-muted)}
-.counters{position:absolute;left:1040px;top:170px;width:784px;display:grid;grid-template-columns:1fr 1fr;gap:34px 40px}
-.counters p{border-top:1px solid var(--border);padding-top:16px}
-.counters b{display:block;font:600 92px/1 var(--display);letter-spacing:-.04em;color:var(--accent)}
-.counters span{font:400 25px var(--body);color:var(--text-muted)}
-.catalog{position:absolute;left:1224px;top:542px;width:600px}
-.catalog img{width:600px;height:368px;border:1px solid var(--border);object-fit:cover;object-position:top}
-.catalog figcaption{font:500 22px/1.35 var(--mono);color:var(--soft,var(--cream));margin-bottom:14px;width:600px}
-.catalog{display:flex;flex-direction:column-reverse}
 
 /* ===== s8 chain of decisions ===== */
 .chain{left:96px;top:430px;width:1728px;height:480px}

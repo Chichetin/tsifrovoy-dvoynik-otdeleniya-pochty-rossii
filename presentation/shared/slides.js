@@ -2,7 +2,7 @@
    docs/decisions.md, README.md («Проверенный объём данных», «Файл плана и методы расчёта»), demo/effect.md,
    src/domain/validation (index.ts, health.ts), data/catalog/*.json, eslint.config.js, package.json.
    Layout and look live in layout.css and each variant's styles.css.
-   Slide order: 10 main slides (s1–s10), then 5 backup slides for questions (b1–b5, key Q or ↓).
+   Slide order: 11 main slides (s1–s11), then 6 backup slides for questions (b1–b6, key Q or ↓).
    Hooks for motion are described at the top of motion-core.js. */
 (() => {
   const ln = (text) => `<span class="ln"><span>${text}</span></span>`;
@@ -16,7 +16,7 @@
     ['Александр Лесницкий', 'разработчик'],
   ];
 
-  // s3: what reads the document. Each one is a function of the plan, none keeps a copy.
+  // s9: what reads the document. Each one is a function of the plan, none keeps a copy.
   const reads = [
     ['r1', '2D и 3D', 'рисуют документ'],
     ['r2', 'Инвентаризация', 'buildInventory(plan)'],
@@ -25,7 +25,15 @@
     ['r5', 'Ассистент', 'calculateAdvice(plan)'],
   ];
 
-  // s4: what validatePlan looks at (src/domain/validation/index.ts, VALIDATION_ISSUE_CODES).
+  // s4: everything the editor does, from README «Что умеет редактор».
+  const feats = [
+    ['Рисовать', ['6 инструментов: от комнаты до линейки', 'свой контур отделения и форма объекта', 'зоны вложены друг в друга', 'стены подписаны длиной']],
+    ['Править', ['привязка к граням, стенам и сетке', 'группа: 6 выравниваний, равный шаг', 'меню по правому клику', 'Ctrl+Z и Ctrl+Y на всё']],
+    ['Учитывать', ['справочник: 25 типов, 8 зон, 6 правил', 'новый тип — форма «Настройки»', 'инвентаризация, чек-лист, CSV', 'обход и акт расхождений']],
+    ['Сохранять', ['JSON, PNG и SVG', 'печать A4 и A3 в масштабе 1:50', 'черновик в браузере', 'обучение и карта клавиш «?»']],
+  ];
+
+  // s6: what validatePlan looks at (src/domain/validation/index.ts, VALIDATION_ISSUE_CODES).
   const checks = [
     ['Геометрия', 'вне помещения или зоны · пересечение на своей высоте · стена · проём · потолок'],
     ['Зоны', 'вне помещения или родителя · наложение'],
@@ -33,7 +41,7 @@
     ['Правила', 'комплектование зон · расстояние до входа'],
   ];
 
-  // s8: risk → decision, with the decision record.
+  // s10: risk → decision, with the decision record.
   const decisions = [
     ['2D и 3D расходятся в координатах', 'Метры, центр, Y вверх. Отражение Y — только в geometry', 'D-010'],
     ['Перечень расходится с планом', 'Инвентаризация — функция плана, своего состояния нет', 'D-028'],
@@ -56,6 +64,7 @@
   ${note('Здравствуйте. Мы — команда «ИИ-бланки». Наш проект — цифровой двойник отделения Почты России. Один документ плана — основа для 2D, 3D, проверки, инвентаризации и ассистента. Дальше — как это устроено и почему так.')}
 </section>
 
+
 <!-- s2 ТРИ ВОПРОСА -->
 <section class="slide s-qa" id="s2" data-kind="main" data-title="Три вопроса" data-seam="640" aria-label="Три вопроса">
   <header class="sl-head">
@@ -71,33 +80,59 @@
   ${note('Пользователь — внутренний заказчик: руководитель отделения, проектировщик перепланировки, специалист по инвентаризации. У них три вопроса. Куда поставить: код перебирает места по сетке десять сантиметров и отдаёт до трёх проверенных. Чего не хватает: правила справочника сверяются с инвентаризацией каждой зоны. Что изменилось: код сравнивает два снимка плана — площадь, состав и находки.')}
 </section>
 
-<!-- s3 АРХИТЕКТУРА -->
-<section class="slide s-arch" id="s3" data-kind="main" data-title="Архитектура" data-seam="600" aria-label="Архитектура">
+
+<!-- s3 РЕДАКТОР -->
+<section class="slide s-editor" id="s3" data-kind="main" data-title="Редактор" data-seam="780" aria-label="Редактор плана">
   <header class="sl-head">
-    <p class="eyebrow in">Архитектура</p>
-    <h2 class="title">${ln('Правка — командой,')}${ln('остальное — расчёт')}</h2>
+    <p class="eyebrow in">2D-редактор</p>
+    <h2 class="title">${ln('Редактор')}${ln('подсказывает')}${ln('до ошибки')}</h2>
   </header>
-  <div class="sl-body arch" data-links="w1>w2|v; w2>w3|v; w3>hub; hub>r1 r2 r3 r4 r5; r5>srv|v">
-    <div class="node input wr" data-node="w1" style="--y:0"><p class="tag">Вход</p><h3>Жест, карточка, файл</h3><p>и «Применить» ассистента</p></div>
-    <div class="node input wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда</p><h3>16 типов и batch</h3><p>всё или ничего · одна запись undo</p></div>
-    <div class="node input wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Допуск</p><h3>6 правил физики</h3><p>новое нарушение — отказ</p></div>
-    <div class="node hub" data-node="hub" data-step="1" data-packet>
-      <p class="tag">Единое состояние</p>
-      <h3>PlanDocument</h3>
-      <ul><li>schemaVersion 1</li><li>метры · центр · Y вверх</li><li>справочник внутри</li><li>правка → revision + 1</li></ul>
-    </div>
-    <div class="reads">
-      ${reads.map(([id, name, fn]) => `<div class="node view rd" data-node="${id}" data-step="2" data-packet><h3>${name}</h3><p>${fn}</p></div>`).join('')}
-    </div>
-    <div class="node input srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер</p><h3>Повторяет расчёт сам</h3><p>Zod-схема → тот же src/domain → модели только факты → проверка ответа</p></div>
-    <div class="node input fence" data-step="4"><p class="tag">Граница · ESLint</p><p>src/domain не импортирует react, konva, three, zustand, store и server</p></div>
-    <div class="node input fence" data-step="4"><p class="tag">revision</p><p>Ответ ассистента несёт revision. После правки он устарел</p></div>
-  </div>
-  ${note('Состояние одно — PlanDocument. Его меняют только команды. Жест на плане, карточка, файл и кнопка «Применить» ассистента дают команду. Группа — это batch: всё или ничего, одна запись undo. Перед записью — допуск: шесть правил физики. Новое нарушение — правка отклонена. Всё остальное — функции плана: инвентаризация, площади, проверка, 3D, расчёт ассистента. Копий плана нет. Сервер не верит браузеру: проверяет файл схемой и повторяет расчёт тем же кодом. Границы модулей держит ESLint. Ответ ассистента привязан к revision: после правки он помечен устаревшим.')}
+  <ol class="sl-body hints">
+    <li data-step="1"><b>Отступы</b>При переносе видны расстояния до стен и соседей. Привязка к граням и сетке 0,5 м.</li>
+    <li data-step="2"><b>Силуэт</b>Зелёный — поставится. Жёлтый — проверка найдёт нарушение. Красный — отказ с причиной.</li>
+    <li data-step="3"><b>Замер правила</b>Проверка рисует на плане отрезок «до входа 6,62 м».</li>
+    <li data-step="4"><b>Один жест — один Ctrl+Z</b>Меню по правому клику, группа, выравнивание.</li>
+  </ol>
+  <figure class="ui-shot">
+    <img src="${shot('editor-drag')}" alt="Перенос терминала очереди: отступы до стен и отрезок до входа">
+    <svg class="marks" viewBox="0 0 100 73.6" aria-hidden="true"><g data-step="1"><ellipse class="ring keep" cx="13" cy="34.2" rx="8.6" ry="3.4"/></g><g data-step="3"><ellipse class="ring keep" cx="32.2" cy="55.3" rx="9" ry="3.4"/><circle class="ring" data-ping cx="32.2" cy="55.3" r="3"/></g></svg>
+  </figure>
+  ${note('Главный критерий — удобство редактора. Он подсказывает до ошибки. При переносе видны расстояния до стен и соседей, объект притягивается к граням и сетке. Тип из библиотеки показывает силуэт: зелёный — поставится, жёлтый — проверка найдёт нарушение, красный — правка будет отклонена, причина рядом. Проверка рисует на плане отрезок до входа. Каждый жест — одна запись undo.')}
 </section>
 
-<!-- s4 ПРОВЕРКА -->
-<section class="slide s-check" id="s4" data-kind="main" data-title="Проверка" data-seam="840" aria-label="Проверка плана">
+<!-- s4 ВСЁ, ЧТО УМЕЕТ -->
+<section class="slide s-feats" id="s4" data-kind="main" data-title="Всё, что умеет" data-seam="1824" aria-label="Возможности редактора">
+  <header class="sl-head">
+    <p class="eyebrow in">Возможности</p>
+    <h2 class="title">${ln('Всё, что умеет')}${ln('редактор')}</h2>
+  </header>
+  <div class="sl-body stack feats">
+    ${feats.map(([title, items]) => `<section class="col in"><h3>${title}</h3><ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul></section>`).join('')}
+    <figure class="layers-shot in"><img src="${shot('layers')}" alt="Слои камер с зонами обзора и тепловой нагрузки"><figcaption>5 слоёв: обзор камер, тепло, сотрудники, очередь, состояние</figcaption></figure>
+  </div>
+  ${note('Коротко обо всём. Рисовать: шесть инструментов, свой контур отделения и своя форма объекта. Править: привязка, отступы, силуэт, групповое выравнивание. Учитывать: справочник из 25 типов, новый тип — формой, инвентаризация с обходом и актом расхождений. Видеть: пять информационных слоёв, например зоны обзора камер и тепловую нагрузку. Сохранять: JSON, картинка, печать в масштабе, черновик в браузере.')}
+</section>
+
+<!-- s5 3D -->
+<section class="slide s-3d" id="s5" data-kind="main" data-title="3D" data-seam="1232" aria-label="3D-вид">
+  <header class="sl-head">
+    <p class="eyebrow in">3D</p>
+    <h2 class="title">${ln('Тот же план —')}${ln('в объёме')}</h2>
+  </header>
+  <figure class="hero3d in"><img src="${shot('view-3d')}" alt="Демо-отделение в 3D: модели оборудования по зонам"></figure>
+  <div class="facts3d">
+    <section data-step="1"><p class="tag">Модели</p><p>Все 25 типов: касса, стеллаж с посылками, табло</p></section>
+    <section data-step="1"><p class="tag">Подгонка</p><p>Модель тянется по размеру. Полки и сиденья повторяются</p></section>
+    <section data-step="1"><p class="tag">Связь с 2D</p><p>Клик в 3D выбирает объект в 2D и в перечне</p></section>
+  </div>
+  <figure class="visitor3d" data-step="2"><img src="${shot('visitor-3d')}" alt="Вид глазами посетителя от входа"><figcaption><b>Глазами посетителя</b>глаза на 1,6 м у входа · WASD · стены не пускают</figcaption></figure>
+  <p class="speed3d" data-step="3">1000 объектов моделями — 1,87 с. Замер — в README.</p>
+  <section class="doc3d" data-step="3"><p class="tag">Из документа</p><p>Сцена строится заново при каждой правке. Стена перед камерой прозрачна.</p></section>
+  ${note('3D — тот же документ в объёме. Своей копии плана у сцены нет: она строится заново при каждой правке. У всех 25 типов справочника свои модели: касса, стеллаж с посылками, табло очереди. Модель тянется по размеру объекта, полки и сиденья повторяются. Клик в 3D выбирает объект в 2D и в перечне. Режим «Глазами посетителя» ставит камеру у входа на высоте глаз, ходить — WASD, стены не пускают. 1000 объектов моделями — меньше двух секунд.')}
+</section>
+
+<!-- s6 ПРОВЕРКА -->
+<section class="slide s-check" id="s6" data-kind="main" data-title="Проверка" data-seam="840" aria-label="Проверка плана">
   <header class="sl-head">
     <p class="eyebrow in">Проверка</p>
     <h2 class="title">${ln('Каждая правка —')}${ln('новая проверка')}</h2>
@@ -130,8 +165,9 @@
   ${note('Проверка — функция плана. Она идёт после каждой правки. Что проверяем: геометрию — помещение, зону, пересечения на своей высоте, стены, проёмы, потолок; зоны — вложенность и наложение; инвентарные номера и срок ТО; правила комплектования и расстояние до входа. Серьёзность задаёт источник правила. Геометрия и правило организаторов — ошибка. Допущение команды — предупреждение с пометкой. Пример: терминал очереди в 6,62 метра от входа при норме три — ошибка. Балл: сто минус десять за ошибку и три за предупреждение. На демо-плане — 87. И мы проверяем себя: место от ассистента проходит тот же validatePlan.')}
 </section>
 
-<!-- s5 АССИСТЕНТ -->
-<section class="slide s-ai" id="s5" data-kind="main" data-title="Ассистент" data-seam="1512" aria-label="Ассистент">
+
+<!-- s7 АССИСТЕНТ -->
+<section class="slide s-ai" id="s7" data-kind="main" data-title="Ассистент" data-seam="1512" aria-label="Ассистент">
   <header class="sl-head">
     <p class="eyebrow in">ИИ-ассистент</p>
     <h2 class="title">${ln('Модель объясняет,')}${ln('код считает')}${ln('и проверяет')}</h2>
@@ -150,8 +186,9 @@
   ${note('Ассистент — агент с инструментами. Модель выбирает инструмент: поиск места, комплектование, сравнение. До шести шагов на вопрос. Код считает: перебор мест, правила, площади. Модель объясняет и ссылается на id и факты расчёта. Код проверяет каждый id и каждое число. Лишнее поле, чужой id, другое число — ответ отвергнут целиком. Тогда, и при отказе API — нет ключа, таймаут, 429, — показываем расчёт с пометкой «Без LLM». «Применить» — обычная команда редактора: её отменяет Ctrl+Z.')}
 </section>
 
-<!-- s6 ЭФФЕКТ -->
-<section class="slide s-effect" id="s6" data-kind="main" data-title="Было → стало" data-seam="620" aria-label="Эффект рекомендации">
+
+<!-- s8 ЭФФЕКТ -->
+<section class="slide s-effect" id="s8" data-kind="main" data-title="Было → стало" data-seam="620" aria-label="Эффект рекомендации">
   <header class="sl-head">
     <p class="eyebrow in">Результат на демо-плане</p>
     <h2 class="title">${ln('Та же проверка')}${ln('после правки')}</h2>
@@ -183,41 +220,35 @@
   ${note('Демо-план. До правки проверка нашла две находки. Ошибка: терминал очереди в 6,62 метра от входа, норма организаторов — три. Предупреждение: в зоне ожидания одна скамья, правило команды — минимум две. Ассистент нашёл место для терминала и для скамьи. Человек применил их в редакторе. Та же проверка прошла заново: ошибок ноль, предупреждений ноль, балл 87 → 100. Цена — 0,80 квадратного метра свободной площади. Числа посчитал код при сборке комплекта.')}
 </section>
 
-<!-- s7 МАСШТАБ И ДАННЫЕ -->
-<section class="slide s-scale" id="s7" data-kind="main" data-title="Масштаб и данные" data-seam="960" aria-label="Масштаб и справочники">
+
+<!-- s9 АРХИТЕКТУРА -->
+<section class="slide s-arch" id="s9" data-kind="main" data-title="Архитектура" data-seam="600" aria-label="Архитектура">
   <header class="sl-head">
-    <p class="eyebrow in">Масштаб</p>
-    <h2 class="title">${ln('1000 объектов —')}${ln('0,54 с')}</h2>
+    <p class="eyebrow in">Архитектура</p>
+    <h2 class="title">${ln('Правка — командой,')}${ln('остальное — расчёт')}</h2>
   </header>
-  <div class="sl-body scale">
-    <figure class="chart">
-      <svg viewBox="0 0 800 440" aria-label="Первое открытие плана: 100, 500 и 1000 объектов">
-        <line class="axis" x1="80" y1="380" x2="780" y2="380"/>
-        <path class="curve" data-draw pathLength="1" d="M162,268 L410,199 L720,92"/>
-        ${[[162, 268, '0,21 с', '100 / 10'], [410, 199, '0,34 с', '500 / 30'], [720, 92, '0,54 с', '1000 / 50']].map(([x, y, t, label], i) => `<circle class="pt" data-step="0" cx="${x}" cy="${y}" r="9" style="--i:${i}"/><text class="val" x="${x}" y="${y - 24}">${t}</text><text class="cap" x="${x}" y="414">${label}</text>`).join('')}
-        <text class="cap" x="80" y="30">первое открытие</text>
-        <text class="cap lab-r" x="780" y="30">объекты / зоны</text>
-      </svg>
-    </figure>
-    <ul class="stats" data-step="1">
-      <li><b>38 мс</b><span>выбор объекта</span></li>
-      <li><b>72 мс</b><span>шаг zoom</span></li>
-      <li><b>1,29 с</b><span>сохранить → открыть</span></li>
-    </ul>
-    <p class="foot" data-step="1">Пары объектов: сначала охват, потом полигон (D-205). Медиана 5 прогонов, команда — в README.</p>
-    <div class="counters" data-step="2">
-      <p><b data-count="25">25</b><span>типов оборудования</span></p>
-      <p><b data-count="8">8</b><span>типов зон</span></p>
-      <p><b data-count="6">6</b><span>правил комплектования</span></p>
-      <p><b data-count="5">5</b><span>типов слоёв</span></p>
+  <div class="sl-body arch" data-links="w1>w2|v; w2>w3|v; w3>hub; hub>r1 r2 r3 r4 r5; r5>srv|v">
+    <div class="node input wr" data-node="w1" style="--y:0"><p class="tag">Вход</p><h3>Жест, карточка, файл</h3><p>и «Применить» ассистента</p></div>
+    <div class="node input wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда</p><h3>16 типов и batch</h3><p>всё или ничего · одна запись undo</p></div>
+    <div class="node input wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Допуск</p><h3>6 правил физики</h3><p>новое нарушение — отказ</p></div>
+    <div class="node hub" data-node="hub" data-step="1" data-packet>
+      <p class="tag">Единое состояние</p>
+      <h3>PlanDocument</h3>
+      <ul><li>schemaVersion 1</li><li>метры · центр · Y вверх</li><li>справочник внутри</li><li>правка → revision + 1</li></ul>
     </div>
-    <figure class="catalog" data-step="3"><img src="${shot('catalog')}" alt="Настройки: новый тип оборудования без правки кода"><figcaption>Новый тип — форма. Схема та же, что у файла.</figcaption></figure>
+    <div class="reads">
+      ${reads.map(([id, name, fn]) => `<div class="node view rd" data-node="${id}" data-step="2" data-packet><h3>${name}</h3><p>${fn}</p></div>`).join('')}
+    </div>
+    <div class="node input srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер</p><h3>Повторяет расчёт сам</h3><p>Zod-схема → тот же src/domain → модели только факты → проверка ответа</p></div>
+    <div class="node input fence" data-step="4"><p class="tag">Граница · ESLint</p><p>src/domain не импортирует react, konva, three, zustand, store и server</p></div>
+    <div class="node input fence" data-step="4"><p class="tag">revision</p><p>Ответ ассистента несёт revision. После правки он устарел</p></div>
   </div>
-  ${note('Масштаб. План на 1000 объектов и 50 зон открывается за 0,54 секунды. Выбор объекта — 38 миллисекунд, шаг zoom — 72. Проверка не перебирает полмиллиона пар полигонов: сначала сравнивает охваты. Замер на Ryzen AI 9 365, production-сборка, медиана пяти прогонов, команда в README. Справочники — данные, а не код: 25 типов оборудования, 8 типов зон, 6 правил, 5 типов слоёв. Новый тип добавляется формой, и её проверяет та же схема, что и файл.')}
+  ${note('Состояние одно — PlanDocument. Его меняют только команды. Жест на плане, карточка, файл и кнопка «Применить» ассистента дают команду. Группа — это batch: всё или ничего, одна запись undo. Перед записью — допуск: шесть правил физики. Новое нарушение — правка отклонена. Всё остальное — функции плана: инвентаризация, площади, проверка, 3D, расчёт ассистента. Копий плана нет. Сервер не верит браузеру: проверяет файл схемой и повторяет расчёт тем же кодом. Границы модулей держит ESLint. Ответ ассистента привязан к revision: после правки он помечен устаревшим.')}
 </section>
 
-<!-- s8 ЦЕПОЧКА РЕШЕНИЙ -->
-<section class="slide s-chain" id="s8" data-kind="main" data-title="Почему так" data-seam="1824" aria-label="Цепочка решений">
+
+<!-- s10 ЦЕПОЧКА РЕШЕНИЙ -->
+<section class="slide s-chain" id="s10" data-kind="main" data-title="Почему так" data-seam="1824" aria-label="Цепочка решений">
   <header class="sl-head">
     <p class="eyebrow in">Решения</p>
     <h2 class="title">${ln('Каждое решение')}${ln('закрывает риск')}</h2>
@@ -229,22 +260,9 @@
   ${note('Каждое решение закрывает риск, и у каждого есть запись в журнале решений. Координаты — один контракт: метры, центр, ось Y вверх; отражение оси — только в модуле геометрии. Инвентаризация — функция плана, поэтому не расходится с ним. Модель выбирает из посчитанного, а лишнее поле отвергает весь ответ. Серьёзность находки задаёт источник правила. Справочник едет внутри файла плана, поэтому свой тип не теряется при передаче.')}
 </section>
 
-<!-- s9 ГРАНИЦЫ И РОСТ -->
-<section class="slide s-limits" id="s9" data-kind="main" data-title="Границы и рост" data-seam="1824" aria-label="Границы и рост">
-  <header class="sl-head">
-    <p class="eyebrow in">Что доказано</p>
-    <h2 class="title">${ln('Граница ясна,')}${ln('рост — данными')}</h2>
-  </header>
-  <div class="sl-body limits">
-    <section class="col proven" data-step="1"><h3>Проверено</h3><ul><li>Геометрия: помещение, зона, стены, проёмы, потолок, пересечения</li><li>Расстояние до входа — правило организаторов</li><li>Было → стало: площадь, состав, находки</li></ul></section>
-    <section class="col edge" data-step="2"><h3>Граница</h3><ul><li>Проходы, эргономику и маршруты не проверяем</li><li>Комплектование — допущение команды, не норматив Почты</li><li>«Не найдено» — не найдено на сетке 0,1 м за 60 000 проб</li></ul></section>
-    <section class="col grow" data-step="3"><h3>Рост</h3><ul><li>Другое отделение — другой JSON, код тот же</li><li>Новое правило — строка справочника, серьёзность — из источника</li><li>Другая модель — LLM_PROVIDER и LLM_MODEL в .env</li></ul></section>
-  </div>
-  ${note('Что доказано: геометрия размещения и расстояние до входа. Эффект правки — в числах. Чего не заявляем: ширину проходов, эргономику, маршруты. Правила комплектования — допущения команды, не норматив Почты. «Не найдено» значит «не найдено перебором», а не «места нет». Рост — данными: другое отделение — другой JSON, новое правило — строка справочника, другая модель — переменная окружения.')}
-</section>
 
-<!-- s10 КОМАНДА И ВОПРОСЫ -->
-<section class="slide s-team" id="s10" data-kind="main" data-title="Команда и вопросы" data-seam="1824" aria-label="Наша команда">
+<!-- s11 КОМАНДА И ВОПРОСЫ -->
+<section class="slide s-team" id="s11" data-kind="main" data-title="Команда и вопросы" data-seam="1824" aria-label="Наша команда">
   <header class="sl-head">
     <p class="eyebrow in">ИИ-бланки</p>
     <h2 class="title">${ln('Наша команда')}</h2>
@@ -257,8 +275,24 @@
   ${note('Спасибо. Сервис открыт по адресу на слайде, логин не нужен. Готовы ответить на вопросы. Запасные слайды — стрелка вниз.')}
 </section>
 
-<!-- b1 ФОРМАТ ПЛАНА -->
-<section class="slide s-format" id="b1" data-kind="backup" data-title="Формат плана" data-seam="560" aria-label="Формат плана">
+
+<!-- b1 ГРАНИЦЫ И РОСТ -->
+<section class="slide s-limits" id="b1" data-kind="backup" data-title="Границы и рост" data-seam="1824" aria-label="Границы и рост">
+  <header class="sl-head">
+    <p class="eyebrow in">Вопросы · что доказано</p>
+    <h2 class="title">${ln('Граница ясна,')}${ln('рост — данными')}</h2>
+  </header>
+  <div class="sl-body limits">
+    <section class="col proven" data-step="1"><h3>Проверено</h3><ul><li>Геометрия: помещение, зона, стены, проёмы, потолок, пересечения</li><li>Расстояние до входа — правило организаторов</li><li>Было → стало: площадь, состав, находки</li></ul></section>
+    <section class="col edge" data-step="2"><h3>Граница</h3><ul><li>Проходы, эргономику и маршруты не проверяем</li><li>Комплектование — допущение команды, не норматив Почты</li><li>«Не найдено» — не найдено на сетке 0,1 м за 60 000 проб</li></ul></section>
+    <section class="col grow" data-step="3"><h3>Рост</h3><ul><li>Другое отделение — другой JSON, код тот же</li><li>Новое правило — строка справочника, серьёзность — из источника</li><li>Другая модель — LLM_PROVIDER и LLM_MODEL в .env</li></ul></section>
+  </div>
+  ${note('Что доказано: геометрия размещения и расстояние до входа. Эффект правки — в числах. Чего не заявляем: ширину проходов, эргономику, маршруты. Правила комплектования — допущения команды, не норматив Почты. «Не найдено» значит «не найдено перебором», а не «места нет». Рост — данными: другое отделение — другой JSON, новое правило — строка справочника, другая модель — переменная окружения.')}
+</section>
+
+
+<!-- b2 ФОРМАТ ПЛАНА -->
+<section class="slide s-format" id="b2" data-kind="backup" data-title="Формат плана" data-seam="560" aria-label="Формат плана">
   <header class="sl-head"><p class="eyebrow in">Вопросы</p><h2 class="title">${ln('Формат файла')}${ln('плана')}</h2><p class="lead in">Метры · X вправо · Y вверх · поворот по часовой стрелке</p></header>
   <ul class="open-rules" data-step="1">
     <li><b>Отказ</b>битая ссылка, повтор id, версия новее — открытый план цел</li>
@@ -277,8 +311,9 @@
   ${note('Формат — версионированный JSON. Справочники едут внутри файла, поэтому свои типы переживают передачу. Структурная ошибка отклоняет файл, и открытый план остаётся. Геометрическая — нет: план открывается с находками, человек его исправляет. Импорт чужой файл молча не исправляет.')}
 </section>
 
-<!-- b2 ПОИСК МЕСТА -->
-<section class="slide s-search" id="b2" data-kind="backup" data-title="Поиск места" data-seam="640" aria-label="Поиск места">
+
+<!-- b3 ПОИСК МЕСТА -->
+<section class="slide s-search" id="b3" data-kind="backup" data-title="Поиск места" data-seam="640" aria-label="Поиск места">
   <header class="sl-head"><p class="eyebrow in">Вопросы</p><h2 class="title">${ln('Как ассистент')}${ln('ищет место')}</h2></header>
   <div class="sl-body search">
     <ul class="steps-list">
@@ -296,8 +331,9 @@
   ${note('Перебор идёт кольцами от якоря. Шаг сетки 0,1 метра, углы 0 и 90 градусов. Правило расстояния до входа с серьёзностью «ошибка» сужает сам перебор, а не отсекает результат в конце. Кандидат подставляется в копию плана и проходит тот же validatePlan. Остановка — 24 подтверждённых места или 60 тысяч проб.')}
 </section>
 
-<!-- b3 ЗАМЕРЫ -->
-<section class="slide s-bench" id="b3" data-kind="backup" data-title="Замеры" data-seam="1824" aria-label="Замеры">
+
+<!-- b4 ЗАМЕРЫ -->
+<section class="slide s-bench" id="b4" data-kind="backup" data-title="Замеры" data-seam="1824" aria-label="Замеры">
   <header class="sl-head"><p class="eyebrow in">Вопросы</p><h2 class="title">${ln('Замеры')}</h2><p class="lead in">Ryzen AI 9 365 · Edge 153 · production-сборка · 04.10.2026 · медиана 5 прогонов</p></header>
   <div class="sl-body bench">
     <table class="in">
@@ -318,8 +354,9 @@
   ${note('Все числа из README с командами. Это локальная машина, не публичный сервер. Пороги: выбор меньше 400 миллисекунд, zoom меньше 300 — соблюдены.')}
 </section>
 
-<!-- b4 СТЕК -->
-<section class="slide s-stack" id="b4" data-kind="backup" data-title="Стек и зависимости" data-seam="1824" aria-label="Стек и зависимости">
+
+<!-- b5 СТЕК -->
+<section class="slide s-stack" id="b5" data-kind="backup" data-title="Стек и зависимости" data-seam="1824" aria-label="Стек и зависимости">
   <header class="sl-head"><p class="eyebrow in">Вопросы</p><h2 class="title">${ln('Стек и')}${ln('зависимости')}</h2></header>
   <div class="sl-body stack">
     <section class="col" data-step="1"><h3>Браузер</h3><p>React 19 · Vite 8<br>react-konva — холст 2D<br>Three.js — 3D из плана<br>Zustand — store и undo</p></section>
@@ -330,8 +367,9 @@
   ${note('Стек из package.json. Расчёт — чистая логика без UI, общая для браузера и сервера. Одна Zod-схема проверяет файл в браузере и план на сервере. Модель подключается по OpenAI-совместимому адресу из .env; допустимы Qwen, DeepSeek, GigaChat, YandexGPT.')}
 </section>
 
-<!-- b5 СЦЕНАРИЙ ПРОВЕРЯЮЩЕГО -->
-<section class="slide s-flow" id="b5" data-kind="backup" data-title="Сценарий проверяющего" data-seam="1824" aria-label="Сценарий проверяющего">
+
+<!-- b6 СЦЕНАРИЙ ПРОВЕРЯЮЩЕГО -->
+<section class="slide s-flow" id="b6" data-kind="backup" data-title="Сценарий проверяющего" data-seam="1824" aria-label="Сценарий проверяющего">
   <header class="sl-head"><p class="eyebrow in">Вопросы</p><h2 class="title">${ln('Сценарий')}${ln('проверяющего')}</h2></header>
   <ol class="sl-body flow">
     <li><b>Открыть</b><span>редактор по адресу сервиса, логин не нужен</span></li>

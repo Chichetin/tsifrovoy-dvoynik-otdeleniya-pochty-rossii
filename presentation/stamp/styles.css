@@ -37,11 +37,11 @@ body{font-family:var(--body);color:var(--text)}
 #rail i.on{background:var(--cream)}
 #rail i.on::before{background:var(--cream);border-color:var(--cream)}
 #rail i.on:not(:has(~ .on))::before{background:var(--accent-strong);border-color:var(--cream);box-shadow:0 0 0 6px rgba(221,130,79,.3)}
-#rail i:nth-child(1)::after,#rail i:nth-child(4)::after,#rail i:nth-child(7)::after,#rail i:nth-child(10)::after{position:absolute;right:-30px;top:-30px;font:500 18px var(--mono);letter-spacing:.06em;color:var(--text-muted);white-space:nowrap}
+#rail i:nth-child(1)::after,#rail i:nth-child(4)::after,#rail i:nth-child(6)::after,#rail i:nth-child(11)::after{position:absolute;right:-30px;top:-30px;font:500 18px var(--mono);letter-spacing:.06em;color:var(--text-muted);white-space:nowrap}
 #rail i:nth-child(1)::after{content:'ПРИНЯТО'}
 #rail i:nth-child(4)::after{content:'В ПУТИ'}
-#rail i:nth-child(7)::after{content:'ПРОВЕРКА'}
-#rail i:nth-child(10)::after{content:'ВРУЧЕНО';right:-8px}
+#rail i:nth-child(6)::after{content:'ПРОВЕРКА'}
+#rail i:nth-child(11)::after{content:'ВРУЧЕНО';right:-8px}
 #rail::after{content:'';position:absolute;left:0;top:7px;width:32px;height:26px;border:2px solid var(--ink);background:linear-gradient(90deg,transparent 40%,#DD824F 40% 60%,transparent 60%),var(--paper);z-index:2}
 #counter{font:500 20px var(--mono);color:var(--text-muted);min-width:90px;text-align:right}
 #timer{display:none;font:500 20px var(--mono);color:var(--text-muted);min-width:90px}

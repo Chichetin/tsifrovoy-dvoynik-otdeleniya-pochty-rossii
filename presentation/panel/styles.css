@@ -41,7 +41,7 @@ body{font-family:var(--body);color:var(--text)}
 .s-ai .title .ln{font-size:56px}
 .s-arch .title{font-size:50px}
 .s-check .title{font-size:54px}
-.s-scale .title,.s-chain .title,.s-limits .title{font-size:60px}
+.s-chain .title,.s-limits .title{font-size:60px}
 h3{font-family:var(--display);font-weight:600;letter-spacing:0}
 .q h3{font-weight:500;font-size:38px}
 .node h3,.view h3{font-size:25px}
