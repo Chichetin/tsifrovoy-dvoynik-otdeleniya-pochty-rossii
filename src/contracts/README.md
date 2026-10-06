@@ -10,4 +10,6 @@
 
 Имена знаков плана — `PLAN_PICTOGRAM_NAMES` в model.ts, поле `ObjectType.pictogram` (D-376). Рисунок знака — в `src/domain/plan-pictogram.ts`.
 
+События режима Б «Предложить место» — `SUGGEST_PLACE_EVENT`, `SUGGESTION_GHOST_EVENT` и их `detail` в mode-b-events.ts (D-379). Имена событий в features не пишем.
+
 [Карта проекта и владельцы](../../docs/project-structure.md) · [Контракты](../../docs/contracts-v1.md)
