@@ -3,8 +3,8 @@
  *
  * This file only names the actions. Most are commands the app already has;
  * «Предложить место» (#179) is not: the menu calls `dispatchSuggestPlace`
- * (contracts/mode-b-events.ts) and the assistant takes it, the app is not involved. The object under a click
- * is `findPlacementPick` with any type.
+ * (contracts/mode-b-events.ts) and the assistant takes it, the app is not
+ * involved. The object under a click is `findPlacementPick` with any type.
  */
 
 import { ROTATION_SNAP_DEG } from './transform';
