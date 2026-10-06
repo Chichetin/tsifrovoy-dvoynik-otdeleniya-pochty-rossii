@@ -2,9 +2,10 @@
  * D-258: the conversation with the plan agent.
  *
  * Each exchange reads as a work log: the question, the tools the agent ran —
- * live while it works — and the answer, whose ids are buttons that show the
- * entity on the plan. Under the answer: whether the text passed the check
- * against the calculation, and the actions. «Применить вариант» and «Применить
+ * folded, open on a click (#252) — and the answer, whose ids are buttons named
+ * after the entity that show it on the plan. Under the answer: whether the text
+ * passed the check against the calculation, and the actions. Ids and service
+ * lines show only in «Отладка» (#252). «Применить вариант» and «Применить
  * правки» (#126) edit the plan, and only when pressed.
  */
 
@@ -15,6 +16,7 @@ import { QUOTED_ID_PATTERN, WHY_LEAD } from '../../domain/advice';
 import { formatShort } from '../../domain/number-format';
 import type { PlanIndex } from '../../domain/plan-index';
 import { stopAgent } from './agent-client';
+import { focusTitle, useDebugMode } from './debug-mode';
 import './agent-chat.css';
 import { VoiceInput } from './VoiceInput';
 
@@ -90,6 +92,25 @@ function refFor(plan: PlanDocument, id: string): Ref | null {
   return null;
 }
 
+/** The name of a type or a layer the token is the id of; null — not a catalog id. */
+function catalogName(names: PlanIndex, id: string): string | null {
+  return names.objectTypeLabel(id) ?? names.zoneTypeLabel(id) ?? names.layerName(id);
+}
+
+/**
+ * #252: a question as the person reads it — every plan id replaced by its name.
+ * The question sent keeps the ids: the calculation resolves them.
+ */
+export function namedText(text: string, plan: PlanDocument, names: PlanIndex): string {
+  return text.replace(ANSWER_REF_PATTERN, (whole: string, quotedName?: string, quotedId?: string) => {
+    const token = quotedId ?? whole;
+    const ref = refFor(plan, token);
+    const name = ref === null ? catalogName(names, token) : names.nameOf(ref);
+    if (name === null) return whole;
+    return quotedName === undefined ? `«${name}»` : `«${quotedName}»`;
+  });
+}
+
 function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIndex): string {
   switch (action.kind) {
     case 'focus':
@@ -121,7 +142,7 @@ function actionLabel(action: AssistantAction, answer: AgentAnswer, names: PlanIn
  * its name — never with its id (#10): the id only decides whether a mention
  * is clickable and lands in `title`/`data-ref-id` for whoever needs it.
  */
-function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan: PlanDocument; names: PlanIndex; stale: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
+function AnswerText({ text, plan, names, stale, debug, onFocus }: { text: string; plan: PlanDocument; names: PlanIndex; stale: boolean; debug: boolean; onFocus: (ref: Ref) => void }): React.JSX.Element {
   const paragraphs = text.split(/\n{2,}/).map((paragraph, index) => {
     const parts: React.ReactNode[] = [];
     let last = 0;
@@ -134,9 +155,10 @@ function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan:
       parts.push(paragraph.slice(last, start));
       if (ref === null) {
         // A rule or a type: the id is not a plan entity a click can show.
-        // Leave the sentence exactly as the calculation wrote it — id
-        // included — rather than quietly trim information (#10 review).
-        parts.push(whole);
+        // A type or a layer reads by its name; a rule id stays as the
+        // calculation wrote it (#10 review). «Отладка» shows the raw text (#252).
+        const name = debug ? null : catalogName(names, token);
+        parts.push(name === null ? whole : quotedName === undefined ? `«${name}»` : `«${quotedName}»`);
       } else {
         const label = names.nameOf(ref) ?? quotedName ?? token;
         parts.push(
@@ -146,7 +168,7 @@ function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan:
             className="agent__id"
             disabled={stale}
             onClick={() => onFocus(ref)}
-            title={`Показать на плане · id ${token}`}
+            title={focusTitle(token, debug)}
             data-ref-id={token}
           >
             {label}
@@ -173,26 +195,25 @@ function AnswerText({ text, plan, names, stale, onFocus }: { text: string; plan:
   );
 }
 
-function StepLog({ exchange, working }: { exchange: AgentExchange; working: boolean }): React.JSX.Element | null {
+/** #252: the agent's steps are folded while it works and after; a click or Enter opens them. */
+function StepLog({ exchange, working, debug }: { exchange: AgentExchange; working: boolean; debug: boolean }): React.JSX.Element | null {
   const steps = exchange.answer?.steps ?? exchange.steps;
   if (steps.length === 0 && !working) return null;
-  const list = (
-    <ol className="agent__steps">
-      {steps.map((step, index) => (
-        <li key={index} className={step.ok ? undefined : 'is-failed'}>
-          <span className="agent__tick" aria-hidden="true">{step.ok ? '✓' : '×'}</span>
-          {step.label}
-          {step.ok ? null : <span className="agent__sr"> — не удалось</span>}
-        </li>
-      ))}
-      {working ? <li className="is-working"><span className="agent__tick" aria-hidden="true">…</span>Работаю с планом</li> : null}
-    </ol>
-  );
-  if (working) return list;
+  const count = `${steps.length} ${steps.length === 1 ? 'шаг' : steps.length > 1 && steps.length < 5 ? 'шага' : 'шагов'}`;
   return (
     <details className="agent__log">
-      <summary>Ход проверки: {steps.length} {steps.length === 1 ? 'шаг' : steps.length < 5 ? 'шага' : 'шагов'}</summary>
-      {list}
+      <summary>{working ? `Работаю с планом… ${count}` : `Ход проверки: ${count}`}</summary>
+      <ol className="agent__steps">
+        {steps.map((step, index) => (
+          <li key={index} className={step.ok ? undefined : 'is-failed'}>
+            <span className="agent__tick" aria-hidden="true">{step.ok ? '✓' : '×'}</span>
+            {step.label}
+            {debug ? <> <code>{step.tool}</code></> : null}
+            {step.ok ? null : <span className="agent__sr"> — не удалось</span>}
+          </li>
+        ))}
+        {working ? <li className="is-working"><span className="agent__tick" aria-hidden="true">…</span>Работаю с планом</li> : null}
+      </ol>
     </details>
   );
 }
@@ -207,41 +228,45 @@ function poseText(pose: AgentEditPose | null, names: PlanIndex): string {
   return `(${metres(pose.position[0])}; ${metres(pose.position[1])}) м, ${pose.rotation_deg}°, ${zone}`;
 }
 
-/** What the model asked for, in words: shown next to the reason it was refused. */
-function editText(edit: AgentEdit): string {
+/** What the model asked for, in words: shown next to the reason it was refused. Ids only in «Отладка» (#252). */
+function editText(edit: AgentEdit, names: PlanIndex, debug: boolean): string {
+  const object = (id: string): string => (debug ? id : `«${names.objectLabel(id) ?? 'объект'}»`);
   switch (edit.op) {
     case 'move':
-      return `сдвинуть ${edit.id} на (${metres(edit.dx_m)}; ${metres(edit.dy_m)}) м`;
+      return `сдвинуть ${object(edit.id)} на (${metres(edit.dx_m)}; ${metres(edit.dy_m)}) м`;
     case 'rotate':
-      return `повернуть ${edit.id} на ${metres(edit.by_deg)}°`;
-    case 'add':
-      return `добавить ${edit.typeId}${edit.zoneId === null ? '' : ` в ${edit.zoneId}`}`;
+      return `повернуть ${object(edit.id)} на ${metres(edit.by_deg)}°`;
+    case 'add': {
+      const type = debug ? edit.typeId : `«${names.objectTypeLabel(edit.typeId) ?? 'объект'}»`;
+      const zone = edit.zoneId === null ? '' : ` в ${debug ? edit.zoneId : `зону «${names.zoneName(edit.zoneId) ?? 'вне плана'}»`}`;
+      return `добавить ${type}${zone}`;
+    }
     case 'delete':
-      return `удалить ${edit.id}`;
+      return `удалить ${object(edit.id)}`;
   }
 }
 
 /** #126: every edit of the answer — «было → стало» with ids, and each refusal with its reason. */
-function EditList({ answer, names }: { answer: AgentAnswer; names: PlanIndex }): React.JSX.Element | null {
+function EditList({ answer, names, debug }: { answer: AgentAnswer; names: PlanIndex; debug: boolean }): React.JSX.Element | null {
   if (answer.proposals.length === 0) return null;
   return (
     <>
       {answer.proposals.map((proposal) => (
         <div key={proposal.id} className="agent__edits">
           <p className="agent__mode">
-            {proposal.title ?? `Правки ${proposal.id}`}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
+            {proposal.title ?? 'Правки'}: принято {proposal.changes.length}, отклонено {proposal.rejected.length}. Проверил код: id, физика, проверка плана.
           </p>
-          <ul className="agent__steps" aria-label={`Правки ${proposal.id}: было → стало`}>
+          <ul className="agent__steps" aria-label={`${proposal.title?.split(':')[0] ?? 'Правки'}: было → стало`}>
             {proposal.changes.map((change) => (
               <li key={`${change.op}-${change.id}`}>
                 <span className="agent__tick" aria-hidden="true">✓</span>
-                <code>{change.id}</code> «{change.label}», {OP_NAMES[change.op]}: {poseText(change.before, names)} → {poseText(change.after, names)}
+                {debug ? <><code>{change.id}</code>{' '}</> : null}«{change.label}», {OP_NAMES[change.op]}: {poseText(change.before, names)} → {poseText(change.after, names)}
               </li>
             ))}
             {proposal.rejected.map((entry, index) => (
               <li key={`rejected-${index}`} className="is-failed">
                 <span className="agent__tick" aria-hidden="true">×</span>
-                Отклонено: {editText(entry.edit)} — {entry.reason}
+                Отклонено: {editText(entry.edit, names, debug)} — {entry.reason}
               </li>
             ))}
           </ul>
@@ -253,6 +278,7 @@ function EditList({ answer, names }: { answer: AgentAnswer; names: PlanIndex }):
 
 export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAsk, onAction, onClear, selection }: Props): React.JSX.Element {
   const [question, setQuestion] = useState('');
+  const debug = useDebugMode();
   const history = useRef<HTMLOListElement>(null);
   const questionField = useRef<HTMLTextAreaElement>(null);
   // New steps and answers arrive at the bottom of the log: keep them in view.
@@ -301,12 +327,12 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
             const pending = exchange.answer === null && exchange.error === null;
             return (
               <li key={exchange.id} className="agent__exchange">
-                <p className="agent__question"><span className="agent__who">Вопрос</span>{exchange.question}</p>
-                <StepLog exchange={exchange} working={pending} />
+                <p className="agent__question"><span className="agent__who">Вопрос</span>{debug ? exchange.question : namedText(exchange.question, plan, names)}</p>
+                <StepLog exchange={exchange} working={pending} debug={debug} />
                 {exchange.error === null ? null : <p className="files__error" role="alert">{exchange.error}</p>}
                 {answer === null ? null : (
                   <div className={`agent__answer${answer.mode === 'llm' ? '' : ' is-fallback'}`}>
-                    <AnswerText text={answer.text} plan={plan} names={names} stale={stale} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
+                    <AnswerText text={answer.text} plan={plan} names={names} stale={stale} debug={debug} onFocus={(ref) => onAction({ kind: 'focus', ref }, answer)} />
                     <p className="agent__mode">
                       {answer.mode !== 'llm'
                         ? `Без LLM: ${answer.fallbackReason ?? 'текст собран расчётом.'}`
@@ -314,13 +340,11 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                           ? 'LLM выбрала рассчитанные факты и написала «почему так». Код сверил в этом тексте каждый id, число и номер варианта с расчётом; остальной текст сформирован кодом.'
                           : 'LLM выбрала рассчитанные факты. Числа, единицы и пояснения сформированы кодом.'}
                     </p>
-                    {/* id доступен без мыши и без клика по каждому упоминанию
-                        в тексте (review of !318, #10): та же клавиатурная
-                        альтернатива, что и «ID зон и объектов» в карточке
-                        рекомендации (AssistantPanel.tsx). Свой класс, не
-                        `agent__log`: тот же класс на «Ход проверки» сделал бы
-                        оба раскрытия неразличимы для селектора по классу. */}
-                    {answer.refs.length === 0 ? null : (
+                    {/* #252: id зон и объектов — только в «Отладке» (как
+                        «ID зон и объектов» в карточке рекомендации). Свой
+                        класс, не `agent__log`: тот же класс на «Ход проверки»
+                        сделал бы оба раскрытия неразличимы для селектора. */}
+                    {!debug || answer.refs.length === 0 ? null : (
                       <details className="agent__ids">
                         <summary>ID зон и объектов ({answer.refs.length})</summary>
                         <ul className="agent__steps">
@@ -333,7 +357,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
                         </ul>
                       </details>
                     )}
-                    <EditList answer={answer} names={names} />
+                    <EditList answer={answer} names={names} debug={debug} />
                     {answer.actions.length === 0 ? null : (
                       <div className="agent__actions" role="group" aria-label="Действия по ответу">
                         {answer.actions
@@ -366,7 +390,7 @@ export function AgentChat({ plan, revision, names, exchanges, actionStatus, onAs
           <span className="agent__chips-title">О выделенном{selectedName === null ? '' : ` «${selectedName}»`}:</span>
           {chips.map((chip) => (
             <button key={chip} type="button" className="agent__chip" disabled={working} onClick={() => submit(chip)}>
-              {chip}
+              {debug ? chip : namedText(chip, plan, names)}
             </button>
           ))}
         </div>

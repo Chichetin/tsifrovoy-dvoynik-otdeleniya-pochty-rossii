@@ -24,13 +24,10 @@ function editGhostsOf(commands: readonly Command[]): EditsPreview {
   };
 }
 
-/** #176: hints are on until the person turns them off. The one place to change the default. */
-export const HINTS_DEFAULT_ENABLED = true;
 /** #211: the note under the draft — the calculation is shown, the model is still writing. */
 export const DRAFT_REASON = 'расчёт показан сразу; модель ещё пишет объяснение — ответ обновится.';
 /** #176: a hint waits for the plan to settle — after a drag ends, not at each of its steps. */
 export const HINTS_DEBOUNCE_MS = 600;
-const HINTS_STORAGE_KEY = 'ops-twin.assistant-hints.v1';
 /** Hints kept on screen, newest first. */
 const HINTS_KEPT = 5;
 /** Settled edits remembered for undo: an undo that reaches one of them takes its hint back. */
@@ -60,15 +57,6 @@ function visibleHints(history: readonly HintRecord[], clearedThrough: number): S
   return shown;
 }
 
-function storedHintsEnabled(): boolean {
-  try {
-    const value = window.localStorage.getItem(HINTS_STORAGE_KEY);
-    return value === null ? HINTS_DEFAULT_ENABLED : value === 'on';
-  } catch {
-    return HINTS_DEFAULT_ENABLED;
-  }
-}
-
 /*
  * The hints of the session live outside React state so the panel can read them
  * without the app passing new props: the session hook writes, `useEditHints`
@@ -78,7 +66,8 @@ let hintsView: HintsView | null = null;
 const hintsListeners = new Set<() => void>();
 
 function readHints(): HintsView {
-  hintsView ??= { enabled: storedHintsEnabled(), hints: [], unseen: 0, clearedThrough: 0 };
+  // #252: hints are always on — the «Подсказки» switch is gone.
+  hintsView ??= { enabled: true, hints: [], unseen: 0, clearedThrough: 0 };
   return hintsView;
 }
 
@@ -90,15 +79,6 @@ function writeHints(change: (view: HintsView) => HintsView): void {
 function subscribeHints(listener: () => void): () => void {
   hintsListeners.add(listener);
   return () => hintsListeners.delete(listener);
-}
-
-export function setHintsEnabled(enabled: boolean): void {
-  try {
-    window.localStorage.setItem(HINTS_STORAGE_KEY, enabled ? 'on' : 'off');
-  } catch {
-    // Private mode: the switch works until the page is closed.
-  }
-  writeHints((view) => ({ ...view, enabled, hints: enabled ? view.hints : [], unseen: enabled ? view.unseen : 0 }));
 }
 
 export function markHintsSeen(): void {
@@ -478,7 +458,6 @@ export function useAssistantSession({
     hintsEnabled: hints.enabled,
     /** Hints not seen yet — the number for the assistant button (#180). */
     hintCount: hints.unseen,
-    setHintsEnabled,
     markHintsSeen,
   };
 }

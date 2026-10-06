@@ -6,11 +6,15 @@ import type { PlanDocument } from '../../contracts/model';
 import { parsePlanDocument } from '../../contracts/schema';
 import { calculateAdvice, defaultExplanation } from '../../domain/advice';
 import { AssistantPanel } from './AssistantPanel';
+import { setDebugMode } from './debug-mode';
 
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setDebugMode(false);
+});
 
 function changedCatalog(plan: PlanDocument): PlanDocument {
   const source = plan.catalog.objectTypes[0];
@@ -159,19 +163,38 @@ test('#10: зона варианта, ссылки и изменения пок�
   const changeButton = panel.querySelector('.advice__changes button')!;
   expect(changeButton.textContent).toBe(object.label);
   expect(changeButton.getAttribute('data-ref-id')).toBe(object.id);
-  expect(changeButton.getAttribute('title')).toBe(`Показать на плане · id ${object.id}`);
+  expect(changeButton.getAttribute('title')).toBe('Показать на плане');
 
   const refButtons = [...panel.querySelectorAll('.advice__refs button')];
   expect(refButtons.map((node) => node.textContent)).toEqual([zone.name, object.label]);
   for (const button of refButtons) expect(button.textContent).not.toMatch(/\b(z|eq)_[a-z0-9_]+\b/);
   expect(refButtons[0]!.getAttribute('data-ref-id')).toBe(zone.id);
-  expect(refButtons[0]!.getAttribute('title')).toBe(`Показать на плане · id ${zone.id}`);
+  expect(refButtons[0]!.getAttribute('title')).toBe('Показать на плане');
   expect(refButtons[1]!.getAttribute('data-ref-id')).toBe(object.id);
-  expect(refButtons[1]!.getAttribute('title')).toBe(`Показать на плане · id ${object.id}`);
+  expect(refButtons[1]!.getAttribute('title')).toBe('Показать на плане');
+  // #252: без «Отладки» раскрытия «ID зон и объектов» нет.
+  const idSummary = (root: Element): HTMLDetailsElement | undefined => [...root.querySelectorAll('details')].find((node) =>
+    node.querySelector('summary')?.textContent?.startsWith('ID зон и объектов'),
+  );
+  expect(idSummary(panel)).toBeUndefined();
 
-  // Блокер ревью !318: id виден без DevTools — раскрытие «ID зон и объектов»,
-  // а не только data-ref-id/title.
-  const idDetails = [...panel.querySelectorAll('details')].find((node) =>
+  // «Отладка» (#252): id в раскрытии «ID зон и объектов» и в title (review !318).
+  cleanup();
+  setDebugMode(true);
+  render(
+    <AssistantPanel
+      document={parsed.value}
+      revision={0}
+      response={{ revision: 0, recommendations: [recommendation], explanations: [], mode: 'fallback', fallbackReason: 'проверка' }}
+      state={{ status: 'done' }}
+      onPreview={vi.fn()}
+      onFocus={vi.fn()}
+      onAsk={vi.fn()}
+    />,
+  );
+  const debugPanel = screen.getByLabelText('Ассистент');
+  expect(debugPanel.querySelector('.advice__changes button')!.getAttribute('title')).toBe(`Показать на плане · id ${object.id}`);
+  const idDetails = [...debugPanel.querySelectorAll('details')].find((node) =>
     node.querySelector('summary')?.textContent?.startsWith('ID зон и объектов'),
   )!;
   expect(idDetails).toBeDefined();

@@ -11,6 +11,7 @@ import { parsePlanDocument } from '../../contracts/schema';
 import { answerWithoutModel } from '../../domain/advice';
 import { planIndex } from '../../domain/plan-index';
 import { AgentChat } from './AgentChat';
+import { setDebugMode } from './debug-mode';
 
 const parsed = parsePlanDocument(minimal);
 if (!parsed.ok) throw new Error('minimal.json не разобрался');
@@ -18,7 +19,10 @@ const plan = parsed.value;
 const zone = plan.zones[0]!;
 const typeLabel = plan.catalog.objectTypes[0]!.label;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setDebugMode(false);
+});
 
 function answer(overrides: Partial<AgentAnswer> = {}): AgentAnswer {
   return {
@@ -87,9 +91,38 @@ describe('чат агента', () => {
     expect(screen.getByText(/Ход проверки: 1 шаг/)).toBeDefined();
   });
 
-  test('ответ: id виден без DevTools в раскрытии «ID зон и объектов» (review !318)', () => {
+  test('#252: размышления свёрнуты, раскрываются по нажатию; служебное имя шага — только в «Отладке»', () => {
+    const { container } = renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: answer(), error: null }]);
+    const log = container.querySelector<HTMLDetailsElement>('details.agent__log')!;
+    expect(log.open).toBe(false);
+    expect(log.textContent).not.toContain('find_place');
+    fireEvent.click(log.querySelector('summary')!);
+    expect(log.open).toBe(true);
+    cleanup();
+    setDebugMode(true);
+    const debug = renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: answer(), error: null }]);
+    expect(debug.container.querySelector('details.agent__log')!.textContent).toContain('find_place');
+  });
+
+  test('#252: без «Отладки» раскрытия «ID зон и объектов» нет, в title нет id', () => {
     const shown = answer({ refs: [{ kind: 'zone', id: zone.id }] });
     renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
+    expect(screen.queryByText(/^ID зон и объектов/)).toBeNull();
+    expect(screen.getByRole('button', { name: zone.name }).getAttribute('title')).toBe('Показать на плане');
+  });
+
+  test('#252: вопрос с id читается по именам, отправляется с id', () => {
+    renderChat([{ id: 'a', question: `Что находится в зоне «${zone.name}» (${zone.id})?`, revision: 0, steps: [], answer: answer(), error: null }]);
+    const question = document.querySelector('.agent__question')!;
+    expect(question.textContent).toContain(`«${zone.name}»`);
+    expect(question.textContent).not.toContain(zone.id);
+  });
+
+  test('«Отладка»: id виден в раскрытии «ID зон и объектов» и в title (review !318, #252)', () => {
+    setDebugMode(true);
+    const shown = answer({ refs: [{ kind: 'zone', id: zone.id }] });
+    renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
+    expect(screen.getByRole('button', { name: zone.name }).getAttribute('title')).toBe(`Показать на плане · id ${zone.id}`);
     const details = [...screen.getAllByText(/^ID зон и объектов/)].map((node) => node.closest('details'))[0]!;
     expect(details.textContent).toContain(zone.id);
     expect(details.textContent).toContain(zone.name);
@@ -103,15 +136,18 @@ describe('чат агента', () => {
     expect(screen.getByRole('button', { name: zone.name })).toBeDefined();
   });
 
-  test('id, за которым в тексте не стоит зона или объект (например тип или правило), остаётся как есть и без кнопки (D-320, review !318)', () => {
+  test('id, за которым в тексте не стоит зона или объект (например тип или правило), без кнопки; тип — по имени, в «Отладке» — как есть (D-320, #252)', () => {
     const shown = answer({ text: 'Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.' });
     renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
-    const text = screen.getByRole('group', { name: 'Действия по ответу' }).parentElement!.querySelector('.agent__text')!;
-    // Neither is a plan entity a click could show: the sentence is left
-    // exactly as the calculation wrote it, id included — no click to offer,
-    // so trimming the id would only take away information (review of !318).
-    expect(text.textContent).toBe('Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.');
-    expect(text.querySelector('button')).toBeNull();
+    const text = (): Element => screen.getByRole('group', { name: 'Действия по ответу' }).parentElement!.querySelector('.agent__text')!;
+    // Neither is a plan entity a click could show: no button. The type reads
+    // by its name; a rule id has no name and stays as the calculation wrote it.
+    expect(text().textContent).toBe('Правило rule_bench_min и тип «Рабочее место» в тексте.');
+    expect(text().querySelector('button')).toBeNull();
+    cleanup();
+    setDebugMode(true);
+    renderChat([{ id: 'a', question: 'Где?', revision: 0, steps: [], answer: shown, error: null }]);
+    expect(text().textContent).toBe('Правило rule_bench_min и тип «Рабочее место» (ot_workplace) в тексте.');
   });
 
   test('ответ без модели: вариант с кнопкой «Применить» — основной, причина названа', () => {

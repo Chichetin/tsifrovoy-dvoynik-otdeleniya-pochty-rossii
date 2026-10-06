@@ -13,12 +13,13 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { AdviceRequest, Candidate, Fact, Recommendation } from '../../contracts/advice';
+import type { AdviceRequest, Candidate, ChangeKind, Fact, Recommendation } from '../../contracts/advice';
 import type { PlanDocument, Ref } from '../../contracts/model';
 import type { AssistantPanelProps } from '../../contracts/ui';
 import { hideNamedIds, placementZonePath, renderExplanation } from '../../domain/advice';
 import { AgentChat } from './AgentChat';
 import { EditHints } from './EditHints';
+import { focusTitle, useDebugMode } from './debug-mode';
 import { planIndex, type PlanIndex } from '../../domain/plan-index';
 import { formatLength, formatMeasure, formatNumber } from '../../domain/number-format';
 
@@ -54,6 +55,13 @@ function metricLabel(fact: Fact, scenario: Recommendation['scenario'], index: Pl
   }
   return METRIC_LABELS[fact.metric];
 }
+
+const CHANGE_LABELS: Record<ChangeKind, string> = {
+  added: 'добавлен',
+  removed: 'удалён',
+  moved: 'перемещён',
+  updated: 'изменён',
+};
 
 const PHASE_LABELS: Record<Fact['phase'], string> = {
   current: 'сейчас',
@@ -96,8 +104,8 @@ function equipmentSubject(
 }
 
 /**
- * Где окажется вариант: название зоны из плана (D-320); id остаётся доступен
- * рядом, в раскрытии «ID зон и объектов» карточки (D-323).
+ * Где окажется вариант: название зоны из плана (D-320); id — в раскрытии
+ * «ID зон и объектов» карточки, только в «Отладке» (#252).
  */
 function candidateZone(plan: PlanDocument, index: PlanIndex, candidate: Candidate): string {
   const path = placementZonePath(plan, candidate.object);
@@ -151,6 +159,7 @@ export function AssistantPanel({
   // расчёт идёт по сценарию, — и человек должен это увидеть, а не гадать,
   // почему выбран именно этот вариант.
   const [askedQuery, setAskedQuery] = useState<string | null>(null);
+  const debug = useDebugMode();
 
   // The panel stays mounted when another file is opened. Its form state may
   // therefore point to a type or zone that belonged only to the previous
@@ -394,13 +403,13 @@ export function AssistantPanel({
                         <button
                           type="button"
                           className="table__link"
-                          title={`Показать на плане · id ${change.ref.id}`}
+                          title={focusTitle(change.ref.id, debug)}
                           data-ref-id={change.ref.id}
                           onClick={() => onFocus(change.ref)}
                         >
                           {names.nameOf(change.ref) ?? change.ref.id}
                         </button>
-                        <span>{change.kind}</span>
+                        <span>{CHANGE_LABELS[change.kind]}</span>
                       </li>
                     ))}
                   </ul>
@@ -412,7 +421,7 @@ export function AssistantPanel({
                       key={`${ref.kind}-${ref.id}`}
                       type="button"
                       className="table__link"
-                      title={`Показать на плане · id ${ref.id}`}
+                      title={focusTitle(ref.id, debug)}
                       data-ref-id={ref.id}
                       onClick={() => onFocus(ref)}
                     >
@@ -421,13 +430,11 @@ export function AssistantPanel({
                   ))}
                 </p>
 
-                {/* D-323: id виден без DevTools — объяснимость (CLAUDE.md,
-                    «ИИ-ассистент») требует называть id зон и объектов, а
-                    подписи кнопок выше — только их имена. Свой класс, не
-                    `advice__more`: тот же класс на «Допущения и правила»
-                    сделал бы оба раскрытия неотличимы для `.first()` в
-                    существующих e2e (review !318). */}
-                {idRefs.length === 0 ? null : (
+                {/* D-323, #252: id зон и объектов — только в «Отладке».
+                    Свой класс, не `advice__more`: тот же класс на «Допущения
+                    и правила» сделал бы оба раскрытия неотличимы для
+                    `.first()` в существующих e2e (review !318). */}
+                {!debug || idRefs.length === 0 ? null : (
                   <details className="advice__ids">
                     <summary>ID зон и объектов ({idRefs.length})</summary>
                     <ul>
@@ -446,7 +453,7 @@ export function AssistantPanel({
                     <summary>Допущения и правила ({recommendation.assumptions.length})</summary>
                     <ul>
                       {recommendation.assumptions.map((assumption) => (
-                        <li key={assumption}>{assumption}</li>
+                        <li key={assumption}>{debug ? assumption : hideNamedIds(assumption)}</li>
                       ))}
                     </ul>
                   </details>

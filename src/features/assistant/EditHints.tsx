@@ -1,16 +1,17 @@
 /**
  * #176, mode A «Подсказки»: what the last edit changed, said by code.
  *
- * The switch sits at the top of the assistant panel. The newest hint is open,
- * older ones fold under «Ранее». A name is a button: it rings the entity on the
- * plan, the id is in `title` (D-320). «Объяснить» hands the hint to the chat;
- * without a model the chat answers with the calculation.
+ * Always on (#252): no switch. The newest hint is open, older ones fold under
+ * «Ранее». A name is a button: it rings the entity on the plan; its id is in
+ * `title` only in «Отладка». «Объяснить» hands the hint to the chat; without a
+ * model the chat answers with the calculation.
  */
 
 import type { Ref } from '../../contracts/model';
 import { editHintNumbers } from '../../domain/advice';
 import type { PlanIndex } from '../../domain/plan-index';
-import { clearHints, setHintsEnabled, useEditHints, type ShownHint } from './use-assistant-session';
+import { focusTitle, useDebugMode } from './debug-mode';
+import { clearHints, useEditHints, type ShownHint } from './use-assistant-session';
 import './edit-hints.css';
 
 function FocusText({
@@ -24,13 +25,14 @@ function FocusText({
   names: PlanIndex;
   onFocus: (ref: Ref) => void;
 }): React.JSX.Element {
+  const debug = useDebugMode();
   // A later edit may have taken the entity away: the text stays, the button goes.
   if (target === undefined || target === null || names.nameOf(target) === null) return <span>{text}</span>;
   return (
     <button
       type="button"
       className="hint__link"
-      title={`Показать на плане · id ${target.id}`}
+      title={focusTitle(target.id, debug)}
       data-ref-id={target.id}
       onClick={() => onFocus(target)}
     >
@@ -92,45 +94,35 @@ export function EditHints({
   onFocus: (ref: Ref) => void;
   onExplain?: (question: string) => void;
 }): React.JSX.Element {
-  const { enabled, hints } = useEditHints();
+  const { hints } = useEditHints();
   const [latest, ...older] = hints;
   return (
     <div className="hints">
       <div className="hints__bar">
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          className="hints__switch"
-          title="После каждой правки код сравнивает план «до» и «после». LLM не вызывается."
-          onClick={() => setHintsEnabled(!enabled)}
-        >
-          <span className="hints__track" aria-hidden="true" />
+        <h3 className="hints__title" title="После каждой правки код сравнивает план «до» и «после». LLM не вызывается.">
           Подсказки
-        </button>
-        {enabled && hints.length > 0 ? (
+        </h3>
+        {hints.length > 0 ? (
           <button type="button" className="hints__clear" onClick={clearHints}>
             Очистить
           </button>
         ) : null}
       </div>
-      {enabled ? (
-        <div className="hints__list" aria-live="polite">
-          {latest === undefined ? (
-            <p className="hints__empty">Правьте план — здесь появится, что изменила правка.</p>
-          ) : (
-            <HintCard key={latest.id} hint={latest} names={names} onFocus={onFocus} onExplain={onExplain} />
-          )}
-          {older.length === 0 ? null : (
-            <details className="hints__older">
-              <summary>Ранее ({older.length})</summary>
-              {older.map((hint) => (
-                <HintCard key={hint.id} hint={hint} names={names} onFocus={onFocus} onExplain={onExplain} />
-              ))}
-            </details>
-          )}
-        </div>
-      ) : null}
+      <div className="hints__list" aria-live="polite">
+        {latest === undefined ? (
+          <p className="hints__empty">Правьте план — здесь появится, что изменила правка.</p>
+        ) : (
+          <HintCard key={latest.id} hint={latest} names={names} onFocus={onFocus} onExplain={onExplain} />
+        )}
+        {older.length === 0 ? null : (
+          <details className="hints__older">
+            <summary>Ранее ({older.length})</summary>
+            {older.map((hint) => (
+              <HintCard key={hint.id} hint={hint} names={names} onFocus={onFocus} onExplain={onExplain} />
+            ))}
+          </details>
+        )}
+      </div>
     </div>
   );
 }

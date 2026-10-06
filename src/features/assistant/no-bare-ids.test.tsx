@@ -7,9 +7,12 @@
  * recommendation's assumptions — behind «Допущения и правила».
  *
  * This runs on both demo plans, so a future regression in either fails a
- * test instead of shipping. It only checks the surfaces that show text
- * without asking the reader to expand anything first: the chat answer, a
- * structured recommendation's sentence/zone/changes/refs/limitations.
+ * test instead of shipping. It checks the surfaces that show text without
+ * asking the reader to expand anything first: the chat answer, a structured
+ * recommendation's sentence/zone/changes/refs/limitations.
+ *
+ * #252: with «Отладка» off the whole panel — questions, chips, steps, edits,
+ * folded parts included — has no id; with «Отладка» on the ids are there.
  */
 import { readFileSync } from 'node:fs';
 import { cleanup, render } from '@testing-library/react';
@@ -21,6 +24,7 @@ import { answerWithoutModel, calculateAdvice, defaultExplanation } from '../../d
 import { planIndex } from '../../domain/plan-index';
 import { AgentChat } from './AgentChat';
 import { AssistantPanel } from './AssistantPanel';
+import { setDebugMode } from './debug-mode';
 
 function load(path: string): PlanDocument {
   const parsed = parsePlanDocument(JSON.parse(readFileSync(path, 'utf8')));
@@ -34,7 +38,10 @@ const after = load('demo/after.json');
 /** The five prefixes the issue asks to hunt for, as a plan id — not a longer word that merely contains one. */
 const BARE_ID_PATTERN = /\b(?:z|eq|ot|zt|l)_[a-z0-9_]*\b/i;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  setDebugMode(false);
+});
 
 /** Every question the free chat's three scenarios and #32 answer without a model. */
 const QUESTIONS = [
@@ -146,4 +153,64 @@ test('#10: сценарий «эффект изменений» (сравнен�
   for (const text of scenarioTexts(after, compareResponse(before, after))) {
     expect(text).not.toMatch(BARE_ID_PATTERN);
   }
+});
+
+/** #252: the whole chat as rendered — question, chips about the selection, steps, answer, edits, folded parts. */
+function wholeChatText(plan: PlanDocument, question: string, planBefore: PlanDocument | null): string {
+  const answer = answerWithoutModel(plan, planBefore, question, 0, 'без LLM');
+  const object = plan.objects[0]!;
+  const { container } = render(
+    <AgentChat
+      plan={plan}
+      revision={0}
+      names={planIndex(plan)}
+      exchanges={[{ id: 'q', question, revision: 0, steps: answer.steps, answer, error: null }]}
+      actionStatus={null}
+      onAsk={() => undefined}
+      onAction={() => undefined}
+      onClear={() => undefined}
+      selection={{ kind: 'object', id: object.id }}
+    />,
+  );
+  return container.textContent ?? '';
+}
+
+/** #252: the whole card of a structured recommendation, folded parts included. */
+function wholePanelText(plan: PlanDocument, response: AdviceResponse): string {
+  const { container } = render(
+    <AssistantPanel
+      document={plan}
+      revision={0}
+      response={response}
+      state={{ status: 'done' }}
+      onPreview={() => undefined}
+      onFocus={() => undefined}
+      onAsk={() => undefined}
+    />,
+  );
+  return container.querySelector('.advice')?.parentElement?.textContent ?? '';
+}
+
+describe('#252: id зон и объектов — только в «Отладке»', () => {
+  const object = before.objects[0]!;
+  const questions = [...QUESTIONS, `Предложить место для ${object.id}: куда перенести и почему?`];
+
+  test.each(questions)('чат целиком без «Отладки»: «%s»', (question) => {
+    expect(wholeChatText(before, question, null)).not.toMatch(BARE_ID_PATTERN);
+  });
+
+  test('карточки сценариев целиком без «Отладки»', () => {
+    expect(wholePanelText(before, placeResponse(before, 'ot_workplace', null))).not.toMatch(BARE_ID_PATTERN);
+    cleanup();
+    expect(wholePanelText(before, equipmentResponse(before))).not.toMatch(BARE_ID_PATTERN);
+    cleanup();
+    expect(wholePanelText(after, compareResponse(before, after))).not.toMatch(BARE_ID_PATTERN);
+  });
+
+  test('с «Отладкой» id видны в чате и в карточке', () => {
+    setDebugMode(true);
+    expect(wholeChatText(before, `Предложить место для ${object.id}: куда перенести и почему?`, null)).toContain(object.id);
+    cleanup();
+    expect(wholePanelText(before, placeResponse(before, 'ot_workplace', null))).toMatch(BARE_ID_PATTERN);
+  });
 });

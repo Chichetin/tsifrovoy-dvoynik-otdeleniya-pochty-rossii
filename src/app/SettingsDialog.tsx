@@ -19,6 +19,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import type { Command } from '../contracts/commands';
 import type { PlanDocument } from '../contracts/model';
 import type { CommandSink, EditorSession, SelectSink } from '../contracts/ui';
+import { setDebugMode, useDebugMode } from '../features/assistant/debug-mode';
 import { CatalogPanel, type CatalogSection } from '../features/catalog-editor/CatalogPanel';
 import { LayersPanel } from '../features/layers/LayersPanel';
 
@@ -132,6 +133,7 @@ function PlanSection({ document: plan, onCommand }: { document: PlanDocument; on
 
 export function SettingsDialog({ open, onClose, document: plan, onCommand, session, onSelect }: SettingsDialogProps): React.JSX.Element | null {
   const [section, setSection] = useState<SettingsSection>('plan');
+  const debug = useDebugMode();
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -204,6 +206,11 @@ export function SettingsDialog({ open, onClose, document: plan, onCommand, sessi
                 {item.title}
               </button>
             ))}
+            {/* #252: ids and service lines in the assistant; kept in this browser, not in the plan. */}
+            <label className="settings__debug" title="Показать id зон и объектов и служебные строки в панели ассистента. Хранится в этом браузере, не в файле плана.">
+              <input type="checkbox" checked={debug} onChange={(event) => setDebugMode(event.target.checked)} />
+              Отладка
+            </label>
             {/* #136: which build is open — to compare with origin/main and /api/health. */}
             <p className="panel__note" title="Короткий SHA коммита, из которого собрана страница">
               Сборка: {BUILD_SHA ?? 'неизвестна'}
