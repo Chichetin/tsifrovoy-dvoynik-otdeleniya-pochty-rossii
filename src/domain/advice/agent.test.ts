@@ -348,9 +348,7 @@ describe('ответ без модели называет зоны, типы и 
 test('эффект изменения первой строкой называет удалённый объект: название, id, инв. №, зона (#238)', () => {
   const edited: PlanDocument = { ...before, objects: before.objects.filter((object) => object.id !== 'eq_9') };
   const { text } = answerWithoutModel(edited, before, 'Как мои изменения повлияли на свободную площадь?', 2, 'без LLM');
-  const lead = text.split('
-
-')[0]!;
+  const lead = text.split('\n\n')[0]!;
   expect(lead.startsWith('Изменения плана: свободно ')).toBe(true);
   expect(lead).toContain('объектов 53 → 52');
   expect(lead).toContain('Удалено: «Скамья у зоны очереди» (eq_9) · ИНВ-ДЕМО-009 · «Зона очереди».');
