@@ -83,6 +83,9 @@ code{font:500 .9em var(--mono)}
 .marks .ring.keep{opacity:.95;stroke-width:.4}
 .marks [data-step]{transform:none;transition:opacity .32s var(--ease-out)}
 .marks [data-step].done{opacity:0}
+/* marks drawn on a stacked step's shot leave with that step: the next shot covers the frame, not the ring */
+.stack>div.done .marks{opacity:0;transition:opacity .2s}
+.static .stack>div[data-step]:not(:last-child) .marks{display:none}
 
 /* ===== s1 title ===== */
 .s-title .eyebrow{position:absolute;left:96px;top:215px}
@@ -143,6 +146,7 @@ code{font:500 .9em var(--mono)}
 
 /* ===== s7 inventory ===== */
 .s-inv .counters{left:1000px;top:150px;width:824px}
+.s-inv .counters span{font-size:26px}
 .counters{list-style:none;display:flex;gap:40px}
 .slide>.counters{position:absolute}
 .counters li{display:flex;flex-direction:column}
@@ -151,22 +155,21 @@ code{font:500 .9em var(--mono)}
 .counters.mini{gap:34px;margin-top:22px}
 .counters.mini b{font-size:44px}
 .card{position:absolute;border-radius:56px;padding:26px 40px}
-.card p{font-size:22px}
+.card p{font-size:26px}
 .pair{display:flex;gap:20px;margin-top:20px;height:196px}
 .pair .view{flex:1;border-radius:20px;box-shadow:none}
 .pair.one{height:208px}
-.hl-row{position:absolute;right:40px;bottom:26px;border:1px solid var(--accent);border-radius:999px;padding:6px 22px;font:500 20px var(--mono)!important;color:var(--accent)!important;margin:0!important}
 .strip{position:absolute;display:flex;align-items:center;gap:36px;border:1px solid var(--border);border-radius:100px;padding:16px 28px 16px 16px}
 .strip .view{flex:none;width:340px;height:168px;border-radius:72px}
 .strip p{font:400 34px/1.3 var(--body)}
 .strip b{display:block;font-weight:600;color:var(--accent);margin-bottom:6px}
 
 /* ===== s9 assistant pipeline ===== */
-.pipe{position:absolute;left:96px;top:392px;width:1728px;height:316px;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:140px 140px;gap:36px 40px}
-.pipe::before,.pipe::after{content:'';position:absolute;left:-24px;right:-24px;height:164px;border:1px dashed var(--border);border-radius:100px;pointer-events:none}
-.pipe::before{top:-12px}.pipe::after{top:164px}
+.pipe{position:absolute;left:96px;top:372px;width:1728px;height:396px;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:180px 180px;gap:36px 40px}
+.pipe::before,.pipe::after{content:'';position:absolute;left:-24px;right:-24px;height:204px;border:1px dashed var(--border);border-radius:100px;pointer-events:none}
+.pipe::before{top:-12px}.pipe::after{top:204px}
 .lane-label{position:absolute;left:44px;font:500 18px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted)}
-.lane-label.llm{top:-42px}.lane-label.code{top:236px}
+.lane-label.llm{top:-42px}.lane-label.code{top:290px}
 .node{position:relative;z-index:1;grid-column:var(--c);grid-row:var(--r);border:1px solid var(--border);border-radius:56px;padding:16px 28px;background:var(--bg);display:flex;flex-direction:column;justify-content:center}
 .node h3{font-size:25px}
 .node .tag{margin-bottom:4px;font-size:16px}
@@ -176,9 +179,14 @@ code{font:500 .9em var(--mono)}
 .node.fb{border-style:dashed;border-color:var(--accent)}
 .node.ok{background:var(--text);color:var(--bg);border-color:var(--text)}
 .node.ok .tag{color:var(--brand-primary)}
-.principles{position:absolute;left:96px;top:752px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
-.principles .pill{position:relative;border-radius:56px;height:236px;padding:22px 36px}
+.pipe .node{padding:14px 24px;justify-content:flex-start}
+.pipe .node p:last-child{font:400 22px/1.3 var(--body);color:var(--text-muted);margin-top:6px}
+.pipe .node code{font:500 20px/1.3 var(--mono);color:var(--cream);overflow-wrap:anywhere}
+.pipe .node.ok p:last-child{color:var(--brand-primary)}
+.principles{position:absolute;left:96px;top:806px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+.principles .pill{position:relative;border-radius:56px;height:178px;padding:18px 36px}
 .principles .pill p{font-size:22px}
+.principles .pill:has(.thumb) p{padding-right:130px}
 .principles code{color:var(--cream)}
 .principles .thumb{position:absolute;right:28px;bottom:24px;width:120px;height:68px;border-radius:20px;box-shadow:none;border-width:1px}
 .principles .thumb span{display:none}.principles .thumb b{font-size:11px;padding:0 6px}
@@ -195,13 +203,10 @@ code{font:500 .9em var(--mono)}
 .arch .hub ul{list-style:none;font:500 22px/1.6 var(--mono);color:var(--cream)}
 .arch .reads{position:absolute;left:1040px;top:0;width:688px;height:422px;display:flex;flex-direction:column;justify-content:space-between}
 .arch .rd{position:relative;flex-direction:row;align-items:center;gap:20px;padding:0 28px;height:74px;border-radius:999px}
-.arch .rd h3{width:290px;flex:none}
+.arch .rd h3{width:250px;flex:none}
 .arch .rd p:last-child{font:500 22px var(--mono);color:var(--cream);margin:0}
 .arch .srv{left:1040px;top:456px;width:688px;height:164px;padding:14px 26px}
 .arch .srv p:last-child{font:500 22px/1.4 var(--mono);color:var(--cream)}
-.arch .fence{top:456px;height:164px;padding:14px 26px;border-style:dashed}
-.arch .fence:nth-last-child(2){left:0;width:440px}
-.arch .fence:last-child{left:540px;width:400px}
 
 /* ===== s13 demo: the video covers the stage and the chrome ===== */
 .slide.s-demo{z-index:10;background:#000}

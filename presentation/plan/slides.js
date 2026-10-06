@@ -62,13 +62,13 @@
     ['Горячие клавиши', 'Карта по «?», поворот на 1°', 'hotkeys'],
   ];
 
-  // s10: what reads the document. Each one is a function of the plan, none keeps a copy.
+  // s10: what reads the document and what it is built with. None keeps a copy of the plan.
   const reads = [
-    ['r1', '2D и 3D', 'рисуют документ'],
-    ['r2', 'Инвентаризация', 'buildInventory(plan)'],
-    ['r3', 'Площади', 'measurePlan(plan)'],
-    ['r4', 'Проверка', 'validatePlan(plan)'],
-    ['r5', 'Ассистент', 'calculateAdvice(plan)'],
+    ['r1', '2D и 3D', 'React + Konva · Three.js'],
+    ['r2', 'Инвентаризация', 'TypeScript · выгрузка CSV'],
+    ['r3', 'Площади', 'polyclip-ts · объединение'],
+    ['r4', 'Проверка', 'TypeScript · тесты Vitest'],
+    ['r5', 'Ассистент', 'DeepSeek · Yandex AI Studio'],
   ];
 
   const checks = ['пересечения', 'выход за помещение', 'стена', 'загороженная дверь', 'техника без стола', 'повтор инвентарного номера', 'комплектование'];
@@ -224,7 +224,6 @@
     <h3>Инвентаризация из плана</h3>
     <p>Перечень с инвентарными номерами, типом, зоной и состоянием. Чек-лист комплектности: красная строка сразу спрашивает ассистента.</p>
     <div class="pair">${frame('inventory', 'Перечень оборудования с инвентарными номерами')}${frame('checklist', 'Чек-лист комплектности: красная строка «Зона ожидания: Скамья 1/≥2»')}</div>
-    <p class="hl-row">Зона ожидания: Скамья 1/≥2</p>
   </article>
   <article class="pill card" data-step="2" style="left:980px;top:330px;width:844px;height:430px">
     <h3>Новый тип — это форма</h3>
@@ -266,20 +265,20 @@
   </header>
   <div class="pipe" data-links="n1>n2; n2>n3; n3>n4; n4>n5; n5>n6 n7">
     <span class="lane-label llm">Модель</span><span class="lane-label code">Код</span>
-    <div class="node llm" data-node="n1" style="--c:1;--r:1"><p class="tag">1</p><h3>Вопрос</h3></div>
-    <div class="node llm" data-node="n2" data-step="1" data-packet style="--c:2;--r:1"><p class="tag">2</p><h3>Выбирает сценарий</h3></div>
-    <div class="node calc" data-node="n3" data-step="2" data-packet style="--c:3;--r:2"><p class="tag">3</p><h3>Считает</h3></div>
-    <div class="node llm" data-node="n4" data-step="3" data-packet style="--c:4;--r:1"><p class="tag">4</p><h3>Объясняет</h3></div>
-    <div class="node calc gate" data-node="n5" data-step="4" data-packet style="--c:5;--r:2"><p class="tag">5</p><h3>Проверяет</h3></div>
-    <div class="node ok" data-node="n6" data-step="5" data-packet style="--c:6;--r:1"><p class="tag">6</p><h3>Вариант на плане</h3></div>
-    <div class="node fb" data-node="n7" data-step="5" data-packet data-dashed style="--c:6;--r:2"><p class="tag">Если не совпало</p><h3>Расчёт «Без LLM»</h3></div>
+    <div class="node llm" data-node="n1" style="--c:1;--r:1"><p class="tag">1 · браузер</p><h3>Вопрос и план</h3><p>React → HTTP на сервер Fastify</p></div>
+    <div class="node llm" data-node="n2" data-step="1" data-packet style="--c:2;--r:1"><p class="tag">2 · DeepSeek</p><h3>Выбирает инструмент</h3><p>tool calling, 1 из 13</p></div>
+    <div class="node calc" data-node="n3" data-step="2" data-packet style="--c:3;--r:2"><p class="tag">3 · TypeScript</p><h3>Считает</h3><p>место, правила, площадь; тесты Vitest</p></div>
+    <div class="node llm" data-node="n4" data-step="3" data-packet style="--c:4;--r:1"><p class="tag">4 · JSON</p><h3>Объясняет</h3><p>id фактов и «почему»</p></div>
+    <div class="node calc gate" data-node="n5" data-step="4" data-packet style="--c:5;--r:2"><p class="tag">5 · код</p><h3>Проверяет</h3><p>id из плана, каждое число — из фактов</p></div>
+    <div class="node ok" data-node="n6" data-step="5" data-packet style="--c:6;--r:1"><p class="tag">6 · команда</p><h3>Вариант на плане</h3><p>«Применить», Ctrl+Z</p></div>
+    <div class="node fb" data-node="n7" data-step="5" data-packet data-dashed style="--c:6;--r:2"><p class="tag">Если не совпало</p><h3>Расчёт «Без LLM»</h3><p>1 повтор, затем текст кода</p></div>
   </div>
   <div class="principles">
     <article class="pill" data-step="6"><h3>Числа считает код</h3><p>Площади, поиск места, правила — функции с тестами.</p>${frame('assistant-journal', 'Журнал шагов агента', 'thumb')}</article>
     <article class="pill" data-step="6"><h3>Модель сверяется с расчётом</h3><p><code>id</code> и числа проверяет код. Не совпало или нет API — ответ «Без LLM». После правки код сам говорит, что изменилось.</p></article>
     <article class="pill" data-step="6"><h3>Ничего не двигает сам</h3><p>Вариант полупрозрачный. Ставит только «Применить». Отмена — Ctrl+Z.</p></article>
   </div>
-  ${note('Модель не считает. Она выбирает инструмент и объясняет. Площади, места и правила считает код. Потом код проверяет ответ модели: все id существуют, числа совпадают. Если нет — показываем расчёт с пометкой «Без LLM». И ассистент ничего не меняет без кнопки «Применить».')}
+  ${note('Браузер отправляет вопрос и план на сервер Fastify. Модель DeepSeek через tool calling выбирает один из 13 инструментов: найти место, проверить комплектность, проверить план и другие. Инструмент — расчёт на TypeScript, покрытый тестами Vitest. Модель возвращает JSON: id выбранных фактов и короткое «почему». Код отклоняет текст, если в нём чужой id или число, которого нет в фактах. Отказ — одна просьба переписать, затем ответ кода с пометкой «Без LLM». На всё — не больше 6 вызовов модели. Вариант ставит только кнопка «Применить», отмена — Ctrl+Z.')}
 </section>
 
 
@@ -290,22 +289,20 @@
     ${title('Правка — командой,', 'остальное — расчёт')}
   </header>
   <div class="arch" data-links="w1>w2|v; w2>w3|v; w3>hub; hub>r1 r2 r3 r4 r5; r5>srv|v">
-    <div class="node wr" data-node="w1" style="--y:0"><p class="tag">Вход</p><h3>Жест, карточка, файл</h3><p>и «Применить» ассистента</p></div>
-    <div class="node wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда</p><h3>16 типов и batch</h3><p>всё или ничего · одна запись undo</p></div>
-    <div class="node wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Допуск</p><h3>6 правил физики</h3><p>новое нарушение — отказ</p></div>
+    <div class="node wr" data-node="w1" style="--y:0"><p class="tag">Вход · React</p><h3>Жест, карточка, файл</h3><p>и «Применить» ассистента</p></div>
+    <div class="node wr" data-node="w2" data-step="1" data-packet style="--y:1"><p class="tag">Команда · Zustand</p><h3>16 типов и batch</h3><p>всё или ничего · одна запись undo</p></div>
+    <div class="node wr" data-node="w3" data-step="1" data-packet style="--y:2"><p class="tag">Допуск · TypeScript</p><h3>6 правил физики</h3><p>новое нарушение — отказ</p></div>
     <div class="node hub" data-node="hub" data-step="1" data-packet>
       <p class="tag">Единое состояние</p>
-      <h3>PlanDocument</h3>
-      <ul><li>schemaVersion 1</li><li>метры · центр · Y вверх</li><li>справочник внутри</li><li>правка → revision + 1</li></ul>
+      <h3>План в JSON</h3>
+      <ul><li>схема Zod, версия 1</li><li>метры · центр · Y вверх</li><li>справочник внутри</li><li>store Zustand, undo</li></ul>
     </div>
     <div class="reads">
       ${reads.map(([id, name, fn]) => `<div class="node rd" data-node="${id}" data-step="2" data-packet><h3>${name}</h3><p>${fn}</p></div>`).join('')}
     </div>
-    <div class="node srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер</p><h3>Повторяет расчёт сам</h3><p>Zod-схема → тот же src/domain → модели только факты → проверка ответа</p></div>
-    <div class="node fence" data-step="4"><p class="tag">Граница · ESLint</p><p>src/domain не импортирует react, konva, three, zustand, store и server</p></div>
-    <div class="node fence" data-step="4"><p class="tag">revision</p><p>Ответ ассистента несёт revision. После правки он устарел</p></div>
+    <div class="node srv" data-node="srv" data-step="3" data-packet><p class="tag">Сервер · Node.js</p><h3>Fastify повторяет расчёт</h3><p>Zod проверяет файл → тот же TypeScript-расчёт → модели только факты → код проверяет ответ</p></div>
   </div>
-  ${note('Состояние одно — PlanDocument. Его меняют только команды. Жест на плане, карточка, файл и кнопка «Применить» ассистента дают команду. Группа — это batch: всё или ничего, одна запись undo. Перед записью — допуск: шесть правил физики. Новое нарушение — правка отклонена. Всё остальное — функции плана: инвентаризация, площади, проверка, 3D, расчёт ассистента. Копий плана нет. Сервер не верит браузеру: проверяет файл схемой и повторяет расчёт тем же кодом. Границы модулей держит ESLint. Ответ ассистента привязан к revision: после правки он помечен устаревшим.')}
+  ${note('Состояние одно — план в JSON, его проверяет схема Zod. В браузере план живёт в store Zustand. Меняют его только команды: жест на плане, карточка, файл и кнопка «Применить» ассистента. Группа правок — одна команда и одна запись undo. Перед записью — шесть правил физики: новое нарушение отклоняет правку. Остальное — расчёт из плана: 2D на React и Konva, 3D на Three.js, инвентаризация, площади, проверка и ассистент. Копий плана нет. Сервер на Fastify не верит браузеру: проверяет файл той же схемой и повторяет расчёт тем же кодом на TypeScript.')}
 </section>
 
 
