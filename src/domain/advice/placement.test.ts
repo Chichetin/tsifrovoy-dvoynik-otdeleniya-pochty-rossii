@@ -36,6 +36,7 @@ import {
   centreZoneId,
   findPlacements,
   placementZonePath,
+  searchPlacements,
   separationFor,
   serviceLineSegments,
   spreadApart,
@@ -942,7 +943,8 @@ describe('A-fit: минимум — не запрет, расстановка п
     });
     if (!parsed.ok) throw new Error('data/catalog не разобрался');
     const home: Rule = countRule('rule_parcel_rack_storage', 'zt_storage', 'ot_parcel_rack', 0, null);
-    const real = parsed.value;
+    // #237: правило уже в справочнике — сравниваем с ним и без него.
+    const real: Catalog = { ...parsed.value, rules: parsed.value.rules.filter((rule) => rule.id !== home.id) };
     const extended: Catalog = { ...real, rules: [...real.rules, home] };
     expect(validateCatalog(extended)).toEqual([]);
 
@@ -1116,5 +1118,87 @@ describe('#213: окно и рабочее место — вдоль линии 
     // Лицевая сторона — локальная +Y после поворота: (sin, cos) = (−1, 0).
     expect(first!.object.rotation_deg).toBe(270);
     expect(strayZones(document, first!.object)).toEqual([]);
+  });
+});
+
+describe('#237: место — в зоне типа из правил, «ближе к входу» — с расстоянием до входа', () => {
+  function teamCatalog(): Catalog {
+    const parsed = parseCatalog({
+      version: '1.0.0',
+      objectTypes: readRepoJson('data', 'catalog', 'object-types.json'),
+      zoneTypes: readRepoJson('data', 'catalog', 'zone-types.json'),
+      layerTypes: readRepoJson('data', 'catalog', 'layer-types.json'),
+      rules: readRepoJson('data', 'catalog', 'rules.json'),
+    });
+    if (!parsed.ok) throw new Error('data/catalog не разобрался');
+    return parsed.value;
+  }
+
+  function entranceDistance(candidate: { facts: { metric: string; phase: string; value: number }[] }): number {
+    const fact = candidate.facts.find((entry) => entry.metric === 'layout.entrance' && entry.phase === 'after');
+    if (fact === undefined) throw new Error('у варианта нет расстояния до входа');
+    return fact.value;
+  }
+
+  test('демо: скамья без зоны — в зоне ожидания или очереди, а не в комнате персонала', () => {
+    // Было (r1-24): скамья стоит и в комнате персонала, эта зона была уместной
+    // наравне с зоной ожидания, и у стены побеждала комната персонала.
+    const demo = demoBefore();
+    const candidates = values(demo, 'ot_bench', null);
+
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) {
+      expect(['z_waiting', 'z_queue'], candidate.id).toContain(centreZoneId(demo, candidate.object.position));
+    }
+  });
+
+  test('стеллаж для посылок в плане со «Складом» — в склад, а не в клиентский зал', () => {
+    // Было (r2-19): правила для стеллажа нет, стеллажей в плане нет — искали по всему помещению.
+    const document = plan({
+      zones: [
+        zone('z_client', 'zt_client', [[0, 0], [6, 0], [6, 8], [0, 8]]),
+        { ...zone('z_store', 'zt_storage', [[6, 0], [10, 0], [10, 8], [6, 8]]), name: 'Склад' },
+      ],
+      catalog: teamCatalog(),
+    });
+
+    const candidates = values(document, 'ot_parcel_rack', null);
+    expect(candidates.length).toBeGreaterThan(0);
+    for (const candidate of candidates) expect(candidate.object.zoneId).toBe('z_store');
+  });
+
+  test('демо: у варианта окна — расстояние до входа; «ближе к входу» упорядочивает по нему', () => {
+    const demo = demoBefore();
+    const walls = new Map(demo.walls.map((wall) => [wall.id, wall]));
+    const entrances = demo.openings
+      .filter((opening) => opening.kind === 'entrance')
+      .map((opening) => openingCentre(opening, walls.get(opening.wallId)!));
+    const request = { scenario: 'place', typeId: 'ot_cashier_window', zoneId: null } as const;
+
+    const plain = values(demo, 'ot_cashier_window', null);
+    expect(plain.length).toBeGreaterThan(0);
+    for (const candidate of plain) {
+      const nearest = Math.min(...entrances.map((centre) => Math.hypot(candidate.object.position[0] - centre[0], candidate.object.position[1] - centre[1])));
+      expect(entranceDistance(candidate)).toBeCloseTo(nearest, 6);
+    }
+
+    const near = searchPlacements(demo, request, null, true);
+    if (!near.ok) throw new Error('ожидался результат');
+    expect(near.value.length).toBeGreaterThan(0);
+    // Линия обслуживания (#213) по-прежнему идёт первой, внутри неё — ближе к входу.
+    expect(entranceDistance(near.value[0]!)).toBeLessThanOrEqual(entranceDistance(plain[0]!) + TOLERANCE.coordinate_m);
+    const bench = searchPlacements(demo, { scenario: 'place', typeId: 'ot_bench', zoneId: null }, null, true);
+    if (!bench.ok) throw new Error('ожидался результат');
+    const distances = bench.value.map(entranceDistance);
+    expect(distances.length).toBeGreaterThan(1);
+    expect(distances).toEqual([...distances].sort((a, b) => a - b));
+    // Проход у входа по-прежнему закрыт.
+    for (const candidate of near.value) {
+      for (const entrance of entrances) {
+        expect(polygonSegmentDistance(footprint(candidate.object), entrance, entrance)).toBeGreaterThanOrEqual(
+          SERVICE_LINE.entranceClearance_m - TOLERANCE.coordinate_m,
+        );
+      }
+    }
   });
 });
