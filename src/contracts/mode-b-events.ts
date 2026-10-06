@@ -44,7 +44,7 @@ function isPoint(value: unknown): value is Point {
 
 /**
  * An event's `detail` as a ghost; null or a wrong shape gives null (no ghost).
- * `to` needs `position` and `size_m`; a wrong `from` becomes null, a wrong `label` becomes ''.
+ * `to` needs `position`, `size_m` and a finite `rotation_deg`; a wrong `from` becomes null, a wrong `label` becomes ''.
  */
 export function readSuggestionGhost(detail: unknown): SuggestionGhost | null {
   if (typeof detail !== 'object' || detail === null) return null;
@@ -52,5 +52,6 @@ export function readSuggestionGhost(detail: unknown): SuggestionGhost | null {
   if (typeof to !== 'object' || to === null) return null;
   const object = to as Partial<Equipment>;
   if (!isPoint(object.position) || !isPoint(object.size_m)) return null;
+  if (typeof object.rotation_deg !== 'number' || !Number.isFinite(object.rotation_deg)) return null;
   return { to: to as Equipment, from: isPoint(from) ? from : null, label: typeof label === 'string' ? label : '' };
 }

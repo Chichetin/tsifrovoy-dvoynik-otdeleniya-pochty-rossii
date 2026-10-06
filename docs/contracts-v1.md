@@ -350,7 +350,7 @@ readSuggestionGhost(detail: unknown): SuggestionGhost | null;
 
 | Событие | Шлёт | Слушает |
 |---|---|---|
-| `SUGGEST_PLACE_EVENT` | properties (`PropertiesPanel`), equipment (`object-menu`, `ObjectContextMenu`), library (`LibraryPanel`) | assistant (`use-place-suggestion`) |
+| `SUGGEST_PLACE_EVENT` | properties (`PropertiesPanel`), equipment (`ObjectContextMenu`), library (`LibraryPanel`) | assistant (`use-place-suggestion`) |
 | `SUGGESTION_GHOST_EVENT` | assistant (`use-place-suggestion`) | equipment (`placement-ghost`) |
 
 Отправитель вызывает `dispatch…`. Слушатель читает `detail` через `read…`.

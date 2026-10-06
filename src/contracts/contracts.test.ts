@@ -309,6 +309,8 @@ describe('события режима Б', () => {
     expect(readSuggestionGhost(null)).toBeNull();
     expect(readSuggestionGhost({ label: 'без объекта' })).toBeNull();
     expect(readSuggestionGhost({ to: { position: [1, 2] } })).toBeNull();
-    expect(readSuggestionGhost({ to: { position: [1, Number.NaN], size_m: [1, 1] } })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, Number.NaN], size_m: [1, 1], rotation_deg: 0 } })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, 2], size_m: [1, 1] } })).toBeNull();
+    expect(readSuggestionGhost({ to: { position: [1, 2], size_m: [1, 1], rotation_deg: Number.POSITIVE_INFINITY } })).toBeNull();
   });
 });
