@@ -442,7 +442,7 @@
 <!-- b5 ФОРМАТ ФАЙЛА -->
 <section class="slide s-format" id="b5" data-kind="backup" data-title="Формат файла" aria-label="Формат файла плана">
   <header class="p-head" style="width:640px"><p class="eyebrow in">Вопросы</p>${title('Формат файла', 'плана')}<p class="lead in">Метры · X вправо · Y вверх · поворот по часовой стрелке</p></header>
-  <ul class="steps" data-step="1" style="left:96px;top:600px;width:640px">
+  <ul class="steps" data-step="1" style="left:96px;top:540px;width:640px">
     <li class="pill"><h3>Отказ</h3><p>битая ссылка, повтор id, версия новее — открытый план цел</p></li>
     <li class="pill"><h3>Открыть</h3><p>нарушенная геометрия — план открыт с находками</p></li>
     <li class="pill"><h3>Назвать</h3><p>поле вне формата названо; своё — в extensions</p></li>
