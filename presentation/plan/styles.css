@@ -165,11 +165,11 @@ code{font:500 .9em var(--mono)}
 .strip b{display:block;font-weight:600;color:var(--accent);margin-bottom:6px}
 
 /* ===== s9 assistant pipeline ===== */
-.pipe{position:absolute;left:96px;top:372px;width:1728px;height:396px;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:180px 180px;gap:36px 40px}
-.pipe::before,.pipe::after{content:'';position:absolute;left:-24px;right:-24px;height:204px;border:1px dashed var(--border);border-radius:100px;pointer-events:none}
-.pipe::before{top:-12px}.pipe::after{top:204px}
+.pipe{position:absolute;left:96px;top:372px;width:1728px;height:432px;display:grid;grid-template-columns:repeat(6,1fr);grid-template-rows:202px 202px;gap:28px 28px}
+.pipe::before,.pipe::after{content:'';position:absolute;left:-24px;right:-24px;height:226px;border:1px dashed var(--border);border-radius:100px;pointer-events:none}
+.pipe::before{top:-12px}.pipe::after{top:218px}
 .lane-label{position:absolute;left:44px;font:500 22px var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted)}
-.lane-label.llm{top:-42px}.lane-label.code{top:290px}
+.lane-label.llm{top:-42px}.lane-label.code{top:318px}
 .node{position:relative;z-index:1;grid-column:var(--c);grid-row:var(--r);border:1px solid var(--border);border-radius:56px;padding:16px 28px;background:var(--bg);display:flex;flex-direction:column;justify-content:center}
 .node h3{font-size:25px}
 .node .tag{margin-bottom:4px;font-size:20px}
@@ -179,17 +179,20 @@ code{font:500 .9em var(--mono)}
 .node.fb{border-style:dashed;border-color:var(--accent)}
 .node.ok{background:var(--text);color:var(--bg);border-color:var(--text)}
 .node.ok .tag{color:var(--brand-primary)}
-.pipe .node{padding:14px 24px;justify-content:flex-start}
+.pipe .node{border-radius:36px;padding:16px 24px;justify-content:flex-start}
+/* The node of the current step comes in large and shrinks to its size on the next step. */
+.pipe .node[data-step]{transition:opacity .32s var(--ease-out),transform .5s var(--ease-io),visibility 0s}
+.pipe .node[data-step]:not(.on){transition:opacity .32s var(--ease-out),transform .32s var(--ease-out),visibility 0s .32s}
+.pipe .node[data-step].cur{z-index:2;transform:scale(1.12)}
+.pipe:not(:has([data-step].on)) .node[data-node="n1"]{z-index:2;transform:scale(1.12)}
+.pipe .node[data-node="n1"]{transition:transform .5s var(--ease-io)}
 .pipe .node p:last-child{font:400 26px/1.3 var(--body);color:var(--text-muted);margin-top:6px}
 .pipe .node code{font:500 24px/1.3 var(--mono);color:var(--cream);overflow-wrap:anywhere}
 .pipe .node.ok p:last-child{color:var(--brand-primary)}
-.principles{position:absolute;left:96px;top:806px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
-.principles .pill{position:relative;border-radius:56px;height:178px;padding:18px 36px}
+.principles{position:absolute;left:96px;top:834px;width:1728px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+.principles .pill{position:relative;border-radius:56px;height:164px;padding:18px 36px}
 .principles .pill p{font-size:24px;line-height:1.3}
-.principles .pill:has(.thumb) p{padding-right:130px}
 .principles code{color:var(--cream)}
-.principles .thumb{position:absolute;right:28px;bottom:24px;width:120px;height:68px;border-radius:20px;box-shadow:none;border-width:1px}
-.principles .thumb span{display:none}.principles .thumb b{font-size:11px;padding:0 6px}
 
 /* ===== s10 architecture: layout from ../shared/layout.css, pills of this variant ===== */
 .s-sys .title .ln{display:inline-block;margin-right:.28em}

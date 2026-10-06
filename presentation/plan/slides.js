@@ -274,7 +274,7 @@
     <div class="node fb" data-node="n7" data-step="5" data-packet data-dashed style="--c:6;--r:2"><p class="tag">Если не совпало</p><h3>Расчёт «Без LLM»</h3><p>1 повтор, затем текст кода</p></div>
   </div>
   <div class="principles">
-    <article class="pill" data-step="6"><h3>Числа считает код</h3><p>Площади, поиск места, правила — функции с тестами.</p>${frame('assistant-journal', 'Журнал шагов агента', 'thumb')}</article>
+    <article class="pill" data-step="6"><h3>Числа считает код</h3><p>Площади, поиск места, правила — функции с тестами.</p></article>
     <article class="pill" data-step="6"><h3>Модель сверяется с расчётом</h3><p><code>id</code> и числа проверяет код. Не совпало или нет API — ответ «Без LLM». После правки код сам говорит, что изменилось.</p></article>
     <article class="pill" data-step="6"><h3>Ничего не двигает сам</h3><p>Вариант полупрозрачный. Ставит только «Применить». Отмена — Ctrl+Z.</p></article>
   </div>
