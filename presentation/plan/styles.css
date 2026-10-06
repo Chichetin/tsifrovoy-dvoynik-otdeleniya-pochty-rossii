@@ -196,20 +196,20 @@ code{font:500 .9em var(--mono)}
 
 /* ===== s10 architecture: layout from ../shared/layout.css, pills of this variant ===== */
 .s-sys .title .ln{display:inline-block;margin-right:.28em}
-.arch{position:absolute;left:96px;top:300px;width:1728px;height:640px}
+.arch{position:absolute;left:96px;top:300px;width:1728px;height:700px}
 .arch .node{position:absolute;grid-column:auto;grid-row:auto;border-radius:32px;justify-content:flex-start}
 .arch .node h3{font-size:26px}
 .arch .node p:last-child{font:400 26px/1.35 var(--body);color:var(--text-muted);margin-top:4px}
-.arch .wr{left:0;top:calc(var(--y) * 146px);width:440px;height:130px;padding:14px 26px}
-.arch .hub{left:540px;top:46px;width:400px;border:2px solid var(--text);padding:26px 28px 22px;background:var(--surface);border-radius:44px}
+.arch .wr{left:0;top:calc(var(--y) * 204px);width:460px;height:184px;padding:18px 28px}
+.arch .hub{left:530px;top:140px;width:440px;border:2px solid var(--text);padding:26px 28px 22px;background:var(--surface);border-radius:44px}
 .arch .hub h3{font:600 40px var(--body);letter-spacing:-.03em;margin-bottom:16px}
 .arch .hub ul{list-style:none;font:500 26px/1.6 var(--mono);color:var(--cream)}
-.arch .reads{position:absolute;left:1040px;top:0;width:688px;height:422px;display:flex;flex-direction:column;justify-content:space-between}
-.arch .rd{position:relative;flex-direction:row;align-items:center;gap:20px;padding:0 28px;height:74px;border-radius:999px}
-.arch .rd h3{width:250px;flex:none}
-.arch .rd p:last-child{font:500 26px var(--mono);color:var(--cream);margin:0}
-.arch .srv{left:1040px;top:456px;width:688px;height:164px;padding:14px 26px}
-.arch .srv p:last-child{font:500 26px/1.4 var(--mono);color:var(--cream)}
+.arch .reads{position:absolute;left:1040px;top:0;width:688px;height:470px;display:flex;flex-direction:column;justify-content:space-between}
+.arch .rd{position:relative;flex-direction:row;align-items:center;gap:20px;padding:0 32px;height:82px;border-radius:999px}
+.arch .rd h3{width:220px;flex:none}
+.arch .rd p:last-child{font:500 24px/1.3 var(--mono);color:var(--cream);margin:0}
+.arch .srv{left:1040px;top:500px;width:688px;height:200px;padding:16px 28px}
+.arch .srv p:last-child{font:500 24px/1.4 var(--mono);color:var(--cream)}
 
 /* ===== s13 demo: the video covers the stage and the chrome ===== */
 .slide.s-demo{z-index:10;background:#000}
