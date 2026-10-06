@@ -957,7 +957,7 @@ export const findPlacements: FindPlacements = (plan, request) => searchPlacement
 
 /**
  * #177: spots nearer than `minSeparation_m` to `avoid` (the object's own spot) are «оставить как есть».
- * #237: `nearEntrance` — человек просит «ближе к входу»: варианты идут по расстоянию до входа.
+ * #237: `nearEntrance` — человек просит «ближе к входу»: из найденных вариантов ближе к входу первыми.
  */
 export function searchPlacements(
   plan: PlanDocument,
@@ -1071,7 +1071,7 @@ export function searchPlacements(
       a.warnings - b.warnings ||
       // #213: у линии обслуживания — раньше остальных (только окно и рабочее место).
       Number(b.onLine) - Number(a.onLine) ||
-      // #237: «ближе к входу» — по расстоянию до ближайшего входа.
+      // #237: «ближе к входу» — из найденных вариантов ближе к входу первыми; поиск от входа не идёт.
       (nearEntrance ? compareLengths(a.entrance_m ?? 0, b.entrance_m ?? 0) : 0) ||
       (pinned
         ? compareLengths(a.distance_m, b.distance_m) || compareLengths(a.wallGap_m, b.wallGap_m)

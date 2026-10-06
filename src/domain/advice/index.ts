@@ -189,7 +189,7 @@ function zoneFitNotes(
   };
 }
 
-/** #237: `nearEntrance` — «ближе к входу»: варианты по расстоянию до входа. */
+/** #237: `nearEntrance` — «ближе к входу»: из найденных вариантов ближе к входу первыми. */
 export function placementAdvice(
   plan: PlanDocument,
   request: Extract<AdviceRequest, { scenario: 'place' }>,
@@ -275,7 +275,7 @@ export function placementAdvice(
           ...(nearEntrance
             ? [
                 candidates.some((candidate) => candidate.facts.some((fact) => fact.metric === 'layout.entrance'))
-                  ? 'Ближе к входу: варианты упорядочены по расстоянию от центра варианта до центра ближайшего входа.'
+                  ? 'Ближе к входу: из найденных вариантов первыми идут те, что ближе к входу (от центра варианта до центра ближайшего входа). Поиск от входа не ведётся.'
                   : 'Ближе к входу: в плане нет входа — расстояние до входа не посчитать.',
               ]
             : []),

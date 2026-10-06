@@ -271,9 +271,9 @@ const LAYOUT_VERB = /(?:^|[^а-я])(разложи|расставь|перест
 
 /** #126: an imperative verb makes a clause an edit; «где поставить» stays a question about a place. */
 const EDIT_VERB = /(?:^|[^а-я])(раздвинь|сдвинь|передвинь|подвинь|перемести|поверни|разверни|удали|убери|добавь|поставь)(?:[^а-я]|$)/;
-/** #150: a question about a place — the only reading that turns a type name into a search. */
-/** #237: «ближе к входу», «у входа», «рядом с входом» — варианты по расстоянию до входа. */
+/** #237: «ближе к входу», «у входа», «рядом с входом» — из найденных вариантов ближе к входу первыми. */
 const NEAR_ENTRANCE = /ближе (?:к|ко) вход|(?:^|[^а-я])у входа|(?:рядом|возле|около) (?:с )?вход/;
+/** #150: a question about a place — the only reading that turns a type name into a search. */
 const PLACE_INTENT = /постав|добав|размест|установ|повес|помест|куда|где|мест[оау]|влез|вместит|нужн/;
 const DIRECTIONS: Record<string, [number, number]> = { влево: [-1, 0], вправо: [1, 0], вверх: [0, 1], вниз: [0, -1] };
 
