@@ -20,11 +20,13 @@ export const SCALE_LIMITS = { min: 4, max: 400 } as const;
 const FIT_PADDING_PX = 32;
 
 /**
- * Band kept free under a fitted plan (#233): the minimap (bottom-left, 48 px
- * up, about 131 px tall), the scale panel and the assistant avatar
- * (bottom-right) sit there, so a fitted plan never lies under them.
+ * Band kept free under a fitted plan (#233, #243): the scale panel and the
+ * cursor coordinates sit along the bottom edge, their top 40 px above it.
+ * With the padding the plan extent ends 56 px above the edge. The assistant
+ * avatar (bottom-right, 58 px from the right edge) stays right of the plan
+ * because of the right band below.
  */
-export const OVERLAY_RESERVE_PX = 188;
+export const OVERLAY_RESERVE_PX = 24;
 
 /**
  * Band kept free right of a fitted plan (#236): the «hide interface» and
