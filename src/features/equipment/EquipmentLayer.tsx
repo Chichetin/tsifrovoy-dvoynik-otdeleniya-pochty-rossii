@@ -35,7 +35,6 @@ import {
   snapObjectCentre,
 } from '../../domain/geometry';
 import type { AxisSnap, Gap } from '../../domain/geometry';
-import { formatLength, formatMeasure } from '../../domain/number-format';
 import { createGestureGuard } from './gesture-guard';
 import { equipmentHoverHint, equipmentHoverSummary, hasLearnedEquipmentSelection, rememberEquipmentSelection } from './hover-summary';
 import { fitCaption } from './caption-fit';
@@ -78,8 +77,6 @@ const SNAP_GUIDE_STROKE = '#E64980';
 const SNAP_GRID_STROKE = '#868E96';
 /** Distance from the moved object to the nearest wall and neighbour (#20). */
 const GAP_STROKE = '#495057';
-const GAP_LABEL_WIDTH_PX = 128;
-const GAP_LABEL_HEIGHT_PX = 18;
 const HANDLE_FILL = '#FFFFFF';
 const ROTATE_FILL = '#E7F5FF';
 /** The rotation handle is larger than a resize handle and carries an arrow, so it reads as «turn» (#105). */
@@ -150,10 +147,6 @@ const NO_GROUP: ReadonlySet<Id> = new Set<Id>();
  * это не содержимое документа.
  */
 type Clipboard = { objects: Equipment[]; pastes: number };
-
-function midpoint(from: Point, to: Point): Point {
-  return [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
-}
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -1380,33 +1373,15 @@ export function EquipmentLayer({
               );
             })}
 
-        {/* Clearance to the nearest neighbour: a dashed line along the
-            shortest gap and its length in metres. Wall gaps are not drawn. */}
+        {/* Four clearances to wall faces and the nearest neighbour: a
+            dashed line along the shortest gap, without a length label. */}
         {gesture?.gaps === undefined
           ? null
-          : [{kind: 'object', gap: gesture.gaps.object}].map(({kind, gap}) => {
+          : [...gesture.gaps.axes.map((gap, i) => ({kind: `wall-${i}`, gap})),
+            {kind: 'object', gap: gesture.gaps.object}].map(({kind, gap}) => {
               if (gap === null || gap === undefined) return null;
               const [x1, y1] = modelToScreen(gap.from, viewport);
               const [x2, y2] = modelToScreen(gap.to, viewport);
-              // Two short gaps put both labels on the same spot: the second one
-              // steps down by its own height so both numbers stay readable.
-              const crowded =
-                kind === 'object' &&
-                gesture.gaps!.axes.some((wall) => {
-                  if (wall === null) return false;
-                  const [wx, wy] = modelToScreen(midpoint(wall.from, wall.to), viewport);
-                  return Math.abs(wx - (x1 + x2) / 2) < GAP_LABEL_WIDTH_PX &&
-                    Math.abs(wy - (y1 + y2) / 2) < GAP_LABEL_HEIGHT_PX + 2;
-                });
-              // A distant wall can be outside the view. Keep the number visible
-              // on the same dimension line without changing the measured gap.
-              const halfWidth = GAP_LABEL_WIDTH_PX / 2 + 4;
-              const halfHeight = GAP_LABEL_HEIGHT_PX / 2 + 4;
-              const labelX = Math.max(halfWidth, Math.min(
-                gesture.gaps!.width - halfWidth, (x1 + x2) / 2));
-              const labelY = Math.max(halfHeight, Math.min(
-                gesture.gaps!.height - halfHeight,
-                (y1 + y2) / 2 + (crowded ? GAP_LABEL_HEIGHT_PX + 2 : 0)));
               return (
                 <Fragment key={`gap-${kind}`}>
                   <Line
@@ -1424,36 +1399,6 @@ export function EquipmentLayer({
                       points={Math.abs(y1-y2) < 0.01 ? [x,y-4,x,y+4] : [x-4,y,x+4,y]}
                       stroke={GAP_STROKE} strokeWidth={1} listening={false} />;
                   })}
-                  <Group
-                    name={`gap-label-${kind}`}
-                    x={labelX}
-                    y={labelY}
-                    offsetX={GAP_LABEL_WIDTH_PX / 2}
-                    offsetY={GAP_LABEL_HEIGHT_PX / 2}
-                    listening={false}
-                  >
-                    <Rect
-                      width={GAP_LABEL_WIDTH_PX}
-                      height={GAP_LABEL_HEIGHT_PX}
-                      fill="#FFFFFF"
-                      opacity={0.94}
-                      stroke={GAP_STROKE}
-                      strokeWidth={1}
-                      cornerRadius={3}
-                      // D-187: no stage-sized buffer copy per label on every drag step.
-                      perfectDrawEnabled={false}
-                    />
-                    <Text
-                      width={GAP_LABEL_WIDTH_PX}
-                      height={GAP_LABEL_HEIGHT_PX}
-                      text={`${kind === 'object' ? 'до объекта' : 'до стены'} ${kind === 'object' ? formatLength(gap.distance) : formatMeasure(gap.distance, 'м', 1)}`}
-                      fontSize={12}
-                      fontFamily="system-ui, sans-serif"
-                      fill="#212529"
-                      align="center"
-                      verticalAlign="middle"
-                    />
-                  </Group>
                 </Fragment>
               );
             })}
